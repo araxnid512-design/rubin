@@ -17,7 +17,7 @@ static var KINDS: Dictionary = _load_kinds()
 var kind := "infected"
 var def := {}
 var hp := 60.0
-var state := "idle"               ## idle — стоит, wander — бродит, alert — заметил и кричит, chase — бежит, attack — бьёт, dead — убит
+var state := "idle"               ## idle — стоит, wander — бродит, alert — заметил и кричит, chase — бежит, attack — бьёт, rock — бросает камень, dead — убит
 var rig: BCCharacter
 var loot: Array = []              ## ячейки добычи (как у ящика)
 var dead_t := 0.0
@@ -52,6 +52,14 @@ var wander_r := 5.0               ## насколько отходит от св
 var charges := 0                  ## сколько раз сорвался в рывок (для проверок)
 var _charge_t := 0.0              ## рывок: сколько ещё длится
 var _charge_cd := 0.0             ## и через сколько возможен следующий
+var rock: ULRock = null           ## бросок камня, который сейчас готовит или уже бросил (метка, булыжник)
+var rocks := 0                    ## сколько раз начинал бросок (для проверок)
+var sky: Callable                 ## спросить мир: под открытым небом ли он сам и герой (в помещении камни не бросает)
+var throw_ok := true              ## что мир ответил в последний раз (для проверок)
+var _rock_cd := 0.0               ## через сколько возможен следующий бросок
+var _rock_t := 0.0                ## сколько прошло с появления метки
+var _rock_step := 0               ## 0 — вырывает камень, 1 — держит, 2 — замах броска, 3 — бросил
+var _rock_plan := {}              ## по секундам: grab — камень в руках, swing — начало броска, rel — бросок, end — конец
 
 
 static func _load_kinds() -> Dictionary:
@@ -85,6 +93,9 @@ static func describe(k: String) -> Array:
 	var chg := ""
 	if d.has("charge"):
 		chg = " Рывок: ближе %d м срывается и %.1f с несётся со скоростью %.1f м/с, потом %d с отдышки." % [int(d.charge.from), float(d.charge.s), float(d.charge.speed), int(d.charge.cd)]
+	if d.has("rock"):
+		chg += " Бросок камня: с %d–%d м вырывает из земли булыжник; на земле, где стоит герой, появляется красный круг — через %d с туда прилетает камень (%d урона в круге %.1f м). Успеть выйти из круга — мимо. Раз в %d с, только под открытым небом; сильное попадание срывает бросок." % [
+			int(d.rock.from), int(d.rock.to), int(round(float(d.rock.aim_s))), int(d.rock.dmg), float(d.rock.r), int(d.rock.cd)]
 	return [
 		String(d.d),
 		"Рост %d см. Прочность: %d." % [int(round(float(d.get("height", 1.78)) * 100.0)), int(d.hp)],
@@ -239,6 +250,7 @@ func damage(d: float, from := Vector3.INF) -> void:
 		collision_mask = 0
 		_hit_due = -1.0
 		_charge_t = 0.0
+		_rock_abort()
 		rig.set_motion(0.0, 0.0, 0.016)
 		# ударили спереди — валится на спину; сзади — лицом вперёд; сбоку — разворачивает к удару и валит от него
 		var clip := "death_front" if side == "back" and rig.has_clip("death_front") else "death"
@@ -264,6 +276,10 @@ func damage(d: float, from := Vector3.INF) -> void:
 		rig.play("stagger", 1.3)
 		_hit_due = -1.0
 		_atk = maxf(_atk, float(def.cd) * 0.7)
+		if state == "rock" and _rock_step < 3:
+			# оглушён до броска: камень рассыпается в руках, метка гаснет
+			_rock_abort()
+			state = "chase"
 	elif not rig.busy():
 		var hc := "hit_back" if side == "back" and rig.has_clip("hit_back") else "hit_front"
 		if rig.has_clip(hc):
@@ -284,6 +300,7 @@ func tick(delta: float, p: Vector3, can_see: bool, hero_alive: bool) -> void:
 	to.y = 0.0
 	var dist := to.length()
 	_atk = maxf(0.0, _atk - delta)
+	_rock_cd = maxf(0.0, _rock_cd - delta)
 	_growl -= delta
 	var speed := 0.0
 	match state:
@@ -337,6 +354,9 @@ func tick(delta: float, p: Vector3, can_see: bool, hero_alive: bool) -> void:
 				state = "attack"
 			elif tl.length() < 0.5 and absf(tly) < 1.2:
 				_face(to, delta, 3.0)                    # дошёл до последнего места — озирается
+			elif _rock_cd <= 0.0 and _charge_t <= 0.0 and hero_alive and can_see and same_floor and def.has("rock") \
+					and dist >= float(def.rock.from) and dist <= float(def.rock.to) and _sky_ok(p):
+				_start_rock(p)
 			else:
 				speed = float(def.run)
 				# Рывок (у кого он есть — data/enemies.json: charge): видит героя на средней дистанции — рёв и резкое
@@ -359,6 +379,34 @@ func tick(delta: float, p: Vector3, can_see: bool, hero_alive: bool) -> void:
 				if _growl <= 0.0:
 					_growl = _rng.randf_range(3.0, 6.0)
 					noise.emit("growl", global_position)
+		"rock":
+			# Бросок камня (data/enemies.json: rock): метка уже стоит там, где был герой; Рубер стоит на месте лицом к
+			# ней, вырывает булыжник, поднимает и через aim_s секунд бросает. Попадание считает сам бросок (ULRock).
+			var tm := (rock.at if rock != null and is_instance_valid(rock) else p) - global_position
+			tm.y = 0.0
+			_face(tm, delta, 6.0)
+			if can_see:
+				_last = p
+				_unseen = 0.0
+			_rock_t += delta
+			if rock == null or not is_instance_valid(rock):
+				state = "chase"
+			else:
+				if _rock_step == 0 and _rock_t >= float(_rock_plan.grab):
+					_rock_step = 1
+					rock.floor_y = global_position.y
+					rock.grab(global_position + Vector3(sin(rotation.y), 0, cos(rotation.y)) * 0.8)
+					noise.emit("rock_rip", global_position)
+				if _rock_step == 1 and _rock_t >= float(_rock_plan.swing):
+					_rock_step = 2
+					if String(_rock_plan.throw) != "":
+						rig.play(String(_rock_plan.throw), float(_rock_plan.throw_rate))
+				if _rock_step == 2 and _rock_t >= float(_rock_plan.rel):
+					_rock_step = 3
+					rock.release()
+					noise.emit("rock_throw", global_position)
+				if _rock_step == 3 and _rock_t >= float(_rock_plan.end):
+					state = "chase"
 		"attack":
 			# Ближний бой вплотную: подходит до касания (close — расстояние между центрами; капсулы героя и врага
 			# соприкасаются на ~0.62 м), только оттуда начинает удар и на замахе ещё дожимает вперёд. Удар выбирается
@@ -405,6 +453,81 @@ func tick(delta: float, p: Vector3, can_see: bool, hero_alive: bool) -> void:
 	if is_on_floor():
 		velocity.y = 0.0
 	rig.set_motion(Vector3(velocity.x, 0, velocity.z).length(), 0.0, delta)
+
+
+## Начать бросок камня в точку, где сейчас герой. Расписание — по клипам: «вырывает» (rock_rip) растягивается на
+## время до замаха, «бросает» (rock_throw) начинается так, чтобы камень ушёл из рук ровно через aim_s после метки.
+## Своих клипов нет — весь бросок идёт одним ударом двумя руками сверху (overhead).
+func _start_rock(p: Vector3) -> void:
+	var rk: Dictionary = def.rock
+	var aim := float(rk.get("aim_s", 3.0))
+	var rip := String(rk.get("rip", "rock_rip"))
+	var thr := String(rk.get("throw", "rock_throw"))
+	_rock_plan = {"grab": aim * 0.45, "swing": aim, "rel": aim, "end": aim + 0.8, "throw": "", "throw_rate": 1.0}
+	if rig.has_clip(rip) and rig.has_clip(thr):
+		var tr := float(rk.get("throw_rate", 1.3))
+		var t_len := rig.clip_len(thr) / tr
+		var rel_s := t_len * float(rk.get("rel", 0.45))             # от начала клипа броска до отрыва камня от рук
+		var rip_s := maxf(aim - rel_s, 0.5)
+		rig.play(rip, rig.clip_len(rip) / rip_s)
+		_rock_plan = {"grab": rip_s * float(rk.get("grab", 0.5)), "swing": rip_s, "rel": aim, "end": aim + t_len - rel_s, "throw": thr, "throw_rate": tr}
+	elif rig.has_clip("overhead"):
+		var hit := float(rk.get("rel_overhead", 0.7))
+		var o_len := rig.play("overhead", rig.clip_len("overhead") * hit / aim)
+		_rock_plan = {"grab": aim * 0.4, "swing": aim, "rel": aim, "end": maxf(o_len, aim + 0.3), "throw": "", "throw_rate": 1.0}
+	state = "rock"
+	_rock_t = 0.0
+	_rock_step = 0
+	_rock_cd = float(rk.get("cd", 10.0))
+	_charge_cd = maxf(_charge_cd, 2.0)                # после броска не срывается в рывок сразу
+	rocks += 1
+	rock = ULRock.new()
+	get_parent().add_child(rock)
+	rock.setup(Vector3(p.x, p.y, p.z), float(rk.get("r", 1.7)), aim, float(rk.get("fly_s", 0.75)), float(rk.get("size", 0.75)))
+	rock.hands = _rock_hands
+	rock.floor_y = global_position.y
+	rock.landed.connect(_rock_landed.bind(float(rk.get("dmg", 40.0))))
+	last_attack = String(rk.get("n", "бросок камня"))
+	if _menace:
+		_menace = false
+		rig.set_pose("")
+	noise.emit("roar", global_position)
+
+
+func _sky_ok(p: Vector3) -> bool:
+	throw_ok = not sky.is_valid() or bool(sky.call(global_position, p))
+	return throw_ok
+
+
+## где держит камень: чуть дальше середины между кистями (от груди) — камень больше, чем расстояние между ладонями
+func _rock_hands() -> Vector3:
+	if rig == null or rig.skel == null:
+		return global_position + Vector3.UP * 2.0
+	var sk := rig.skel
+	var l := sk.find_bone("L_Hand")
+	var r := sk.find_bone("R_Hand")
+	if l < 0 or r < 0:
+		return global_position + Vector3.UP * 2.0
+	var gt := sk.global_transform
+	var mid := (gt * sk.get_bone_global_pose(l).origin + gt * sk.get_bone_global_pose(r).origin) * 0.5
+	var c := sk.find_bone("Spine02")
+	var chest := gt * sk.get_bone_global_pose(c).origin if c >= 0 else global_position + Vector3.UP * 1.4
+	var out := mid - chest
+	return mid + (out.normalized() * float(def.rock.get("size", 0.75)) * 0.3 if out.length() > 0.05 else Vector3.ZERO)
+
+
+## камень упал: задело героя, если он всё ещё в круге (на той же высоте)
+func _rock_landed(at: Vector3, r: float, dmg: float) -> void:
+	noise.emit("rock_hit", at)
+	var d := Vector2(_hero_p.x - at.x, _hero_p.z - at.z).length()
+	if d <= r and absf(_hero_p.y - at.y) < 1.5:
+		hit_player.emit(dmg, at)
+
+
+## бросок сорван (убит или оглушён до броска)
+func _rock_abort() -> void:
+	if rock != null and is_instance_valid(rock) and _rock_step < 3:
+		rock.cancel()
 
 
 ## на каком расстоянии от героя (между центрами) стоит, когда бьёт

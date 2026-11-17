@@ -24,10 +24,13 @@
 			"blend": 0.25,
 			"rate": 1.0,
 			"strides": 1.0,
-			"loop_fix": 0.3,
+			"loop_fix": 0.15,
 			"bake": "inplace",
 			"heading_lock": true,
-			"sway": 1.0
+			"sway": 1.0,
+			"from": 0.629,
+			"to": 1.898,
+			"speed": 1.3
 		},
 		"run": {
 			"src": [
@@ -39,10 +42,13 @@
 			"blend": 0.25,
 			"rate": 1.0,
 			"strides": 1.0,
-			"loop_fix": 0.25,
+			"loop_fix": 0.08,
 			"bake": "inplace",
 			"heading_lock": true,
-			"sway": 1.0
+			"sway": 1.0,
+			"from": 0.367,
+			"to": 0.889,
+			"speed": 5.8
 		},
 		"alert": {
 			"src": [
@@ -312,7 +318,30 @@
 			"bake": "center",
 			"heading_lock": true,
 			"loop_fix": 0.4
+		},
+		"rock_rip": {
+			"src": [
+				"{set}/z_rock_rip.res"
+			],
+			"loop": false,
+			"blend": 0.2,
+			"rate": 1.0,
+			"bake": "lock",
+			"heading_lock": true,
+			"from": 0.35,
+			"to": 3.5
+		},
+		"rock_throw": {
+			"src": [
+				"{set}/z_rock_throw.res"
+			],
+			"loop": false,
+			"blend": 0.15,
+			"rate": 1.0,
+			"bake": "lock",
+			"heading_lock": true,
+			"from": 0.4
 		}
 	},
-	"_": "Клипы врагов. bake — обработка корня в системе скелета (inplace — на месте с покачиванием, lock — таз на месте, center — над капсулой, keep — путь как есть), heading_lock — курс тела не виляет, sway — окно вычитания медленного увода, с."
+	"_": "Движения Рубера. Шаг и бег — чистые циклы (from/to — один двойной шаг от постановки левой стопы, strides 1): клипы по описанию содержат нецелое число шагов, и без обрезки шаг и бег смешивались вразнобой (ноги «плыли»). speed — скорость клипа по опорной стопе (м/с), по ней подбирается темп под скорость врага."
 }
