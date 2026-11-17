@@ -918,6 +918,326 @@ func _build_ui() -> void:
 	bad_btn = _btn("Брак", _mark.bind("bad"), 100)
 	bar.add_child(bad_btn)
 	bar.add_child(_btn("Итог", _summary, 90))
+	if who == "hero":
+		views.add_child(_btn("Редактор\nудара", _ed_toggle, 140, 64, 15))
+		_ed_build()
+
+
+# ---------------- редактор удара холодным оружием (мачете) ----------------
+# Выбор движения (стойка, удар, сильный удар, блок) и его ключа; кнопки «−/+» двигают точку хвата (вперёд, вверх,
+# вправо), наклон и поворот клинка, разворот корпуса и время ключа. Ключ показывается «замороженным».
+# «Помощник» строит всё заново по анатомии (ULMeleeTuner) и проверяет на скелете: запястье в пределах, рука
+# дотягивается, удар перед собой, лезвие ведёт удар. «Сохранить» — в user://weapon_tune.json (сразу и в игре).
+
+var ed: PanelContainer
+var ed_move := "guard"
+var ed_key := 0
+var ed_info: Label
+var ed_report: Label
+var ed_vals := {}
+var ed_busy := false
+const ED_MOVES := [["guard", "Стойка"], ["light", "Удар"], ["heavy", "Сильный"], ["block", "Блок"]]
+const ED_PARAMS := [["fwd", "Вперёд, м", 0.02], ["up", "Вверх, м", 0.02], ["right", "Вправо, м", 0.02],
+	["pitch", "Клинок вверх, °", 5.0], ["yaw", "Клинок вправо, °", 5.0], ["twist", "Корпус, °", 2.0], ["t", "Время ключа", 0.02]]
+
+
+func _ed_build() -> void:
+	ed = PanelContainer.new()
+	ed.add_theme_stylebox_override("panel", _style(C_BG, 14, 1))
+	ed.anchor_left = 1.0
+	ed.anchor_right = 1.0
+	ed.offset_left = -640
+	ed.offset_right = -160
+	ed.offset_top = 10
+	ed.visible = false
+	ui.add_child(ed)
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 5)
+	ed.add_child(v)
+	v.add_child(_lbl("РЕДАКТОР УДАРА — МАЧЕТЕ", 17, Color(0.45, 0.85, 1.0)))
+	var mrow := HBoxContainer.new()
+	v.add_child(mrow)
+	for m in ED_MOVES:
+		mrow.add_child(_btn(m[1], func():
+			ed_move = m[0]
+			ed_key = 0 if m[0] == "guard" else 1
+			_ed_show(), 112, 44, 15))
+	var krow := HBoxContainer.new()
+	v.add_child(krow)
+	krow.add_child(_btn("◀ ключ", func(): _ed_step_key(-1), 110, 44, 15))
+	ed_info = _lbl("", 15)
+	ed_info.custom_minimum_size = Vector2(230, 0)
+	krow.add_child(ed_info)
+	krow.add_child(_btn("ключ ▶", func(): _ed_step_key(1), 110, 44, 15))
+	for pr in ED_PARAMS:
+		var row := HBoxContainer.new()
+		v.add_child(row)
+		var nl := _lbl(String(pr[1]), 15)
+		nl.custom_minimum_size = Vector2(170, 0)
+		row.add_child(nl)
+		row.add_child(_btn("−", func(): _ed_nudge(String(pr[0]), -float(pr[2])), 64, 42, 20))
+		var vl := _lbl("", 15, Color(1.0, 0.86, 0.4))
+		vl.custom_minimum_size = Vector2(90, 0)
+		vl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		row.add_child(vl)
+		ed_vals[pr[0]] = vl
+		row.add_child(_btn("+", func(): _ed_nudge(String(pr[0]), float(pr[2])), 64, 42, 20))
+	var arow := HBoxContainer.new()
+	v.add_child(arow)
+	arow.add_child(_btn("▶ Проиграть", _ed_play, 150, 46, 15))
+	arow.add_child(_btn("Помощник ИИ", _ed_helper, 160, 46, 15))
+	arow.add_child(_btn("Сохранить", _ed_save, 120, 46, 15))
+	arow.add_child(_btn("Сброс", _ed_reset, 90, 46, 15))
+	ed_report = _lbl("", 13, Color(0.8, 0.9, 0.85))
+	ed_report.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	ed_report.custom_minimum_size = Vector2(460, 0)
+	v.add_child(ed_report)
+
+
+func _ed_toggle() -> void:
+	ed.visible = not ed.visible
+	if ed.visible:
+		if rig.hold.wid != "melee":
+			for i in entries.size():
+				if entries[i].id == "m_idle":
+					select(i)
+		_ed_show()
+	else:
+		rig.hold.move_rate = 1.0
+		rig.hold._move = ""
+		_timer = 0.5
+
+
+func _ed_w() -> Dictionary:
+	return BCWeaponHold.config()["melee"]
+
+
+## ключ: [время, точка хвата, направление клинка, корпус]; у стойки ключ один
+func _ed_get() -> Array:
+	var w := _ed_w()
+	if ed_move == "guard":
+		var g: Dictionary = w.stances.guard
+		return [0.0, ULMeleeTuner._vec(g.pos), ULMeleeTuner._vec(g.dir), float(g.get("twist", 0))]
+	var kk: Array = w.moves[ed_move].keys[ed_key]
+	return [float(kk[0]), ULMeleeTuner._vec(kk[1]), ULMeleeTuner._vec(kk[2]), float(kk[3])]
+
+
+func _ed_put(t: float, pos: Vector3, dir: Vector3, tw: float) -> void:
+	var w := _ed_w()
+	dir = dir.normalized()
+	if ed_move == "guard":
+		w.stances.guard.pos = ULMeleeTuner._a(pos)
+		w.stances.guard.dir = ULMeleeTuner._a(dir)
+		w.stances.guard.twist = tw
+		# у всех ударов первый и последний ключ — стойка
+		for m in w.moves:
+			var ks: Array = w.moves[m].keys
+			for i in [0, ks.size() - 1]:
+				ks[i][1] = ULMeleeTuner._a(pos)
+				ks[i][2] = ULMeleeTuner._a(dir)
+		return
+	var mv: Dictionary = w.moves[ed_move]
+	var ks2: Array = mv.keys
+	var t0 := float(ks2[maxi(ed_key - 1, 0)][0]) + 0.01
+	var t1 := float(ks2[mini(ed_key + 1, ks2.size() - 1)][0]) - 0.01
+	if ed_key > 0 and ed_key < ks2.size() - 1:
+		t = clampf(t, t0, t1)
+	else:
+		t = float(ks2[ed_key][0])
+	ks2[ed_key] = [snappedf(t, 0.01), ULMeleeTuner._a(pos), ULMeleeTuner._a(dir), snappedf(tw, 1.0)]
+	# плоскость удара (лезвие ведёт удар) — по замаху и удару
+	if mv.has("cock") and mv.has("hit"):
+		mv.edge_n = ULMeleeTuner._a(ULMeleeTuner.plane_n(ULMeleeTuner._vec(ks2[int(mv.cock)][2]), ULMeleeTuner._vec(ks2[int(mv.hit)][2])))
+
+
+func _ed_step_key(d: int) -> void:
+	if ed_move == "guard":
+		return
+	var n: int = _ed_w().moves[ed_move].keys.size()
+	ed_key = clampi(ed_key + d, 0, n - 1)
+	_ed_show()
+
+
+func _ed_nudge(p: String, d: float) -> void:
+	var k := _ed_get()
+	var pos: Vector3 = k[1]
+	var dir: Vector3 = k[2]
+	var tw := float(k[3])
+	var t := float(k[0])
+	var ang := ULMeleeTuner.angles_of(dir)
+	match p:
+		"fwd": pos.x += d
+		"up": pos.y += d
+		"right": pos.z += d
+		"pitch": dir = ULMeleeTuner.dir_from(ang.x, clampf(ang.y + d, -89.0, 89.0))
+		"yaw": dir = ULMeleeTuner.dir_from(ang.x + d, ang.y)
+		"twist": tw += d
+		"t": t += d
+	_ed_put(t, pos, dir, tw)
+	_ed_show()
+
+
+## показать выбранный ключ замороженным и подписать значения
+func _ed_show() -> void:
+	if rig.hold.wid != "melee":
+		return
+	var k := _ed_get()
+	var w := _ed_w()
+	if ed_move == "guard":
+		rig.hold._move = ""
+		rig.hold.move_rate = 1.0
+		ed_info.text = "  стойка"
+	else:
+		rig.hold.swing(ed_move)
+		rig.hold.move_rate = 0.00001
+		rig.hold._move_t = float(k[0]) * float(w.moves[ed_move].len)
+		ed_info.text = "  ключ %d/%d · %.2f" % [ed_key + 1, w.moves[ed_move].keys.size(), float(k[0])]
+	var ang := ULMeleeTuner.angles_of(k[2])
+	var vals := {"fwd": (k[1] as Vector3).x, "up": (k[1] as Vector3).y, "right": (k[1] as Vector3).z, "pitch": ang.y, "yaw": ang.x, "twist": float(k[3]), "t": float(k[0])}
+	for p in ed_vals:
+		(ed_vals[p] as Label).text = ("%.2f" % float(vals[p])) if p in ["fwd", "up", "right", "t"] else ("%d" % int(round(float(vals[p]))))
+	_timer = 1e9                                   # стенд не перезапускает удар сам, пока смотрим ключ
+
+
+func _ed_play() -> void:
+	if ed_move == "guard":
+		return
+	rig.hold.move_rate = 1.0
+	rig.hold.swing(ed_move)
+	_swing_sfx(ed_move, float(_ed_w().moves[ed_move].len))
+	get_tree().create_timer(float(_ed_w().moves[ed_move].len) + 0.5).timeout.connect(_ed_show)
+
+
+## дождаться, пока IK доведёт оружие и руку до ключа
+func _ed_settle() -> void:
+	# по игровому времени ≥ 0,6 с и не меньше 5 кадров (во время помощника время идёт быстрее — Engine.time_scale)
+	var t0 := 0.0
+	var n := 0
+	while n < 5 or t0 < 0.6:
+		await get_tree().process_frame
+		t0 += get_process_delta_time()
+		n += 1
+
+
+## замер текущего ключа: [углы запястья, недотяг руки, нарушения]
+func _ed_measure(impact: bool) -> Array:
+	await _ed_settle()
+	var wa: Vector2 = rig.hold.wrist_angles()
+	var k := _ed_get()
+	var bad := ULMeleeTuner.check(wa, rig.hold.err_r, k[1], impact)
+	return [wa, rig.hold.err_r, bad]
+
+
+## цена ключа: выход кисти за пределы, недотяг руки, нарушения — и уход клинка от задуманного направления
+## (иначе помощник «чинил» бы запястье, разворачивая удар не туда)
+func _ed_score(m: Array) -> float:
+	var ex := ULMeleeTuner.excess(m[0])
+	var dev := 0.0
+	if _ed_ref != Vector3.ZERO:
+		dev = rad_to_deg((_ed_get()[2] as Vector3).normalized().angle_to(_ed_ref))
+	return absf(ex.x) + absf(ex.y) + float(m[1]) * 300.0 + (m[2] as Array).size() * 5.0 + dev * 0.35
+
+
+var _ed_ref := Vector3.ZERO
+
+
+## Помощник: шаблон по анатомии → проверка каждого ключа на скелете → поправки (клинок доворачивается, пока
+## кисть не войдёт в пределы; рука не дотягивается — точка хвата ближе к плечу) → отчёт и сохранение
+func _ed_helper() -> void:
+	if ed_busy:
+		return
+	ed_busy = true
+	var ts0 := Engine.time_scale
+	Engine.time_scale = 3.0
+	ed_report.text = "Помощник: строю удары по анатомии и проверяю на скелете…"
+	var w := _ed_w()
+	var tp := ULMeleeTuner.template()
+	w.stances["guard"] = tp.guard
+	for m in tp.moves:
+		w.moves[m] = tp.moves[m]
+	w.moves.light["cock"] = 1
+	w.moves.light["hit"] = 4
+	w.moves.heavy["cock"] = 1
+	w.moves.heavy["hit"] = 4
+	var lines: Array = []
+	var fixes := 0
+	var todo := [["guard", 0]]
+	for m in ["light", "heavy", "block"]:
+		for i in range(1, w.moves[m].keys.size() - 1):
+			todo.append([m, i])
+	for td in todo:
+		ed_move = td[0]
+		ed_key = td[1]
+		_ed_show()
+		var impact: bool = ed_move != "guard" and ed_move != "block" and int(w.moves[ed_move].get("hit", -1)) == ed_key
+		_ed_ref = (_ed_get()[2] as Vector3).normalized()
+		var m0: Array = await _ed_measure(impact)
+		var best := m0
+		var best_s := _ed_score(m0)
+		var tries := 0
+		while (best[2] as Array).size() > 0 and tries < 6:
+			tries += 1
+			var k := _ed_get()
+			var ex := ULMeleeTuner.excess(best[0])
+			var cands: Array = []
+			var ang := ULMeleeTuner.angles_of(k[2])
+			var step := clampf(absf(ex.x) + absf(ex.y), 6.0, 40.0)
+			for sk in [1.0, 0.5]:
+				for c in [[step, 0.0], [-step, 0.0], [0.0, step], [0.0, -step], [step, step], [step, -step], [-step, step], [-step, -step]]:
+					cands.append([k[1], ULMeleeTuner.dir_from(ang.x + float(c[1]) * sk, clampf(ang.y + float(c[0]) * sk, -89.0, 89.0))])
+			if float(best[1]) > 0.03:
+				cands.append([(k[1] as Vector3) * 0.93, k[2]])
+			var improved := false
+			for c in cands:
+				_ed_put(float(k[0]), c[0], c[1], float(k[3]))
+				_ed_show()
+				var mc: Array = await _ed_measure(impact)
+				var sc := _ed_score(mc)
+				if sc < best_s - 0.5:
+					best = mc
+					best_s = sc
+					improved = true
+					fixes += 1
+					break                               # первая удачная поправка — дальше от неё
+				_ed_put(float(k[0]), k[1], k[2], float(k[3]))
+			if not improved:
+				_ed_show()
+				break
+		var nm := "стойка" if ed_move == "guard" else "%s, ключ %.2f%s" % [{"light": "удар", "heavy": "сильный", "block": "блок"}[ed_move], float(_ed_get()[0]), " (удар)" if impact else ""]
+		var wa: Vector2 = best[0]
+		lines.append("%s: запястье сгиб %d°, отведение %d°, ладонь—рукоять %.1f см — %s" % [nm, int(wa.x), int(wa.y), float(best[1]) * 100.0,
+			"в норме" if (best[2] as Array).is_empty() else ", ".join(best[2])])
+	# итог: сохранить и показать
+	_ed_save_all(w)
+	var ok := lines.filter(func(l): return String(l).ends_with("в норме")).size()
+	ed_report.text = "Помощник: ключей %d, в норме %d, поправок %d. Лезвие ведёт удар (плоскость удара: замах → удар).\n" % [lines.size(), ok, fixes] + "\n".join(lines.slice(0, 6))
+	for l in lines:
+		print("[помощник] ", l)
+	print("[помощник] итог: ключей %d, в норме %d, поправок %d" % [lines.size(), ok, fixes])
+	Engine.time_scale = ts0
+	ed_move = "light"
+	ed_key = 4
+	_ed_show()
+	ed_busy = false
+
+
+func _ed_save_all(w: Dictionary) -> void:
+	BCWeaponHold.save_tune("melee", "stances", "guard", w.stances.guard)
+	for m in ["light", "heavy", "block"]:
+		BCWeaponHold.save_tune("melee", "moves", m, w.moves[m])
+
+
+func _ed_save() -> void:
+	_ed_save_all(_ed_w())
+	ed_report.text = "Сохранено в user://weapon_tune.json — в игре мачете держится и бьёт так же."
+
+
+func _ed_reset() -> void:
+	BCWeaponHold.reset_tune("melee")
+	take("melee")
+	ed_report.text = "Сброшено к data/weapons.json."
+	ed_move = "guard"
+	_ed_show()
 
 
 func _toggle_pause() -> void:
@@ -1098,6 +1418,55 @@ func _run_test() -> void:
 			_info()
 			await _snap("%s/z_%s.png" % [out, entries[i].id])
 		print("[stand] враг «%s»: движений %d, модель %s, костей %d" % [String(ULEnemy.KINDS[who].n), entries.size(), rig.model_path.get_file(), rig.skel.get_bone_count()])
+		get_tree().quit()
+		return
+	if test == "machdbg":
+		for i in entries.size():
+			if entries[i].id == "m_idle":
+				select(i)
+		await get_tree().create_timer(1.5).timeout
+		var w := _ed_w()
+		var tp := ULMeleeTuner.template()
+		w.stances["guard"] = tp.guard
+		for m in tp.moves:
+			w.moves[m] = tp.moves[m]
+		_ed_toggle()
+		var h := rig.hold
+		for kk in [["guard", 0], ["light", 4], ["heavy", 4]]:
+			ed_move = kk[0]
+			ed_key = kk[1]
+			_ed_show()
+			await _ed_settle()
+			var sh: Vector3 = h._shift / h.k
+			var hr: Vector3 = (h.hand_r - h._sc) / h.k
+			var sk := rig.skel
+			var ch := sk.find_bone("Spine02")
+			var T1 := (sk.get_bone_global_pose(ch) * sk.get_bone_global_rest(ch).affine_inverse()).basis.orthonormalized()
+			var cf: Vector3 = T1 * h.fwd
+			print("[dbg] грудь повёрнута на %.0f° (вправо +), наклон %.0f°" % [rad_to_deg(atan2(cf.dot(h.rgt), cf.dot(h.fwd))), rad_to_deg(asin(clampf(cf.dot(h.upv), -1, 1)))])
+			print("[dbg] %s/%d: цель %s · сдвиг плана (вперёд, вверх, вправо) %.2f %.2f %.2f · кисть %.2f %.2f %.2f · запястье %s" % [kk[0], kk[1], str(_ed_get()[1]), sh.dot(h.fwd), sh.dot(h.upv), sh.dot(h.rgt), hr.dot(h.fwd), hr.dot(h.upv), hr.dot(h.rgt), str(h.wrist_angles())])
+		get_tree().quit()
+		return
+	if test == "machtune":
+		# помощник: удары мачете по анатомии с проверкой на скелете; итог — в лог и в файл (для data/weapons.json)
+		for i in entries.size():
+			if entries[i].id == "m_idle":
+				select(i)
+		await get_tree().create_timer(1.5).timeout
+		_ed_toggle()
+		await _ed_helper()
+		var w := _ed_w()
+		var res := {"stances": {"guard": w.stances.guard}, "moves": {"light": w.moves.light, "heavy": w.moves.heavy, "block": w.moves.block}}
+		var f := FileAccess.open("%s/melee_tuned.json" % out, FileAccess.WRITE)
+		f.store_string(JSON.stringify(res, "\t"))
+		f.close()
+		_ed_toggle()
+		await _mach_frames()
+		get_tree().quit()
+		return
+	if test == "mach":
+		# мачете: стойка и каждый ключ ударов — замороженными кадрами, с трёх сторон (сбоку, спереди, сверху как в игре)
+		await _mach_frames()
 		get_tree().quit()
 		return
 	if test == "ui":
@@ -1366,6 +1735,38 @@ func _run_test() -> void:
 
 
 ## насколько «гуляют» части тела в покое: размах (см) и средняя скорость (см/с) за 8 секунд
+## кадры мачете: ключи движений (доли времени) — кадр за кадром, удар «стоит» на месте (move_rate ≈ 0)
+func _mach_frames() -> void:
+	for i in entries.size():
+		if entries[i].id == "m_idle":
+			select(i)
+	await get_tree().create_timer(2.5).timeout
+	ui.visible = false
+	cam_free = true
+	var views := [["side", PI * 0.5, 0.12, 2.6], ["front", 0.0, 0.1, 2.8], ["top", 0.35, 0.95, 4.2]]
+	var frames := [["guard", ""]]
+	for mv in ["light", "heavy"]:
+		for kk in rig.hold.w.moves[mv].keys:
+			frames.append(["%s_%02d" % [mv, int(float(kk[0]) * 100.0)], mv, float(kk[0])])
+	for fr in frames:
+		if String(fr[1]) != "":
+			rig.hold.swing(String(fr[1]))
+			rig.hold.move_rate = 0.00001
+			rig.hold._move_t = float(fr[2]) * float(rig.hold.w.moves[fr[1]].len)
+		await get_tree().create_timer(0.6).timeout
+		for v in views:
+			yaw = float(v[1])
+			pitch = float(v[2])
+			dist = float(v[3])
+			look_h = 1.2
+			_camera()
+			await get_tree().create_timer(0.15).timeout
+			await _snap("%s/m_%s_%s.png" % [out, fr[0], v[0]])
+		rig.hold.move_rate = 1.0
+		rig.hold._move = ""
+	print("[stand] мачете: кадров %d" % frames.size())
+
+
 func _wobble() -> void:
 	var ids := []
 	for a in OS.get_cmdline_user_args():

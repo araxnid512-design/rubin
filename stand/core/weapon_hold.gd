@@ -56,7 +56,59 @@ var _wscale := 1.0
 static func config() -> Dictionary:
 	if _all.is_empty():
 		_all = JSON.parse_string(FileAccess.get_file_as_string(CFG))
+		_apply_tune()
 	return _all
+
+
+## Настройки хвата и ударов из редактора стенда (user://weapon_tune.json): поверх data/weapons.json — так
+## подстроенное на телефоне сразу работает в игре. Ключ — оружие, внутри — заменённые stances / moves.
+const TUNE := "user://weapon_tune.json"
+
+
+static func _apply_tune() -> void:
+	if not FileAccess.file_exists(TUNE):
+		return
+	var t = JSON.parse_string(FileAccess.get_file_as_string(TUNE))
+	if not (t is Dictionary):
+		return
+	for id in t:
+		if not _all.has(id) or not (t[id] is Dictionary):
+			continue
+		for part in ["stances", "moves"]:
+			if (t[id] as Dictionary).has(part):
+				for k in t[id][part]:
+					_all[id][part][k] = t[id][part][k]
+
+
+## сохранить настройку оружия (stances / moves) в user://weapon_tune.json и сразу применить
+static func save_tune(id: String, part: String, key: String, data) -> void:
+	var t := {}
+	if FileAccess.file_exists(TUNE):
+		var old = JSON.parse_string(FileAccess.get_file_as_string(TUNE))
+		if old is Dictionary:
+			t = old
+	if not t.has(id):
+		t[id] = {}
+	if not t[id].has(part):
+		t[id][part] = {}
+	t[id][part][key] = data
+	var f := FileAccess.open(TUNE, FileAccess.WRITE)
+	if f:
+		f.store_string(JSON.stringify(t, "\t"))
+	config()[id][part][key] = data
+
+
+## убрать свои настройки оружия (вернуть data/weapons.json)
+static func reset_tune(id: String) -> void:
+	if FileAccess.file_exists(TUNE):
+		var t = JSON.parse_string(FileAccess.get_file_as_string(TUNE))
+		if t is Dictionary and (t as Dictionary).has(id):
+			(t as Dictionary).erase(id)
+			var f := FileAccess.open(TUNE, FileAccess.WRITE)
+			if f:
+				f.store_string(JSON.stringify(t, "\t"))
+	_all = {}
+	config()
 
 
 func setup(units_per_m: float, forward: Vector3) -> void:
@@ -214,6 +266,21 @@ func set_stance(st: String) -> void:
 		stance = st
 
 
+## Угол запястья правой руки сейчас, град (по позе после IK, см. _joint_angles): x — сгибание (+) / разгибание (−),
+## y — отведение (к большому пальцу +, к мизинцу −). IK держит кисть в пределах (_wrist_fix: сгиб −58…60°,
+## отведение −30…18°): если поза оружия требует больше — ладонь отходит от рукояти (err_r растёт).
+## Для холодного оружия — углы, которых требует сама поза оружия (до зажима в пределы): по ним видно, насколько
+## поза «ломает» кисть (при зажиме IK поворачивает клинок вместе с кистью — удар идёт не туда).
+var wrist_want := Vector2.ZERO
+
+
+func wrist_angles() -> Vector2:
+	if w.get("mode", "") == "melee":
+		return wrist_want
+	var j: Array = joints.R
+	return Vector2(float(j[0]), float(j[1]))
+
+
 ## удар холодным оружием (light / heavy / block); возвращает длительность
 func swing(kind: String) -> float:
 	if wid == "" or not w.get("moves", {}).has(kind):
@@ -288,7 +355,30 @@ func _v(a: Array) -> Vector3:
 
 ## поза оружия для стойки — в системе покоя скелета (без масштаба)
 func _stance_pose(st: Dictionary) -> Transform3D:
-	return _pose_at(_v(st.pos) * (_reach_k if String(st.anchor) == "grip" else 1.0), _v(st.dir), float(st.get("roll", 0.0)), String(st.anchor))
+	var pm: Vector3 = _v(st.pos) * (_reach_k if String(st.anchor) == "grip" else 1.0)
+	if st.has("edge_n"):
+		return _pose_u(pm, _v(st.dir).normalized(), _spine(_v(st.edge_n), _v(st.dir).normalized()), String(st.anchor))
+	return _pose_at(pm, _v(st.dir), float(st.get("roll", 0.0)), String(st.anchor))
+
+
+## Обух клинка (ось +Y модели) — по плоскости удара: n — ось вращения клинка в ударе (от замаха к удару),
+## клинок, смотрящий в f, движется по n × f — туда и смотрит лезвие (−Y), обух — обратно. Так лезвие всегда ведёт
+## удар и клинок не проворачивается вокруг своей оси, проходя вертикаль (раньше обух считался «вверх» — на замахе
+## лезвие смотрело назад, а у вертикали клинок перекручивался на пол-оборота)
+func _spine(n: Vector3, f: Vector3) -> Vector3:
+	var e := n.normalized().cross(f)
+	if e.length() < 0.05:
+		var u := upv - f * upv.dot(f)
+		return u.normalized() if u.length() > 0.05 else (-fwd - f * (-fwd).dot(f)).normalized()
+	return -e.normalized()
+
+
+## поза оружия по направлению клинка f и обуху u (u ⟂ f)
+func _pose_u(pos_m: Vector3, f: Vector3, u: Vector3, anchor_pt: String) -> Transform3D:
+	u = (u - f * u.dot(f)).normalized()
+	var B := Basis(f.cross(u), u, -f)
+	var anchor: Vector3 = _sc + pos_m * k
+	return Transform3D(B, anchor - B * _pt(w[anchor_pt]))
 
 
 func _pose_at(pos_m: Vector3, dir: Vector3, roll_deg: float, anchor_pt: String) -> Transform3D:
@@ -314,7 +404,10 @@ func _move_pose() -> Array:
 			u = u * u * (3.0 - 2.0 * u)
 			var da := _v(a[2]).normalized()
 			var db := _v(b[2]).normalized()
-			return [_pose_at(_v(a[1]).lerp(_v(b[1]), u) * _reach_k, da.slerp(db, u), 0.0, "grip"), lerpf(float(a[3]), float(b[3]), u)]
+			var f := da.slerp(db, u)
+			if mv.has("edge_n"):
+				return [_pose_u(_v(a[1]).lerp(_v(b[1]), u) * _reach_k, f, _spine(_v(mv.edge_n), f), "grip"), lerpf(float(a[3]), float(b[3]), u)]
+			return [_pose_at(_v(a[1]).lerp(_v(b[1]), u) * _reach_k, f, 0.0, "grip"), lerpf(float(a[3]), float(b[3]), u)]
 	return [_stance_pose(w.stances[stance]), 0.0]
 
 
@@ -430,6 +523,14 @@ func _process_modification_with_delta(delta: float) -> void:
 	var Gc := s.get_bone_global_pose(_chest)
 	var Gr := s.get_bone_global_rest(_chest)
 	var T1 := (Gc * Gr.affine_inverse()).orthonormalized()
+	if w.mode == "melee":
+		# холодное оружие — в системе тела (куда смотрит герой), а не груди: в стойке с мачете грудь развёрнута
+		# вправо на ~35°, и «вперёд» от груди уводило каждый удар вбок, мимо цели перед героем. Наклоны груди
+		# оружие повторяет, поворот вокруг вертикали — нет (поворот к удару даёт разворот корпуса из ключей)
+		var cf := T1.basis * fwd
+		var yaw := atan2(cf.dot(rgt), cf.dot(fwd)) * clampf(drawn, 0.0, 1.0)
+		var Ry := Basis(upv, yaw)
+		T1 = Transform3D(Ry, Gc.origin - Ry * Gc.origin) * T1
 	var T0 := Transform3D(Basis.IDENTITY, Gc.origin - Gr.origin)
 	var W := T0.interpolate_with(T1, _follow) * pose
 	# прицел: ствол смотрит в цель, как бы ни наклонился корпус (точка опоры — приклад или рукоять — остаётся)
@@ -496,6 +597,7 @@ func _process_modification_with_delta(delta: float) -> void:
 		# оружие в кулаке: если поза требует невозможного сгиба кисти — кисть остаётся в пределах,
 		# клинок поворачивается вместе с ней
 		var ev := _eval("R", SR, tr[0], tr[1], bo, bf, bu, br, float(_psi.R))
+		wrist_want = Vector2(float(ev[1][0]), float(ev[1][1]))
 		var R := _wrist_fix("R", SR, ev[2], tr[0], tr[1], ev[1])
 		if lift < 1.0:
 			R = Basis.IDENTITY.slerp(R.orthonormalized(), lift)     # в ножнах клинок не поворачивается за кистью

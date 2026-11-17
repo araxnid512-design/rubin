@@ -10970,12 +10970,14 @@ func _run_test() -> void:
 	if test == "view":
 		# обзор локации: несколько точек, по снимку
 		DirAccess.make_dir_recursive_absolute(out)
-		var pts := [["v0_start", Vector3(0, 0, 6)], ["v1_gate", Vector3(3.5, 0, 0.5)], ["v2_trail", Vector3(-2.0, 0, 20)], ["v3_yard", Vector3(4.0, 0, -4.5)], ["v4_forest", Vector3(-22, 0, 14)], ["v5_side", Vector3(20, 0, 9)], ["v6_mannequin", HOUSE_AT + Vector3(4.6, 0, 7.6)], ["v7_npc", HOUSE_AT + Vector3(2.9, 0, 3.25)], ["v7b_edge", Vector3(6.0, 0, 46.5)], ["v7c_fog", Vector3(6.0, 0, 53.0)], ["v7d_back", HOUSE_AT + Vector3(2.9, 0, 3.25)]]
+		var pts := [["v0_start", Vector3(0, 0, 6)], ["v12_bunker", HOUSE_AT + Vector3(-1.0, 0, 8.5)], ["v1_gate", Vector3(3.5, 0, 0.5)], ["v2_trail", Vector3(-2.0, 0, 20)], ["v3_yard", Vector3(4.0, 0, -4.5)], ["v4_forest", Vector3(-22, 0, 14)], ["v5_side", Vector3(20, 0, 9)], ["v6_mannequin", HOUSE_AT + Vector3(4.6, 0, 7.6)], ["v7_npc", HOUSE_AT + Vector3(2.9, 0, 3.25)], ["v7b_edge", Vector3(6.0, 0, 46.5)], ["v7c_fog", Vector3(6.0, 0, 53.0)], ["v7d_back", HOUSE_AT + Vector3(2.9, 0, 3.25)]]
 		for pt in pts:
 			player.global_position = pt[1]
 			_cam_ready = false
+			cam_dist = 20.0 if String(pt[0]) == "v12_bunker" else 12.0      # бункер целиком — камера дальше
 			await get_tree().create_timer(1.6).timeout
 			await _snap(pt[0])
+		cam_dist = 12.0
 		do_action()
 		await get_tree().create_timer(0.5).timeout
 		await _snap("v8_talk")

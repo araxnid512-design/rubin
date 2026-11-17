@@ -145,7 +145,7 @@ func _bunker_shell(noise: Texture2D) -> Node3D:
 	add_child(root)
 	var hw := W * 0.5
 	var hd := D * 0.5
-	var conc: Material = M["plinth"]
+	var conc: Material = M["concrete"]
 	# стены: фасад — с проёмом под портал
 	var dw := 1.5                                              # ширина проёма в бетоне снаружи
 	_bx(root, Vector3(W + B_T * 2.0, B_WALL_H, B_T), Vector3(0, B_WALL_H * 0.5, -hd - B_T * 0.5 + 0.11), conc)
@@ -165,19 +165,20 @@ func _bunker_shell(noise: Texture2D) -> Node3D:
 	root.add_child(mm)
 	# портал входа: два бетонных пилона и перемычка, выступают вперёд; гермодверь открыта к стене
 	for sx in [-1.0, 1.0]:
-		_bx(root, Vector3(0.4, 2.55, 0.9), Vector3(sx * (dw * 0.5 + 0.2), 1.275, hd + 0.5), M["slab"])
-	_bx(root, Vector3(dw + 0.8, 0.45, 0.9), Vector3(0, 2.55 + 0.225, hd + 0.5), M["slab"])
-	var door := _bx(root, Vector3(1.05, 2.05, 0.1), Vector3(0, 1.04, 0), M["armygreen"])
-	door.transform = Transform3D(Basis(Vector3.UP, deg_to_rad(-100.0)), Vector3(dw * 0.5 + 0.45 + 0.5, 1.04, hd + 0.98))
-	for k in 3:                                                # штурвал запора и петли
-		_bx(root, Vector3(0.06, 0.12, 0.08), door.transform * Vector3(-0.5, 0.5 - k * 0.5, 0.0), M["metal"])
+		_bx(root, Vector3(0.4, 2.55, 0.9), Vector3(sx * (dw * 0.5 + 0.2), 1.275, hd + 0.5), conc)
+	_bx(root, Vector3(dw + 0.8, 0.45, 0.9), Vector3(0, 2.55 + 0.225, hd + 0.5), conc)
+	# гермодверь распахнута на 180° и лежит на фасаде справа от портала (не перегораживает проход)
+	var door := _bx(root, Vector3(1.05, 2.05, 0.1), Vector3.ZERO, M["armygreen"])
+	door.transform = Transform3D(Basis.IDENTITY, Vector3(dw * 0.5 + 0.4 + 0.58, 1.04, hd + B_T - 0.11 + 0.06))
+	for k in 3:                                                # петли
+		_bx(root, Vector3(0.08, 0.14, 0.08), door.transform * Vector3(-0.53, 0.75 - k * 0.75, 0.04), M["metal"])
 	var wheel := MeshInstance3D.new()
 	var tm := TorusMesh.new()
 	tm.inner_radius = 0.14
 	tm.outer_radius = 0.18
 	wheel.mesh = tm
 	wheel.material_override = M["metal"]
-	wheel.transform = door.transform * Transform3D(Basis(Vector3.RIGHT, PI * 0.5), Vector3(0.1, 0.0, 0.09))
+	wheel.transform = door.transform * Transform3D(Basis(Vector3.RIGHT, PI * 0.5), Vector3(0.12, 0.0, 0.07))
 	root.add_child(wheel)
 	# фонарь над входом (только свечение, без источника света)
 	var lamp := _bx(root, Vector3(0.3, 0.12, 0.16), Vector3(0, 2.5, hd + 0.98), M.get("lamp", M["metal"]))
@@ -226,8 +227,14 @@ func _bunker_shell(noise: Texture2D) -> Node3D:
 				if side == 1 and absf(t) < 1.4:
 					continue                                   # над порталом мешков нет
 				bags.append(Transform3D(Basis(Vector3.UP, yaw + rng.randf_range(-0.07, 0.07)), pos + Vector3(rng.randf_range(-0.02, 0.02), ry + 0.09 + row * 0.18, 0)))
-	var bag := BoxMesh.new()
-	bag.size = Vector3(0.5, 0.19, 0.32)
+	# мешок — сплюснутый шар (подушка): у ящика-бруска мешки читались кирпичной кладкой
+	var bag := SphereMesh.new()
+	bag.radius = 0.5
+	bag.height = 1.0
+	bag.radial_segments = 10
+	bag.rings = 5
+	for i in bags.size():
+		bags[i] = bags[i] * Transform3D(Basis.from_scale(Vector3(0.54, 0.22, 0.34)), Vector3.ZERO)
 	_multi_tr(root, bags, bag, M["sand"])
 	# земляной вал к задней стене (на него не залезть: столкновение — низкой плитой)
 	var berm := _wedge(W + B_T * 2.0 + 0.6, B_WALL_H - 0.25, 2.8)
