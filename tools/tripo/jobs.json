@@ -1,73 +1,6 @@
 {
- "stop": false,
- "jobs": [
-  {
-   "id": "ulm_ruber_z_rock_rip",
-   "py": "tools/tripo/motion.py",
-   "args": [
-    "ruber:0c9d93c7-98b9-4e43-b407-790263d04363",
-    "z_rock_rip",
-    "4",
-    "a huge brute bends down and squats low, drives both hands into the ground in front of its feet, strains hard and tears a heavy boulder out of the ground, then stands up lifting the heavy boulder with both hands high above its head and holds it there"
-   ],
-   "timeout": 2400
-  },
-  {
-   "id": "ulm_ruber_z_rock_throw",
-   "py": "tools/tripo/motion.py",
-   "args": [
-    "ruber:0c9d93c7-98b9-4e43-b407-790263d04363",
-    "z_rock_throw",
-    "2",
-    "a huge brute holding a heavy boulder above its head with both hands leans back, then steps forward and hurls the boulder far forward with both arms in a powerful overhead throw, arms following through downward, then straightens up"
-   ],
-   "timeout": 2400
-  },
-  {
-   "id": "ulm_ruber_z_death_front",
-   "py": "tools/tripo/motion.py",
-   "args": [
-    "ruber:0c9d93c7-98b9-4e43-b407-790263d04363",
-    "z_death_front",
-    "4",
-    "a huge heavy brute is struck in the back, stumbles one step forward, its knees buckle and it collapses heavily face down onto its chest with arms falling forward, then lies still on its stomach"
-   ],
-   "timeout": 2400
-  },
-  {
-   "id": "ulm_ruber_z_death_side",
-   "py": "tools/tripo/motion.py",
-   "args": [
-    "ruber:0c9d93c7-98b9-4e43-b407-790263d04363",
-    "z_death_side",
-    "4",
-    "a huge heavy brute is struck hard on its left side, staggers one step sideways to the right, its legs give way and it falls heavily onto its right side, rolls onto its back and lies still"
-   ],
-   "timeout": 2400
-  },
-  {
-   "id": "ulm_ruber_z_hit_back",
-   "py": "tools/tripo/motion.py",
-   "args": [
-    "ruber:0c9d93c7-98b9-4e43-b407-790263d04363",
-    "z_hit_back",
-    "2",
-    "a huge brute standing is hit in the back, its torso jerks forward and it stumbles half a step forward with shoulders hunched, then straightens up angrily"
-   ],
-   "timeout": 2400
-  },
-  {
-   "id": "ulm_ruber_z_menace",
-   "py": "tools/tripo/motion.py",
-   "args": [
-    "ruber:0c9d93c7-98b9-4e43-b407-790263d04363",
-    "z_menace",
-    "3",
-    "a huge brute standing in a fighting stance with knees bent, leaning forward, both big arms raised in front of its chest ready to strike, swaying slowly from side to side and breathing heavily"
-   ],
-   "timeout": 2400
-  }
- ],
+ "stop": true,
+ "jobs": [],
  "archived": [
   "bs_hero",
   "bs_hero_suit",
@@ -403,7 +336,13 @@
   "ul_mi8",
   "ul_kung",
   "ul_soldier_down",
-  "ul_army_crate"
+  "ul_army_crate",
+  "ulm_ruber_z_rock_rip",
+  "ulm_ruber_z_rock_throw",
+  "ulm_ruber_z_death_front",
+  "ulm_ruber_z_death_side",
+  "ulm_ruber_z_hit_back",
+  "ulm_ruber_z_menace"
  ],
  "paused": [
   {
