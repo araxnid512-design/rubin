@@ -1238,8 +1238,12 @@ func _floor_mat(t: String) -> String:
 			return "parquet"
 		"boiler", "tech", "store", "workshop", "warehouse", "pantry":
 			return "concrete"
-		"tent_hq", "tent_med", "tent_live":
+		"tent_hq", "tent_med", "tent_live", "m_boss", "m_office":
 			return "wood"
+		"m_bunk", "m_hall", "m_quarters", "m_radio":
+			return "floorboard"
+		"m_armory":
+			return "concrete"
 		"cstore":
 			return "metal"
 		"izba", "h_kitchen", "h_bed", "h_pantry", "shop_back":
@@ -1972,6 +1976,78 @@ func _furnish(bk: Dictionary, r: Dictionary, nk: String, ik: String) -> void:
 			_try(ctx, "m_sacks", ["l", "r", "cor"], 0.45)
 			_try(ctx, "m_sacks", ["r", "l"], 0.8)
 			_try(ctx, "crate", ["cor", "l", "r"], 0.8)
+		"m_boss":
+			# кабинет главаря муров (≥ 12×10 м): у дальней стены посередине — место оружейного сундука (ставит
+			# логово), стол с картой посреди комнаты (укрытие), письменный стол, шкафы, стеллажи, ящики, карта на стене,
+			# личные вещи; ящики — тайники главаря
+			ctx["ckind"] = "boss_shelf"
+			var bcu := (float(r.u0) + float(r.u1)) * 0.5
+			var ext_v := float(r.v0) if int(r.get("side", 1)) < 0 else float(r.v1)
+			_keep.append(Rect2(bcu - 1.4, minf(ext_v, ext_v - signf(ext_v - (float(r.v0) + float(r.v1)) * 0.5) * 2.2), 2.8, 2.2))
+			_center(ctx, "table4")
+			_try(ctx, "desk", ["l"], 0.35)
+			_try(ctx, "chair", ["l"], 0.75)
+			_try(ctx, "mcab", ["ext"], 0.12)
+			_try(ctx, "mcab", ["ext"], 0.88)
+			_try(ctx, "shelf", ["r"], 0.25)
+			_try(ctx, "shelf", ["r"], 0.7)
+			_try(ctx, "board", ["l", "r"], 0.5)
+			_try(ctx, "board", ["cor"], 0.3)
+			ctx["ckind"] = "boss_safe"
+			_try(ctx, "acrate", ["cor"], 0.75)
+			ctx["ckind"] = "mil_ammo"
+			_try(ctx, "acrate", ["r"], 0.95)
+			_try(ctx, "acrate", ["l", "cor"], 0.05)
+			_try(ctx, "duffel", ["l", "cor"], 0.92)
+			_try(ctx, "radio", ["cor", "r"], 0.12)
+		"m_bunk":
+			# кубрик казармы: армейские койки, шкафчики, тумбочка, вещмешки
+			ctx["ckind"] = "mil_gear"
+			_try(ctx, "cot", ["ext"], 0.25)
+			_try(ctx, "cot", ["ext"], 0.75)
+			_try(ctx, "cot", ["l", "r"], 0.6)
+			_try(ctx, "locker", ["cor", "l", "r"], 0.3)
+			_try(ctx, "bedside", ["l", "r", "cor"], 0.2)
+			_try(ctx, "duffel", ["cor", "l", "r"], 0.8)
+		"m_hall":
+			# коридор штаба / казармы: шкафчики, лавка, ящики, доска объявлений
+			ctx["ckind"] = "mil_gear"
+			_try(ctx, "locker", ["ext", "l", "r"], 0.2)
+			_try(ctx, "bench", ["ext", "l", "r"], 0.55)
+			_try(ctx, "acrate", ["l", "r", "ext"], 0.85)
+			_try(ctx, "board", ["cor", "ext"], 0.4)
+			_try(ctx, "mcab", ["l", "r"], 0.5)
+		"m_office":
+			ctx["ckind"] = "mil_docs"
+			_try(ctx, "desk", ["ext"], 0.5)
+			_try(ctx, "mcab", ["l", "r"], 0.25)
+			_try(ctx, "shelf", ["r", "l"], 0.7)
+			_try(ctx, "chair", ["l", "r"], 0.6)
+			_try(ctx, "board", ["l", "r", "cor"], 0.5)
+			_try(ctx, "radio", ["cor", "l"], 0.85)
+		"m_armory":
+			ctx["ckind"] = "mil_ammo"
+			for k in 3:
+				_try(ctx, "acrate", ["ext"], 0.18 + k * 0.32)
+			_try(ctx, "acrate", ["l", "r"], 0.4)
+			_try(ctx, "mcab", ["l", "r", "cor"], 0.8)
+			_try(ctx, "shelf", ["r", "l"], 0.3)
+		"m_radio":
+			ctx["ckind"] = "mil_docs"
+			_try(ctx, "radio", ["ext"], 0.3)
+			_try(ctx, "radio", ["l", "r"], 0.6)
+			_try(ctx, "desk", ["ext", "l"], 0.75)
+			_try(ctx, "panel", ["l", "r", "cor"], 0.3)
+			_try(ctx, "chair", ["l", "r"], 0.8)
+		"m_quarters":
+			# жилая комната муров: койки, стол, шкафчик, телевизор, личные вещи
+			ctx["ckind"] = "mil_gear"
+			_try(ctx, "cot", ["ext"], 0.3)
+			_try(ctx, "cot", ["l", "r"], 0.75)
+			_try(ctx, "locker", ["l", "r", "cor"], 0.3)
+			_try(ctx, "tv", ["r", "l"], 0.5)
+			_center(ctx, "table4")
+			_try(ctx, "duffel", ["cor", "l"], 0.85)
 		"cstore":
 			ctx["ckind"] = "mil_ammo"
 			for k in 3:

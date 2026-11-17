@@ -79,14 +79,14 @@ func _extra_buttons() -> void:
 	for b in _extra:
 		b.queue_free()
 	_extra = []
-	var r := bd.to_screen(Rect2(1236, 702, 386, 62))
+	var r := bd.to_screen(Rect2(1116, 702, 506, 62))
 	var h := minf(r.size.y, size.y - r.position.y - 6.0)
 	if h < 30.0:
 		# низ картинки срезан экраном — кнопки встают вплотную к нижнему краю
 		h = 44.0
 		r.position.y = size.y - h - 6.0
-	var w := (r.size.x - 20.0) / 3.0
-	var defs := [["Полигон", _go_arena], ["3D", _go_stand], ["Тест уровней", _levels]]
+	var defs := [["Полигон", _go_arena], ["3D", _go_stand], ["Тест уровней", _levels], ["Тест кейсов", _cases]]
+	var w := (r.size.x - 10.0 * (defs.size() - 1)) / defs.size()
 	for i in defs.size():
 		var b := Button.new()
 		b.text = defs[i][0]
@@ -107,10 +107,29 @@ func _extra_buttons() -> void:
 		_extra.append(b)
 
 
+## «Тест кейсов»: та же прокрутка оружейного сундука, что в логове муров, но награда в инвентарь не выдаётся
+## (результат — по тем же шансам из data/case.json)
+var case_ui: ULCaseUI = null
+
+
+func _cases() -> void:
+	if case_ui != null and is_instance_valid(case_ui):
+		return
+	var cl := CanvasLayer.new()
+	cl.layer = 20
+	add_child(cl)
+	case_ui = ULCaseUI.new()
+	cl.add_child(case_ui)
+	var rng := RandomNumberGenerator.new()
+	rng.randomize()
+	case_ui.start(ULCase.roll(rng), true)
+	case_ui.tree_exited.connect(cl.queue_free)
+
+
 ## «Тест уровней»: выбор локации — герой появляется на ней с пулемётом ПКП, бессмертный, патроны без конца;
 ## сохранение и база не трогаются, таймер кластера не убивает; выход за край поля — обратно сюда
 const LEVELS := [["home", "Дом (стабильный стаб)"], ["cowshed", "Опасный коровник"], ["sanatorium", "Санаторий Луч"], ["convoy", "Разбитый конвой"],
-	["khutor", "Хутор"], ["arena", "Полигон 10×10"]]
+	["khutor", "Хутор"], ["lair", "Логово муров"], ["arena", "Полигон 10×10"]]
 var _lv_panel: Control
 
 
@@ -239,6 +258,28 @@ func _run_test() -> void:
 	print("[menu] в окне — все локации (%d) — %s" % [LEVELS.size(), "верно" if has_all else "ОШИБКА"])
 	_start_level("khutor")
 	print("[menu] выбор «Хутор»: тест уровня включён, место — хутор — ", "верно" if ULSettings.level_test and ULSettings.place == "khutor" and not ULSettings.arena else "ОШИБКА")
+	# тест кейсов: лента едет, «Пропустить» — сразу к результату под линией, в инвентарь ничего
+	for c in get_children():
+		if c is CanvasLayer or (c is Control and c != bd and not _extra.has(c)):
+			c.queue_free()
+	await get_tree().process_frame
+	var cb: Button = null
+	for b in _extra:
+		if (b as Button).text == "Тест кейсов":
+			cb = b
+	print("[menu] кнопка «Тест кейсов» есть — ", "верно" if cb != null else "ОШИБКА")
+	_cases()
+	await get_tree().create_timer(1.6).timeout
+	get_viewport().get_texture().get_image().save_png(out + "/m3_case_spin.png")
+	var moving := case_ui != null and not case_ui.done and case_ui._track.position.x < case_ui._x0 - 50.0
+	print("[menu] кейс: лента едет справа налево — ", "верно" if moving else "ОШИБКА")
+	case_ui.skip()
+	await get_tree().create_timer(0.5).timeout
+	get_viewport().get_texture().get_image().save_png(out + "/m4_case_result.png")
+	var idx := int(floor((case_ui.get_viewport_rect().size.x * 0.5 - case_ui._track.position.x) / (ULCaseUI.CARD_W + ULCaseUI.GAP)))
+	var under := idx == case_ui.win_at and String(case_ui.ids[idx]) == String(case_ui.reward.id)
+	print("[menu] кейс: «Пропустить» — сразу конец, под линией — выбранная награда «%s» — %s" % [String(case_ui.reward.id), "верно" if case_ui.done and under else "ОШИБКА"])
+	case_ui.close()
 	ULSettings.level_test = false
 	ULSettings.place = "home"
 	get_tree().quit()

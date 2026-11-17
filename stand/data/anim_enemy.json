@@ -288,9 +288,9 @@
 			"heading_lock": true,
 			"loop_fix": 0.4
 		},
-		"swipe_r2": {
+		"hook_r": {
 			"src": [
-				"{set}px/a_swipe_r.res"
+				"{set}px/b_hook_r.res"
 			],
 			"loop": false,
 			"blend": 0.12,
@@ -298,9 +298,9 @@
 			"bake": "lock",
 			"heading_lock": true
 		},
-		"swipe_l2": {
+		"hook_l": {
 			"src": [
-				"{set}px/a_swipe_l.res"
+				"{set}px/b_hook_l.res"
 			],
 			"loop": false,
 			"blend": 0.12,
@@ -308,9 +308,9 @@
 			"bake": "lock",
 			"heading_lock": true
 		},
-		"double2": {
+		"claw2": {
 			"src": [
-				"{set}px/a_double.res"
+				"{set}px/b_claw2.res"
 			],
 			"loop": false,
 			"blend": 0.12,
@@ -318,9 +318,9 @@
 			"bake": "lock",
 			"heading_lock": true
 		},
-		"slam": {
+		"bite2": {
 			"src": [
-				"{set}px/a_slam.res"
+				"{set}px/b_bite.res"
 			],
 			"loop": false,
 			"blend": 0.12,
@@ -328,9 +328,9 @@
 			"bake": "lock",
 			"heading_lock": true
 		},
-		"grab2": {
+		"shove": {
 			"src": [
-				"{set}px/a_grab.res"
+				"{set}px/b_shove.res"
 			],
 			"loop": false,
 			"blend": 0.12,
@@ -338,9 +338,9 @@
 			"bake": "lock",
 			"heading_lock": true
 		},
-		"pounce": {
+		"slash_r": {
 			"src": [
-				"{set}px/a_pounce.res"
+				"{set}px/b_slash_r.res"
 			],
 			"loop": false,
 			"blend": 0.12,
@@ -348,9 +348,9 @@
 			"bake": "lock",
 			"heading_lock": true
 		},
-		"xslash": {
+		"slash_l": {
 			"src": [
-				"{set}px/a_xslash.res"
+				"{set}px/b_slash_l.res"
 			],
 			"loop": false,
 			"blend": 0.12,
@@ -358,9 +358,9 @@
 			"bake": "lock",
 			"heading_lock": true
 		},
-		"combo3": {
+		"combo5": {
 			"src": [
-				"{set}px/a_combo3.res"
+				"{set}px/b_combo.res"
 			],
 			"loop": false,
 			"blend": 0.12,
@@ -368,9 +368,19 @@
 			"bake": "lock",
 			"heading_lock": true
 		},
-		"rip": {
+		"leap": {
 			"src": [
-				"{set}px/a_rip.res"
+				"{set}px/b_leap.res"
+			],
+			"loop": false,
+			"blend": 0.12,
+			"rate": 1.0,
+			"bake": "lock",
+			"heading_lock": true
+		},
+		"lbite": {
+			"src": [
+				"{set}px/b_lbite.res"
 			],
 			"loop": false,
 			"blend": 0.12,

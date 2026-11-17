@@ -42,6 +42,7 @@ var _atk_t := 0.0                 ## сколько идёт удар
 var _snap_at := -1.0              ## когда замах сменяется рывком
 var _lunge_t := 0.0               ## сколько ещё длится выпад вперёд
 var _atk_rate := 1.0              ## своя скорость клипа удара
+var _snap_rate := 1.0             ## во сколько раз рывок быстрее клипа
 var force_clip := ""              ## проверки: бить только этим ударом
 var _menace := false
 var _still := 0.0
@@ -102,6 +103,22 @@ static func describe(k: String) -> Array:
 	if d.has("rock"):
 		chg += " Бросок камня: с %d–%d м вырывает из земли булыжник; на земле, где стоит герой, появляется красный круг — через %d с туда прилетает камень (%d урона в круге %.1f м). Успеть выйти из круга — мимо. Раз в %d с, только под открытым небом; сильное попадание срывает бросок, а если подбежать вплотную — роняет камень и бьёт рукой." % [
 			int(d.rock.from), int(d.rock.to), int(round(float(d.rock.aim_s))), int(d.rock.dmg), float(d.rock.r), int(d.rock.cd)]
+	if d.has("gun"):
+		var g: Dictionary = d.gun
+		var gd := "%d урона за пулю" % int(g.dmg) if g.has("dmg") else "%d %% здоровья героя за выстрел" % int(round(float(g.dmg_pct) * 100.0))
+		if g.has("pellets"):
+			gd = "%d дробин по %.1f урона (вблизи; дальше %d м — слабее)" % [int(g.pellets), float(g.dmg), int(g.get("near", 4.0))]
+		at = "%s: бьёт до %d м, %s; магазин — %d, перезарядка %.1f с" % [String(g.n), int(g.range), gd, int(g.mag), float(g.reload_s) * (float(g.mag) if g.get("reload_shell", false) else 1.0)]
+		if d.has("special"):
+			at += ". %s: красная полоса на полу %.1f с, потом выстрел в %d %% здоровья — успейте уйти с полосы; раз в %d с" % [String(d.special.n), float(d.special.aim_s), int(round(float(d.special.dmg_pct) * 100.0)), int(d.special.cd)]
+		return [
+			String(d.d),
+			"Рост %d см. Прочность: %d." % [int(round(float(d.get("height", 1.78)) * 100.0)), int(d.hp)],
+			"Видит героя ближе %d м, слышит %s. Заметив — вскидывает оружие и через %.1f с открывает огонь." % [int(d.see), hears, float(d.get("alert_s", 0.5))],
+			"Оружие — %s." % at,
+			"В теле может быть: %s." % lt,
+			"Тело лежит минуту и исчезает — обыскали его или нет.",
+		]
 	return [
 		String(d.d),
 		"Рост %d см. Прочность: %d." % [int(round(float(d.get("height", 1.78)) * 100.0)), int(d.hp)],
@@ -135,10 +152,11 @@ func setup(k: String, at: Vector3, seed_n: int) -> void:
 	add_child(cs)
 	rig = BCCharacter.new()
 	rig.name = "Rig"
+	var armed := def.has("gun")
 	rig.simple = true                # без поправок под оружие; движения — клипы как есть
-	rig.strike_ik = true             # лапа на ударе доводится до героя (_plan_strikes)
-	rig.built_poses = false
-	rig.stand_clamp = true
+	rig.strike_ik = not armed        # лапа на ударе доводится до героя (_plan_strikes)
+	rig.built_poses = armed          # вооружённый (мур) — стойки с оружием, как у героя
+	rig.stand_clamp = not armed
 	rig.fx_cfg = def.get("fx", {})
 	rig.height = tall
 	add_child(rig)
@@ -360,7 +378,7 @@ func tick(delta: float, p: Vector3, can_see: bool, hero_alive: bool) -> void:
 				# потерял: не видит дольше положенного, а герой далеко — или дошёл до места, где видел, и там пусто
 				state = "idle"
 				_t = 2.5
-			elif can_see and same_floor and dist <= _close() + 0.9:
+			elif can_see and same_floor and dist <= _close() + maxf(0.9, float(def.get("strike_d", 1.0))):
 				state = "attack"
 			elif tl.length() < 0.5 and absf(tly) < 1.2:
 				_face(to, delta, 3.0)                    # дошёл до последнего места — озирается
@@ -437,17 +455,20 @@ func tick(delta: float, p: Vector3, can_see: bool, hero_alive: bool) -> void:
 				_atk_t += delta
 				if _snap_at >= 0.0 and _atk_t >= _snap_at:
 					_snap_at = -1.0
-					rig.action_rate(_atk_rate * float(def.get("snap", 1.55)))
+					rig.action_rate(_atk_rate * _snap_rate)
 					_lunge_t = _hit_due + 0.04
 				if _lunge_t > 0.0:
 					_lunge_t -= delta
 					_face(to, delta, 5.0)
 					speed = clampf((dist - close + 0.05) / maxf(_hit_due, 0.06), 0.0, float(def.get("lunge_v", 4.5)))
 				else:
+					# замах на бегу: не останавливается, добегает до героя
 					_face(to, delta, 9.0)
+					if dist > close + 0.15:
+						speed = float(def.run)
 				_hit_due -= delta
 				if _hit_due < 0.0:
-					rig.action_rate(_atk_rate)           # отход — в своём темпе
+					rig.action_rate(_atk_rate * float(def.get("recover_k", 1.4)))   # отход — быстрее: снова в бой
 					_lunge_t = 0.0
 					if hero_alive and dist <= _hit_reach and absf(p.y - global_position.y) < 1.2:
 						hit_player.emit(_hit_dmg, global_position)
@@ -457,12 +478,13 @@ func tick(delta: float, p: Vector3, can_see: bool, hero_alive: bool) -> void:
 					state = "chase"
 			else:
 				_face(to, delta, 9.0)
-				# между ударами держится на шаг от героя (видно замах), а не вплотную
+				# подбежал — сразу бьёт (замах начинается ещё на бегу, с ~1 м до касания); между ударами держится на
+				# шаг от героя, а не вплотную
 				var keep := close + float(def.get("keep", 0.3))
-				if dist > keep + 0.06 and not rig.busy():
-					speed = minf(float(def.run), 2.4)
-				if _atk <= 0.0 and dist <= keep + 0.25 and not rig.busy():
+				if _atk <= 0.0 and dist <= close + float(def.get("strike_d", 1.0)) and not rig.busy():
 					_start_attack(dist)
+				elif dist > keep + 0.06 and not rig.busy():
+					speed = float(def.run)
 	# стойка вплотную: между ударами покачивается и тянет руки к герою (если есть такой клип)
 	_still = _still + delta if speed < 0.1 and state == "attack" and _hit_due < 0.0 else 0.0
 	var want_menace := _still > 0.2 and rig.has_clip("menace")
@@ -595,15 +617,18 @@ func _start_attack(dist: float) -> void:
 			break
 	var clip := String(a.clip)
 	_atk_rate = float(a.get("rate", 1.0))
-	var wind := float(def.get("wind", 0.72))
-	var snap := float(def.get("snap", 1.55))
 	var h := float(a.get("hit", 0.45))
-	var len_w := rig.play(clip, _atk_rate * wind)              # весь клип в темпе замаха
-	var len_s := len_w * wind                                  # весь клип в своём темпе
-	# замах — до 60 % пути к удару в темпе wind, остаток — в темпе snap
+	var len_s := rig.play(clip, _atk_rate)                     # весь клип в своём темпе
+	# Удар с ходу: замах длится wind_t секунд, рывок — snap_t, сколько бы ни шёл замах в самом клипе (у клипов
+	# Tripo он бывает в секунду — враг «стоял» бы перед ударом). Клип ускоряется под эти сроки, но не замедляется.
+	var t_wind := len_s * h * 0.6
+	var t_snap := len_s * h * 0.4
+	var w_rate := maxf(1.0, t_wind / maxf(float(def.get("wind_t", 0.3)), 0.05))
+	_snap_rate = maxf(1.0, t_snap / maxf(float(def.get("snap_t", 0.14)), 0.03))
+	rig.action_rate(_atk_rate * w_rate)
 	_atk_t = 0.0
-	_snap_at = len_w * h * 0.6
-	_hit_due = _snap_at + len_s * h * 0.4 / snap
+	_snap_at = t_wind / w_rate
+	_hit_due = _snap_at + t_snap / _snap_rate
 	_lunge_t = 0.0
 	_hit_dmg = float(a.dmg)
 	_hit_reach = float(a.get("reach", 1.0)) + 0.25
@@ -638,15 +663,17 @@ func _plan_strikes(clip: String, len_s: float, hit_s: float) -> void:
 			_strikes = [[hit_s, "R"]]
 		"attack_l":
 			_strikes = [[hit_s, "L"]]
-		"claw_combo", "double2":
+		"claw_combo", "claw2":
 			_strikes = [[maxf(hit_s - len_s * 0.24, 0.12), "R"], [hit_s, "L"]]
-		"swipe_r2":
-			_strikes = [[hit_s, "R"]]
-		"swipe_l2":
+		"backhand":
 			_strikes = [[hit_s, "L"]]
-		"combo3":
+		"hook_r", "slash_r":
+			_strikes = [[hit_s, "R"]]
+		"hook_l", "slash_l":
+			_strikes = [[hit_s, "L"]]
+		"combo5":
 			_strikes = [[maxf(hit_s - len_s * 0.3, 0.1), "R"], [maxf(hit_s - len_s * 0.15, 0.12), "L"], [hit_s, "R"]]
-		"xslash", "slam", "pounce", "rip":
+		"leap", "shove":
 			_strikes = [[hit_s, "R"], [hit_s, "L"]]          # обе лапы доходят до героя разом
 
 

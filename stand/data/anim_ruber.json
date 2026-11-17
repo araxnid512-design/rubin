@@ -3,6 +3,7 @@
 	"clips": {
 		"idle": {
 			"src": [
+				"{set}px/r2_idle.res",
 				"{set}/z_idle.res",
 				"res://assets/anim/lottery/z_idle.res",
 				"res://assets/anim/hero/idle.res"
@@ -16,6 +17,7 @@
 		},
 		"walk": {
 			"src": [
+				"{set}px/r2_walk.res",
 				"{set}/z_walk.res",
 				"res://assets/anim/lottery/z_walk.res",
 				"res://assets/anim/hero/walk.res"
@@ -34,6 +36,7 @@
 		},
 		"run": {
 			"src": [
+				"{set}px/r2_run.res",
 				"{set}/z_run.res",
 				"res://assets/anim/lottery/z_run.res",
 				"res://assets/anim/hero/run.res"
@@ -65,6 +68,7 @@
 		},
 		"scream": {
 			"src": [
+				"{set}px/r2_roar.res",
 				"{set}/z_scream.res",
 				"res://assets/anim/lottery/z_scream.res",
 				"res://assets/anim/hero/angry_01.res"
@@ -102,6 +106,7 @@
 		},
 		"attack_l": {
 			"src": [
+				"{set}px/r2_hook_l.res",
 				"{set}/z_attack_l.res",
 				"res://assets/anim/lottery/z_attack_l.res",
 				"res://assets/anim/hero/box_01.res"
@@ -114,6 +119,7 @@
 		},
 		"attack_r": {
 			"src": [
+				"{set}px/r2_hook_r.res",
 				"{set}/z_attack_r.res",
 				"res://assets/anim/lottery/z_attack_r.res",
 				"res://assets/anim/hero/box_02.res"
@@ -150,6 +156,7 @@
 		},
 		"hit_front": {
 			"src": [
+				"{set}px/r2_hit.res",
 				"{set}/z_hit_front.res",
 				"res://assets/anim/lottery/z_hit_front.res",
 				"res://assets/anim/hero/hit_to_body_01.res"
@@ -287,6 +294,7 @@
 		},
 		"overhead": {
 			"src": [
+				"{set}px/r2_smash.res",
 				"{set}/z_overhead.res",
 				"res://assets/anim/lottery/z_overhead.res"
 			],
@@ -341,6 +349,26 @@
 			"bake": "lock",
 			"heading_lock": true,
 			"from": 0.4
+		},
+		"stomp": {
+			"src": [
+				"{set}px/r2_stomp.res"
+			],
+			"loop": false,
+			"blend": 0.12,
+			"rate": 1.0,
+			"bake": "lock",
+			"heading_lock": true
+		},
+		"backhand": {
+			"src": [
+				"{set}px/r2_backhand.res"
+			],
+			"loop": false,
+			"blend": 0.12,
+			"rate": 1.0,
+			"bake": "lock",
+			"heading_lock": true
 		}
 	},
 	"_": "Движения Рубера. Шаг и бег — чистые циклы (from/to — один двойной шаг от постановки левой стопы, strides 1): клипы по описанию содержат нецелое число шагов, и без обрезки шаг и бег смешивались вразнобой (ноги «плыли»). speed — скорость клипа по опорной стопе (м/с), по ней подбирается темп под скорость врага."

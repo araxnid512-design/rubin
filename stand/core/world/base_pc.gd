@@ -504,7 +504,7 @@ func _build_routes() -> void:
 ## compact — карточки поменьше, чтобы два маршрута помещались без прокрутки (как на макете); dense — три и больше:
 ## без описания (оно — на карте мира), цена и кнопка — в столбце текста, все три карточки видны без прокрутки
 func _route_card(id: String, d: Dictionary, compact := false, dense := false) -> Control:
-	var cs: Dictionary = {"cowshed": ULCowshed.cfg(), "sanatorium": ULSanatorium.cfg(), "convoy": ULConvoy.ccfg(), "khutor": ULKhutor.kcfg()}.get(id, {})
+	var cs: Dictionary = {"cowshed": ULCowshed.cfg(), "sanatorium": ULSanatorium.cfg(), "convoy": ULConvoy.ccfg(), "khutor": ULKhutor.kcfg(), "lair": ULLair.lcfg()}.get(id, {})
 	var card := _card()
 	card.name = "route_" + id
 	if dense:
@@ -528,6 +528,14 @@ func _route_card(id: String, d: Dictionary, compact := false, dense := false) ->
 	if d.has("icon"):
 		(th.get_child(0) as Control).custom_minimum_size = Vector2.ONE * (20 if dense else 28)
 	th.add_child(_lbl(String(d.n), 15 if dense else (17 if compact else 19), Color(0.97, 0.97, 0.94), true))
+	if d.has("danger") and String(d.kind) == "Вражеский стаб":
+		# вражеский стаб: красная плашка опасности (как на макете)
+		var dg := _lbl("⚠ Опасность: " + String(d.danger), 10 if dense else 12, Color(1.0, 0.82, 0.78), true)
+		dg.name = "Danger"
+		var dp := PanelContainer.new()
+		dp.add_theme_stylebox_override("panel", _sb(Color(0.45, 0.06, 0.05, 0.9), Color(0.85, 0.2, 0.15), 1, 4, 2))
+		dp.add_child(dg)
+		th.add_child(dp)
 	if not dense:
 		var dl := _lbl(String(d.d), 10 if compact else 11, C_TEXT, false, true)
 		dl.add_theme_constant_override("line_spacing", -2 if compact else -1)
@@ -539,6 +547,9 @@ func _route_card(id: String, d: Dictionary, compact := false, dense := false) ->
 	if cs.has("pustysh"):
 		stats.append(["st_skull", ("Пустыши %d–%d" if dense else "Пустыши: %d – %d (случайно)") % [int(cs.pustysh[0]), int(cs.pustysh[1])]])
 		stats.append(["st_claw", ("Лоторейщики %d–%d" if dense else "Лоторейщики: %d – %d (случайно)") % [int(cs.lottery[0]), int(cs.lottery[1])]])
+	if cs.has("murs"):
+		stats.append(["st_skull", ("Муры %d–%d" if dense else "Муры (люди): %d – %d (бойцы)") % [int(cs.murs[0]), int(cs.murs[1])]])
+		stats.append(["st_claw", "Патрули, снайперы" if dense else "Патрули и снайперы: есть"])
 	if cs.has("ruber_chances"):
 		var rmax := (cs.ruber_chances as Array).size() - 1
 		stats.append(["st_skull", ("Руберы 0–%d" if dense else "Руберы: 0 – %d (%s)") % ([rmax] if dense else [rmax, "шанс" if rmax == 1 else "случайно"])])

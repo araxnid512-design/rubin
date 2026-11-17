@@ -6,9 +6,9 @@ extends RefCounted
 
 const PATH := "user://settings.json"
 const GFX := [
-	{"n": "Низкая", "scale": 0.42, "msaa": false, "grass": 0.25, "range": 16.0},
-	{"n": "Средняя", "scale": 0.55, "msaa": false, "grass": 0.6, "range": 24.0},
-	{"n": "Высокая", "scale": 0.8, "msaa": true, "grass": 1.0, "range": 30.0},
+	{"n": "Низкая", "scale": 0.62, "msaa": 0, "grass": 0.25, "range": 16.0},
+	{"n": "Средняя", "scale": 0.8, "msaa": 2, "grass": 0.6, "range": 24.0},
+	{"n": "Высокая", "scale": 1.0, "msaa": 4, "grass": 1.0, "range": 30.0},
 ]
 ## Камера: угол наклона (от земли) и поворот вокруг героя. «С наклоном» — как в DoZ Survival, «По диагонали» —
 ## как в Last Day on Earth (дома и заборы — ромбом).
@@ -17,8 +17,9 @@ const CAMS := [
 	{"n": "С наклоном", "pitch": 52.0, "yaw": 0.0},
 	{"n": "По диагонали", "pitch": 50.0, "yaw": 45.0},
 ]
-const SCALE_MIN := 0.3            ## ниже разрешение само не опускается
-const FPS_MIN := 38.0             ## частота кадров, ниже которой разрешение снижается сразу и крупным шагом
+## ниже разрешение само не опускается: при 30–40 % картинка «мыльная» (снимки пользователя: 58–60 кадров/с при 39 %)
+const SCALE_MIN := 0.55
+const FPS_MIN := 30.0             ## частота кадров, ниже которой разрешение снижается сразу и крупным шагом
 const C_BG := Color(0.06, 0.09, 0.13, 0.98)
 const C_LINE := Color(0.35, 0.75, 0.95, 0.7)
 const C_TEXT := Color(0.88, 0.93, 0.97)
@@ -63,7 +64,9 @@ static func q() -> Dictionary:
 static func apply(vp: Viewport) -> void:
 	load_cfg()
 	vp.scaling_3d_scale = float(q().scale)
-	vp.msaa_3d = Viewport.MSAA_2X if bool(q().msaa) else Viewport.MSAA_DISABLED
+	# сглаживание краёв: на мобильных видеочипах (плиточная отрисовка) 2× и 4× почти бесплатны
+	var ms := int(q().msaa)
+	vp.msaa_3d = Viewport.MSAA_4X if ms >= 4 else (Viewport.MSAA_2X if ms >= 2 else Viewport.MSAA_DISABLED)
 	AudioServer.set_bus_mute(0, volume <= 0.005)
 	AudioServer.set_bus_volume_db(0, linear_to_db(maxf(volume, 0.005)))
 
