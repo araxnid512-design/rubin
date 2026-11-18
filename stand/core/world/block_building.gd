@@ -1250,7 +1250,7 @@ func _floor(bi: int, f: int) -> void:
 
 func _floor_mat(t: String) -> String:
 	match t:
-		"cor", "hall0", "lounge", "stair", "wc", "proc":
+		"cor", "hall0", "hall_dorm", "lounge", "stair", "wc", "proc":
 			return "tiles"
 		"kitchen", "cold":
 			return "ktiles"
@@ -1820,6 +1820,13 @@ func _furnish(bk: Dictionary, r: Dictionary, nk: String, ik: String) -> void:
 			_try(ctx, "plant", ["ext", "l", "r"], 0.1)
 			_try(ctx, "plant", ["ext", "l", "r"], 0.9)
 			_try(ctx, "m_wheel", ["l", "r", "ext"], 0.15)
+		"hall_dorm":
+			# прихожая общежития с входом посередине фасада: у входа ничего не ставится (стол вахты — у боковой стены)
+			_try(ctx, "reception", ["l", "r"], 0.2)
+			_try(ctx, "bench", ["r", "l"], 0.8)
+			_try(ctx, "board", ["r", "l"], 0.25)
+			_try(ctx, "plant", ["ext", "l", "r"], 0.08)
+			_try(ctx, "plant", ["ext", "l", "r"], 0.92)
 		"lounge":
 			_try(ctx, "sofa", ["ext"], 0.35)
 			_try(ctx, "sofa", ["l", "r"], 0.5)

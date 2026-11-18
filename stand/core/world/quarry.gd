@@ -40,7 +40,7 @@ const WATER_Y := -1.4
 
 const Q_BUILDINGS := [
 	# общежитие №1: два этажа, оштукатуренное; коридор вдоль, комнаты по обе стороны, лестница в торце
-	{"id": "dorm1", "n": "Общежитие рабочих", "kind": "dorm", "skin": "plaster", "int": "int_beige1", "hall0": "hall0",
+	{"id": "dorm1", "n": "Общежитие рабочих", "kind": "dorm", "skin": "plaster", "int": "int_beige1", "hall0": "hall_dorm",
 		"blocks": [{"c": Vector2(-60, -50), "L": 30.0, "W": 11.0, "axis": "x", "floors": 2, "stairs": [-1], "hall": [3.0, 6.0], "entr": [["s+", 3.0, 1.6]], "wide": 0.3}],
 		"types": {"*": [["room", 6], ["wc", 1], ["linen", 1]]}},
 	# общежитие №2: деревянный барак — комнаты у западной стены, коридор к посёлку
