@@ -1,7 +1,7 @@
 class_name ULHeroes
 ## Внешность героя: у каждого игрока кооператива свой персонаж (выбор — в «МУЛЬТИПЛЕЕР», он же действует
 ## в одиночной игре и на стенде). Скелет Tripo у всех один (BoneRoot/Hip/…), поэтому все клипы героя
-## (assets/anim/hero) подходят без новых движений: разницу исходных поз костей снимает BCAnimSet._rest_fix,
+## (assets/anim/hero) подходят без новых движений (Tripo, 18.11: Лис и Рысь — по ~75 кредитов): разницу исходных поз костей снимает BCAnimSet._rest_fix,
 ## руки к оружию ставит BCWeaponHold по скелету самой модели.
 
 const CFG := "user://coop_client.json"      ## тот же файл, что у экрана «МУЛЬТИПЛЕЕР» (адрес сервера и персонаж)
@@ -9,6 +9,7 @@ const ANIM := "res://assets/anim/hero"
 const LIST := {
 	"hero": {"n": "Сталкер", "model": "res://assets/models/hero.glb", "height": 1.8},
 	"hero2": {"n": "Лис", "model": "res://assets/models/hero2.glb", "height": 1.8},
+	"hero3": {"n": "Рысь", "model": "res://assets/models/hero3.glb", "height": 1.74},
 }
 
 
@@ -26,6 +27,9 @@ static func name_of(id: String) -> String:
 
 
 static func current() -> String:
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--as-hero=") and a.substr(10) in ids():
+			return a.substr(10)          # проверки игры на другом персонаже
 	var d := _cfg()
 	var id := String(d.get("char", "hero"))
 	return id if id in ids() else "hero"

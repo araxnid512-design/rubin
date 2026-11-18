@@ -55,7 +55,7 @@ func _ready() -> void:
 	cr.add_child(_row_lbl("Персонаж:"))
 	for id in ULHeroes.LIST:
 		var ok: bool = id in ULHeroes.ids()
-		var b := _fit(ULSettings.button(ULHeroes.name_of(id) if ok else ULHeroes.name_of(id) + " (нет модели)", _pick_char.bind(id), 220.0))
+		var b := _fit(ULSettings.button(ULHeroes.name_of(id) if ok else ULHeroes.name_of(id) + " (нет модели)", _pick_char.bind(id), 170.0))
 		b.disabled = not ok
 		cr.add_child(b)
 		_char_btns[id] = b
