@@ -1,6 +1,51 @@
 {
- "stop": true,
- "jobs": [],
+ "stop": false,
+ "jobs": [
+  {
+   "id": "h2_a",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "hero2",
+    "--faces",
+    "16000",
+    "--rig",
+    "biped",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "Post-apocalyptic survivor man about 30 years old, 1.8 m tall adult, athletic build, clean-shaven, short light-brown buzz-cut hair, small scar on the cheek, sand-colored hooded anorak with the hood down, dark blue-grey knitted sweater, black plate-carrier vest with magazine pouches, bright red scarf around the neck, grey camouflage cargo trousers with knee pads, black tactical boots, black gloves, standing in T-pose, arms straight out to the sides, legs slightly apart, realistic human proportions, photorealistic PBR textures, game-ready character, empty hands, no weapon, no backpack, no base, no pedestal.",
+    "--anims",
+    "preset:biped:idle"
+   ],
+   "timeout": 3600
+  },
+  {
+   "id": "h2_b",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "hero2_b",
+    "--faces",
+    "16000",
+    "--rig",
+    "biped",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "Post-apocalyptic survivor woman about 30 years old, 1.74 m tall adult, athletic build, dark hair tied in a tight low bun, determined face, dark green bomber jacket with sleeves rolled to the forearm, grey hoodie, black tactical chest rig with pouches, bright red bandana around the neck, dark blue jeans with knee pads, brown leather combat boots, fingerless gloves, standing in T-pose, arms straight out to the sides, legs slightly apart, realistic human proportions, photorealistic PBR textures, game-ready character, empty hands, no weapon, no backpack, no base, no pedestal.",
+    "--anims",
+    "preset:biped:idle"
+   ],
+   "timeout": 3600
+  }
+ ],
  "archived": [
   "bs_hero",
   "bs_hero_suit",
