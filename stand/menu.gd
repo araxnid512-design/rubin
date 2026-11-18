@@ -1,13 +1,13 @@
 extends Control
-## Главное меню — экран при запуске игры. Фон — картинка с нарисованными кнопками: «Новая игра», «Продолжить»,
-## «Настройки», «Выход». Новая игра стирает сохранение локации и базы (имя героя и настройки остаются) и ведёт на карту
+## Главное меню — экран при запуске игры. Фон — картинка пользователя с нарисованными кнопками: «Новая игра»,
+## «Продолжить», «Мультиплеер», «Настройки», «Выход». Проверочные режимы (полигон, стенд 3D, тест уровней, тест
+## кейсов) — в «Настройки» → «Лаборатория». Новая игра стирает сохранение локации и базы (имя героя и настройки остаются) и ведёт на карту
 ## мира; «Продолжить» — на карту мира с прежним сохранением.
 
 const SAVE := "user://cluster.json"
 var bd: ULBackdrop
 var test := ""
 var out := "user://menu"
-var _extra: Array = []
 
 
 func _ready() -> void:
@@ -26,16 +26,15 @@ func _ready() -> void:
 	Music.play_menu()
 	bd = ULBackdrop.new()
 	bd.tex = load("res://assets/ui/title.jpg")
-	bd.anchor_y = 0.04              # название игры сверху видно целиком, срезается низ (камни под ногами)
+	bd.anchor_y = 0.08              # название игры сверху видно целиком, срезается низ (камни под ногами)
+	# кнопки на картинке (в её точках, 1672×941)
 	bd.areas = {
-		"new": Rect2(1230, 282, 398, 84), "cont": Rect2(1230, 390, 398, 84),
-		"set": Rect2(1230, 498, 398, 84), "quit": Rect2(1230, 606, 398, 84),
+		"new": Rect2(1230, 248, 400, 84), "cont": Rect2(1230, 354, 400, 84), "mp": Rect2(1230, 460, 400, 84),
+		"set": Rect2(1230, 564, 400, 84), "quit": Rect2(1230, 666, 400, 82),
 	}
 	bd.dim["cont"] = not FileAccess.file_exists(SAVE)
 	add_child(bd)
 	bd.tapped.connect(_on_tap)
-	_extra_buttons.call_deferred()
-	resized.connect(_extra_buttons)
 	if test != "":
 		_run_test.call_deferred()
 
@@ -49,8 +48,10 @@ func _on_tap(id: String) -> void:
 				_go_map()
 		"cont":
 			_go_map()
+		"mp":
+			_multiplayer()
 		"set":
-			ULSettings.panel(self, func() -> void: ULSettings.apply(get_viewport()))
+			ULSettings.panel(self, func() -> void: ULSettings.apply(get_viewport()), [["Лаборатория", _lab]])
 		"quit":
 			get_tree().quit()
 
@@ -74,56 +75,56 @@ func _go_stand() -> void:
 	get_tree().change_scene_to_file("res://stand.tscn")
 
 
-## две кнопки под нарисованными: «Полигон» и «3D» (в ширину кнопки «Выход», вдвоём)
-func _extra_buttons() -> void:
-	for b in _extra:
-		b.queue_free()
-	_extra = []
-	var r := bd.to_screen(Rect2(1116, 702, 506, 62))
-	var h := minf(r.size.y, size.y - r.position.y - 6.0)
-	if h < 30.0:
-		# низ картинки срезан экраном — кнопки встают вплотную к нижнему краю
-		h = 44.0
-		r.position.y = size.y - h - 6.0
-	var defs := [["Полигон", _go_arena], ["3D", _go_stand], ["Тест уровней", _levels], ["Тест кейсов", _cases]]
-	var w := (r.size.x - 10.0 * (defs.size() - 1)) / defs.size()
-	for i in defs.size():
-		var b := Button.new()
-		b.text = defs[i][0]
-		b.focus_mode = Control.FOCUS_NONE
-		b.add_theme_font_size_override("font_size", int(clampf(h * 0.4, 15.0, 22.0)))
-		b.add_theme_color_override("font_color", Color(0.95, 0.88, 0.72))
-		for st in ["normal", "hover", "pressed"]:
-			var sb := StyleBoxFlat.new()
-			sb.bg_color = Color(0.1, 0.085, 0.07, 0.9) if st != "pressed" else Color(0.3, 0.2, 0.08, 0.95)
-			sb.border_color = Color(0.85, 0.55, 0.2, 0.9)
-			sb.set_border_width_all(2)
-			sb.set_corner_radius_all(8)
-			b.add_theme_stylebox_override(st, sb)
-		b.position = Vector2(r.position.x + i * (w + 10.0), r.position.y)
-		b.size = Vector2(w, h)
-		b.pressed.connect(defs[i][1])
-		add_child(b)
-		_extra.append(b)
-	# кооператив: отдельная крупная кнопка над рядом
-	var mb := Button.new()
-	mb.text = "МУЛЬТИПЛЕЕР"
-	mb.name = "Multiplayer"
-	mb.focus_mode = Control.FOCUS_NONE
-	mb.add_theme_font_size_override("font_size", int(clampf(h * 0.45, 16.0, 24.0)))
-	mb.add_theme_color_override("font_color", Color(0.95, 0.9, 0.75))
-	for st in ["normal", "hover", "pressed"]:
-		var sb2 := StyleBoxFlat.new()
-		sb2.bg_color = Color(0.08, 0.14, 0.1, 0.92) if st != "pressed" else Color(0.15, 0.3, 0.15, 0.95)
-		sb2.border_color = Color(0.5, 0.9, 0.45, 0.9)
-		sb2.set_border_width_all(2)
-		sb2.set_corner_radius_all(8)
-		mb.add_theme_stylebox_override(st, sb2)
-	mb.position = Vector2(r.position.x, r.position.y - h - 8.0)
-	mb.size = Vector2(r.size.x, h)
-	mb.pressed.connect(_multiplayer)
-	add_child(mb)
-	_extra.append(mb)
+## Лаборатория (из «Настроек»): проверочные режимы — полигон 10×10, стенд 3D (движения, редактор удара), тест
+## уровней (любая локация с пулемётом, бессмертный, без сохранения), тест кейсов (прокрутка оружейного сундука)
+var _lab_panel: CanvasLayer
+
+
+func _lab() -> void:
+	if _lab_panel != null and is_instance_valid(_lab_panel):
+		_lab_panel.queue_free()
+	var cl := CanvasLayer.new()
+	cl.layer = 22
+	add_child(cl)
+	var shade := ColorRect.new()
+	shade.color = Color(0, 0, 0, 0.62)
+	cl.add_child(shade)
+	shade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_lab_panel = cl
+	var pn := PanelContainer.new()
+	pn.add_theme_stylebox_override("panel", ULSettings._box(ULSettings.C_BG))
+	shade.add_child(pn)
+	pn.anchor_left = 0.5
+	pn.anchor_right = 0.5
+	pn.anchor_top = 0.5
+	pn.anchor_bottom = 0.5
+	pn.offset_left = -300
+	pn.offset_right = 300
+	pn.offset_top = -250
+	pn.offset_bottom = 250
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 10)
+	pn.add_child(vb)
+	var t := Label.new()
+	t.text = "Лаборатория"
+	t.add_theme_font_size_override("font_size", 26)
+	t.add_theme_color_override("font_color", Color(0.95, 0.85, 0.6))
+	vb.add_child(t)
+	var d := Label.new()
+	d.text = "Проверочные режимы: здесь ничего не сохраняется."
+	d.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	d.add_theme_font_size_override("font_size", 15)
+	d.add_theme_color_override("font_color", ULSettings.C_TEXT)
+	vb.add_child(d)
+	for it in [["lab_arena", "Полигон 10×10", _go_arena], ["lab_stand", "Стенд 3D: движения, редактор удара", _go_stand],
+			["lab_levels", "Тест уровней", _levels], ["lab_cases", "Тест кейсов", _cases]]:
+		var go: Callable = it[2]
+		var b := ULSettings.button(String(it[1]), func() -> void:
+			cl.queue_free()                      # окно лаборатории — прочь, режим открывается поверх меню
+			go.call(), 560.0)
+		b.name = String(it[0])
+		vb.add_child(b)
+	vb.add_child(ULSettings.button("Назад", func() -> void: cl.queue_free(), 560.0))
 
 
 func _multiplayer() -> void:
@@ -262,29 +263,47 @@ func _run_test() -> void:
 	DirAccess.make_dir_recursive_absolute(out)
 	await get_tree().create_timer(0.8).timeout
 	get_viewport().get_texture().get_image().save_png(out + "/m0_menu.png")
-	var ok := bd._hit(bd.to_screen(bd.areas["new"]).get_center()) == "new" and bd._hit(bd.to_screen(bd.areas["quit"]).get_center()) == "quit"
-	print("[menu] кнопки «Новая игра» и «Выход» нажимаются по своим местам на картинке — ", "верно" if ok else "ОШИБКА")
+	var ok := true
+	for k in ["new", "cont", "mp", "set", "quit"]:
+		if bd.dim.get(k, false):
+			continue                                 # «Продолжить» без сохранения затемнена и не нажимается
+		if bd._hit(bd.to_screen(bd.areas[k]).get_center()) != k:
+			ok = false
+	print("[menu] пять кнопок картинки («Новая игра», «Продолжить», «Мультиплеер», «Настройки», «Выход») нажимаются по своим местам — ", "верно" if ok else "ОШИБКА")
+	var vis_ok := true
+	for k in bd.areas:
+		var r: Rect2 = bd.to_screen(bd.areas[k])
+		if r.position.y < 0.0 or r.end.y > size.y:
+			vis_ok = false
+	print("[menu] все кнопки картинки целиком на экране — ", "верно" if vis_ok else "ОШИБКА")
 	_on_tap("set")
 	await get_tree().create_timer(0.6).timeout
 	get_viewport().get_texture().get_image().save_png(out + "/m1_settings.png")
-	# тест уровней: окно со списком локаций, выбор — флаг и место
+	# «Настройки» → «Лаборатория»: полигон, стенд 3D, тест уровней, тест кейсов (на главном экране их больше нет)
+	var labb: Button = null
+	for b in find_children("*", "Button", true, false):
+		if (b as Button).text == "Лаборатория":
+			labb = b
+	print("[menu] в настройках есть кнопка «Лаборатория» — ", "верно" if labb != null else "ОШИБКА")
+	if labb:
+		labb.pressed.emit()
+	await get_tree().create_timer(0.4).timeout
+	get_viewport().get_texture().get_image().save_png(out + "/m1b_lab.png")
+	var lab_ok := _lab_panel != null
+	for nm in ["lab_arena", "lab_stand", "lab_levels", "lab_cases"]:
+		if not lab_ok or _lab_panel.find_child(nm, true, false) == null:
+			lab_ok = false
+	print("[menu] в лаборатории — полигон, стенд 3D, тест уровней, тест кейсов — ", "верно" if lab_ok else "ОШИБКА")
 	for c in get_children():
-		if c is CanvasLayer or (c is Control and c != bd and not _extra.has(c)):
+		if c is CanvasLayer or (c is Control and c != bd):
 			c.queue_free()
 	await get_tree().process_frame
-	var lb: Button = null
-	for b in _extra:
-		if (b as Button).text == "Тест уровней":
-			lb = b
-	print("[menu] кнопка «Тест уровней» есть — ", "верно" if lb != null else "ОШИБКА")
-	# мультиплеер: крупная кнопка, экран с профилем, сервером, созданием и входом в мир
-	var mpb := find_child("Multiplayer", true, false) as Button
-	print("[menu] кнопка «МУЛЬТИПЛЕЕР» есть — ", "верно" if mpb != null else "ОШИБКА")
-	_multiplayer()
+	# мультиплеер — кнопка на картинке, экран с профилем, сервером, созданием и входом в мир
+	_on_tap("mp")
 	await get_tree().create_timer(0.5).timeout
 	get_viewport().get_texture().get_image().save_png(out + "/m4_multiplayer.png")
 	var mp := find_child("MpMenu", true, false)
-	print("[menu] экран «МУЛЬТИПЛЕЕР»: профиль, сервер, «Создать», «Присоединиться», «Продолжить», «Назад» — ", "верно" if mp != null else "ОШИБКА")
+	print("[menu] «Мультиплеер» на картинке открывает экран: профиль, сервер, «Создать», «Присоединиться», «Продолжить», «Назад» — ", "верно" if mp != null else "ОШИБКА")
 	if mp:
 		mp.queue_free()
 	await get_tree().process_frame
@@ -300,14 +319,9 @@ func _run_test() -> void:
 	print("[menu] выбор «Хутор»: тест уровня включён, место — хутор — ", "верно" if ULSettings.level_test and ULSettings.place == "khutor" and not ULSettings.arena else "ОШИБКА")
 	# тест кейсов: лента едет, «Пропустить» — сразу к результату под линией, в инвентарь ничего
 	for c in get_children():
-		if c is CanvasLayer or (c is Control and c != bd and not _extra.has(c)):
+		if c is CanvasLayer or (c is Control and c != bd):
 			c.queue_free()
 	await get_tree().process_frame
-	var cb: Button = null
-	for b in _extra:
-		if (b as Button).text == "Тест кейсов":
-			cb = b
-	print("[menu] кнопка «Тест кейсов» есть — ", "верно" if cb != null else "ОШИБКА")
 	_cases()
 	await get_tree().create_timer(1.6).timeout
 	get_viewport().get_texture().get_image().save_png(out + "/m3_case_spin.png")
