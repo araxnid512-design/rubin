@@ -2599,6 +2599,7 @@ func close_inventory() -> void:
 	_open_ground = null
 	if _open_safe > 0:
 		ULBase.save_state()                     # сейф — часть сохранения базы
+		_safe_door(_open_safe, false)
 		_open_safe = 0
 	inv_ui.cont_cols = 4
 	inv_ui.storage_ops = false
@@ -5131,22 +5132,41 @@ func _st_test() -> void:
 	player.global_position = room_at
 	await get_tree().create_timer(0.4).timeout
 	await _st_snap("st_room_lv6")
+	if out != "":
+		# крупно: ряд сейфов (камера ближе), затем сейф №3 с открытой дверцей
+		var cd0 := cam_dist
+		cam_dist = 4.2
+		player.global_position = safe_front(4, 1.3) + Vector3(0, 0.05, 0)
+		await _st_snap("st_safes_close")
+		_safe_door(3, true)
+		await get_tree().create_timer(0.8).timeout
+		await _snap("st_safe_door_open")
+		_safe_door(3, false)
+		await get_tree().create_timer(0.6).timeout
+		cam_dist = cd0
 	# подход и окно сейфа
 	player.global_position = safe_front(3, 0.55) + Vector3(0, 0.05, 0)
 	await get_tree().create_timer(0.4).timeout
 	_ok("9. у сейфа №3: цель «Сейф №3», кнопка «Открыть»", _target != null and String(_target.type) == "safe" and int(_target.k) == 3 and _action_label() == "Открыть", _target_name())
 	do_action()
-	await get_tree().process_frame
-	await get_tree().process_frame
+	await get_tree().create_timer(0.8).timeout
+	var door_open := _safe_is_open(3)
 	var cont: Array = inv_ui.cont
 	var btns := []
 	for b in inv_ui.find_children("*", "Button", true, false):
 		btns.append((b as Button).text)
-	_ok("10. открыт сейф №3: 30 ячеек сеткой 6 × 5, кнопки «Взять всё», «Положить всё», «Сортировать»",
-		inv_ui.visible and cont == ULBase.safe_cells(3) and cont.size() == 30 and inv_ui.cont_cols == 6 and btns.has("Положить всё") and btns.has("Сортировать") and btns.has("Взять всё"), str(inv_ui.cont_title))
+	_ok("10. открыт сейф №3: дверца распахнулась, окно «%s» — 30 ячеек сеткой 6 × 5, кнопки «Взять всё», «Положить всё», «Сортировать»" % inv_ui._title.text,
+		door_open and inv_ui._title.text == "СЕЙФ №3" and inv_ui.visible and cont == ULBase.safe_cells(3) and cont.size() == 30 and inv_ui.cont_cols == 6 and btns.has("Положить всё") and btns.has("Сортировать") and btns.has("Взять всё"), str(inv_ui.cont_title))
 	if out != "":
 		await get_tree().create_timer(0.3).timeout
 		await _snap("st_safe_window")
+		inv_ui.visible = false
+		_hud.visible = true
+		_cam_ready = false
+		await get_tree().create_timer(1.0).timeout
+		await _snap("st_safe_open")
+		inv_ui.visible = true
+		_hud.visible = false
 	# положить: оружие, патроны, ресурсы
 	inv.pockets.fill(null)
 	inv.primary = ULItems.make("ak74m")
@@ -5207,7 +5227,8 @@ func _st_test() -> void:
 	inv_ui._put_all()
 	_ok("15. «В сейф…»: оружие — в сейф №5; «Положить всё» — бинты из карманов в сейф №3", s5[0] != null and String(s5[0].id) == gun and cont[0] != null and String(cont[0].id) != gun and inv.count("bandage") == 0 and cont.any(func(x): return x != null and String(x.id) == "bandage"))
 	close_inventory()
-	await get_tree().process_frame
+	await get_tree().create_timer(0.7).timeout
+	_ok("15а. окно закрыто — дверца сейфа №3 закрылась", not _safe_is_open(3))
 	# сохранение: файл базы, постоянные номера сейфов
 	var snap := _st_dump()
 	ULBase.data = {}
@@ -10285,6 +10306,7 @@ const SAFE_D := 0.55
 const SAFE_H := 1.3
 var _storage_root: Node3D
 var _safe_nodes: Array[Node3D] = []
+var _safe_doors := {}                      ## номер сейфа → узел дверцы (поворачивается на петлях)
 
 
 ## перед дверцей сейфа k (система мира) — где встаёт герой
@@ -10300,6 +10322,7 @@ func _storage() -> void:
 		_storage_root.queue_free()
 		_storage_root = null
 	_safe_nodes.clear()
+	_safe_doors.clear()
 	var lv := ULBase.storage_level()
 	if lv <= 0:
 		return
@@ -10370,10 +10393,36 @@ func _storage() -> void:
 			sn.name = "Safe%d" % k
 			sn.position = at
 			root.add_child(sn)
-			if not _armory_model(sn, "st_safe", Vector3.ZERO, 0.0, SAFE_H, "h", Vector3.ZERO, null):
+			var door: Node3D
+			var plate_at := Vector3.ZERO
+			if ResourceLoader.exists(MODELS + "st_safe.glb"):
+				# модель Tripo по эскизу: закрытый сейф; открытый (с полками) — отдельной моделью, показывается при открытии
+				var cn := Node3D.new()
+				cn.name = "Closed"
+				sn.add_child(cn)
+				var fit := _fit_model(cn, MODELS + "st_safe.glb", Vector3(SAFE_W, SAFE_H, SAFE_D), SAFE_YAW)
+				if ResourceLoader.exists(MODELS + "st_safe_open.glb"):
+					var on := Node3D.new()
+					on.name = "Open"
+					on.visible = false
+					sn.add_child(on)
+					_fit_model(on, MODELS + "st_safe_open.glb", Vector3.ZERO, SAFE_OPEN_YAW, float(fit.k), fit.aabb)
+				door = cn
+				var bb: AABB = fit.aabb
+				plate_at = Vector3(bb.get_center().x, bb.end.y - 0.16, bb.end.z + 0.006)
+			else:
 				var mi := MeshInstance3D.new()
-				mi.mesh = safe_mesh
+				mi.mesh = safe_mesh.body
 				sn.add_child(mi)
+				door = Node3D.new()
+				door.name = "Door"
+				door.position = Vector3(-SAFE_W * 0.5 + SAFE_T, 0, SAFE_D * 0.5 + 0.004)
+				sn.add_child(door)
+				var dm := MeshInstance3D.new()
+				dm.mesh = safe_mesh.door
+				door.add_child(dm)
+				plate_at = Vector3(float(safe_mesh.door_cx), float(safe_mesh.door_top) - 0.08, 0.019)
+			_safe_doors[k] = door
 			var cs := CollisionShape3D.new()
 			var bs := BoxShape3D.new()
 			bs.size = Vector3(SAFE_W, SAFE_H, SAFE_D)
@@ -10386,9 +10435,9 @@ func _storage() -> void:
 			lb.pixel_size = 0.0016
 			lb.outline_size = 0
 			lb.modulate = Color(0.12, 0.1, 0.06)
-			lb.position = Vector3(0, SAFE_H - 0.12, SAFE_D * 0.5 + 0.046)
-			sn.add_child(lb)
-			_box_prop(sn, Vector3(0.15, 0.07, 0.008), Vector3(0, SAFE_H - 0.12, SAFE_D * 0.5 + 0.04), _paint(Color(0.82, 0.68, 0.32), 0.8, 0.35))
+			lb.position = plate_at + Vector3(0, 0, 0.007)
+			door.add_child(lb)
+			_box_prop(door, Vector3(0.15, 0.07, 0.008), plate_at, _paint(Color(0.82, 0.68, 0.32), 0.8, 0.35))
 			_safe_nodes.append(sn)
 		else:
 			for e in [[Vector3(SAFE_W, 0.006, 0.04), Vector3(0, 0, -SAFE_D * 0.5)], [Vector3(SAFE_W, 0.006, 0.04), Vector3(0, 0, SAFE_D * 0.5)],
@@ -10403,6 +10452,32 @@ func _storage() -> void:
 			fl.rotation.x = -PI * 0.5
 			fl.position = at + Vector3(0, 0.035, 0)
 			root.add_child(fl)
+
+
+const SAFE_YAW := 0.0                      ## поворот модели Tripo, чтобы дверца смотрела к +z (к герою)
+const SAFE_OPEN_YAW := 0.0
+
+
+## Модель path — в parent: поворот yaw, затем по размеру box (вписать: наименьший из масштабов; 0 — не ограничено)
+## или готовым масштабом k; низ — на пол, середина — в начало координат. Если дан align — левый задний угол
+## совмещается с его левым задним углом (открытый сейф шире на дверцу — корпус на том же месте). Ответ: {k, aabb}.
+func _fit_model(parent: Node3D, path: String, box: Vector3, yaw: float, k := 0.0, align := AABB()) -> Dictionary:
+	var m: Node3D = (load(path) as PackedScene).instantiate()
+	m.rotation.y = yaw
+	parent.add_child(m)
+	var bb: AABB = _aabb(m)
+	if k <= 0.0:
+		k = 1e9
+		for ax in 3:
+			if box[ax] > 0.0 and bb.size[ax] > 0.001:
+				k = minf(k, box[ax] / bb.size[ax])
+	m.scale = Vector3.ONE * k
+	var b2: AABB = _aabb(m)
+	if align.size != Vector3.ZERO:
+		m.position = Vector3(align.position.x - b2.position.x, -b2.position.y, align.position.z - b2.position.z)
+	else:
+		m.position = Vector3(-b2.get_center().x, -b2.position.y, -b2.get_center().z)
+	return {"k": k, "aabb": _aabb(m)}
 
 
 ## табличка «ХРАНИЛИЩЕ»: жёлтая пластина с чёрной надписью; yaw — куда смотрит лицевая сторона (0 — к +z)
@@ -10422,67 +10497,26 @@ func _storage_sign(root: Node3D, at: Vector3, yaw: float, w: float) -> void:
 	sn.add_child(lb)
 
 
-var _safe_mesh_cache: ArrayMesh
+var _safe_mesh_cache := {}
+const SAFE_T := 0.05                       ## толщина стенок корпуса
+const SAFE_DOOR_OPEN := -1.66              ## дверь открыта: 95° наружу (петли слева)
 
 
-## Свой сейф (нет модели Tripo): одна сетка из частей по материалам — корпус крашеной стали с цоколем, дверца
-## с зазором, петли, штурвал-кремальера со спицами, ручка, кодовая панель с экранчиком. Дверца — к +z.
-func _safe_mesh() -> ArrayMesh:
-	if _safe_mesh_cache != null:
-		return _safe_mesh_cache
-	var body_m := _paint(Color(0.2, 0.25, 0.23), 0.6, 0.45)
-	var door_m := _paint(Color(0.25, 0.3, 0.28), 0.6, 0.4)
-	var dark_m := _paint(Color(0.07, 0.07, 0.07), 0.5, 0.6)
-	var chrome := _paint(Color(0.78, 0.78, 0.74), 0.9, 0.25)
-	var screen := _paint(Color(0.15, 0.45, 0.2), 0.0, 0.3)
-	screen.emission_enabled = true
-	screen.emission = Color(0.3, 1.0, 0.45)
-	screen.emission_energy_multiplier = 0.9
-	var w := SAFE_W
-	var h := SAFE_H
-	var d := SAFE_D
-	var fz := d * 0.5
-	var parts := []
-	var bx := func(sz: Vector3, at: Vector3, m: Material) -> void:
-		var bm := BoxMesh.new()
-		bm.size = sz
-		parts.append([bm, Transform3D(Basis(), at), m])
-	bx.call(Vector3(w, h - 0.08, d), Vector3(0, 0.08 + (h - 0.08) * 0.5, 0), body_m)
-	bx.call(Vector3(w - 0.04, 0.08, d - 0.04), Vector3(0, 0.04, 0), dark_m)
-	bx.call(Vector3(w + 0.02, 0.03, d + 0.02), Vector3(0, h - 0.015, 0), door_m)
-	bx.call(Vector3(w - 0.07, h - 0.2, 0.012), Vector3(0, 0.08 + (h - 0.08) * 0.5, fz + 0.002), dark_m)
-	bx.call(Vector3(w - 0.09, h - 0.22, 0.035), Vector3(0, 0.08 + (h - 0.08) * 0.5, fz + 0.018), door_m)
-	for hy in [0.3, h - 0.3]:
-		var cy := CylinderMesh.new()
-		cy.top_radius = 0.018
-		cy.bottom_radius = 0.018
-		cy.height = 0.12
-		cy.radial_segments = 8
-		parts.append([cy, Transform3D(Basis(), Vector3(-w * 0.5 + 0.03, hy, fz + 0.03)), chrome])
-	var wy := h * 0.52
-	var wx := 0.04
-	var tm := TorusMesh.new()
-	tm.inner_radius = 0.07
-	tm.outer_radius = 0.09
-	tm.rings = 16
-	tm.ring_segments = 6
-	parts.append([tm, Transform3D(Basis(Vector3.RIGHT, PI * 0.5), Vector3(wx, wy, fz + 0.07)), chrome])
-	for a in 3:
-		var sp := BoxMesh.new()
-		sp.size = Vector3(0.17, 0.014, 0.014)
-		parts.append([sp, Transform3D(Basis(Vector3.BACK, a * PI / 3.0), Vector3(wx, wy, fz + 0.07)), chrome])
-	var hub := CylinderMesh.new()
-	hub.top_radius = 0.028
-	hub.bottom_radius = 0.032
-	hub.height = 0.05
-	hub.radial_segments = 10
-	parts.append([hub, Transform3D(Basis(Vector3.RIGHT, PI * 0.5), Vector3(wx, wy, fz + 0.055)), chrome])
-	bx.call(Vector3(0.02, 0.16, 0.03), Vector3(w * 0.5 - 0.09, wy, fz + 0.05), chrome)
-	bx.call(Vector3(0.11, 0.15, 0.015), Vector3(wx, wy + 0.23, fz + 0.042), dark_m)
-	bx.call(Vector3(0.08, 0.028, 0.004), Vector3(wx, wy + 0.275, fz + 0.051), screen)
-	for r in 3:
-		for c in 3:
-			bx.call(Vector3(0.022, 0.018, 0.006), Vector3(wx - 0.028 + c * 0.028, wy + 0.235 - r * 0.026, fz + 0.051), chrome)
+## материал с жёлто-чёрной косой полосой (низ дверцы)
+func _hazard_mat() -> StandardMaterial3D:
+	var img := Image.create(64, 16, false, Image.FORMAT_RGB8)
+	for y in 16:
+		for x in 64:
+			img.set_pixel(x, y, Color(0.9, 0.7, 0.08) if int(floor((x + y) / 8.0)) % 2 == 0 else Color(0.06, 0.06, 0.06))
+	img.generate_mipmaps()
+	var m := _paint(Color(1, 1, 1), 0.2, 0.6)
+	m.albedo_texture = ImageTexture.create_from_image(img)
+	m.uv1_scale = Vector3(3, 1, 1)
+	return m
+
+
+## собрать части [сетка, положение, материал] в одну сетку — по поверхности на материал
+func _merge_parts(parts: Array) -> ArrayMesh:
 	var by_mat := {}
 	for pr in parts:
 		var m: Material = pr[2]
@@ -10493,11 +10527,111 @@ func _safe_mesh() -> ArrayMesh:
 		(by_mat[m] as SurfaceTool).append_from(pr[0], 0, pr[1])
 	var am := ArrayMesh.new()
 	for m in by_mat:
-		var st: SurfaceTool = by_mat[m]
-		st.commit(am)
+		(by_mat[m] as SurfaceTool).commit(am)
 		am.surface_set_material(am.get_surface_count() - 1, m)
-	_safe_mesh_cache = am
 	return am
+
+
+## Свой сейф (пока нет модели Tripo): {"body": корпус, "door": дверца}. Корпус — тяжёлая крашеная сталь со
+## скруглёнными рёбрами, цоколем и ножками, внутри пустой: войлок и две полки; петли — три массивных цилиндра слева.
+## Дверца — толстая плита с накладной панелью, хромированный штурвал на шесть рукоятей с ручкой-диском, кодовая
+## панель с экранчиком и кнопками, засовы на торце (видны, когда дверь открыта), жёлто-чёрная полоса внизу.
+## Дверца — в своей системе: ось петель в начале координат, полотно идёт вдоль +x, лицо — к +z.
+func _safe_mesh() -> Dictionary:
+	if not _safe_mesh_cache.is_empty():
+		return _safe_mesh_cache
+	var body_m := _paint(Color(0.17, 0.19, 0.19), 0.75, 0.42)
+	var door_m := _paint(Color(0.23, 0.25, 0.25), 0.75, 0.36)
+	var panel_m := _paint(Color(0.28, 0.3, 0.3), 0.8, 0.32)
+	var dark_m := _paint(Color(0.05, 0.05, 0.05), 0.5, 0.6)
+	var felt := _paint(Color(0.16, 0.12, 0.09), 0.0, 1.0)
+	var chrome := _paint(Color(0.84, 0.84, 0.82), 1.0, 0.18)
+	var screen := _paint(Color(0.15, 0.45, 0.2), 0.0, 0.3)
+	screen.emission_enabled = true
+	screen.emission = Color(0.3, 1.0, 0.45)
+	screen.emission_energy_multiplier = 1.2
+	var hz := _hazard_mat()
+	var w := SAFE_W
+	var h := SAFE_H
+	var d := SAFE_D
+	var t := SAFE_T
+	var y0 := 0.08                                  # цоколь
+	var fz := d * 0.5
+	var box := func(parts: Array, sz: Vector3, at: Vector3, m: Material) -> void:
+		var bm := BoxMesh.new()
+		bm.size = sz
+		parts.append([bm, Transform3D(Basis(), at), m])
+	var cyl := func(parts: Array, r: float, ln: float, xf: Transform3D, m: Material) -> void:
+		var cm := CylinderMesh.new()
+		cm.top_radius = r
+		cm.bottom_radius = r
+		cm.height = ln
+		cm.radial_segments = 10
+		cm.rings = 1
+		parts.append([cm, xf, m])
+	# корпус: дно, крыша, бока, задняя стенка, цоколь с ножками, скруглённые передние рёбра
+	var b: Array = []
+	var hh := h - y0
+	box.call(b, Vector3(w, t, d), Vector3(0, y0 + t * 0.5, 0), body_m)
+	box.call(b, Vector3(w, t, d), Vector3(0, h - t * 0.5, 0), body_m)
+	for sx in [-1, 1]:
+		box.call(b, Vector3(t, hh, d), Vector3(sx * (w - t) * 0.5, y0 + hh * 0.5, 0), body_m)
+		cyl.call(b, 0.03, hh, Transform3D(Basis(), Vector3(sx * (w * 0.5 - 0.022), y0 + hh * 0.5, fz - 0.022)), body_m)
+		for sz in [-1, 1]:
+			box.call(b, Vector3(0.08, y0, 0.08), Vector3(sx * (w * 0.5 - 0.06), y0 * 0.5, sz * (d * 0.5 - 0.06)), dark_m)
+	cyl.call(b, 0.03, w - 0.04, Transform3D(Basis(Vector3.BACK, PI * 0.5), Vector3(0, h - 0.022, fz - 0.022)), body_m)
+	box.call(b, Vector3(w, hh, t), Vector3(0, y0 + hh * 0.5, -fz + t * 0.5), body_m)
+	box.call(b, Vector3(w - 0.06, 0.05, d - 0.08), Vector3(0, y0 - 0.025 + 0.012, 0), dark_m)
+	# внутри: войлок, две полки
+	box.call(b, Vector3(w - 2 * t, hh - 2 * t, 0.01), Vector3(0, y0 + hh * 0.5, -fz + t + 0.005), felt)
+	for sy in [0.5, 0.88]:
+		box.call(b, Vector3(w - 2 * t, 0.02, d - t - 0.08), Vector3(0, sy, -0.04 + t * 0.5), felt)
+	box.call(b, Vector3(w - 2 * t, 0.01, d - t), Vector3(0, y0 + t + 0.005, t * 0.5), felt)
+	# петли — на левом переднем ребре
+	for hy in [0.32, h * 0.5 + 0.04, h - 0.22]:
+		cyl.call(b, 0.024, 0.13, Transform3D(Basis(), Vector3(-w * 0.5 + t * 0.5, hy, fz + 0.012)), chrome)
+	# дверца (система петель): полотно, накладная панель, штурвал, кодовая панель, засовы, полоса
+	var dr: Array = []
+	var dw := w - 2 * t - 0.01
+	var dh := hh - 2 * t - 0.01
+	var dyc := y0 + t + 0.005 + dh * 0.5
+	var cx := 0.005 + dw * 0.5
+	box.call(dr, Vector3(dw, dh, 0.06), Vector3(cx, dyc, -0.03), door_m)
+	box.call(dr, Vector3(dw - 0.07, dh - 0.09, 0.014), Vector3(cx, dyc + 0.01, 0.007), panel_m)
+	var wy := dyc - 0.03
+	var wx := cx + 0.02
+	var tor := TorusMesh.new()
+	tor.inner_radius = 0.105
+	tor.outer_radius = 0.13
+	tor.rings = 20
+	tor.ring_segments = 6
+	dr.append([tor, Transform3D(Basis(Vector3.RIGHT, PI * 0.5), Vector3(wx, wy, 0.07)), chrome])
+	for a in 3:
+		var sp := BoxMesh.new()
+		sp.size = Vector3(0.3, 0.02, 0.02)
+		dr.append([sp, Transform3D(Basis(Vector3.BACK, a * PI / 3.0 + 0.3), Vector3(wx, wy, 0.07)), chrome])
+	for a in 6:
+		var ang := a * PI / 3.0 + 0.3
+		var kn := SphereMesh.new()
+		kn.radius = 0.022
+		kn.height = 0.044
+		kn.radial_segments = 8
+		kn.rings = 4
+		dr.append([kn, Transform3D(Basis(), Vector3(wx + cos(ang) * 0.16, wy + sin(ang) * 0.16, 0.07)), chrome])
+	cyl.call(dr, 0.05, 0.06, Transform3D(Basis(Vector3.RIGHT, PI * 0.5), Vector3(wx, wy, 0.045)), chrome)
+	cyl.call(dr, 0.036, 0.02, Transform3D(Basis(Vector3.RIGHT, PI * 0.5), Vector3(wx, wy, 0.083)), dark_m)
+	box.call(dr, Vector3(0.12, 0.15, 0.016), Vector3(cx, dyc + dh * 0.5 - 0.27, 0.022), dark_m)
+	box.call(dr, Vector3(0.09, 0.03, 0.004), Vector3(cx, dyc + dh * 0.5 - 0.215, 0.031), screen)
+	for r in 3:
+		for c in 3:
+			box.call(dr, Vector3(0.024, 0.02, 0.008), Vector3(cx - 0.03 + c * 0.03, dyc + dh * 0.5 - 0.255 - r * 0.028, 0.032), chrome)
+	for by in [dyc - dh * 0.3, dyc, dyc + dh * 0.3]:
+		cyl.call(dr, 0.016, 0.06, Transform3D(Basis(Vector3.BACK, PI * 0.5), Vector3(0.005 + dw + 0.025, by, -0.03)), chrome)
+	var q := QuadMesh.new()
+	q.size = Vector2(dw - 0.07, 0.07)
+	dr.append([q, Transform3D(Basis(), Vector3(cx, y0 + t + 0.075, 0.0145)), hz])
+	_safe_mesh_cache = {"body": _merge_parts(b), "door": _merge_parts(dr), "door_cx": cx, "door_top": dyc + dh * 0.5}
+	return _safe_mesh_cache
 
 
 ## открыть сейф k: сетка 6 × 5, «Положить всё», «Сортировать», перенос ресурсов из кошелька
@@ -10515,7 +10649,40 @@ func open_safe(k: int) -> void:
 	for j in range(1, ULBase.storage_level() + 1):
 		inv_ui.safes.append([j, ULBase.safe_cells(j)])
 	open_inventory(ULBase.safe_cells(k), "Сейф №%d" % k, false, "safe")
-	snd.play("click", safe_front(k, 0.0) + Vector3.UP, -6.0)
+	_safe_door(k, true)
+
+
+## открыт ли сейф k (модель «открытый» видна или дверца повёрнута)
+func _safe_is_open(k: int) -> bool:
+	var door = _safe_doors.get(k)
+	if door == null:
+		return false
+	if String((door as Node3D).name) == "Closed":
+		return not (door as Node3D).visible
+	return (door as Node3D).rotation.y < -1.4
+
+
+## дверца сейфа: открыть (код — писк, засовы — лязг, дверь на петлях наружу) или закрыть. Сейф из Tripo — две
+## модели: закрытый и открытый (с полками); при открытии показывается открытый
+func _safe_door(k: int, open: bool) -> void:
+	var door = _safe_doors.get(k)
+	if door == null or not is_instance_valid(door):
+		return
+	var at := safe_front(k, 0.0) + Vector3.UP
+	if open:
+		snd.play("beep", at, -8.0)
+		snd.play("slide_back", at, -6.0)
+	else:
+		snd.play("slide_fwd", at, -6.0)
+	snd.play("cover_open" if open else "cover_close", at, -5.0)
+	if String((door as Node3D).name) == "Closed":
+		var on := (door as Node3D).get_parent().get_node_or_null("Open") as Node3D
+		if on != null:
+			on.visible = open
+			(door as Node3D).visible = not open
+		return
+	var tw := create_tween()
+	tw.tween_property(door, "rotation:y", SAFE_DOOR_OPEN if open else 0.0, 0.55 if open else 0.4).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT if open else Tween.EASE_IN)
 
 
 # ---------------- компьютер базы ----------------

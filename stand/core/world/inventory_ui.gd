@@ -148,8 +148,8 @@ func refresh() -> void:
 		for c in box.get_children():
 			c.queue_free()
 	var total := inv.slot_count()
-	_title.text = "ИНВЕНТАРЬ" if cont == null else (("ОБЫСК (%s)" if _is_body() else "ХРАНИЛИЩЕ (%s)") % cont_title.to_upper())
-	_title_ic.texture = load(ICONS + ("ui/bag" if cont == null else "hud_box") + ".png")
+	_title.text = "ИНВЕНТАРЬ" if cont == null else (cont_title.to_upper() if cont_icon == "safe" else (("ОБЫСК (%s)" if _is_body() else "ХРАНИЛИЩЕ (%s)") % cont_title.to_upper()))
+	_title_ic.texture = load(ICONS + ("ui/bag" if cont == null else ("safe" if cont_icon == "safe" else "hud_box")) + ".png")
 	_cap.text = "Занято: %d из %d ячеек (%d%%)" % [inv.used(), total, int(round(100.0 * inv.used() / maxf(total, 1)))]
 	if cont == null:
 		_build_inventory()
