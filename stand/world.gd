@@ -476,6 +476,8 @@ func _cowshed_enter() -> void:
 	var snap := func(p: Vector3) -> Vector3:
 		return NavigationServer3D.map_get_closest_point(map, p)
 	cs_plan = zone.spawn_plan(rng, snap)
+	if place == "quarry":
+		_ground_reachable(snap)
 	var k := 0
 	for sp in cs_plan:
 		var en := spawn_enemy(String(sp[0]), sp[1])
@@ -496,6 +498,28 @@ func _cowshed_enter() -> void:
 	if san != null:
 		zone_changed()
 	say("%s. До перезагрузки кластера — %d минут" % [zone_name(), int(c.get("minutes", 10))] + (" · ТЕСТ УРОВНЯ: бессмертие, патроны без конца" if lvl else ""))
+
+
+## Находки на земле — только там, куда герой может подойти: лежит вне карты проходимости (у бровки над обрывом,
+## под конвейером, за ограждением) — сдвигается на ближайшее место рядом на той же высоте, а если такого нет в 2,5 м —
+## убирается (иначе её видно, а поднять нельзя)
+func _ground_reachable(snap: Callable) -> void:
+	var moved := 0
+	var gone: Array = []
+	for g in ground.duplicate():
+		var n: Node3D = g.node
+		var p := n.global_position
+		var q: Vector3 = snap.call(p)
+		var dh := Vector2(q.x - p.x, q.z - p.z).length()
+		if dh <= 0.5 and absf(q.y - p.y) < 0.6:
+			continue
+		if dh < 2.5 and absf(q.y - p.y) < 0.6:
+			n.global_position = Vector3(q.x, q.y + 0.02, q.z)
+			moved += 1
+		else:
+			gone.append("%s %s→%s" % [String(g.item.id), str(p.snapped(Vector3.ONE * 0.1)), str(q.snapped(Vector3.ONE * 0.1))])
+			_remove_ground(g)
+	print("[quarry] находки на земле: сдвинуто к проходу %d, убрано (не подойти) %d %s" % [moved, gone.size(), str(gone.slice(0, 6))])
 
 
 ## Хлам в постройках временного кластера: в каждой постройке — 2–4 кучки, каждый вход заново (по случайности
@@ -2654,7 +2678,8 @@ func _spawn_ground(it: Dictionary, p: Vector3, yaw: float) -> Dictionary:
 	var node := Node3D.new()
 	node.name = "Item"
 	add_child(node)
-	node.global_position = Vector3(p.x, ULHouse.FLOOR_Y if _in_house(p) else 0.0, p.z)
+	# на базе — пол дома или земля; во временном кластере — своя высота точки (уступы карьера, этажи, подвалы)
+	node.global_position = Vector3(p.x, p.y if temp() else (ULHouse.FLOOR_Y if _in_house(p) else 0.0), p.z)
 	node.rotation.y = yaw
 	var g := {"item": it, "node": node}
 	ground.append(g)
@@ -4537,6 +4562,10 @@ func _qr_test() -> void:
 			e.state = "idle"
 			e.wander_r = 0.0
 	hp_lock = true
+	# на время спуска и подъёма заражённые замирают на своих местах (иначе толпа, спустившаяся за героем,
+	# зажимает его на дне — это проверка дороги, а не боя)
+	for e in enemies:
+		e.process_mode = Node.PROCESS_MODE_DISABLED
 	player.global_position = top + Vector3.UP * 0.1
 	await get_tree().create_timer(0.3).timeout
 	var min_dy := 0.0
@@ -4557,6 +4586,8 @@ func _qr_test() -> void:
 	var up := NavigationServer3D.map_get_path(map, snapf.call(player.global_position), top, true)
 	await _walk(Array(up), 70.0)
 	_ok("и поднялся обратно на бровку (высота %.1f м)" % player.global_position.y, player.global_position.y > -0.5 and player.global_position.distance_to(top) < 3.0, str(player.global_position))
+	for e in enemies:
+		e.process_mode = Node.PROCESS_MODE_INHERIT
 	# 7–13: постройки — путь от входа в каждую; внутри крыша скрыта
 	var by_id := {}
 	for b in san.blds:
