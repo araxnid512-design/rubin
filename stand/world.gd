@@ -4510,9 +4510,10 @@ func _qr_test() -> void:
 	# 3: глубина и уступы
 	var hc := ULQuarry.height(ULQuarry.PIT_C)
 	var levels := {}
-	for k in 400:
-		var qq := ULQuarry.pit_point(randf() * 0.98, randf_range(-PI, PI))
-		levels[ULQuarry.level_at(qq)] = true
+	for i in 50:
+		for j in 24:
+			var qq := ULQuarry.pit_point(i / 49.0 * 1.04, j * TAU / 24.0)
+			levels[ULQuarry.level_at(qq)] = true
 	_ok("выработка настоящей глубины: дно на %.1f м, уступы на −4,5 и −9 м, уровней %d" % [hc, levels.size()], hc < -13.0 and levels.size() == 4)
 	# нет дыр: луч сверху в любой точке поля упирается в землю на её высоте
 	var holes := 0
@@ -7511,6 +7512,10 @@ func _pc_test() -> void:
 		_cam_ready = false
 		await get_tree().create_timer(1.2).timeout
 		await _snap("pc_room_before")
+	# набор маршрутов в компьютере — известный (иначе он случайный: 3 из всех локаций, и санатория может не быть)
+	ULBase.data.seen = ULBase.route_pool()
+	ULBase.data.offers = ["cowshed", "sanatorium", "convoy"]
+	ULBase.data.routes_next = int(Time.get_unix_time_from_system()) + ULBase.refresh_period()
 	player.global_position = house.to_global(terminal_front() + Vector3(0, 0.05, 0))
 	await get_tree().create_timer(0.4).timeout
 	_ok("у стола: цель — компьютер, кнопка «Открыть»", _target != null and String(_target.type) == "terminal" and _action_label() == "Открыть", _target_name())
