@@ -882,6 +882,24 @@
     "a single large weathered brown sandstone boulder, realistic, single object, game asset"
    ],
    "timeout": 2400
+  },
+  {
+   "id": "q_st_safe",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "st_safe",
+    "--faces",
+    "8000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "a heavy steel bank vault safe cabinet about 1.5 meters tall, front door with a large spoked locking wheel and a small electronic keypad with green display, thick hinges, dark grey worn paint with scratches and rust, yellow and black hazard stripes at the bottom of the door, closed, realistic, single object, game asset"
+   ],
+   "timeout": 3000
   }
  ],
  "archived": [
