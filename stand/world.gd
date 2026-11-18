@@ -10395,21 +10395,34 @@ func _storage() -> void:
 			root.add_child(sn)
 			var door: Node3D
 			var plate_at := Vector3.ZERO
+			var plate_on: Node3D = null
+			var ch := SAFE_H
+			var cdz := SAFE_D
+			var ccz := 0.0
 			if ResourceLoader.exists(MODELS + "st_safe.glb"):
 				# модель Tripo по эскизу: закрытый сейф; открытый (с полками) — отдельной моделью, показывается при открытии
 				var cn := Node3D.new()
 				cn.name = "Closed"
 				sn.add_child(cn)
-				var fit := _fit_model(cn, MODELS + "st_safe.glb", Vector3(SAFE_W, SAFE_H, SAFE_D), SAFE_YAW)
+				var fit := _fit_model(cn, MODELS + "st_safe.glb", Vector3(SAFE_W, SAFE_H, SAFE_D - 0.04), SAFE_YAW)
+				var bb: AABB = fit.aabb
+				# задней стенкой — к стене комнаты (1 см зазор)
+				var dz := (1.57 - SAFE_Z) - bb.position.z
+				cn.position.z = dz
 				if ResourceLoader.exists(MODELS + "st_safe_open.glb"):
 					var on := Node3D.new()
 					on.name = "Open"
 					on.visible = false
+					on.position.z = dz
 					sn.add_child(on)
-					_fit_model(on, MODELS + "st_safe_open.glb", Vector3.ZERO, SAFE_OPEN_YAW, float(fit.k), fit.aabb)
+					_fit_model(on, MODELS + "st_safe_open.glb", Vector3.ZERO, SAFE_OPEN_YAW, float(fit.k), bb, float(fit.kz))
 				door = cn
-				var bb: AABB = fit.aabb
-				plate_at = Vector3(bb.get_center().x, bb.end.y - 0.16, bb.end.z + 0.006)
+				ch = bb.end.y
+				cdz = bb.size.z
+				ccz = dz + bb.get_center().z
+				# номер — латунная табличка на стене над сейфом (дверца модели целиком занята штурвалом и панелью)
+				plate_at = Vector3(bb.get_center().x, bb.end.y + 0.12, 1.56 + 0.006 - SAFE_Z)
+				plate_on = sn
 			else:
 				var mi := MeshInstance3D.new()
 				mi.mesh = safe_mesh.body
@@ -10423,11 +10436,13 @@ func _storage() -> void:
 				door.add_child(dm)
 				plate_at = Vector3(float(safe_mesh.door_cx), float(safe_mesh.door_top) - 0.08, 0.019)
 			_safe_doors[k] = door
+			if plate_on == null:
+				plate_on = door
 			var cs := CollisionShape3D.new()
 			var bs := BoxShape3D.new()
-			bs.size = Vector3(SAFE_W, SAFE_H, SAFE_D)
+			bs.size = Vector3(SAFE_W, ch, cdz)
 			cs.shape = bs
-			cs.position = at + Vector3(0, SAFE_H * 0.5, 0)
+			cs.position = at + Vector3(0, ch * 0.5, ccz)
 			body.add_child(cs)
 			var lb := Label3D.new()
 			lb.text = "№%d" % k
@@ -10436,8 +10451,8 @@ func _storage() -> void:
 			lb.outline_size = 0
 			lb.modulate = Color(0.12, 0.1, 0.06)
 			lb.position = plate_at + Vector3(0, 0, 0.007)
-			door.add_child(lb)
-			_box_prop(door, Vector3(0.15, 0.07, 0.008), plate_at, _paint(Color(0.82, 0.68, 0.32), 0.8, 0.35))
+			plate_on.add_child(lb)
+			_box_prop(plate_on, Vector3(0.15, 0.07, 0.008), plate_at, _paint(Color(0.82, 0.68, 0.32), 0.8, 0.35))
 			_safe_nodes.append(sn)
 		else:
 			for e in [[Vector3(SAFE_W, 0.006, 0.04), Vector3(0, 0, -SAFE_D * 0.5)], [Vector3(SAFE_W, 0.006, 0.04), Vector3(0, 0, SAFE_D * 0.5)],
@@ -10454,30 +10469,34 @@ func _storage() -> void:
 			root.add_child(fl)
 
 
-const SAFE_YAW := 0.0                      ## поворот модели Tripo, чтобы дверца смотрела к +z (к герою)
-const SAFE_OPEN_YAW := 0.0
+const SAFE_YAW := -PI * 0.5                ## у модели Tripo дверца смотрит к +x — поворот к +z (к герою)
+const SAFE_OPEN_YAW := -PI * 0.5
 
 
-## Модель path — в parent: поворот yaw, затем по размеру box (вписать: наименьший из масштабов; 0 — не ограничено)
-## или готовым масштабом k; низ — на пол, середина — в начало координат. Если дан align — левый задний угол
-## совмещается с его левым задним углом (открытый сейф шире на дверцу — корпус на том же месте). Ответ: {k, aabb}.
-func _fit_model(parent: Node3D, path: String, box: Vector3, yaw: float, k := 0.0, align := AABB()) -> Dictionary:
+## Модель path — в parent: поворот yaw (лицом к +z), затем масштаб: по ширине и высоте box — одинаковый k (лицевая
+## сторона без искажений), по глубине — свой kz до box.z (Tripo по картинке даёт плоский корпус; не больше k × 1,4 —
+## иначе у открытого сейфа вытягивается дверца).
+## Готовые k, kz — тем же масштабом (открытый сейф — как закрытый). Низ — на пол, середина — в начало координат;
+## если дан align — левый задний угол совмещается с ним (открытый шире на дверцу — корпус на том же месте).
+func _fit_model(parent: Node3D, path: String, box: Vector3, yaw: float, k := 0.0, align := AABB(), kz := 0.0) -> Dictionary:
+	var holder := Node3D.new()
+	parent.add_child(holder)
 	var m: Node3D = (load(path) as PackedScene).instantiate()
 	m.rotation.y = yaw
-	parent.add_child(m)
-	var bb: AABB = _aabb(m)
+	holder.add_child(m)
+	var bb: AABB = _aabb(holder)
 	if k <= 0.0:
-		k = 1e9
-		for ax in 3:
-			if box[ax] > 0.0 and bb.size[ax] > 0.001:
-				k = minf(k, box[ax] / bb.size[ax])
-	m.scale = Vector3.ONE * k
-	var b2: AABB = _aabb(m)
+		k = minf(box.x / maxf(bb.size.x, 0.001), box.y / maxf(bb.size.y, 0.001))
+		kz = clampf(box.z / maxf(bb.size.z, 0.001), k, k * 1.4) if box.z > 0.0 else k
+	if kz <= 0.0:
+		kz = k
+	holder.scale = Vector3(k, k, kz)
+	var b2: AABB = _aabb(holder)
 	if align.size != Vector3.ZERO:
-		m.position = Vector3(align.position.x - b2.position.x, -b2.position.y, align.position.z - b2.position.z)
+		holder.position = Vector3(align.position.x - b2.position.x, -b2.position.y, align.position.z - b2.position.z)
 	else:
-		m.position = Vector3(-b2.get_center().x, -b2.position.y, -b2.get_center().z)
-	return {"k": k, "aabb": _aabb(m)}
+		holder.position = Vector3(-b2.get_center().x, -b2.position.y, -b2.get_center().z)
+	return {"k": k, "kz": kz, "aabb": _aabb(holder)}
 
 
 ## табличка «ХРАНИЛИЩЕ»: жёлтая пластина с чёрной надписью; yaw — куда смотрит лицевая сторона (0 — к +z)

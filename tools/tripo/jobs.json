@@ -1,47 +1,6 @@
 {
- "stop": false,
- "jobs": [
-  {
-   "id": "q_st_safe_img",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "st_safe",
-    "--image",
-    "tools/tripo/refs/st_safe.png",
-    "--faces",
-    "8000",
-    "--tex",
-    "detailed",
-    "--geo",
-    "detailed",
-    "--pbr",
-    "--prompt",
-    "heavy steel vault safe, closed door with a large spoked locking wheel, electronic keypad, massive hinges, yellow and black hazard stripes, worn dark grey metal"
-   ],
-   "timeout": 3000
-  },
-  {
-   "id": "q_st_safe_open",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "st_safe_open",
-    "--image",
-    "tools/tripo/refs/st_safe_open.png",
-    "--faces",
-    "8000",
-    "--tex",
-    "detailed",
-    "--geo",
-    "detailed",
-    "--pbr",
-    "--prompt",
-    "heavy steel vault safe with the door wide open to the right, metal shelves inside with ammo boxes, tins and a red first aid case"
-   ],
-   "timeout": 3000
-  }
- ],
+ "stop": true,
+ "jobs": [],
  "archived": [
   "bs_hero",
   "bs_hero_suit",
@@ -1932,6 +1891,46 @@
     "--pbr",
     "--prompt",
     "a heavy steel bank vault safe cabinet about 1.5 meters tall, front door with a large spoked locking wheel and a small electronic keypad with green display, thick hinges, dark grey worn paint with scratches and rust, yellow and black hazard stripes at the bottom of the door, closed, realistic, single object, game asset"
+   ],
+   "timeout": 3000
+  },
+  {
+   "id": "q_st_safe_img",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "st_safe",
+    "--image",
+    "tools/tripo/refs/st_safe.png",
+    "--faces",
+    "8000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "heavy steel vault safe, closed door with a large spoked locking wheel, electronic keypad, massive hinges, yellow and black hazard stripes, worn dark grey metal"
+   ],
+   "timeout": 3000
+  },
+  {
+   "id": "q_st_safe_open",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "st_safe_open",
+    "--image",
+    "tools/tripo/refs/st_safe_open.png",
+    "--faces",
+    "8000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "heavy steel vault safe with the door wide open to the right, metal shelves inside with ammo boxes, tins and a red first aid case"
    ],
    "timeout": 3000
   }
