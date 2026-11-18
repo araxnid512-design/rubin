@@ -130,9 +130,9 @@ func build(shell_path: String, wall_tex: String, floor_tex: String, bunker := fa
 
 ## Бункер (вид снаружи; когда герой внутри — скрыт, видны комнаты сверху): толстые стены из старого бетона,
 ## перекрытие с земляной насыпью и дёрном, по краю крыши — мешки с песком, к задней стене — земляной вал,
-## вход — бетонный портал с открытой стальной гермодверью и коридор из мешков, на крыше — вентиляция, люк, антенна.
-## Всё — своя геометрия с материалами построек (ULBlock: бетон, земля, металл, мешковина); столкновения — у вала
-## и мешков у входа (стены дома — свои, ULHouse.WALLS).
+## вход — бетонный портал с открытой стальной гермодверью, на крыше — вентиляция, люк, антенна.
+## Всё — своя геометрия с материалами построек (ULBlock: бетон, земля, металл, мешковина); столкновение — у вала
+## (стены дома — свои, ULHouse.WALLS).
 const B_WALL_H := 2.7
 const B_T := 0.45                 ## толщина бетона снаружи (наружу от линии стен)
 
@@ -145,7 +145,11 @@ func _bunker_shell(noise: Texture2D) -> Node3D:
 	add_child(root)
 	var hw := W * 0.5
 	var hd := D * 0.5
-	var conc: Material = M["concrete"]
+	# старый серый бетон с потёками и грязью внизу (у «concrete» тон для пола — на стене выходил почти белым)
+	var conc: ShaderMaterial = (M["concrete"] as ShaderMaterial).duplicate()
+	conc.set_shader_parameter("tint", Color(0.74, 0.74, 0.72))
+	conc.set_shader_parameter("grime", 1.0)
+	conc.set_shader_parameter("streaks", 0.9)
 	# стены: фасад — с проёмом под портал
 	var dw := 1.5                                              # ширина проёма в бетоне снаружи
 	_bx(root, Vector3(W + B_T * 2.0, B_WALL_H, B_T), Vector3(0, B_WALL_H * 0.5, -hd - B_T * 0.5 + 0.11), conc)
@@ -183,27 +187,14 @@ func _bunker_shell(noise: Texture2D) -> Node3D:
 	# фонарь над входом (только свечение, без источника света)
 	var lamp := _bx(root, Vector3(0.3, 0.12, 0.16), Vector3(0, 2.5, hd + 0.98), M.get("lamp", M["metal"]))
 	lamp.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	# коридор из мешков с песком к двери и мешки по краю крыши
+	# мешки с песком по краю крыши; тело столкновений — для вала
 	var body := StaticBody3D.new()
 	body.name = "BunkerBody"
 	add_child(body)
 	var bags: Array[Transform3D] = []
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 77
-	for sx in [-1.0, 1.0]:
-		var x0: float = sx * (dw * 0.5 + 0.75)
-		for row in 3:
-			for i in 5:
-				var z := hd + 1.15 + i * 0.52 + (0.26 if row % 2 == 1 else 0.0)
-				if z > hd + 3.4:
-					continue
-				bags.append(Transform3D(Basis(Vector3.UP, PI * 0.5 + rng.randf_range(-0.08, 0.08)), Vector3(x0 + rng.randf_range(-0.03, 0.03), 0.1 + row * 0.19, z)))
-		var cs := CollisionShape3D.new()
-		var bs := BoxShape3D.new()
-		bs.size = Vector3(0.36, 0.6, 2.3)
-		cs.shape = bs
-		cs.position = Vector3(x0, 0.3, hd + 2.25)
-		body.add_child(cs)
+	# у входа стенок из мешков нет: там стоят жители и ходит герой (мешки — по краю крыши)
 	var ry := B_WALL_H + 0.35
 	var ex := hw + B_T + 0.05
 	var ez := hd + B_T + 0.05
@@ -324,8 +315,10 @@ static func _frustum(bot: Vector2, top: Vector2, h: float) -> ArrayMesh:
 	for i in 4:
 		var j := (i + 1) % 4
 		for v in [b[i], t[j], t[i], b[i], b[j], t[j]]:     # обход — как у Godot (лицевая сторона наружу)
+			st.set_uv(Vector2(v.x + v.y, v.z + v.y))      # развёртка нужна для касательных (карта нормалей)
 			st.add_vertex(v)
 	for v in [t[0], t[1], t[2], t[0], t[2], t[3]]:
+		st.set_uv(Vector2(v.x, v.z))
 		st.add_vertex(v)
 	st.generate_normals()
 	st.generate_tangents()
@@ -342,9 +335,11 @@ static func _wedge(w: float, h: float, depth: float) -> ArrayMesh:
 	var c := Vector3(x, 0, -depth)
 	var d := Vector3(-x, 0, -depth)
 	for v in [a, d, c, a, c, b]:
+		st.set_uv(Vector2(v.x, v.z - v.y))
 		st.add_vertex(v)
 	# торцы
 	for v in [Vector3(-x, 0, 0), d, a, Vector3(x, 0, 0), b, c]:
+		st.set_uv(Vector2(v.z, v.y))
 		st.add_vertex(v)
 	st.generate_normals()
 	st.generate_tangents()

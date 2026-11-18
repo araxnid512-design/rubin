@@ -7146,11 +7146,14 @@ func _inv_test() -> void:
 	_damage(mq, 5000.0, mq.global_position)
 	await get_tree().create_timer(0.5).timeout
 	_ok("манекен не падает и восстанавливается", float(mq.get_meta("hp")) == float(mq.get_meta("hp_max")) and absf((mq.get_node("Vis") as Node3D).rotation.x) < 0.2, "было %d" % mq_hp)
-	# за забором цель не берётся
-	player.global_position = Vector3(mq.global_position.x, 0.05, HOUSE_AT.z + YARD[3] + 3.0)
+	# за стеной бункера цель не берётся (забора у базы больше нет): герой за бункером, манекен — перед входом
+	var mq_at := mq.global_position
+	mq.global_position = HOUSE_AT + Vector3(3.0, 0.0, 8.5)
+	player.global_position = HOUSE_AT + Vector3(3.0, 0.05, -9.5)
 	await get_tree().create_timer(0.3).timeout
-	var far_t = _nearest_target(12.0, 180.0, true)
-	_ok("через забор цель не берётся", far_t != mq, "взята: %s" % (String(far_t.name) if far_t != null else "нет"))
+	var far_t = _nearest_target(20.0, 180.0, true)
+	_ok("сквозь стены бункера цель не берётся", far_t != mq, "взята: %s" % (String(far_t.name) if far_t != null else "нет"))
+	mq.global_position = mq_at
 	# режим огня: пистолет при удержании стреляет выстрел за выстрелом; отпустили — огонь прекращается
 	inv.pistol = I.make("tt")
 	inv.hand = "pistol"
