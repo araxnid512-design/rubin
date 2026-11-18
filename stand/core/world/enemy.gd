@@ -762,11 +762,24 @@ func set_active(on: bool) -> void:
 		return
 	active = on
 	rig.set_active(on)
-	# дальний (не считается) — без настоящей тени от солнца: под ним остаётся мягкое пятно, а карта теней не
-	# рисует его тело второй раз
+	set_shadow(on)
+
+
+## настоящая тень от солнца: у дальних (не считаются) её нет — под ними мягкое пятно, а карта теней не рисует тело
+## второй раз; в толпе тень оставляется только ближайшим (world.gd — _enemy_shadows)
+var shadow_on := true
+
+
+func set_shadow(on: bool) -> void:
+	if on == shadow_on and not _geo.is_empty():
+		return
+	shadow_on = on
 	if _geo.is_empty():
+		# заражённых бывает до 70: их сетки упрощаются с расстоянием раньше, чем герой и окружение (по пресету графики)
+		var lb: float = [0.35, 0.6, 0.85, 1.0][clampi(ULSettings.gfx, 0, 3)]
 		for g in find_children("*", "GeometryInstance3D", true, false):
 			_geo.append([g, (g as GeometryInstance3D).cast_shadow])
+			(g as GeometryInstance3D).lod_bias = lb
 	for it in _geo:
 		if is_instance_valid(it[0]):
 			(it[0] as GeometryInstance3D).cast_shadow = it[1] if on else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF

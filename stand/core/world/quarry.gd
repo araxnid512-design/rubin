@@ -588,11 +588,15 @@ func forest_ok(q: Vector2) -> bool:
 	return not village or absf(q.y) > 62.0 or q.x < -86.0
 
 
+## деревьев — 220 (было 440): середину поля занимает выработка, и с уступов кромку леса видно почти всю — лес давал
+## до 130 тыс. треугольников в кадре из бюджета 450 тыс.; опушки те же, но реже
 func forest_n() -> int:
-	return 440
+	return 220
 
 
 ## лес: по краям поля и ещё ряд за краем (на севере и юге — до границы квадрата карты)
+
+
 func _q_forest(rng: RandomNumberGenerator) -> void:
 	var kinds := []
 	for k in [["ul_pine", 0.32, 4.4, 6.0], ["ul_birch", 0.2, 4.2, 5.6], ["ul_oak", 0.08, 4.2, 5.2], ["ul_dead_tree", 0.05, 3.4, 4.6]]:
@@ -737,6 +741,8 @@ func build(world: Node3D) -> void:
 			_door_grid[k].append(dd)
 		if b.id == "warehouse":
 			_q_warehouse(b)
+		if b.id == "workshop":
+			_q_workshop(b)
 		_place_models(b)
 	if cache != null:
 		rng.state = cache.rng_state
@@ -805,6 +811,39 @@ func _q_warehouse(b: ULBlock) -> void:
 		if String(m[4]) == "b0/n0" and Q_WH_ITEMS.any(func(x): return String(x[0]) == String(m[0])):
 			nwh += 1
 	print("[quarry] склад: рядов %d, предметов в рядах %d, всего моделей мебели %d" % [Q_WH_ROWS.size(), nwh, b.models.size()])
+
+## Цех мастерской (зал 23,6 × 9 м): посередине — УАЗ на ремонте, разобранный двигатель, компрессор, генератор,
+## барабан кабеля, шестерни, бочки, еврокуб; у ворот (x −37…−31) и у боковой двери — свободно. Модели — в группе
+## помещения (видны изнутри), столкновения — коробками; машина, двигатель и барабан — тайники.
+## [модель, где, поворот, место (вдоль, высота, вглубь), тайник, название]
+const Q_WS_ITEMS := [
+	["ul_uaz", Vector3(-39.6, 0.2, -13.6), PI * 0.5, Vector3(4.0, 2.0, 1.9), "uaz", "УАЗ на ремонте"],
+	["qr_scrap2", Vector3(-28.4, 0.2, -13.8), 0.6, Vector3(2.0, 1.6, 2.0), "scrap", "Разобранный двигатель"],
+	["qr_compressor", Vector3(-24.6, 0.2, -10.7), 0.0, Vector3(1.8, 1.2, 0.9), "", ""],
+	["hm_generator", Vector3(-22.0, 0.2, -10.7), 0.0, Vector3(1.3, 1.0, 0.8), "", ""],
+	["qr_cabledrum", Vector3(-41.4, 0.2, -10.6), 0.0, Vector3(1.2, 1.2, 1.0), "cable", "Барабан с кабелем"],
+	["qr_scrap3", Vector3(-25.0, 0.2, -15.2), 1.2, Vector3(1.6, 1.0, 1.4), "", ""],
+	["ph_barrel", Vector3(-41.6, 0.2, -15.9), 0.0, Vector3(0.6, 0.9, 0.6), "", ""],
+	["ph_barrel", Vector3(-40.9, 0.2, -16.5), 0.4, Vector3(0.6, 0.9, 0.6), "", ""],
+	["qr_ibc", Vector3(-29.4, 0.2, -10.5), 0.2, Vector3(1.1, 1.1, 1.1), "", ""],
+]
+
+
+func _q_workshop(b: ULBlock) -> void:
+	var n := 0
+	for it in Q_WS_ITEMS:
+		if not ResourceLoader.exists(MODELS + String(it[0]) + ".glb"):
+			continue
+		var p: Vector3 = it[1]
+		var sz: Vector3 = it[3]
+		b.models.append([String(it[0]), p, float(it[2]), sz, "b0/n0", 0.0])
+		var bx := Vector3(sz.x, sz.y, sz.z) if absf(sin(float(it[2]))) < 0.5 else Vector3(sz.z, sz.y, sz.x)
+		_col_xf(bx * 0.9, Transform3D(Basis.IDENTITY, p + Vector3.UP * sz.y * 0.5))
+		if String(it[4]) != "":
+			_stash(p, bx, 0.0, String(it[4]), String(it[5]))
+		n += 1
+	print("[quarry] мастерская: в цехе %d предметов" % n)
+
 
 ## модель по длине (или высоте) на земле этого места (высота — из рельефа); нет файла — ничего не ставится
 func _qm(id: String, at: Vector3, yaw: float, length: float, collide := true, by_height := false, tint := Color(0.86, 0.84, 0.8), along := false) -> Vector3:

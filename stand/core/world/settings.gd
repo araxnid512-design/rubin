@@ -97,6 +97,9 @@ static func shadows() -> int:
 static func apply(vp: Viewport) -> void:
 	load_cfg()
 	vp.scaling_3d_scale = float(q().scale)
+	# упрощение моделей с расстоянием (уровни детализации, созданные при импорте): насколько пикселей может
+	# «сдвинуться» силуэт — на «Низкой» сильнее, на «Ультра» как есть; толпа заражённых — главная доля треугольников
+	vp.mesh_lod_threshold = [6.0, 3.0, 1.5, 1.0][clampi(gfx, 0, 3)]
 	# сглаживание краёв: на мобильных видеочипах (плиточная отрисовка) 2× и 4× почти бесплатны
 	var ms := int(q().msaa)
 	vp.msaa_3d = Viewport.MSAA_4X if ms >= 4 else (Viewport.MSAA_2X if ms >= 2 else Viewport.MSAA_DISABLED)

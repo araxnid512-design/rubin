@@ -4488,6 +4488,45 @@ func _qr_view() -> void:
 		await get_tree().create_timer(1.4).timeout
 		print("[view] %s: %s, герой (%.1f, %.1f, %.1f)" % [sp[0], _where(), player.global_position.x, player.global_position.y, player.global_position.z])
 		await _snap(String(sp[0]))
+	# минералы: герой рядом с находкой у жилы или кучи руды (ставится на землю; провалился при переносе — следующая)
+	if only == "" or only.split(",").has("m0_minerals"):
+		var map := get_world_3d().navigation_map
+		for g in ground:
+			if String(ULItems.get_def(String(g.item.id)).get("cat", "")) != "mineral":
+				continue
+			var gp: Vector3 = (g.node as Node3D).global_position
+			cam_dist = 9.0
+			player.global_position = NavigationServer3D.map_get_closest_point(map, gp + Vector3(1.2, 0, 1.0)) + Vector3.UP * 0.3
+			player.velocity = Vector3.ZERO
+			_cam_ready = false
+			world_env.fog_enabled = true
+			await get_tree().create_timer(1.4).timeout
+			if player.global_position.y < ULQuarry.height(Vector2(player.global_position.x, player.global_position.z)) - 0.5:
+				continue
+			print("[view] m0_minerals: находка «%s» в %s, герой %s" % [String(ULItems.get_def(String(g.item.id)).n), str(gp.snapped(Vector3.ONE * 0.1)), str(player.global_position.snapped(Vector3.ONE * 0.1))])
+			await _snap("m0_minerals")
+			break
+	# бой: на посёлковой улице несколько пустышей бегут на героя, он стреляет очередями
+	if only == "" or only.split(",").has("c0_combat"):
+		cam_dist = 12.0
+		var at := Vector3(-44.0, ULQuarry.height(Vector2(-44.0, 4.0)), 4.0)
+		player.global_position = at + Vector3.UP * 0.1
+		player.rotation.y = 0.0
+		var k := 0
+		for e in enemies:
+			if not e.alive() or String(e.kind) != "infected" or k >= 4:
+				continue
+			e.global_position = at + Vector3(-2.0 + k * 1.4, 0.05, -5.5 - (k % 2) * 1.2)
+			e.state = "chase"
+			k += 1
+		_cam_ready = false
+		world_env.fog_enabled = true
+		await get_tree().create_timer(0.8).timeout
+		_hud_touch[99] = "fire"
+		await get_tree().create_timer(0.9).timeout
+		await _snap("c0_combat")
+		_hud_touch.erase(99)
+		print("[view] c0_combat: пустышей %d" % k)
 
 
 ## «Карьер» (--as-test=qr; --as-reset — проверка перезагрузки кластера): по списку ТЗ — размер и раскладка, глубина
@@ -9575,11 +9614,32 @@ func _enemies_tick(delta: float) -> void:
 		e.tick(delta, p, bool(e.get_meta("sees")), hero_ok)
 		prof_full += Time.get_ticks_usec() - _u1
 		prof_full_n += 1
+	if temp() and fr % 8 == 0:
+		_enemy_shadows(p)
 	for i in range(_respawn.size() - 1, -1, -1):
 		_respawn[i][1] = float(_respawn[i][1]) - delta
 		if float(_respawn[i][1]) <= 0.0 and (_respawn[i][0] as Vector3).distance_to(p) > 16.0:
 			spawn_enemy(String(_respawn[i][2]), _respawn[i][0])
 			_respawn.remove_at(i)
+
+
+## Толпа рядом (у дробилки карьера — до 12 «полных» врагов): настоящая тень от солнца — только у SHADOW_MAX
+## ближайших, у остальных — мягкое пятно (тело в карте теней не рисуется второй раз — минус треугольники)
+const SHADOW_MAX := 6
+
+
+func _enemy_shadows(p: Vector3) -> void:
+	var act: Array = []
+	for e in enemies:
+		if e.active and e.alive():
+			act.append([e.global_position.distance_squared_to(p), e])
+	if act.size() <= SHADOW_MAX:
+		for a in act:
+			(a[1] as ULEnemy).set_shadow(true)
+		return
+	act.sort_custom(func(a, b) -> bool: return float(a[0]) < float(b[0]))
+	for k in act.size():
+		(act[k][1] as ULEnemy).set_shadow(k < SHADOW_MAX)
 
 
 ## Справочник: кто водится на локации — как ходит, как нападает, что в нём бывает
@@ -11398,7 +11458,7 @@ func _run_test() -> void:
 		print("[inv] итог: ошибок %d" % _fails)
 		get_tree().quit()
 		return
-	if test == "csperf" or test == "snperf" or test == "cvperf" or test == "khperf" or test == "lrperf":
+	if test == "csperf" or test == "snperf" or test == "cvperf" or test == "khperf" or test == "lrperf" or test == "qrperf":
 		var t1 := Time.get_ticks_msec()
 		while not cs_ready and Time.get_ticks_msec() - t1 < 25000:
 			await get_tree().process_frame
