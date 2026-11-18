@@ -1,6 +1,889 @@
 {
- "stop": true,
- "jobs": [],
+ "stop": false,
+ "jobs": [
+  {
+   "id": "q_qr_excavator",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "qr_excavator",
+    "--faces",
+    "14000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "a large yellow tracked hydraulic excavator, heavy mining machine, operator cab with windows, crawler tracks, long boom arm with the digging bucket resting on the ground, dusty worn paint, realistic, single object, game asset"
+   ],
+   "timeout": 3000
+  },
+  {
+   "id": "q_qr_excavator2",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "qr_excavator2",
+    "--faces",
+    "14000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "an old orange tracked mining excavator with a rusty cab, boom raised and bucket curled up, dirty with mud and dust, realistic, single object, game asset"
+   ],
+   "timeout": 3000
+  },
+  {
+   "id": "q_qr_dumptruck",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "qr_dumptruck",
+    "--faces",
+    "14000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "a huge yellow mining haul dump truck with giant tyres and a large dump body full of grey crushed rock, small cab on the upper left deck, dusty, realistic proportions, realistic, single object, game asset"
+   ],
+   "timeout": 3000
+  },
+  {
+   "id": "q_qr_dumptruck2",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "qr_dumptruck2",
+    "--faces",
+    "14000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "an old Soviet style heavy mining dump truck, faded yellow paint with rust, empty steel dump body, six large tyres, realistic, single object, game asset"
+   ],
+   "timeout": 3000
+  },
+  {
+   "id": "q_qr_loader",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "qr_loader",
+    "--faces",
+    "12000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "a yellow front wheel loader with a large front bucket, four big tyres and an operator cab, dusty worn paint, construction machine, realistic, single object, game asset"
+   ],
+   "timeout": 3000
+  },
+  {
+   "id": "q_qr_drill",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "qr_drill",
+    "--faces",
+    "12000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "a tracked blast-hole drilling rig for open-pit mining with a tall vertical drill mast, yellow cab and engine body on crawler tracks, dusty, realistic, single object, game asset"
+   ],
+   "timeout": 3000
+  },
+  {
+   "id": "q_qr_tanker",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "qr_tanker",
+    "--faces",
+    "12000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "an old Soviet fuel tanker truck: orange cylindrical fuel tank on a six-wheel truck chassis with a cab-over front, rusty and dirty, realistic, single object, game asset"
+   ],
+   "timeout": 3000
+  },
+  {
+   "id": "q_qr_crusher",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "qr_crusher",
+    "--faces",
+    "14000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "an industrial stone crushing plant tower for a quarry: rusty steel frame structure with corrugated metal walls, a hopper on top, external steel stairs and platforms with railings, a chute at the bottom, realistic, single object, game asset"
+   ],
+   "timeout": 3000
+  },
+  {
+   "id": "q_qr_conveyor",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "qr_conveyor",
+    "--faces",
+    "8000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "a single straight section of an inclined industrial belt conveyor, 10 meters long steel truss with rollers and a black rubber belt, supported by two steel legs, rusty, realistic, single object, game asset"
+   ],
+   "timeout": 3000
+  },
+  {
+   "id": "q_qr_silo",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "qr_silo",
+    "--faces",
+    "8000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "a tall rusty cylindrical steel storage silo bin for crushed stone standing on four steel legs, conical bottom hopper with a gate, ladder on the side, realistic, single object, game asset"
+   ],
+   "timeout": 3000
+  },
+  {
+   "id": "q_qr_vein1",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "qr_vein1",
+    "--faces",
+    "5000",
+    "--prompt",
+    "a grey boulder with a cluster of natural blue crystals growing out of its cracks, mineral deposit, realistic, single object, game asset"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "q_qr_vein2",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "qr_vein2",
+    "--faces",
+    "5000",
+    "--prompt",
+    "a dark granite rock with a vein of purple amethyst crystals embedded in it, mineral deposit, realistic, single object, game asset"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "q_qr_vein3",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "qr_vein3",
+    "--faces",
+    "5000",
+    "--prompt",
+    "a rock with bright green malachite and copper ore streaks, mineral deposit chunk, realistic, single object, game asset"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "q_qr_ore1",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "qr_ore1",
+    "--faces",
+    "4500",
+    "--prompt",
+    "a pile of dark iron ore rocks with a metallic sheen, realistic, single object, game asset"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "q_qr_ore2",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "qr_ore2",
+    "--faces",
+    "4500",
+    "--prompt",
+    "a pile of grey rocks with blue mineral ore inclusions, realistic, single object, game asset"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "q_qr_ore3",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "qr_ore3",
+    "--faces",
+    "4500",
+    "--prompt",
+    "a pile of reddish copper ore chunks, realistic, single object, game asset"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "q_qi_ore",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "qi_ore",
+    "--faces",
+    "2500",
+    "--prompt",
+    "a single chunk of dark iron ore rock with a metallic sheen, hand sized, realistic, single object, game item"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "q_qi_sample",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "qi_sample",
+    "--faces",
+    "2500",
+    "--prompt",
+    "a mineral specimen: a piece of grey rock with a cluster of clear quartz crystals, hand sized, realistic, single object, game item"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "q_qi_rare",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "qi_rare",
+    "--faces",
+    "2500",
+    "--prompt",
+    "a rare bright blue gemstone crystal cluster mineral specimen, hand sized, realistic, single object, game item"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "q_qi_core",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "qi_core",
+    "--faces",
+    "2500",
+    "--prompt",
+    "a cylindrical stone drill core sample of layered rock, about 30 cm long, realistic, single object, game item"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "q_qi_parts",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "qi_parts",
+    "--faces",
+    "2500",
+    "--prompt",
+    "a bundle of metal machine spare parts: gears, bearings and bolts tied together with wire, realistic, single object, game item"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "q_qi_tool",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "qi_tool",
+    "--faces",
+    "2500",
+    "--prompt",
+    "a worn industrial pneumatic jackhammer drill tool, realistic, single object, game item"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "q_qi_cable",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "qi_cable",
+    "--faces",
+    "2500",
+    "--prompt",
+    "a coiled bundle of black electrical copper cable tied with tape, realistic, single object, game item"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "q_qi_electro",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "qi_electro",
+    "--faces",
+    "2500",
+    "--prompt",
+    "an old green electronic circuit board with chips, capacitors and a few wires, realistic, single object, game item"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "q_qi_scrap",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "qi_scrap",
+    "--faces",
+    "2500",
+    "--prompt",
+    "a small pile of rusty scrap metal pieces: bent plates, nuts and a broken gear, realistic, single object, game item"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "q_qi_junk",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "qi_junk",
+    "--faces",
+    "2500",
+    "--prompt",
+    "assorted technical junk: a broken old radio, a small electric motor and tangled wires, realistic, single object, game item"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "q_qi_samplebox",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "qi_samplebox",
+    "--faces",
+    "4000",
+    "--prompt",
+    "a wooden crate with compartments filled with cylindrical rock core samples, lid open, realistic, single object, game asset"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "q_qi_logbook",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "qi_logbook",
+    "--faces",
+    "2000",
+    "--prompt",
+    "an old worn hardcover logbook journal with a dark green cloth cover, closed, realistic, single object, game item"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "q_qr_remains",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "qr_remains",
+    "--faces",
+    "5000",
+    "--prompt",
+    "the skeletal remains of a quarry worker lying on the ground in a torn orange work jumpsuit, a yellow hard hat nearby, realistic, single object, game asset"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "q_qr_helmet",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "qr_helmet",
+    "--faces",
+    "2500",
+    "--prompt",
+    "a dirty yellow construction hard hat and a pair of work gloves lying together, realistic, single object, game asset"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "q_qr_compressor",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "qr_compressor",
+    "--faces",
+    "4500",
+    "--prompt",
+    "a blue portable industrial air compressor on two wheels with a tow bar, worn paint, realistic, single object, game asset"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "q_qr_transformer",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "qr_transformer",
+    "--faces",
+    "4500",
+    "--prompt",
+    "an old grey electrical power transformer with cooling fins and ceramic insulators on top, rusty, realistic, single object, game asset"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "q_qr_cabledrum",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "qr_cabledrum",
+    "--faces",
+    "4000",
+    "--prompt",
+    "a large wooden cable drum reel with thick black power cable wound on it, standing on its edge, realistic, single object, game asset"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "q_qr_cabledrum2",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "qr_cabledrum2",
+    "--faces",
+    "4000",
+    "--prompt",
+    "a rusty steel cable reel drum lying on its side with tangled black electric cable, realistic, single object, game asset"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "q_qr_ibc",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "qr_ibc",
+    "--faces",
+    "4000",
+    "--prompt",
+    "a white plastic IBC tote container of 1000 liters in a galvanized metal cage on a pallet, dirty, realistic, single object, game asset"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "q_qr_pallets",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "qr_pallets",
+    "--faces",
+    "3000",
+    "--prompt",
+    "a stack of five old wooden shipping pallets, weathered wood, realistic, single object, game asset"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "q_qr_scrap1",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "qr_scrap1",
+    "--faces",
+    "5000",
+    "--prompt",
+    "a pile of rusty scrap metal: bent pipes, steel sheets, old gears and broken machine parts, realistic, single object, game asset"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "q_qr_scrap2",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "qr_scrap2",
+    "--faces",
+    "5000",
+    "--prompt",
+    "a pile of old rusty industrial junk: a broken engine block, chains, wheels and steel beams, realistic, single object, game asset"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "q_qr_scrap3",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "qr_scrap3",
+    "--faces",
+    "5000",
+    "--prompt",
+    "rusty broken mining equipment parts lying on the ground: a large gear wheel, a hydraulic cylinder and steel plates, realistic, single object, game asset"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "q_qr_concpipes",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "qr_concpipes",
+    "--faces",
+    "3000",
+    "--prompt",
+    "three large precast concrete drainage pipes stacked, two at the bottom and one on top, weathered grey concrete, realistic, single object, game asset"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "q_qr_concblocks",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "qr_concblocks",
+    "--faces",
+    "3000",
+    "--prompt",
+    "a stack of grey precast concrete foundation blocks, weathered and chipped, realistic, single object, game asset"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "q_qr_slabs",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "qr_slabs",
+    "--faces",
+    "3000",
+    "--prompt",
+    "a stack of four reinforced concrete road slabs with steel lifting loops, weathered, realistic, single object, game asset"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "q_qr_rails",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "qr_rails",
+    "--faces",
+    "4000",
+    "--prompt",
+    "a short section of old rusty railway track: two steel rails on wooden sleepers, about 6 meters long, realistic, single object, game asset"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "q_qr_sleepers",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "qr_sleepers",
+    "--faces",
+    "3000",
+    "--prompt",
+    "a stack of old creosoted dark brown wooden railway sleepers, realistic, single object, game asset"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "q_qr_beams",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "qr_beams",
+    "--faces",
+    "4000",
+    "--prompt",
+    "a stack of rusty steel I-beams and wooden mine support timbers lying on the ground, realistic, single object, game asset"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "q_qr_pipes",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "qr_pipes",
+    "--faces",
+    "4000",
+    "--prompt",
+    "a stack of rusty large steel pipes lying on wooden beams, realistic, single object, game asset"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "q_qr_booth",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "qr_booth",
+    "--faces",
+    "4500",
+    "--prompt",
+    "a small old guard checkpoint booth of painted metal with glass windows and a flat roof, faded white and red paint, realistic, single object, game asset"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "q_qr_barrier",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "qr_barrier",
+    "--faces",
+    "3000",
+    "--prompt",
+    "a manual road boom barrier gate with a red and white striped arm and a metal post with a counterweight, realistic, single object, game asset"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "q_qr_chainfence",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "qr_chainfence",
+    "--faces",
+    "3000",
+    "--prompt",
+    "a straight section of chain-link fence with rusty steel posts and barbed wire on top, 3 meters long, realistic, single object, game asset"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "q_qr_concfence",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "qr_concfence",
+    "--faces",
+    "3000",
+    "--prompt",
+    "a section of grey precast concrete panel fence with a relief pattern, 4 meters long, weathered, realistic, single object, game asset"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "q_qr_floodlight",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "qr_floodlight",
+    "--faces",
+    "4000",
+    "--prompt",
+    "a tall steel lattice floodlight mast with four rectangular floodlights on top, rusty, realistic, single object, game asset"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "q_qr_radiotower",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "qr_radiotower",
+    "--faces",
+    "4000",
+    "--prompt",
+    "a tall red and white steel lattice radio antenna tower with a small platform, realistic, single object, game asset"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "q_qr_satdish",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "qr_satdish",
+    "--faces",
+    "4000",
+    "--prompt",
+    "a large old satellite dish antenna on a steel stand, weathered white, realistic, single object, game asset"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "q_qr_cabin",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "qr_cabin",
+    "--faces",
+    "4500",
+    "--prompt",
+    "a blue-grey steel worker site cabin container with a door and two small windows, rusty corners, realistic, single object, game asset"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "q_qr_cabin2",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "qr_cabin2",
+    "--faces",
+    "4500",
+    "--prompt",
+    "an old white construction site office trailer on skids with a small entrance step, dirty and rusty, realistic, single object, game asset"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "q_qr_toilet",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "qr_toilet",
+    "--faces",
+    "3000",
+    "--prompt",
+    "a blue plastic portable toilet cabin, dirty, realistic, single object, game asset"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "q_qr_canopy",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "qr_canopy",
+    "--faces",
+    "3500",
+    "--prompt",
+    "an open wooden canopy shelter with four posts and a rusty corrugated metal roof, empty, realistic, single object, game asset"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "q_qr_shower",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "qr_shower",
+    "--faces",
+    "3500",
+    "--prompt",
+    "a small outdoor shower cabin of wooden planks with a black water tank on the roof, realistic, single object, game asset"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "q_qr_gravel1",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "qr_gravel1",
+    "--faces",
+    "3000",
+    "--prompt",
+    "a conical pile of grey crushed stone gravel, realistic, single object, game asset"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "q_qr_gravel2",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "qr_gravel2",
+    "--faces",
+    "4000",
+    "--prompt",
+    "a large heap of broken quarry rock debris and gravel, realistic, single object, game asset"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "q_qr_ridge1",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "qr_ridge1",
+    "--faces",
+    "5000",
+    "--prompt",
+    "a long low ridge of large blasted granite rocks and boulders, quarry debris, realistic, single object, game asset"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "q_qr_ridge2",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "qr_ridge2",
+    "--faces",
+    "5000",
+    "--prompt",
+    "a jagged grey limestone rock outcrop with layered strata, realistic, single object, game asset"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "q_qr_boulder1",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "qr_boulder1",
+    "--faces",
+    "3500",
+    "--prompt",
+    "a single large grey granite boulder with sharp fractured faces, realistic, single object, game asset"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "q_qr_boulder2",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "qr_boulder2",
+    "--faces",
+    "3500",
+    "--prompt",
+    "a single large weathered brown sandstone boulder, realistic, single object, game asset"
+   ],
+   "timeout": 2400
+  }
+ ],
  "archived": [
   "bs_hero",
   "bs_hero_suit",
