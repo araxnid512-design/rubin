@@ -971,12 +971,7 @@ func _make_plan(st: Dictionary) -> Dictionary:
 		var g := _goal(side, W, pr)
 		var tg := _target(side, g[0], g[1], g[2])
 		var b := _best_psi(side, S[side], tg[0], tg[1], bo, fwd, upv, rgt)
-		# запас досягаемости: в покое рука не тянется до предела — при ходьбе и отдаче корпус качается, и
-		# вытянутая до конца рука отрывалась от цевья (у персонажей с другими пропорциями — на 3–6 см)
-		var arm := float(_hf[side].la) + float(_hf[side].lb)
-		var ext := ((tg[0] as Vector3) - (S[side] as Vector3)).length() / maxf(arm, 0.001)
-		var over := maxf(ext - 0.88, 0.0) * 100.0
-		return [float(b[1]) + float(pr.get("u", 0.0)) * 5.0 + over * over * 0.6, b]
+		return [float(b[1]) + float(pr.get("u", 0.0)) * 5.0, b]
 	var pick := func(t: Vector3) -> void:
 		for side in ["R", "L"]:
 			if side == "L" and one:
