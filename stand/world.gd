@@ -324,6 +324,11 @@ var cs_start := 0.0               ## когда начато посещение
 var _cs_warned := {}
 var _cs_over := false             ## время вышло — герой погибает вместе с кластером
 var _cs_done := false
+## задание локации «Последняя смена» (карьер): что найдено в это посещение, выполнено ли; награда — при выходе
+var quest := {}
+var _quest_t := 0.0
+const QUEST_STAGES := [["traces", "Следы рабочих", ["q_tag", "q_photo", "q_pass"]], ["journal", "Журнал диспетчера", ["q_journal"]],
+	["samples", "Ящик с образцами", ["q_samples"]], ["exit", "Покинуть кластер до перезагрузки", []]]
 var _cs_alarm := 0.0
 var cs_ready := false             ## враги расставлены
 var sn_ready_ms := 0              ## когда (мс от запуска) локация готова
@@ -497,7 +502,11 @@ func _cowshed_enter() -> void:
 func _spawn_junk(rng: RandomNumberGenerator) -> void:
 	if san != null:
 		for p in san.junk_points(rng):
-			_spawn_ground(ULItems.make("junk"), p, rng.randf() * TAU)
+			# точка — хлам; [точка, предмет, сколько] — своя находка (минералы у жил и куч руды в карьере)
+			if p is Array:
+				_spawn_ground(ULItems.make(String(p[1]), int(p[2])), p[0], rng.randf() * TAU)
+			else:
+				_spawn_ground(ULItems.make("junk"), p, rng.randf() * TAU)
 		return
 	if cowshed == null:
 		return
@@ -522,6 +531,11 @@ func _cs_tick(delta: float) -> void:
 		zone.tick(player.global_position, cam, delta)
 	if _cs_done or _cs_end <= 0.0:
 		return
+	if place == "quarry":
+		_quest_t -= delta
+		if _quest_t <= 0.0:
+			_quest_t = 0.4
+			quest_tick()
 	var left := cs_left()
 	var c := zone_cfg()
 	for wv in c.get("warn_s", [300, 120]):
@@ -557,6 +571,69 @@ func _cs_tick(delta: float) -> void:
 			_joy_v = Vector2.ZERO
 
 
+## Задание «Последняя смена»: находка засчитывается, когда предмет попал в инвентарь (поднят с земли или взят из
+## тайника); выброшенный потом — всё равно засчитан. Этапы: три следа рабочих, журнал диспетчера, ящик с
+## образцами, выход до перезагрузки (награда — data/quarry.json, quest.reward; только при выходе за край).
+func quest_tick() -> void:
+	if quest.is_empty():
+		quest = {"found": {}, "done": false}
+	var found: Dictionary = quest.found
+	for st in QUEST_STAGES:
+		for id in st[2]:
+			if not found.has(id) and inv.count(String(id)) > 0:
+				found[id] = true
+				say("Задание «Последняя смена»: %s — %s" % [ULItems.title({"id": id, "n": 1}), quest_line(String(st[0]))])
+
+
+## сколько найдено по этапу и всего
+func quest_progress(stage: String) -> Vector2i:
+	for st in QUEST_STAGES:
+		if String(st[0]) == stage:
+			var n := 0
+			for id in st[2]:
+				if (quest.get("found", {}) as Dictionary).has(id):
+					n += 1
+			return Vector2i(n, (st[2] as Array).size())
+	return Vector2i.ZERO
+
+
+func quest_ready() -> bool:
+	for st in QUEST_STAGES:
+		var pr := quest_progress(String(st[0]))
+		if pr.y > 0 and pr.x < pr.y:
+			return false
+	return true
+
+
+func quest_line(stage: String) -> String:
+	var pr := quest_progress(stage)
+	return "%d/%d" % [pr.x, pr.y] if pr.y > 1 else ("найден" if pr.x > 0 else "не найден")
+
+
+## панель задания слева под строкой состояния: этапы и отметки
+func _quest_hud(vs: Vector2, font0: Font) -> void:
+	if place != "quarry" or _cs_end <= 0.0:
+		return
+	var q: Dictionary = ULQuarry.qcfg().get("quest", {})
+	var x := 12.0
+	var y := 124.0                                # под строкой состояния (имя, ресурсы, место и кадры/с)
+	var lines: Array = []
+	var cur_set := false
+	for st in QUEST_STAGES:
+		var pr := quest_progress(String(st[0]))
+		var ok := pr.y > 0 and pr.x >= pr.y
+		var cur := not ok and not cur_set
+		if cur:
+			cur_set = true
+		var txt := String(st[1]) + ((" " + quest_line(String(st[0]))) if pr.y > 1 else "")
+		lines.append([("✓ " if ok else ("▸ " if cur else "• ")) + txt, Color(0.55, 0.9, 0.55) if ok else (Color(1.0, 0.85, 0.45) if cur else Color(0.8, 0.8, 0.76))])
+	var w := 330.0
+	_hud.draw_rect(Rect2(x - 6, y - 22, w, 26 + lines.size() * 22), Color(0.04, 0.03, 0.02, 0.55))
+	_hud.draw_string(font0, Vector2(x, y), "Задание: " + String(q.get("n", "Последняя смена")), HORIZONTAL_ALIGNMENT_LEFT, -1, 17, Color(1.0, 0.86, 0.5))
+	for i in lines.size():
+		_hud.draw_string(font0, Vector2(x + 4, y + 22 + i * 22), String(lines[i][0]), HORIZONTAL_ALIGNMENT_LEFT, -1, 15, lines[i][1])
+
+
 ## Конец посещения: left — ушёл за край (вещи при себе), menu — вышел в главное меню, reset — кластер
 ## перезагрузился с героем внутри, dead — погиб. В двух последних случаях всё, что при себе, теряется
 ## (data/cowshed.json: lose_on_death, lose_wallet). Маршрут закрывается — локация пропадает с карты.
@@ -572,11 +649,19 @@ func cs_finish(why: String) -> void:
 		var keep: Dictionary = {} if bool(c.get("lose_wallet", true)) else inv.wallet.duplicate()
 		inv.from_dict({"wallet": keep})
 		hp = 50.0
+	# задание карьера: всё найдено и ушёл до перезагрузки — награда в кошелёк (до записи того, что при себе)
+	var quest_note := ""
+	if place == "quarry" and why == "left" and not quest.is_empty() and quest_ready():
+		quest.done = true
+		var rw: Dictionary = ULQuarry.qcfg().get("quest", {}).get("reward", {})
+		for k in rw:
+			inv.wallet[k] = int(inv.wallet.get(k, 0)) + int(rw[k])
+		quest_note = "\nЗадание «Последняя смена» выполнено: " + ULEconomy.list_text(rw) + "."
 	_save_carried()
 	ULBase.set_route(place, "")
 	ULSettings.place = "home"
 	var note := String(CS_NOTES.get(why, ""))
-	ULSettings.arrival_note = note % zone_name() if note.contains("%s") else note
+	ULSettings.arrival_note = (note % zone_name() if note.contains("%s") else note) + quest_note
 	ULSettings.arrival_title = zone_name()
 	if test == "":
 		get_tree().change_scene_to_file({"left": "res://map.tscn", "menu": "res://menu.tscn"}.get(why, "res://world.tscn"))
@@ -641,6 +726,7 @@ func _cs_hud(vs: Vector2, font0: Font) -> void:
 	_hud.draw_string_outline(font0, Vector2(vs.x * 0.5 - tw * 0.5, 44), t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, 6, Color(0, 0, 0, 0.8))
 	_hud.draw_string(font0, Vector2(vs.x * 0.5 - tw * 0.5, 44), t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, col)
 	_hud.draw_string(font0, Vector2(vs.x * 0.5 - cw * 0.5, 62), cap, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(0.85, 0.85, 0.8))
+	_quest_hud(vs, font0)
 
 
 ## записка после возвращения из временного кластера (почему вернулись и что с вещами)
@@ -2590,6 +2676,17 @@ func _ground_visual(g: Dictionary) -> void:
 		m.rotation.x = -0.25 if String(pk.back) == "-z" else 0.0
 		m.rotation.z = 0.0 if String(pk.back) == "-z" else 0.25
 		node.add_child(m)
+	elif ULItems.model_path(String(it.id)) != "":
+		# минералы, запчасти, хлам карьера — своя модель Tripo, по размеру на земле (gs), повёрнута как упала
+		var qm: Node3D = (load(ULItems.model_path(String(it.id))) as PackedScene).instantiate()
+		var qb := _aabb(qm)
+		var qs := float(d.get("gs", 0.3)) / maxf(qb.size.x, maxf(qb.size.y, qb.size.z))
+		qm.scale = Vector3.ONE * qs
+		qm.position.y = -qb.position.y * qs
+		qm.rotation.y = fposmod(node.global_position.x * 7.3 + node.global_position.z * 3.1, TAU)
+		for gi in qm.find_children("*", "GeometryInstance3D", true, false):
+			(gi as GeometryInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		node.add_child(qm)
 	elif String(it.id) == "junk" and ResourceLoader.exists(MODELS + "ul_junk.glb"):
 		# кучка хлама — своя модель (Tripo)
 		var jm: Node3D = (load(MODELS + "ul_junk.glb") as PackedScene).instantiate()
@@ -4315,7 +4412,7 @@ func _qr_view() -> void:
 		["q9_bench2_s", 36.0, 24.0, 0.0, 18.0], ["r0_crusher", 62.0, 30.0, 0.0, 24.0], ["r1_pond", 8.0, 46.0, 0.0, 18.0],
 		["r2_village", -44.0, 0.0, 0.0, 30.0], ["r3_dorm1_in", -58.0, -48.5, 0.0, 12.0], ["r4_dorm2_in", -73.0, 2.0, 0.0, 12.0],
 		["r5_canteen_in", -58.0, -22.0, 0.0, 12.0], ["r6_workshop_in", -31.0, -13.0, 0.0, 13.0], ["r7_warehouse_in", -44.0, 23.0, 0.0, 14.0],
-		["r8_med_in", -27.0, -48.0, 0.0, 11.0], ["r9_office_in", -62.0, 42.0, 0.0, 12.0], ["s0_tower", 77.0, -50.0, 0.0, 20.0], ["s1_wall_foot", 45.0, -40.0, 0.0, 12.0]]
+		["r8_med_in", -27.0, -48.0, 0.0, 11.0], ["r9_office_in", -62.0, 42.0, 0.0, 12.0], ["t0_dorm1_door", -57.0, -42.0, 0.0, 9.0], ["t1_med_door", -29.5, -43.0, 0.0, 9.0], ["t2_wh_top", -44.0, 25.5, 0.0, 26.0], ["t3_wh_row", -33.5, 22.5, 0.0, 9.0], ["s0_tower", 77.0, -50.0, 0.0, 20.0], ["s1_wall_foot", 45.0, -40.0, 0.0, 12.0]]
 	var only := ""
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--as-only="):
@@ -4339,8 +4436,290 @@ func _qr_view() -> void:
 		await _snap(String(sp[0]))
 
 
+## «Карьер» (--as-test=qr; --as-reset — проверка перезагрузки кластера): по списку ТЗ — размер и раскладка, глубина
+## выработки и спуск по съезду, нет провалов и прохода сквозь скалу, вход во все постройки и скрытие крыш, обыск,
+## минералы и хлам, враги 40–60 / 5–12 / 0–1, задание «Последняя смена», таймер 15:00, маршрут, выход с добычей.
+func _qr_test() -> void:
+	var t0 := Time.get_ticks_msec()
+	while not cs_ready and Time.get_ticks_msec() - t0 < 45000:
+		await get_tree().process_frame
+	var q := san as ULQuarry
+	var c := ULQuarry.qcfg()
+	var map := get_world_3d().navigation_map
+	var snapf := func(p: Vector3) -> Vector3:
+		return NavigationServer3D.map_get_closest_point(map, p)
+	var space := get_world_3d().direct_space_state
+	print("[inv] карьер готов через %.1f с от запуска игры" % (sn_ready_ms / 1000.0))
+	var rt_q: Dictionary = ULBase.shop().routes.get("quarry", {})
+	_ok("карьер: поле %d × %d м, вход на юго-западе у КПП, %d минут, маршрут %d споранов, опасность «%s»" % [int(size_m), int(size_z), int(c.minutes), int(rt_q.get("price", {}).get("spore", 0)), String(rt_q.get("danger", ""))],
+		size_m == 180.0 and size_z == 140.0 and place == "quarry" and ULQuarry.Q_ENTRY.x < -40.0 and ULQuarry.Q_ENTRY.z > 50.0 and int(c.minutes) == 15 and int(rt_q.get("price", {}).get("spore", 0)) == 25 and absf(_cs_end - cs_start - 900.0) < 1.0)
+	# 3: глубина и уступы
+	var hc := ULQuarry.height(ULQuarry.PIT_C)
+	var levels := {}
+	for k in 400:
+		var qq := ULQuarry.pit_point(randf() * 0.98, randf_range(-PI, PI))
+		levels[ULQuarry.level_at(qq)] = true
+	_ok("выработка настоящей глубины: дно на %.1f м, уступы на −4,5 и −9 м, уровней %d" % [hc, levels.size()], hc < -13.0 and levels.size() == 4)
+	# нет дыр: луч сверху в любой точке поля упирается в землю на её высоте
+	var holes := 0
+	var sampled := 0
+	for k in 900:
+		var qq := Vector2(randf_range(-ULQuarry.HX + 3.0, ULQuarry.HX - 3.0), randf_range(-ULQuarry.HZ + 3.0, ULQuarry.HZ - 3.0))
+		# только ровные места (у стенок сетка шероховатая — там высота по формуле и по сетке расходятся)
+		var hq0 := ULQuarry.height(qq)
+		var flat := true
+		for dq in [Vector2(1, 0), Vector2(-1, 0), Vector2(0, 1), Vector2(0, -1)]:
+			if absf(ULQuarry.height(qq + dq) - hq0) > 0.2:
+				flat = false
+		if not flat:
+			continue
+		var hit := space.intersect_ray(PhysicsRayQueryParameters3D.create(Vector3(qq.x, 40.0, qq.y), Vector3(qq.x, -40.0, qq.y)))
+		sampled += 1
+		if hit.is_empty() or (hit.position as Vector3).y < ULQuarry.height(qq) - 0.35:
+			holes += 1
+	_ok("нет провалов: из %d лучей сверху ни один не прошёл ниже земли" % sampled, holes == 0, "провалов %d" % holes)
+	# сквозь стенку не пройти: луч на уровне уступа в стенку — упирается
+	var walls_ok := 0
+	for th in [0.2, 1.3, 2.4, -0.4]:
+		var a := ULQuarry.pit_point(0.72, th)
+		var b := ULQuarry.pit_point(0.86, th)
+		var y := ULQuarry.height(a) + 1.0
+		if not space.intersect_ray(PhysicsRayQueryParameters3D.create(Vector3(a.x, y, a.y), Vector3(b.x, y, b.y))).is_empty():
+			walls_ok += 1
+	_ok("скала держит: 4 из 4 лучей со второго уступа упёрлись в стенку первого", walls_ok == 4, "%d" % walls_ok)
+	# 4–6: спуск по съездам от бровки до дна и подъём обратно — путь и настоящая ходьба
+	var top: Vector3 = snapf.call(Vector3(-8.0, 0.0, -14.0))
+	var bottom: Vector3 = snapf.call(Vector3(36.0, -13.5, -6.0))
+	var down := NavigationServer3D.map_get_path(map, top, bottom, true)
+	var steep := 0.0
+	var steep_at := ""
+	for i in range(1, down.size()):
+		var dd := down[i] - down[i - 1]
+		var hl := Vector2(dd.x, dd.z).length()
+		if hl > 0.5:
+			var sa := rad_to_deg(atan2(absf(dd.y), hl))
+			if sa > steep:
+				steep = sa
+				steep_at = "%s → %s" % [str(down[i - 1].snapped(Vector3.ONE * 0.1)), str(down[i].snapped(Vector3.ONE * 0.1))]
+	print("[inv]   самый крутой отрезок пути: %.0f° %s" % [steep, steep_at])
+	_ok("путь с бровки на дно по съездам: %d точек, уклон не круче %.0f°" % [down.size(), steep], not down.is_empty() and down[down.size() - 1].distance_to(bottom) < 1.0 and steep < 26.0)
+	for e in enemies:
+		if e.alive() and e.global_position.distance_to(Vector3(20, -8, -30)) < 60.0:
+			e.state = "idle"
+			e.wander_r = 0.0
+	hp_lock = true
+	player.global_position = top + Vector3.UP * 0.1
+	await get_tree().create_timer(0.3).timeout
+	var min_dy := 0.0
+	var pts := Array(down)
+	_auto = pts.duplicate()
+	var tw := 0.0
+	while not _auto.is_empty() and tw < 70.0:
+		await get_tree().process_frame
+		tw += get_process_delta_time()
+		var pg := player.global_position
+		min_dy = minf(min_dy, pg.y - ULQuarry.height(Vector2(pg.x, pg.z)))
+	_auto.clear()
+	await get_tree().create_timer(0.4).timeout
+	var at_bottom := player.global_position.y < -13.0
+	_ok("герой спустился по съездам на дно (высота %.1f м за %.0f с), ни разу не ушёл под землю (ниже всего %.2f м)" % [player.global_position.y, tw, min_dy], at_bottom and min_dy > -0.35, str(player.global_position))
+	if out != "":
+		await _snap("qr_bottom")
+	var up := NavigationServer3D.map_get_path(map, snapf.call(player.global_position), top, true)
+	await _walk(Array(up), 70.0)
+	_ok("и поднялся обратно на бровку (высота %.1f м)" % player.global_position.y, player.global_position.y > -0.5 and player.global_position.distance_to(top) < 3.0, str(player.global_position))
+	# 7–13: постройки — путь от входа в каждую; внутри крыша скрыта
+	var by_id := {}
+	for b in san.blds:
+		by_id[b.id] = b
+	var need := ["dorm1", "dorm2", "canteen", "workshop", "warehouse", "med", "office"]
+	_ok("постройки посёлка: общежития (2 вида), столовая, мастерская, склад, медпункт, контора, сараи, гараж", need.all(func(x): return by_id.has(x)) and by_id.has("shed1") and by_id.has("garage"), str(by_id.keys()))
+	var rt := {}
+	for b in san.blds:
+		for r in b.rooms:
+			rt[String(r.type)] = int(rt.get(String(r.type), 0)) + 1
+	_ok("внутри: жилые комнаты, обеденный зал и кухня, цех, склад, палата и процедурная, кабинеты и диспетчерская",
+		rt.has("room") and rt.has("m_quarters") and rt.has("dining") and rt.has("kitchen") and rt.has("workshop") and rt.has("warehouse") and rt.has("ward") and rt.has("office") and rt.has("m_radio"), str(rt))
+	var e0: Vector3 = snapf.call(ULQuarry.Q_ENTRY)
+	var bad := []
+	var roof_ok := []
+	for id in need:
+		var b: ULBlock = by_id[id]
+		var inside_p := Vector3.INF
+		for r in b.rooms:
+			if int(r.get("f", 0)) == 0 and (bool(r.get("big", false)) or String(r.type) in ["room", "cor"]):
+				var bk: Dictionary = b.blocks[int(r.bi)]
+				inside_p = b._w(bk, (float(r.u0) + float(r.u1)) * 0.5, 0.0, (float(r.v0) + float(r.v1)) * 0.5)
+				break
+		if inside_p == Vector3.INF:
+			bad.append(id + " (нет зала)")
+			continue
+		var path := NavigationServer3D.map_get_path(map, e0, snapf.call(inside_p), true)
+		if path.is_empty() or path[path.size() - 1].distance_to(inside_p) > 1.3:
+			bad.append("%s: зал %s, путь кончился %s" % [id, str(inside_p.snapped(Vector3.ONE * 0.1)), str(path[path.size() - 1].snapped(Vector3.ONE * 0.1)) if not path.is_empty() else "—"])
+			continue
+		player.global_position = (snapf.call(inside_p) as Vector3) + Vector3.UP * 0.1
+		await get_tree().create_timer(0.35).timeout
+		if san.hero_b >= 0 and san.blds[san.hero_b] == b and _where().contains(b.title.to_lower()):
+			roof_ok.append(id)
+		if out != "" and id in ["dorm1", "workshop", "warehouse"]:
+			cam_dist = 13.0
+			await get_tree().create_timer(0.8).timeout
+			await _snap("qr_in_" + id)
+	_ok("во все основные постройки можно зайти: путь от въезда до зала каждой", bad.is_empty(), str(bad))
+	_ok("внутри крыша скрыта, видно помещения (герой «в постройке»): %s" % ", ".join(roof_ok), roof_ok.size() == need.size(), str(roof_ok))
+	# 14–16: обыск, минералы и хлам
+	var kinds := {}
+	for ct in san.containers:
+		kinds[String(ct.kind)] = int(kinds.get(String(ct.kind), 0)) + 1
+	_ok("тайники: в помещениях %d, вне — %d (техника, жилы, кучи руды, металлолом, ящики)" % [san.containers.size() - q.extra.size(), q.extra.size()],
+		san.containers.size() - q.extra.size() >= 80 and kinds.has("machine") and kinds.has("vein") and kinds.has("ore_pile") and kinds.has("scrap"), str(kinds))
+	var mins := 0
+	var tech := 0
+	for g in ground:
+		var cat := String(ULItems.get_def(String(g.item.id)).get("cat", ""))
+		if cat == "mineral":
+			mins += 1
+		elif cat == "tech" or cat == "parts":
+			tech += 1
+	_ok("на земле у жил и куч руды — минералы (%d), у техники и в постройках — хлам и запчасти (%d)" % [mins, tech], mins >= 6 and tech >= 5)
+	var mg = null
+	for g in ground:
+		if String(ULItems.get_def(String(g.item.id)).get("cat", "")) == "mineral":
+			mg = g
+			break
+	var picked := false
+	if mg != null:
+		var mid := String(mg.item.id)
+		var n0 := inv.count(mid)
+		# подходим со стороны, противоположной жиле (как подошёл бы игрок)
+		var gpos: Vector3 = (mg.node as Node3D).global_position
+		var away := Vector3(1, 0, 0)
+		for dp in q.deposits:
+			if (dp.pos as Vector3).distance_to(gpos) < 6.0:
+				away = (gpos - (dp.pos as Vector3)) * Vector3(1, 0, 1)
+				away = away.normalized() if away.length() > 0.01 else Vector3(1, 0, 0)
+		player.global_position = (snapf.call(gpos + away * 0.6) as Vector3) + Vector3.UP * 0.1
+		await get_tree().create_timer(0.35).timeout
+		var tgt := "нет" if _target == null else String(_target.type)
+		if _target != null and String(_target.type) == "ground":
+			do_action()
+			await get_tree().create_timer(0.2).timeout
+		picked = inv.count(mid) > n0
+		if not picked:
+			print("[inv]   подбор: цель %s (%s), предмет в %s, герой %s, занято %d из %d" % [tgt, _target_name() if _target != null else "", str(gpos.snapped(Vector3.ONE * 0.1)), str(player.global_position.snapped(Vector3.ONE * 0.1)), inv.used(), inv.slot_count()])
+		_ok("минерал «%s» подобран в инвентарь (масса %.1f кг, цена %s)" % [ULItems.get_def(mid).n, float(ULItems.get_def(mid).kg), ULEconomy.list_text(ULItems.get_def(mid).price)], picked)
+	var cat := ULItems.catalog()
+	var cats := {}
+	for id in cat:
+		cats[String(cat[id].cat)] = true
+	_ok("каталог для барахольщика: %d предметов, у каждого название, масса, стопка, категория, редкость, цена; категории — минералы, хлам, инструменты, запчасти" % cat.size(),
+		cats.has("mineral") and cats.has("tech") and cats.has("tool") and cats.has("parts") and cat.values().all(func(x): return float(x.kg) > 0.0 and int(x.stack) >= 1 and String(x.rar) != ""))
+	# обыск машины: окно и перенос
+	var mi_ := -1
+	for i in san.containers.size():
+		if String(san.containers[i].kind) == "machine":
+			mi_ = i
+			break
+	var opened_ui := false
+	if mi_ >= 0:
+		var mct: Dictionary = san.containers[mi_]
+		var msz: Vector3 = mct.size
+		for ang in 12:
+			var dir2 := Vector3(cos(ang * TAU / 12.0), 0, sin(ang * TAU / 12.0))
+			player.global_position = (snapf.call((mct.pos as Vector3) + dir2 * (maxf(msz.x, msz.z) * 0.5 + 0.7)) as Vector3) + Vector3.UP * 0.1
+			await get_tree().create_timer(0.25).timeout
+			if _target != null and String(_target.type) == "box" and int(_target.i) == mi_:
+				do_action()
+				await get_tree().process_frame
+				opened_ui = inv_ui.visible
+				if out != "":
+					await _snap("qr_search_machine")
+				break
+		close_inventory()
+	_ok("кабину карьерной техники можно обыскать (окно обыска)", opened_ui)
+	# 17–19: враги
+	var nk := {}
+	var stuck := 0
+	for e in enemies:
+		nk[e.kind] = int(nk.get(e.kind, 0)) + 1
+		var gp: Vector3 = e.global_position
+		var sn: Vector3 = snapf.call(gp)
+		if Vector2(sn.x - gp.x, sn.z - gp.z).length() > 0.6 or absf(sn.y - gp.y) > 0.8:
+			stuck += 1
+			print("[inv]   вне карты проходимости: %s %s (ближайшая точка %s), состояние %s" % [e.kind, str(gp.snapped(Vector3.ONE * 0.1)), str(sn.snapped(Vector3.ONE * 0.1)), e.state])
+	var ni := int(nk.get("infected", 0))
+	var nl := int(nk.get("lottery", 0))
+	var nr := int(nk.get("ruber", 0))
+	_ok("заражённых %d: пустышей %d (40–60), лоторейщиков %d (5–12), Руберов %d (0–1)" % [enemies.size(), ni, nl, nr], ni >= 40 and ni <= 60 and nl >= 5 and nl <= 12 and nr <= 1)
+	_ok("никто не стоит в скале, постройке или машине: все на карте проходимости", stuck == 0, "%d вне" % stuck)
+	var zones := {}
+	for pl in cs_plan:
+		zones[String(pl[2])] = int(zones.get(String(pl[2]), 0)) + 1
+	_ok("распределение по зонам: посёлок, дороги, дно, уступы, у техники, дробилка, постройки — %s" % str(zones), zones.has("pit_bottom") and zones.has("village") and (zones.has("bench1") or zones.has("bench2")))
+	# 20: задание «Последняя смена»
+	_ok("задание: следы рабочих (3 вида мест), журнал — в диспетчерской, ящики с образцами (особая партия — в одном)",
+		q.quest_where.has("q_tag") and q.quest_where.has("q_photo") and q.quest_where.has("q_pass") and q.quest_where.has("q_journal") and q.quest_where.has("q_samples"), str(q.quest_where))
+	var jci := int(q.quest_where.get("q_journal", -1))
+	var jpos: Vector3 = san.containers[jci].pos if jci >= 0 else Vector3.ZERO
+	_ok("журнал диспетчера — в конторе, в диспетчерской (%.1f, %.1f)" % [jpos.x, jpos.z], jci >= 0 and String(san.containers[jci].get("bld", "")) == "office" and Rect2(-65.5, 33.5, 7.4, 6.4).has_point(Vector2(jpos.x, jpos.z)))
+	quest_tick()
+	var p0 := quest_progress("traces")
+	for id in ["q_tag", "q_photo", "q_pass", "q_journal", "q_samples"]:
+		var ci := int(q.quest_where[id])
+		var cct: Dictionary = san.containers[ci]
+		for k in (cct.items as Array).size():
+			var it = cct.items[k]
+			if it != null and String(it.id) == id and inv.add(it) == 0:
+				cct.items[k] = null
+		await get_tree().create_timer(0.5).timeout
+		if id == "q_tag":
+			_ok("след рабочего взят — прогресс «Следы рабочих» %d/3 → %d/3" % [p0.x, quest_progress("traces").x], quest_progress("traces").x == p0.x + 1)
+	if out != "":
+		await _snap("qr_quest_hud")
+	_ok("все находки задания взяты: следы 3/3, журнал, образцы — остался выход", quest_ready() and not quest.get("done", false))
+	# 21: таймер не останавливается (обыск, инвентарь, постройки)
+	var l0 := cs_left()
+	open_inventory(null, "", false)
+	await get_tree().create_timer(1.2).timeout
+	close_inventory()
+	_ok("таймер идёт и при открытом инвентаре (%.1f → %.1f с)" % [l0, cs_left()], cs_left() < l0 - 0.5)
+	# 22: маршрут на карте и в компьютере
+	_ok("маршрут: карточка «Карьер» (кирка), на карте мира — справа от дома, рядом с коровником; картинки на месте",
+		rt_q.get("icon", "") == "pickaxe" and ResourceLoader.exists(String(rt_q.pic)) and ResourceLoader.exists(String(rt_q.route_pic)) and ULMap.PLACES.has("quarry") 		and (ULMap.PLACES.quarry.rect as Rect2).position.x > (ULMap.PLACES.home.rect as Rect2).end.x and ResourceLoader.exists(String(ULMap.PLACES.quarry.mark)))
+	if OS.get_cmdline_user_args().has("--as-reset"):
+		# 23: перезагрузка с героем внутри — гибель, вещи при себе теряются, маршрут закрыт
+		inv.wallet["spore"] = 9
+		ULBase.set_route("quarry", "active")
+		_cs_end = Time.get_unix_time_from_system() + 1.0
+		hp_lock = false
+		var tr := 0.0
+		while not _cs_done and tr < 12.0:
+			await get_tree().create_timer(0.2).timeout
+			tr += 0.2
+		_ok("время вышло: кластер перезагрузился, герой погиб, вещи при себе и спораны потеряны, маршрут закрыт", _cs_done and inv.count("q_samples") == 0 and int(inv.wallet.get("spore", 0)) == 0 and ULBase.route_state("quarry") == "")
+		return
+	# 24: выход с добычей до перезагрузки — награда за задание
+	var sp0 := int(inv.wallet.get("spore", 0))
+	var pea0 := int(inv.wallet.get("pea", 0))
+	var rw: Dictionary = c.quest.reward
+	player.global_position = Vector3(-56.0, 0.1, ULQuarry.HZ + 3.0)
+	var tl := 0.0
+	while not _cs_done and tl < LEAVE_S + 3.0:
+		await get_tree().create_timer(0.2).timeout
+		tl += 0.2
+	_ok("ушёл за край до перезагрузки: задание выполнено, награда %s, добыча при себе (образцы, минерал), маршрут закрыт" % ULEconomy.list_text(rw),
+		_cs_done and quest.get("done", false) and int(inv.wallet.get("spore", 0)) == sp0 + int(rw.get("spore", 0)) and int(inv.wallet.get("pea", 0)) == pea0 + int(rw.get("pea", 0)) 		and inv.count("q_samples") == 1 and (not picked or inv.count(String(mg.item.id)) > 0) and ULBase.route_state("quarry") == "" and ULSettings.arrival_note.contains("Последняя смена"), ULSettings.arrival_note)
+
+
 ## точки замера нагрузки по локации: [название, где]
 func _perf_points() -> Array:
+	if place == "quarry":
+		var hq := func(x: float, z: float) -> Vector3: return Vector3(x, ULQuarry.height(Vector2(x, z)), z)
+		return [["вход, КПП", ULQuarry.Q_ENTRY + Vector3(0, 0, -3)], ["посёлок", hq.call(-44.0, 0.0)], ["общежитие внутри", hq.call(-58.0, -48.5)],
+			["склад внутри", hq.call(-44.0, 23.0)], ["бровка, начало съезда", hq.call(-6.0, -16.0)], ["первый уступ", hq.call(34.0, -45.0)],
+			["дно выработки", hq.call(36.0, -6.0)], ["у дробильного цеха", hq.call(60.0, 44.0)], ["затопленная яма", hq.call(8.0, 44.0)],
+			["середина дна, все враги гонятся", hq.call(30.0, 0.0)]]
 	if place == "lair":
 		return [["вход", ULLair.L_ENTRY + Vector3(0, 0, -3)], ["проход в ограде", Vector3(0, 0, 66)], ["костёр", Vector3(0, 0, 14)],
 			["штаб, коридор", Vector3(0, 0, -50)], ["кабинет главаря", Vector3(-6, 0, -58)], ["казарма", Vector3(-58, 0, -18)], ["склад", Vector3(-46, 0, 24)],
@@ -8632,10 +9011,13 @@ func _blood(at: Vector3, dir: Vector3, n: int) -> void:
 
 
 ## герой получил удар (from — откуда: ударивший; тогда герой отшатывается от него и брызжет кровь с этой стороны)
+var hp_lock := false               ## проверки: удары видны, здоровье не тратится (прогулка по локации среди врагов)
+
+
 func hurt(dmg: float, from := Vector3.INF) -> void:
 	if _dead_t > 0.0:
 		return
-	if not lvl:
+	if not lvl and not hp_lock:
 		hp = maxf(0.0, hp - dmg)                # в тесте уровня герой бессмертен (удар виден, здоровье не тратится)
 	_hurt_t = 0.35
 	_hurt_amp = clampf(dmg / 20.0, 0.4, 1.5)
@@ -10099,6 +10481,9 @@ func _run_test() -> void:
 		return
 	if test == "lr":
 		await _lair_test()
+		return
+	if test == "qr":
+		await _qr_test()
 		return
 	if test == "lvl":
 		await _lvl_test()

@@ -364,7 +364,7 @@ func _c_ground() -> void:
 	var roads: Array = [C_ROAD]
 	for t in C_TRACKS:
 		roads.append(t)
-	ULGroundDetail.ruts(self, roads, _noise_tex, "brown_mud_02")
+	ULGroundDetail.ruts(self, roads, _noise_tex, "brown_mud_02", 1.8, func(q: Vector2) -> bool: return bld_dist(q) > 1.2)    # колеи не заходят в постройки
 	var burnt: Array = []
 	for f in C_FIRE:
 		burnt.append([f, 4.5])

@@ -15,6 +15,7 @@ const PLACES := {
 	"khutor": {"rect": Rect2(330, 540, 310, 260), "n": "Хутор", "kind": "Временный нестабильный кластер", "route": true, "mark": "res://assets/ui/map_khutor.png", "pic": "res://assets/ui/place_khutor.jpg", "scene": "res://world.tscn"},
 	"convoy": {"rect": Rect2(812, 560, 310, 260), "n": "Разбитый конвой", "kind": "Временный нестабильный кластер", "route": true, "mark": "res://assets/ui/map_convoy.png", "pic": "res://assets/ui/place_convoy.jpg", "scene": "res://world.tscn"},
 	"lair": {"rect": Rect2(1120, 420, 400, 280), "n": "Логово Муров", "kind": "Вражеский стаб · Опасность: 2 уровень", "route": true, "mark": "res://assets/ui/map_lair.png", "pic": "res://assets/ui/place_lair.jpg", "scene": "res://world.tscn"},
+	"quarry": {"rect": Rect2(1250, 196, 320, 252), "n": "Карьер", "kind": "Рабочий кластер · Опасность: 1 уровень", "route": true, "mark": "res://assets/ui/map_quarry.png", "pic": "res://assets/ui/place_quarry.jpg", "scene": "res://world.tscn"},
 	"sanatorium": {"rect": Rect2(262, 50, 432, 302), "n": "Санаторий Луч", "kind": "Временный нестабильный кластер", "route": true, "mark": "res://assets/ui/map_sanatorium.png", "pic": "res://assets/ui/place_sanatorium.jpg", "scene": "res://world.tscn"},
 }
 const MAP_SHADER := """shader_type canvas_item;

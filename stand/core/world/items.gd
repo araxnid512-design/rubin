@@ -46,7 +46,26 @@ const ITEMS := {
 	# ключ главаря муров: выпадает с тела главаря, открывает оружейный сундук в его комнате (один раз). Действует
 	# только в том экземпляре логова, где добыт (inst у предмета), — после перезагрузки кластера недействителен
 	"mur_key": {"n": "Ключ главаря муров", "kind": "key", "stack": 1, "gs": 0.14, "icon": "mur_key", "d": "Тяжёлый ключ с красной биркой. Открывает оружейный сундук в комнате главаря — один раз. После перезагрузки кластера замок сменят."},
-	"junk": {"n": "Хлам", "kind": "junk", "stack": 50, "icon": "junk", "gs": 0.42, "d": "Ржавые детали, болты, провода, обломки плат. Барахольщик у дома берёт по спорану за кучку."},
+	"junk": {"n": "Хлам", "kind": "junk", "stack": 50, "icon": "junk", "gs": 0.42, "cat": "tech", "rar": "common", "kg": 0.5, "price": {"spore": 1}, "d": "Ржавые детали, болты, провода, обломки плат. Барахольщик у дома берёт по спорану за кучку."},
+	# Карьер: минералы, технический хлам, инструменты и запчасти — каталог для барахольщика (cat — категория,
+	# rar — редкость: common / uncommon / rare, kg — масса одной штуки, price — базовая цена за штуку в ресурсах Улья,
+	# model — модель Tripo в assets/world, gs — размер на земле, м). Цены — здесь и только здесь (настраиваются).
+	"ore": {"n": "Руда", "kind": "mineral", "cat": "mineral", "rar": "common", "stack": 10, "kg": 2.0, "price": {"spore": 2}, "model": "qi_ore", "gs": 0.26, "d": "Кусок тёмной железной руды с металлическим блеском. Тяжёлая, но барахольщик берёт охотно."},
+	"rock_sample": {"n": "Образец породы", "kind": "mineral", "cat": "mineral", "rar": "common", "stack": 5, "kg": 1.2, "price": {"spore": 3}, "model": "qi_core", "gs": 0.3, "d": "Керн — цилиндр слоистой породы из буровой скважины."},
+	"mineral_sample": {"n": "Минеральный образец", "kind": "mineral", "cat": "mineral", "rar": "uncommon", "stack": 5, "kg": 0.6, "price": {"spore": 6}, "model": "qi_sample", "gs": 0.22, "d": "Обломок породы со щёткой прозрачных кристаллов кварца."},
+	"rare_mineral": {"n": "Редкий минерал", "kind": "mineral", "cat": "mineral", "rar": "rare", "stack": 3, "kg": 0.3, "price": {"pea": 1}, "model": "qi_rare", "gs": 0.18, "d": "Друза ярко-синих кристаллов. В Улье таких не находили — перенесло вместе с карьером."},
+	"spare_parts": {"n": "Металлические запчасти", "kind": "parts", "cat": "parts", "rar": "common", "stack": 10, "kg": 1.5, "price": {"spore": 2}, "model": "qi_parts", "gs": 0.26, "d": "Шестерни, подшипники, болты — связка запчастей от карьерной техники."},
+	"tool_ind": {"n": "Промышленный инструмент", "kind": "tool", "cat": "tool", "rar": "uncommon", "stack": 1, "kg": 6.0, "price": {"spore": 8}, "model": "qi_tool", "gs": 0.6, "d": "Пневматический отбойный молоток. Ценится у мастеров."},
+	"cable": {"n": "Кабель", "kind": "tech", "cat": "tech", "rar": "common", "stack": 10, "kg": 1.0, "price": {"spore": 2}, "model": "qi_cable", "gs": 0.28, "d": "Моток медного силового кабеля."},
+	"electronics": {"n": "Электронные детали", "kind": "tech", "cat": "tech", "rar": "uncommon", "stack": 10, "kg": 0.3, "price": {"spore": 4}, "model": "qi_electro", "gs": 0.2, "d": "Платы, микросхемы, конденсаторы — снято с пультов техники."},
+	"scrap_metal": {"n": "Металлолом", "kind": "tech", "cat": "tech", "rar": "common", "stack": 20, "kg": 2.5, "price": {"spore": 1}, "model": "qi_scrap", "gs": 0.32, "d": "Гнутые пластины, гайки, обломок шестерни."},
+	"tech_junk": {"n": "Технический хлам", "kind": "tech", "cat": "tech", "rar": "common", "stack": 10, "kg": 1.5, "price": {"spore": 1}, "model": "qi_junk", "gs": 0.32, "d": "Сломанный приёмник, моторчик, клубок проводов."},
+	# задание «Последняя смена» (Карьер): находки — в тайниках этого посещения; кроме образцов, ничего не стоят
+	"q_tag": {"n": "Жетон рабочего", "kind": "quest", "cat": "quest", "rar": "common", "stack": 1, "kg": 0.05, "price": {}, "icon": "q_tag", "gs": 0.12, "d": "Латунный жетон с табельным номером. Снят с останков рабочего в карьере."},
+	"q_pass": {"n": "Пропуск рабочего", "kind": "quest", "cat": "quest", "rar": "common", "stack": 1, "kg": 0.05, "price": {}, "icon": "q_pass", "gs": 0.12, "d": "Пропуск на карьер с фотографией. «Смена № 3»."},
+	"q_photo": {"n": "Личные вещи", "kind": "quest", "cat": "quest", "rar": "common", "stack": 1, "kg": 0.2, "price": {}, "icon": "q_photo", "gs": 0.14, "d": "Письмо домой и фотография семьи — не успел отправить."},
+	"q_journal": {"n": "Журнал диспетчера", "kind": "quest", "cat": "quest", "rar": "uncommon", "stack": 1, "kg": 0.6, "price": {}, "model": "qi_logbook", "gs": 0.24, "d": "Последняя запись: «Смена № 3 на нижнем горизонте. Связь пропала. Небо позеленело…»"},
+	"q_samples": {"n": "Образцы особой партии", "kind": "quest", "cat": "mineral", "rar": "rare", "stack": 1, "kg": 4.0, "price": {"spore": 20}, "model": "qi_samplebox", "gs": 0.5, "d": "Ящик с подписанными кернами — партия, ради которой работала смена."},
 	"spore": {"n": "Спораны", "kind": "loot", "stack": 99, "icon": "loot_spore", "d": "Мелкие белые шарики из тел заражённых. Валюта Улья."},
 	"pea": {"n": "Горошина", "kind": "loot", "stack": 20, "icon": "loot_pea", "d": "Зелёная горошина из тела сильного заражённого. Ценится дороже споранов."},
 	"pearl_black": {"n": "Чёрная жемчужина", "kind": "loot", "stack": 10, "icon": "loot_pearl_black", "d": "Чёрная жемчужина. Большая редкость."},
@@ -196,6 +215,28 @@ static func icon(id: String) -> Texture2D:
 	var t: Texture2D = load(path) if ResourceLoader.exists(path) else null
 	_icons[id] = t
 	return t
+
+
+## категория для барахольщика и подписи в инвентаре
+const CATS := {"mineral": "Минералы", "tech": "Технический хлам", "tool": "Инструменты", "parts": "Запчасти", "quest": "Задание"}
+const RARITY := {"common": "обычный", "uncommon": "необычный", "rare": "редкий"}
+
+
+## каталог товаров для барахольщика: всё, у чего есть цена (id → {n, cat, rar, kg, stack, price, model, icon})
+static func catalog() -> Dictionary:
+	var out := {}
+	for id in ITEMS:
+		var d: Dictionary = ITEMS[id]
+		if d.has("price") and not (d.price as Dictionary).is_empty():
+			out[id] = {"n": d.n, "cat": String(d.get("cat", "")), "rar": String(d.get("rar", "common")), "kg": float(d.get("kg", 0.0)),
+				"stack": stack(id), "price": d.price, "model": String(d.get("model", "")), "icon": String(d.get("icon", id))}
+	return out
+
+
+## модель предмета (Tripo) или ""
+static func model_path(id: String) -> String:
+	var m := String(get_def(id).get("model", ""))
+	return ("res://assets/world/" + m + ".glb") if m != "" and ResourceLoader.exists("res://assets/world/" + m + ".glb") else ""
 
 
 static func tint(id: String) -> Color:

@@ -36,9 +36,16 @@ func _ready() -> void:
 	var list := ULItems.ITEMS.duplicate()
 	list["crate"] = {"kind": "prop", "model": "res://assets/world/ul_crate.glb"}
 	var kits := {}
+	# --as-only=a,b — только эти значки (новые предметы), прежние не перерисовываются
+	var only := []
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--as-only="):
+			only = Array(a.substr(10).split(","))
 	for src_id in list:
 		var id := String(src_id)
 		var d: Dictionary = list[src_id]
+		if not only.is_empty() and not only.has(id):
+			continue
 		var path := ""
 		var flip := false
 		var is_pack := String(d.kind) == "pack"
@@ -48,7 +55,9 @@ func _ready() -> void:
 		elif is_pack:
 			path = String(BCPackFit.PACKS[d.pack].model)
 		elif d.has("model"):
-			path = String(d.model)
+			path = String(d.model) if String(d.model).begins_with("res://") else "res://assets/world/%s.glb" % String(d.model)
+			if not ResourceLoader.exists(path):
+				continue
 			is_pack = true                       # снимается так же — спереди в три четверти
 		elif d.has("kit"):
 			# предмет из набора: один значок на номер (припасы — kit_N, патроны — ammo_N)

@@ -388,7 +388,7 @@ func _l_ground() -> void:
 		wc.shape = b
 		wc.position = s * (half + 9.0) + Vector3.UP * 2.0
 		body.add_child(wc)
-	ULGroundDetail.ruts(self, L_TRACKS, _noise_tex, "brown_mud_02")
+	ULGroundDetail.ruts(self, L_TRACKS, _noise_tex, "brown_mud_02", 1.8, func(q: Vector2) -> bool: return bld_dist(q) > 1.2)    # колеи не заходят в постройки
 	ULGroundDetail.patches(self, [[L_FIRE, 4.0], [Vector3(-40, 0, 46), 3.0], [Vector3(26, 0, -4), 2.5]], "worn_asphalt", _noise_tex)
 	ULGroundDetail.puddles(self, func(p: Vector3) -> bool:
 		var q := Vector2(p.x, p.z)

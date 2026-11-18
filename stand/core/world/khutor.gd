@@ -523,7 +523,7 @@ func _k_ground() -> void:
 	var roads: Array = [K_ROAD, K_LOOP]
 	for t in K_TRACKS:
 		roads.append(t)
-	ULGroundDetail.ruts(self, roads, _noise_tex, "brown_mud_02")
+	ULGroundDetail.ruts(self, roads, _noise_tex, "brown_mud_02", 1.8, func(q: Vector2) -> bool: return bld_dist(q) > 1.2)    # колеи не заходят в постройки
 	ULGroundDetail.puddles(self, func(p: Vector3) -> bool:
 		var q := Vector2(p.x, p.z)
 		if bld_dist(q) < 2.0 or in_garden(q):

@@ -27,8 +27,10 @@ const WALLS := [[1.0, 0.955], [0.80, 0.755], [0.60, 0.555]]
 ## съезды: [стенка, угол начала, угол конца (рад, от востока по часовой — к югу), ширина (доля радиуса)]
 const RAMPS := [[0, -2.9, -2.3, 0.12], [1, -2.1, -1.2, 0.12], [2, -1.0, 0.0, 0.12]]
 ## кольца сетки выработки (доли радиуса): чаще у стенок и краёв съездов
-const RINGS := [0.0, 0.12, 0.24, 0.34, 0.42, 0.48, 0.49, 0.52, 0.54, 0.555, 0.57, 0.585, 0.6, 0.62, 0.65, 0.68, 0.69,
-	0.71, 0.735, 0.755, 0.77, 0.785, 0.8, 0.82, 0.835, 0.845, 0.88, 0.91, 0.935, 0.955, 0.97, 0.985, 1.0]
+const RINGS := [0.0, 0.12, 0.24, 0.34, 0.42, 0.474, 0.48, 0.49, 0.52, 0.54, 0.555, 0.57, 0.585, 0.6, 0.62, 0.65, 0.674, 0.68, 0.69,
+	0.71, 0.735, 0.755, 0.77, 0.785, 0.8, 0.82, 0.835, 0.845, 0.874, 0.88, 0.91, 0.935, 0.955, 0.97, 0.985, 1.0]
+## (кольца 0,474 / 0,674 / 0,874 — сразу за внутренним краем съездов: край — обрыв, а не откос, по которому можно
+## было сбежать с середины пандуса прямо на нижний уступ)
 const ANG_N := 256
 ## затопленная яма на юге: центр, полуоси, глубина дна; уровень воды
 const POND_C := Vector2(8, 55)
@@ -39,7 +41,7 @@ const WATER_Y := -1.4
 const Q_BUILDINGS := [
 	# общежитие №1: два этажа, оштукатуренное; коридор вдоль, комнаты по обе стороны, лестница в торце
 	{"id": "dorm1", "n": "Общежитие рабочих", "kind": "dorm", "skin": "plaster", "int": "int_beige1", "hall0": "hall0",
-		"blocks": [{"c": Vector2(-60, -50), "L": 30.0, "W": 11.0, "axis": "x", "floors": 2, "stairs": [-1], "entr": [["s+", 3.0, 1.6]], "wide": 0.3}],
+		"blocks": [{"c": Vector2(-60, -50), "L": 30.0, "W": 11.0, "axis": "x", "floors": 2, "stairs": [-1], "hall": [3.0, 6.0], "entr": [["s+", 3.0, 1.6]], "wide": 0.3}],
 		"types": {"*": [["room", 6], ["wc", 1], ["linen", 1]]}},
 	# общежитие №2: деревянный барак — комнаты у западной стены, коридор к посёлку
 	{"id": "dorm2", "n": "Общежитие №2", "kind": "dorm", "style": "wood", "skin": "planks", "int": "int_wood", "storey": 3.0, "te": 0.18,
@@ -56,7 +58,7 @@ const Q_BUILDINGS := [
 	# медпункт: палата с кушетками, процедурная, кабинет фельдшера
 	{"id": "med", "n": "Медпункт", "kind": "med", "skin": "plaster", "int": "int_blue", "storey": 3.0,
 		"blocks": [{"c": Vector2(-27, -50), "L": 15.0, "W": 10.0, "axis": "x", "floors": 1, "layout": "hall", "row_side": -1, "row_d": 4.2,
-			"row": [["proc", 5.2], ["nurse", 5.0], ["wc", 4.4]], "hall_type": "ward",
+			"row": [["ward", 6.0], ["proc", 4.6], ["nurse", 4.0]], "hall_type": "hall_med",
 			"entr": [["s+", -2.5, 1.4]], "win_w": 1.2, "win_h": 1.2, "sill": 0.9}]},
 	# мастерская: большой цех с воротами, кладовая, техкомната, бытовка
 	{"id": "workshop", "n": "Мастерская", "kind": "workshop", "style": "wood", "skin": "planks", "int": "int_wood", "storey": 4.2, "te": 0.18,
@@ -91,12 +93,18 @@ const Q_BUILDINGS := [
 
 ## дороги посёлка и подъезды к выработке (утоптанный щебень, колеи): ломаные
 const Q_ROADS := [
-	[Vector2(-56, 82), Vector2(-56, 58), Vector2(-50, 40), Vector2(-42, 30), Vector2(-36, 6), Vector2(-22, -2), Vector2(-9, -12), Vector2(-4, -17)],
-	[Vector2(-36, 6), Vector2(-50, 0), Vector2(-58, -12), Vector2(-61, -36), Vector2(-56, -43)],
-	[Vector2(-22, -2), Vector2(-25, -30), Vector2(-27, -43)],
-	[Vector2(-50, 40), Vector2(-30, 44), Vector2(-4, 44), Vector2(24, 46), Vector2(48, 50), Vector2(62, 46)],
-	[Vector2(-9, -12), Vector2(-6, -40), Vector2(12, -60), Vector2(50, -62), Vector2(76, -54)],
-	[Vector2(-50, 0), Vector2(-66, 4), Vector2(-80, 20), Vector2(-82, 26)],
+	# въезд от КПП к выработке: восточнее склада и мастерской, к началу съезда на западной бровке
+	[Vector2(-56, 82), Vector2(-56, 58), Vector2(-46, 50), Vector2(-26, 40), Vector2(-22, 26), Vector2(-14, 10), Vector2(-10, -4), Vector2(-5, -15)],
+	# западная петля посёлка: контора, общежитие №2, столовая, общежитие №1
+	[Vector2(-46, 50), Vector2(-49, 31), Vector2(-64, 30), Vector2(-66, 14), Vector2(-64, -4), Vector2(-58, -12), Vector2(-42, -32), Vector2(-40, -40)],
+	# к медпункту — восточнее мастерской
+	[Vector2(-14, 10), Vector2(-14, -26), Vector2(-24, -40)],
+	# вдоль южной бровки — к дробильному цеху
+	[Vector2(-26, 40), Vector2(-4, 44), Vector2(24, 46), Vector2(48, 50), Vector2(62, 46)],
+	# вдоль северной бровки — к сторожевой вышке
+	[Vector2(-10, -4), Vector2(-6, -40), Vector2(12, -60), Vector2(50, -62), Vector2(76, -54)],
+	# к заправщику и гаражу
+	[Vector2(-66, 14), Vector2(-76, 18), Vector2(-80, 26)],
 ]
 const Q_TOWER := Vector3(77, 0, -50)
 const Q_CRUSHER := Vector3(66, 0, 40)
@@ -252,15 +260,21 @@ void fragment() {
 	vec3 r = texture(rock, UV / rock_scale).rgb;
 	vec3 r2 = texture(rock, UV / (rock_scale * 2.7) + vec2(0.37, 0.11)).rgb;
 	r = mix(r, r2, 0.4);
-	r = mix(vec3(lum(r)), r, 0.5) * vec3(1.0, 0.99, 0.97) * 1.12;
+	r = mix(vec3(lum(r)), r, 0.55) * vec3(1.0, 0.98, 0.95);
+	// слои породы по высоте (известняк, сланец) — полосами, чуть волнистыми
+	float band = 0.5 + 0.5 * sin(wp.y * 2.3 + n1 * 3.0 + n2 * 1.5);
+	float band2 = 0.5 + 0.5 * sin(wp.y * 7.1 + n2 * 4.0);
+	r *= mix(0.74, 1.08, band) * mix(0.9, 1.05, band2);
 	vec2 gu = wp.xz / gravel_scale;
 	vec3 g = texture(gravel, gu).rgb;
-	vec3 g2 = texture(gravel, wp.xz / (gravel_scale * 2.9) + vec2(0.53, 0.21)).rgb;
-	g = mix(g, g2, smoothstep(0.3, 0.7, n2) * 0.5);
-	g = mix(vec3(lum(g)), g, 0.6) * 1.05;
+	vec3 g2 = texture(gravel, wp.xz / (gravel_scale * 3.1) + vec2(0.53, 0.21)).rgb;
+	vec3 g3 = texture(gravel, wp.xz / (gravel_scale * 8.3) + vec2(0.17, 0.71)).rgb;
+	g = mix(mix(g, g2, 0.45 + 0.3 * (n2 - 0.5)), g3, 0.3);
+	g = mix(vec3(lum(g)), g, 0.55) * vec3(0.94, 0.91, 0.86) * 0.95;
 	vec3 du = texture(dust, wp.xz / 4.5).rgb;
 	du = mix(vec3(lum(du)), du, 0.3) * vec3(0.92, 0.9, 0.86);
-	vec3 fl = mix(g, du, smoothstep(0.6, 0.78, n1 * 0.75 + n2 * 0.25) * 0.7);
+	vec3 fl = mix(g, du, smoothstep(0.64, 0.8, n1 * 0.75 + n2 * 0.25) * 0.5);
+	fl *= mix(0.86, 1.06, smoothstep(0.25, 0.75, n1));
 	vec3 c = mix(fl, r, wall);
 	float depth = clamp(-wp.y / 14.0, 0.0, 1.0);
 	c *= mix(1.0, 0.84, depth) * mix(0.93, 1.05, n2);
@@ -706,6 +720,8 @@ func build(world: Node3D) -> void:
 			if not _door_grid.has(k):
 				_door_grid[k] = []
 			_door_grid[k].append(dd)
+		if b.id == "warehouse":
+			_q_warehouse(b)
 		_place_models(b)
 	if cache != null:
 		rng.state = cache.rng_state
@@ -720,7 +736,9 @@ func build(world: Node3D) -> void:
 	tris.append_array(_q_ground())
 	_trimesh(tris)
 	_q_bounds()
-	ULGroundDetail.ruts(self, Q_ROADS, _noise_tex, "brown_mud_02")
+	# колеи — сухие, укатанный щебень в тон дороги; не заходят в постройки и на край выработки
+	ULGroundDetail.ruts(self, Q_ROADS, _noise_tex, "stony_dirt_path", 1.8, func(q: Vector2) -> bool:
+		return bld_dist(q) > 2.0 and pit_st(q).x > 1.04 and ((q - POND_C) / POND_R).length() > 1.15, 0.0, Color(0.78, 0.76, 0.72))
 	_q_scree(rng)
 	_q_props(props, rng)
 	_flush(props)
@@ -742,13 +760,64 @@ func build(world: Node3D) -> void:
 
 # ---------------- предметы и техника ----------------
 
+## Склад: три ряда поперёк зала (паллеты, ящики, бочки, еврокубы, мешки) с проходами между рядами и напротив
+## обоих ворот; модели — мебель постройки (скрываются вместе с интерьером), у каждой — столкновение.
+## Зал: x −58…−30, z 16,9…27,5 (у северной стены — кладовые), ворота в южной стене на x −49 и −36.
+const Q_WH_ROWS := [-55.0, -42.5, -31.6]
+const Q_WH_ITEMS := [["qr_pallets", 1.3, 1.2], ["ul_crate", 1.1, 0.9], ["ph_barrel", 0.75, 0.95], ["qr_ibc", 1.2, 1.2], ["kh_sacks", 1.3, 0.7], ["ul_army_crate", 1.1, 0.6]]
+
+
+func _q_warehouse(b: ULBlock) -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 4411
+	var kinds := Q_WH_ITEMS.filter(func(x): return ResourceLoader.exists(MODELS + String(x[0]) + ".glb"))
+	if kinds.is_empty():
+		return
+	for x in Q_WH_ROWS:
+		var z := 18.4
+		while z < 24.8:
+			var it: Array = kinds[rng.randi() % kinds.size()]
+			var sz := float(it[1])
+			var p := Vector3(float(x) + rng.randf_range(-0.12, 0.12), 0.2, z + sz * 0.5)
+			b.models.append([String(it[0]), p, rng.randf_range(-0.15, 0.15) + (PI * 0.5 if rng.randf() < 0.5 else 0.0), Vector3(sz, float(it[2]), sz), "b0/n0", 0.0])
+			_col_xf(Vector3(sz * 0.9, float(it[2]), sz * 0.9), Transform3D(Basis.IDENTITY, p + Vector3.UP * float(it[2]) * 0.5))
+			# ярус сверху (паллеты и ящики — штабелем)
+			if String(it[0]) in ["qr_pallets", "ul_crate"] and rng.randf() < 0.55:
+				b.models.append([String(it[0]), p + Vector3.UP * float(it[2]), rng.randf_range(-0.2, 0.2), Vector3(sz * 0.92, float(it[2]), sz * 0.92), "b0/n0", 0.0])
+			z += sz + rng.randf_range(0.05, 0.3)
+	var nwh := 0
+	for m in b.models:
+		if String(m[4]) == "b0/n0" and Q_WH_ITEMS.any(func(x): return String(x[0]) == String(m[0])):
+			nwh += 1
+	print("[quarry] склад: рядов %d, предметов в рядах %d, всего моделей мебели %d" % [Q_WH_ROWS.size(), nwh, b.models.size()])
+
 ## модель по длине (или высоте) на земле этого места (высота — из рельефа); нет файла — ничего не ставится
-func _qm(id: String, at: Vector3, yaw: float, length: float, collide := true, by_height := false, tint := Color(0.86, 0.84, 0.8)) -> Vector3:
+func _qm(id: String, at: Vector3, yaw: float, length: float, collide := true, by_height := false, tint := Color(0.86, 0.84, 0.8), along := false) -> Vector3:
 	var path := MODELS + id + ".glb"
 	if not ResourceLoader.exists(path):
 		return Vector3.ZERO
+	if along and _long_x(path):
+		yaw -= PI * 0.5                  # yaw — куда смотрит длинная сторона; у модели она по x — доворот
 	var p := Vector3(at.x, height(Vector2(at.x, at.z)) if at.y == 0.0 else at.y, at.z)
-	return _c_model_box(path, p, yaw, length, tint, id, collide, by_height)
+	var sz := _c_model_box(path, p, yaw, length, tint, id, collide, by_height)
+	if length >= 6.0 and get_child_count() > 0:
+		_cull(get_child(get_child_count() - 1), 120.0)     # техника и цеха — ориентиры: видны издалека
+	return sz
+
+
+var _lx := {}
+
+
+## длинная сторона модели — по x (иначе по z)
+func _long_x(path: String) -> bool:
+	if not _lx.has(path):
+		if not _scenes.has(path):
+			_scenes[path] = load(path)
+		var n: Node3D = (_scenes[path] as PackedScene).instantiate()
+		var bb: AABB = w._aabb(n)
+		n.free()
+		_lx[path] = bb.size.x > bb.size.z
+	return _lx[path]
 
 
 ## тайник вне помещений (техника, ящики, кучи): к обыску — по виду из data/quarry.json (loot)
@@ -757,8 +826,320 @@ func _stash(at: Vector3, size: Vector3, yaw: float, kind: String, n: String) -> 
 	extra.append({"pos": p, "size": size, "yaw": yaw, "kind": kind, "n": n})
 
 
+## точка на полке по доле радиуса и углу (с высотой рельефа)
+static func pp(s: float, th: float) -> Vector3:
+	var q := pit_point(s, th)
+	return Vector3(q.x, height(q), q.y)
+
+
+## техника: [модель, где (доля радиуса и угол — в выработке; Vector3 — в посёлке), поворот, длина, тайник (вид, название)]
+const Q_MACHINES := [
+	["qr_excavator", [0.3, 2.45], 0.6, 10.0, "machine", "Кабина экскаватора"],
+	["qr_dumptruck", [0.22, 0.65], -0.9, 9.5, "machine", "Кабина карьерного самосвала"],
+	["qr_loader", [0.36, -2.0], 2.2, 7.5, "machine", "Кабина погрузчика"],
+	["qr_drill", [0.68, 0.45], 1.9, 8.0, "machine", "Кабина буровой установки"],
+	["qr_excavator2", [0.68, 1.75], 0.2, 9.0, "machine", "Кабина экскаватора"],
+	["qr_dumptruck2", [0.875, -0.5], 1.1, 9.0, "machine", "Кабина самосвала"],
+	["qr_tanker", Vector3(-79, 0, 14), 1.57, 8.5, "truck", "Топливозаправщик"],
+	["ul_bus", Vector3(-35, 0, 56), 0.35, 9.0, "cab", "Вахтовый автобус"],
+	["ul_uaz", Vector3(-38, 0, 34), -0.6, 4.0, "uaz", "УАЗ начальника"],
+	["ul_ural", Vector3(-12, 0, 32), 1.2, 7.4, "truck", "Кузов бортового «Урала»"],
+	["ul_gaz66", Vector3(-70, 0, 26), 0.1, 5.6, "truck", "Кузов ГАЗ-66"],
+]
+## мелочь и оборудование: [модель, где, поворот, длина, по высоте?, тайник (вид, название) или ""]
+const Q_THINGS := [
+	["hm_generator", Vector3(-17, 0, -24), 0.3, 1.6, false, "crate", "Генератор"],
+	["qr_compressor", Vector3(-15, 0, -9), 1.2, 2.6, false, "", ""],
+	["qr_cabledrum", Vector3(-19, 0, -4), 0.0, 1.9, true, "cable", "Кабельный барабан"],
+	["qr_cabledrum2", Vector3(-22, 0, -27), 0.8, 1.7, false, "cable", "Барабан с кабелем"],
+	["qr_cabledrum", Vector3(58, 0, 24), 0.4, 1.9, true, "cable", "Кабельный барабан"],
+	["qr_transformer", Vector3(-36, 0, -37), 0.0, 2.2, false, "", ""],
+	["qr_ibc", Vector3(-48, 0, -30), 0.2, 1.2, false, "", ""],
+	["qr_ibc", Vector3(-50, 0, -31.5), 1.4, 1.2, false, "", ""],
+	["qr_pallets", Vector3(-31, 0, 32.5), 0.3, 1.2, false, "", ""],
+	["qr_pallets", Vector3(-58, 0, 12), 1.2, 1.2, false, "", ""],
+	["qr_scrap1", Vector3(-17, 0, -31), 0.7, 3.0, false, "scrap", "Груда металлолома"],
+	["qr_scrap2", Vector3(52, 0, 42), 2.1, 3.5, false, "scrap", "Груда старой техники"],
+	["qr_scrap3", [0.875, 2.2], 0.4, 3.0, false, "scrap", "Обломки горного оборудования"],
+	["qr_scrap1", [0.4, 1.4], 2.9, 3.0, false, "scrap", "Груда металлолома"],
+	["qr_concpipes", Vector3(56, 0, 60), 0.2, 3.2, false, "", ""],
+	["qr_concpipes", Vector3(61, 0, 62), 1.6, 3.2, false, "", ""],
+	["qr_concblocks", Vector3(40, 0, 59), 0.1, 2.4, false, "", ""],
+	["qr_slabs", Vector3(26, 0, 60), 0.05, 6.0, false, "", ""],
+	["qr_rails", Vector3(76, 0, 54), 1.3, 6.0, false, "", ""],
+	["qr_sleepers", Vector3(80, 0, 49), 0.4, 2.6, false, "", ""],
+	["qr_beams", Vector3(-12, 0, 42), 0.5, 5.0, false, "", ""],
+	["qr_pipes", Vector3(-4, 0, 58), 2.8, 6.0, false, "", ""],
+	["qr_cabin", Vector3(-14, 0, 24), 0.25, 6.0, false, "crate", "Бытовка"],
+	["qr_cabin2", Vector3(-6, 0, 32), -0.1, 6.0, false, "crate", "Прорабская"],
+	["qr_cabin", Vector3(74, 0, 34), 1.6, 6.0, false, "toolbox", "Бытовка дробильщиков"],
+	["qr_toilet", Vector3(-20, 0, 30), 0.3, 2.3, true, "", ""],
+	["qr_toilet", Vector3(-82, 0, -14), 1.5, 2.3, true, "", ""],
+	["qr_shower", Vector3(-84, 0, -6), 1.5, 2.6, true, "", ""],
+	["qr_canopy", Vector3(-70, 0, 16), 0.0, 6.0, false, "", ""],
+	["qr_satdish", Vector3(-71, 0, 48), 2.6, 4.5, true, "", ""],
+	["qr_radiotower", Vector3(-22, 0, -62), 0.2, 22.0, true, "", ""],
+	["qr_floodlight", Vector3(-2, 0, -24), 0.0, 12.0, true, "", ""],
+	["qr_floodlight", Vector3(58, 0, 34), 0.8, 12.0, true, "", ""],
+	["qr_floodlight", Vector3(84, 0, -12), 1.5, 12.0, true, "", ""],
+	["qr_booth", Vector3(-50, 0, 61), 1.57, 2.6, false, "desk", "Будка КПП"],
+	["qr_barrier", Vector3(-56, 0, 57.5), PI * 0.5, 5.0, false, "", "", true],
+	["qr_gravel1", [0.15, -2.6], 0.0, 6.0, false, "", ""],
+	["qr_gravel2", [0.42, 2.0], 1.0, 9.0, false, "", ""],
+	["qr_ridge1", [0.72, 2.6], 2.6, 8.0, false, "", ""],
+	["qr_ridge2", [0.9, 1.6], 1.4, 6.0, false, "", ""],
+	["qr_boulder1", [0.45, -0.3], 0.3, 2.6, false, "", ""],
+	["qr_boulder2", [0.62, -2.6], 1.1, 2.2, false, "", ""],
+	["qr_boulder1", Vector3(14, 0, 34), 2.0, 2.8, false, "", ""],
+	["qr_ridge1", Vector3(4, 0, 30), 0.6, 8.0, false, "", ""],
+	["ph_barrel", Vector3(-77, 0, 8), 0.0, 0.9, true, "", ""],
+	["ph_barrel", Vector3(-78, 0, 9.2), 0.7, 0.9, true, "", ""],
+	["ph_barrel", Vector3(-16, 0, -12), 1.1, 0.9, true, "", ""],
+	["cv_jerrycans", Vector3(-81, 0, 10), 0.6, 0.95, false, "", ""],
+	["kh_sacks", Vector3(-49, 0, -18), 0.3, 1.4, false, "food", "Мешки с крупой"],
+	["ul_crate", Vector3(-33, 0, 30.5), 0.5, 1.2, false, "crate", "Ящик"],
+	["ul_army_crate", Vector3(60, 0, 26), 1.0, 1.1, false, "crate", "Ящик с запчастями"],
+]
+## жилы (минералы) и кучи руды: [модель, доля радиуса, угол, длина, вид тайника]
+const Q_DEPOSITS := [
+	["qr_vein1", 0.53, 0.3, 2.4, "vein"], ["qr_vein2", 0.735, 2.75, 2.4, "vein"], ["qr_vein3", 0.94, 1.0, 2.4, "vein"],
+	["qr_vein1", 0.94, -0.05, 2.2, "vein"], ["qr_vein2", 0.535, -2.4, 2.2, "vein"],
+	["qr_ore1", 0.4, 1.15, 3.2, "ore_pile"], ["qr_ore2", 0.12, -2.0, 3.2, "ore_pile"], ["qr_ore3", 0.66, 1.2, 3.0, "ore_pile"],
+	["qr_ore2", 0.86, -0.15, 3.0, "ore_pile"],
+]
+## задание «Последняя смена»: где могут быть следы рабочих (вид следа → места; в каждое посещение — одно из мест)
+const Q_TRACES := {
+	"remains": [[0.3, -1.3], [0.86, 0.5], [0.66, 2.3], Vector3(16, 0, -62)],
+	"things": [Vector3(-9, 0, 27), Vector3(70, 0, 30), [0.9, -0.2], Vector3(-38, 0, 55)],
+	"docs": [Vector3(-50.8, 0, 62.4), [0.45, 2.75], Vector3(-4, 0, -27), Vector3(76, 0, -46)],
+}
+const Q_SAMPLE_SPOTS := [Vector3(70, 0, 40), [0.7, 0.62], Vector3(-36.5, 0, 33.5)]
+
+
+static func _at_spec(v) -> Vector3:
+	if v is Array:
+		return pp(float(v[0]), float(v[1]))
+	var p: Vector3 = v
+	return Vector3(p.x, height(Vector2(p.x, p.z)), p.z)
+
+
 func _q_props(g: Node3D, rng: RandomNumberGenerator) -> void:
-	pass
+	for m in Q_MACHINES:
+		var at := _at_spec(m[1])
+		var size := _qm(String(m[0]), at, float(m[2]), float(m[3]), true)
+		if size != Vector3.ZERO:
+			_stash(at, size, float(m[2]), String(m[4]), String(m[5]))
+	for t in Q_THINGS:
+		var at := _at_spec(t[1])
+		var size := _qm(String(t[0]), at, float(t[2]), float(t[3]), true, bool(t[4]), Color(0.86, 0.84, 0.8), t.size() > 7 and bool(t[7]))
+		if size != Vector3.ZERO and String(t[5]) != "":
+			_stash(at, size, float(t[2]), String(t[5]), String(t[6]))
+	for dp in Q_DEPOSITS:
+		var at := pp(float(dp[1]), float(dp[2]))
+		var size := _qm(String(dp[0]), at, rng.randf() * TAU, float(dp[3]), true)
+		if size != Vector3.ZERO:
+			_stash(at, size, 0.0, String(dp[4]), "Минеральная жила" if String(dp[4]) == "vein" else "Куча руды")
+			deposits.append({"pos": at, "kind": String(dp[4])})
+	_q_crusher(g)
+	_q_tower(g, Q_TOWER)
+	_q_fences(g)
+	_q_signs(g)
+	_q_quest_props(rng)
+
+
+## дробильный цех на юго-восточной бровке, к нему — конвейер с первого уступа; рядом — два силоса
+func _q_crusher(g: Node3D) -> void:
+	var size := _qm("qr_crusher", Q_CRUSHER, -2.4, 12.0, true)
+	if size != Vector3.ZERO:
+		_stash(Q_CRUSHER + Vector3(-4.5, 0, 3.5), Vector3(2.4, 1.6, 2.4), 0.0, "machine", "Пульт дробильного цеха")
+	_qm("qr_silo", Vector3(78, 0, 30), 0.3, 10.0, true, true)
+	_qm("qr_silo", Vector3(81, 0, 41), 1.1, 10.0, true, true)
+	var a := pp(0.86, 0.95) + Vector3.UP * 1.0
+	var b := Q_CRUSHER + Vector3(-3.5, 7.5, -5.0)
+	_q_conveyor(g, a, b)
+
+
+## конвейер: секции модели Tripo вдоль отрезка a → b (наклон — поворотом вокруг поперечной оси), опоры — столбы
+func _q_conveyor(g: Node3D, a: Vector3, b: Vector3) -> void:
+	var path := MODELS + "qr_conveyor.glb"
+	var d := b - a
+	var hl := Vector2(d.x, d.z).length()
+	var n := maxi(int(round(d.length() / 10.0)), 1)
+	var yaw := atan2(d.x, d.z)
+	var pitch := atan2(d.y, hl)
+	for i in n:
+		var c := a + d * ((i + 0.5) / n)
+		if ResourceLoader.exists(path):
+			if not _scenes.has(path):
+				_scenes[path] = load(path)
+			var m: Node3D = (_scenes[path] as PackedScene).instantiate()
+			var bb: AABB = w._aabb(m)
+			var long_x := bb.size.x > bb.size.z
+			var k := (d.length() / n) / maxf(maxf(bb.size.x, bb.size.z), 0.01)
+			var holder := Node3D.new()
+			add_child(holder)
+			holder.add_child(m)
+			# длинная ось модели — вдоль +z держателя; центр модели — в начале координат
+			m.position = -bb.get_center()
+			if long_x:
+				var piv := Node3D.new()
+				holder.remove_child(m)
+				holder.add_child(piv)
+				piv.add_child(m)
+				piv.rotation.y = PI * 0.5
+			holder.scale = Vector3.ONE * k
+			holder.basis = Basis(Vector3.UP, yaw) * Basis(Vector3.RIGHT, -pitch) * Basis.from_scale(Vector3.ONE * k)
+			holder.position = c
+			_dirty(m, "qr_conveyor", Color(0.86, 0.84, 0.8))
+			_cull(holder, 70.0)
+		else:
+			_bx(g, "rust", Vector3(1.2, 0.5, d.length() / n), Transform3D(Basis(Vector3.UP, yaw) * Basis(Vector3.RIGHT, -pitch), c))
+		# опора до земли (столкновение — столб)
+		var foot := Vector3(c.x, height(Vector2(c.x, c.z)), c.z)
+		var hh := c.y - foot.y - 0.4
+		if hh > 0.5:
+			_bx(g, "rust", Vector3(0.3, hh, 0.3), _at(foot + Vector3.UP * hh * 0.5))
+			_cyl_col(foot, 0.25, hh)
+
+
+## смотровая вышка на бровке (как в конвое): площадка 3,8 м, марш с перилами, навес; ящик наблюдателя — тайник
+func _q_tower(g: Node3D, c: Vector3) -> void:
+	var hh := 3.3
+	for sx in [-1.7, 1.7]:
+		for sz in [-1.7, 1.7]:
+			_bx(g, "wood", Vector3(0.22, hh + 2.4, 0.22), _at(c + Vector3(sx, (hh + 2.4) * 0.5, sz)))
+			_cyl_col(c + Vector3(sx, 0, sz), 0.14, hh)
+	for k in 2:
+		for sx in [-1.7, 1.7]:
+			_bx(g, "wood", Vector3(0.08, 0.16, 4.6), Transform3D(Basis(Vector3.RIGHT, 0.75 * (1.0 if k == 0 else -1.0)), c + Vector3(sx, 1.65, 0)))
+	_bx(g, "wood", Vector3(3.8, 0.14, 3.8), _at(c + Vector3(0, hh - 0.07, 0)), true)
+	for e in [[Vector3(0, 0, -1.85), Vector3(3.8, 0.08, 0.08)], [Vector3(0, 0, 1.85), Vector3(3.8, 0.08, 0.08)], [Vector3(1.85, 0, 0), Vector3(0.08, 0.08, 3.8)], [Vector3(-1.85, 0, 1.0), Vector3(0.08, 0.08, 1.8)]]:
+		var sz: Vector3 = e[1]
+		_bx(g, "wood", sz, _at(c + (e[0] as Vector3) + Vector3.UP * (hh + 1.0)))
+		_bx(g, "wood", Vector3(sz.x, 0.5, sz.z), _at(c + (e[0] as Vector3) + Vector3.UP * (hh + 0.35)))
+		_col_xf(Vector3(maxf(sz.x, 0.1), 1.1, maxf(sz.z, 0.1)), _at(c + (e[0] as Vector3) + Vector3.UP * (hh + 0.55)))
+	# марш: от земли (x = −7) к площадке (x = −1.9) — с запада, со стороны дороги
+	var x0 := -1.9
+	var x1 := -7.0
+	var zc := -0.9
+	var n := 18
+	for i in n:
+		var t0 := float(i) / n
+		var xa := lerpf(x1, x0, t0)
+		var xb := lerpf(x1, x0, t0 + 1.0 / n)
+		_bx(g, "wood", Vector3(absf(xa - xb) + 0.02, 0.06, 1.4), _at(c + Vector3((xa + xb) * 0.5, hh * (t0 + 1.0 / n) - 0.03, zc)))
+	for sz in [-0.75, 0.75]:
+		_bx(g, "wood", Vector3(sqrt((x1 - x0) * (x1 - x0) + hh * hh), 0.2, 0.08), Transform3D(Basis(Vector3.FORWARD, atan2(hh, x0 - x1)), c + Vector3((x0 + x1) * 0.5, hh * 0.5 - 0.12, zc + sz)))
+		_bx(g, "wood", Vector3(sqrt((x1 - x0) * (x1 - x0) + hh * hh), 0.06, 0.06), Transform3D(Basis(Vector3.FORWARD, atan2(hh, x0 - x1)), c + Vector3((x0 + x1) * 0.5, hh * 0.5 + 0.95, zc + sz)))
+	var pts := PackedVector3Array()
+	for z in [zc - 0.7, zc + 0.7]:
+		pts.append(c + Vector3(x1, 0, z))
+		pts.append(c + Vector3(x0, 0, z))
+		pts.append(c + Vector3(x0, hh, z))
+	var cs := CollisionShape3D.new()
+	var sh := ConvexPolygonShape3D.new()
+	sh.points = pts
+	cs.shape = sh
+	body.add_child(cs)
+	_tower2_roof = Node3D.new()
+	add_child(_tower2_roof)
+	_bx(_tower2_roof, "rust", Vector3(4.6, 0.08, 4.6), _at(c + Vector3(0, hh + 2.45, 0)))
+	_bx(_tower2_roof, "wood", Vector3(4.4, 0.1, 0.1), _at(c + Vector3(0, hh + 2.38, -1.7)))
+	_bx(_tower2_roof, "wood", Vector3(4.4, 0.1, 0.1), _at(c + Vector3(0, hh + 2.38, 1.7)))
+	_flush(_tower2_roof)
+	var cp := c + Vector3(1.2, hh, 1.2)
+	_c_model_box(MODELS + "ul_army_crate.glb", cp, 0.3, 0.9, Color(0.85, 0.85, 0.8), "ul_army_crate", false)
+	extra.append({"pos": cp, "size": Vector3(0.9, 0.45, 0.5), "yaw": 0.3, "kind": "acrate", "n": "Ящик наблюдателя"})
+
+
+## заборы: бетонный — вдоль южного края посёлка (проезд у КПП открыт), сетчатый — по западной бровке выработки
+func _q_fences(_g: Node3D) -> void:
+	var x := -88.0
+	while x < -28.0:
+		if absf(x + 56.0) > 5.0:
+			_qm("qr_concfence", Vector3(x + 2.0, 0, 66.5), PI * 0.5, 4.0, true, false, Color(0.86, 0.84, 0.8), true)
+		x += 4.0
+	var th := 1.95
+	while th < 3.05:
+		var a := pit_point(1.06, th)
+		var b := pit_point(1.06, th + 0.07)
+		var mid := (a + b) * 0.5
+		_qm("qr_chainfence", Vector3(mid.x, 0, mid.y), atan2(b.x - a.x, b.y - a.y), a.distance_to(b) + 0.1, true, false, Color(0.86, 0.84, 0.8), true)
+		th += 0.07
+
+
+## вывески и знаки: щит на столбах, надпись — своим шрифтом (у Tripo надписи нечитаемы)
+func _q_signs(g: Node3D) -> void:
+	_sign(g, Vector3(-60.5, 0, 59), 0.0, "КАРЬЕР «ГРАНИТНЫЙ»\nвъезд по пропускам", Vector2(3.0, 1.1), Color(0.16, 0.3, 0.55), Color(0.95, 0.95, 0.92))
+	_sign(g, Vector3(-36, 0, 2), 0.15, "← ОБЩЕЖИТИЕ   СТОЛОВАЯ\nКАРЬЕР →", Vector2(2.4, 0.8), Color(0.85, 0.82, 0.74), Color(0.12, 0.12, 0.12))
+	_sign(g, Vector3(-10, 0, -20), 0.2, "ОПАСНАЯ ЗОНА\nведутся горные работы", Vector2(2.2, 0.9), Color(0.8, 0.12, 0.1), Color(1, 1, 0.95))
+	_sign(g, Vector3(-4, 0, 50), 0.0, "ВНИМАНИЕ!\nОбрыв. Не подходить к бровке", Vector2(2.2, 0.9), Color(0.92, 0.75, 0.12), Color(0.08, 0.08, 0.08))
+	_sign(g, Vector3(70, 0, -60), 0.0, "ОПАСНАЯ ЗОНА", Vector2(1.8, 0.6), Color(0.8, 0.12, 0.1), Color(1, 1, 0.95))
+	_sign(g, Vector3(-55, 0, 34.5), 0.0, "КОНТОРА КАРЬЕРА\nграфик смен · техника безопасности", Vector2(2.6, 1.2), Color(0.26, 0.3, 0.26), Color(0.92, 0.92, 0.86))
+	_sign(g, Vector3(-28, 0, -44.2), 0.0, "+ МЕДПУНКТ", Vector2(1.8, 0.55), Color(0.95, 0.95, 0.93), Color(0.8, 0.1, 0.1))
+
+
+func _sign(g: Node3D, at: Vector3, yaw: float, text: String, size: Vector2, bg: Color, fg: Color) -> void:
+	var b := Basis(Vector3.UP, yaw)
+	var h := size.y + 1.0
+	for sx in [-size.x * 0.4, size.x * 0.4]:
+		_bx(g, "wood", Vector3(0.1, h + size.y * 0.5, 0.1), Transform3D(b, at + b * Vector3(sx, (h + size.y * 0.5) * 0.5, 0)))
+	var board := MeshInstance3D.new()
+	var bm := BoxMesh.new()
+	bm.size = Vector3(size.x, size.y, 0.05)
+	board.mesh = bm
+	var mt := StandardMaterial3D.new()
+	mt.albedo_color = bg
+	mt.roughness = 0.8
+	board.material_override = mt
+	board.transform = Transform3D(b, at + Vector3.UP * h)
+	add_child(board)
+	var lb := Label3D.new()
+	lb.text = text
+	lb.font_size = 64
+	var lines := text.split("\n")
+	var chars := 1
+	for ln in lines:
+		chars = maxi(chars, ln.length())
+	lb.pixel_size = minf(size.y * 0.78 / (64.0 * lines.size() * 1.2), size.x * 0.9 / (64.0 * 0.58 * chars))
+	lb.modulate = fg
+	lb.outline_size = 0
+	lb.shaded = true
+	lb.double_sided = false
+	lb.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lb.transform = Transform3D(b, at + Vector3.UP * h + b * Vector3(0, 0, 0.035))
+	add_child(lb)
+	_cull(board, 50.0)
+	_cull(lb, 35.0)
+	_cyl_col(at, 0.15, 1.5)
+
+
+## задание: останки, личные вещи и документы рабочих во всех местах-кандидатах (обыскать можно все; в каждое
+## посещение находка задания — в одном месте каждого вида), ящики с образцами (особая партия — в одном)
+func _q_quest_props(rng: RandomNumberGenerator) -> void:
+	quest_spots.clear()
+	for kind in Q_TRACES:
+		quest_spots[kind] = []
+		for v in Q_TRACES[kind]:
+			var at := _at_spec(v)
+			var yaw := rng.randf() * TAU
+			match String(kind):
+				"remains":
+					var sz := _qm("qr_remains", at, yaw, 1.9, false)
+					_stash(at, sz if sz != Vector3.ZERO else Vector3(1.8, 0.4, 0.6), yaw, "q_remains", "Останки рабочего")
+				"things":
+					var sz := _qm("qr_helmet", at, yaw, 0.55, false)
+					_stash(at, sz if sz != Vector3.ZERO else Vector3(0.6, 0.3, 0.5), yaw, "q_things", "Каска и вещи рабочего")
+				"docs":
+					var sz := _qm("ul_crate", at, yaw, 0.7, false)
+					_stash(at, sz if sz != Vector3.ZERO else Vector3(0.7, 0.4, 0.5), yaw, "q_docs", "Бумаги на ящике")
+			quest_spots[kind].append(extra.size() - 1)
+	quest_spots["samples"] = []
+	for v in Q_SAMPLE_SPOTS:
+		var at := _at_spec(v)
+		var sz := _qm("qi_samplebox", at, rng.randf() * TAU, 1.0, true)
+		_stash(at, sz if sz != Vector3.ZERO else Vector3(1.0, 0.5, 0.6), 0.0, "samples", "Ящик с образцами породы")
+		quest_spots["samples"].append(extra.size() - 1)
 
 
 # ---------------- враги ----------------
@@ -803,15 +1184,75 @@ func _extra_pools(_pools: Dictionary) -> void:
 	pass
 
 
-## тайники: в помещениях (общее) и вне их — техника, ящики, жилы, кучи руды
+## тайники: в помещениях (общее) и вне их — техника, ящики, жилы, кучи руды; находки задания «Последняя смена» —
+## каждое посещение по-новому: по одному следу каждого вида, журнал — в диспетчерской конторы, особые образцы —
+## в одном из ящиков с образцами
+var quest_where := {}                   ## что задания где лежит в это посещение: предмет → индекс тайника
+
+
 func roll_containers(rng: RandomNumberGenerator) -> void:
 	super.roll_containers(rng)
+	quest_where.clear()
+	var base := containers.size() - extra.size()          # тайники вне помещений идут после тайников в постройках
+	for pair in [["remains", "q_tag"], ["things", "q_photo"], ["docs", "q_pass"], ["samples", "q_samples"]]:
+		var spots: Array = quest_spots.get(pair[0], [])
+		if spots.is_empty():
+			continue
+		var ci: int = base + int(spots[rng.randi() % spots.size()])
+		ULInventory.put(containers[ci].items, ULItems.make(String(pair[1]), 1))
+		quest_where[pair[1]] = ci
+	# журнал диспетчера: тайник в диспетчерской (по плану конторы — вторая комната ряда у северной стены)
+	var room := Rect2(-65.0, 34.0, 6.4, 5.4)
+	var best := -1
+	var bd := 1e9
+	for i in containers.size():
+		var ct: Dictionary = containers[i]
+		if String(ct.get("bld", "")) != "office":
+			continue
+		var p: Vector3 = ct.pos
+		var d := room.get_center().distance_to(Vector2(p.x, p.z)) + (0.0 if room.grow(0.3).has_point(Vector2(p.x, p.z)) else 10.0)
+		if d < bd:
+			bd = d
+			best = i
+	if best >= 0:
+		ULInventory.put(containers[best].items, ULItems.make("q_journal", 1))
+		quest_where["q_journal"] = best
 
 
-## хлам и минералы: в постройках — кучки хлама; у жил и куч руды — минералы (вид предмета — по месту)
+## хлам и минералы: в постройках — кучки хлама; у жил и куч руды — минералы на земле (вид предмета — по месту)
 func junk_points(rng: RandomNumberGenerator) -> Array:
-	return junk_in_buildings(rng)
+	var out := junk_in_buildings(rng)
+	var mn: Array = conf().get("minerals", [10, 16])
+	var n := rng.randi_range(int(mn[0]), int(mn[1]))
+	for k in n:
+		if deposits.is_empty():
+			break
+		var dp: Dictionary = deposits[rng.randi() % deposits.size()]
+		var a := rng.randf() * TAU
+		# дальше края жилы (её тайник — 1,2 м вокруг): находку на земле видно и можно поднять отдельно
+		var p: Vector3 = (dp.pos as Vector3) + Vector3(cos(a), 0, sin(a)) * rng.randf_range(3.0, 4.4)
+		p.y = height(Vector2(p.x, p.z)) + 0.02
+		if absf(p.y - (dp.pos as Vector3).y) > 0.3 or on_ramp(Vector2(p.x, p.z)):
+			continue
+		var r := rng.randf()
+		var id := "ore" if String(dp.kind) == "ore_pile" else ("rare_mineral" if r < 0.06 else ("mineral_sample" if r < 0.5 else "rock_sample"))
+		out.append([p, id, 1 if id != "ore" else rng.randi_range(1, 3)])
+	# у техники — запчасти и кабель
+	for m in Q_MACHINES:
+		if rng.randf() < 0.55:
+			var at := _at_spec(m[1])
+			var a := rng.randf() * TAU
+			var p := at + Vector3(cos(a), 0, sin(a)) * rng.randf_range(4.5, 6.0)
+			p.y = height(Vector2(p.x, p.z)) + 0.02
+			if absf(p.y - at.y) < 0.3 and bld_dist(Vector2(p.x, p.z)) > 0.8 and not on_ramp(Vector2(p.x, p.z)):
+				out.append([p, ["spare_parts", "cable", "scrap_metal", "tech_junk"][rng.randi() % 4], 1])
+	return out
 
 
+## герой на вышке — её навес скрыт
 func tick(hero: Vector3, cam, delta: float) -> void:
 	super.tick(hero, cam, delta)
+	if _tower2_roof != null:
+		var on := not (hero.y > 2.2 and Vector2(hero.x - Q_TOWER.x, hero.z - Q_TOWER.z).length() < 3.2)
+		if on != _tower2_roof.visible:
+			_tower2_roof.visible = on

@@ -84,6 +84,8 @@ render_mode blend_mix, depth_draw_never, cull_back;
 uniform sampler2D noise : filter_linear, repeat_enable;
 uniform sampler2D mud : source_color, filter_linear_mipmap, repeat_enable;
 uniform float half_w = 1.8;
+uniform float wet = 1.0;              // 0 — сухая укатанная колея (щебёночная дорога карьера): без воды и блеска
+uniform vec3 tint = vec3(1.0);        // тон колеи под землю дороги
 varying vec3 wp;
 void vertex() { wp = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz; }
 float track(float x, float wob, float n2) {
@@ -103,19 +105,21 @@ void fragment() {
 	float rim = (1.0 - smoothstep(0.2, 0.55, d0)) * 0.35;
 	a = max(a, rim * deep);
 	if (a < 0.02) { discard; }
-	vec3 m = texture(mud, wp.xz / 1.8).rgb * mix(vec3(0.95, 0.88, 0.8), vec3(0.72, 0.66, 0.6), t);
-	float water = smoothstep(0.64, 0.76, n * 0.55 + n2 * 0.45) * t * smoothstep(0.7, 0.95, deep);
+	vec3 m = texture(mud, wp.xz / 1.8).rgb * mix(vec3(0.95, 0.88, 0.8), vec3(0.72, 0.66, 0.6), t) * tint;
+	float water = smoothstep(0.64, 0.76, n * 0.55 + n2 * 0.45) * t * smoothstep(0.7, 0.95, deep) * wet;
 	ALBEDO = mix(m, vec3(0.12, 0.125, 0.12), water * 0.75);
 	// дно колеи темнее к середине, по краю — выдавленный валик светлее
 	ALBEDO *= mix(1.0, 0.82, t) * mix(1.0, 1.08, rim * (1.0 - t));
-	ROUGHNESS = mix(0.72, 0.14, water);
+	ROUGHNESS = mix(mix(0.92, 0.72, wet), 0.14, water);
 	SPECULAR = mix(0.3, 0.38, water);
-	ALPHA = clamp(a * 0.8, 0.0, 1.0);
+	ALPHA = clamp(a * mix(0.55, 0.8, wet), 0.0, 1.0);
 }"""
 
 
 ## Колеи по дорогам: roads — ломаные (точки Vector2 на плоскости x, z); полоса шириной 2·half_w м чуть над землёй.
-static func ruts(parent: Node3D, roads: Array, noise: Texture2D, mud: String, half_w := 1.8) -> MeshInstance3D:
+## keep(точка) — false там, где колеи нет (постройки, край выработки): полоса там обрывается.
+## wet — 1 сырая грязь с лужами (коровник, конвой), 0 — сухая укатанная колея; tint — тон под землю дороги.
+static func ruts(parent: Node3D, roads: Array, noise: Texture2D, mud: String, half_w := 1.8, keep := Callable(), wet := 1.0, tint := Color(1, 1, 1)) -> MeshInstance3D:
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	for r in roads:
@@ -135,6 +139,7 @@ static func ruts(parent: Node3D, roads: Array, noise: Texture2D, mud: String, ha
 		var prev_r := Vector3.ZERO
 		var prev_v := 0.0
 		var prev_a := 0.0
+		var has_prev := false
 		for i in pts.size():
 			var dir := (pts[mini(i + 1, pts.size() - 1)] - pts[maxi(i - 1, 0)]).normalized()
 			var side := Vector2(-dir.y, dir.x) * half_w
@@ -144,7 +149,11 @@ static func ruts(parent: Node3D, roads: Array, noise: Texture2D, mud: String, ha
 			var l := c + Vector3(side.x, 0, side.y)
 			var rr := c - Vector3(side.x, 0, side.y)
 			var fa := minf(smoothstep(0.0, 6.0, along), smoothstep(0.0, 6.0, total - along))
-			if i > 0:
+			var ok := not keep.is_valid() or bool(keep.call(pts[i]))
+			if not ok:
+				has_prev = false
+				continue
+			if has_prev:
 				for q in [[prev_l, -1.0, prev_v, prev_a], [prev_r, 1.0, prev_v, prev_a], [rr, 1.0, along, fa], [prev_l, -1.0, prev_v, prev_a], [rr, 1.0, along, fa], [l, -1.0, along, fa]]:
 					st.set_color(Color(1, 1, 1, float(q[3])))
 					st.set_uv(Vector2(float(q[1]), float(q[2])))
@@ -154,6 +163,7 @@ static func ruts(parent: Node3D, roads: Array, noise: Texture2D, mud: String, ha
 			prev_r = rr
 			prev_v = along
 			prev_a = fa
+			has_prev = true
 	var mesh := st.commit()
 	var mat := ShaderMaterial.new()
 	var sh := Shader.new()
@@ -162,6 +172,8 @@ static func ruts(parent: Node3D, roads: Array, noise: Texture2D, mud: String, ha
 	mat.set_shader_parameter("noise", noise)
 	mat.set_shader_parameter("mud", load(TEX + mud + "_c.jpg"))
 	mat.set_shader_parameter("half_w", half_w)
+	mat.set_shader_parameter("wet", wet)
+	mat.set_shader_parameter("tint", Vector3(tint.r, tint.g, tint.b))
 	var mi := MeshInstance3D.new()
 	mi.mesh = mesh
 	mi.material_override = mat

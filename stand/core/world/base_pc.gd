@@ -570,7 +570,7 @@ func _build_routes() -> void:
 ## compact — карточки поменьше, чтобы два маршрута помещались без прокрутки (как на макете); dense — три и больше:
 ## без описания (оно — на карте мира), цена и кнопка — в столбце текста, все три карточки видны без прокрутки
 func _route_card(id: String, d: Dictionary, compact := false, dense := false) -> Control:
-	var cs: Dictionary = {"cowshed": ULCowshed.cfg(), "sanatorium": ULSanatorium.cfg(), "convoy": ULConvoy.ccfg(), "khutor": ULKhutor.kcfg(), "lair": ULLair.lcfg()}.get(id, {})
+	var cs: Dictionary = {"cowshed": ULCowshed.cfg(), "sanatorium": ULSanatorium.cfg(), "convoy": ULConvoy.ccfg(), "khutor": ULKhutor.kcfg(), "lair": ULLair.lcfg(), "quarry": ULQuarry.qcfg()}.get(id, {})
 	var card := _card()
 	card.name = "route_" + id
 	if dense:
@@ -607,9 +607,10 @@ func _route_card(id: String, d: Dictionary, compact := false, dense := false) ->
 		dl.add_theme_constant_override("line_spacing", -2 if compact else -1)
 		tv.add_child(dl)
 	var size := int(cs.get("size", 150))
-	var stats := [["st_size", "Размер: %d × %d м" % [size, size]], ["st_time", "Время на локации: %d мин" % int(d.get("minutes", 10))]]
+	var size_z := int(cs.get("size_z", size))           # карьер — 180 × 140
+	var stats := [["st_size", "Размер: %d × %d м" % [size, size_z]], ["st_time", "Время на локации: %d мин" % int(d.get("minutes", 10))]]
 	if dense:
-		stats = [["st_size", "%d × %d м" % [size, size]], ["st_time", "%d мин" % int(d.get("minutes", 10))]]
+		stats = [["st_size", "%d × %d м" % [size, size_z]], ["st_time", "%d мин" % int(d.get("minutes", 10))]]
 	if cs.has("pustysh"):
 		stats.append(["st_skull", ("Пустыши %d–%d" if dense else "Пустыши: %d – %d (случайно)") % [int(cs.pustysh[0]), int(cs.pustysh[1])]])
 		stats.append(["st_claw", ("Лоторейщики %d–%d" if dense else "Лоторейщики: %d – %d (случайно)") % [int(cs.lottery[0]), int(cs.lottery[1])]])

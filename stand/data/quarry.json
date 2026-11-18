@@ -3,52 +3,688 @@
 	"size": 180,
 	"size_z": 140,
 	"minutes": 15,
-	"pustysh": [40, 60],
-	"lottery": [5, 12],
-	"ruber_chances": [0.6, 0.4],
+	"pustysh": [
+		40,
+		60
+	],
+	"lottery": [
+		5,
+		12
+	],
+	"ruber_chances": [
+		0.6,
+		0.4
+	],
 	"ruber_safe_r": 45,
-	"zones_pustysh": {"village": 14, "road": 8, "pit_bottom": 12, "bench1": 6, "bench2": 6, "machines": 8, "crusher": 4, "pond": 2, "forest": 4,
-		"dorm1": 6, "dorm2": 4, "canteen": 5, "workshop": 5, "warehouse": 5, "med": 2, "office": 2},
-	"zones_lottery": {"pit_bottom": 10, "bench2": 5, "bench1": 2, "crusher": 8, "machines": 4, "workshop": 2, "warehouse": 3, "dorm2": 1, "forest": 2},
-	"zones_ruber": {"pit_bottom": 4, "bench1": 1, "crusher": 1},
-	"warn_s": [300, 120],
+	"zones_pustysh": {
+		"village": 14,
+		"road": 8,
+		"pit_bottom": 12,
+		"bench1": 6,
+		"bench2": 6,
+		"machines": 8,
+		"crusher": 4,
+		"pond": 2,
+		"forest": 4,
+		"dorm1": 6,
+		"dorm2": 4,
+		"canteen": 5,
+		"workshop": 5,
+		"warehouse": 5,
+		"med": 2,
+		"office": 2
+	},
+	"zones_lottery": {
+		"pit_bottom": 10,
+		"bench2": 5,
+		"bench1": 2,
+		"crusher": 8,
+		"machines": 4,
+		"workshop": 2,
+		"warehouse": 3,
+		"dorm2": 1,
+		"forest": 2
+	},
+	"zones_ruber": {
+		"pit_bottom": 4,
+		"bench1": 1,
+		"crusher": 1
+	},
+	"warn_s": [
+		300,
+		120
+	],
 	"alarm_s": 30,
 	"safe_r": 24,
 	"lose_wallet": true,
 	"lose_on_death": true,
 	"container_cells": 6,
 	"empty_chance": 0.2,
-	"junk_per_building": [1, 3],
-	"minerals": [10, 16],
+	"junk_per_building": [
+		1,
+		3
+	],
+	"minerals": [
+		10,
+		16
+	],
 	"blood": 14,
 	"loot": {
-		"room": [["rusk", 1, 2, 0.4], ["water", 1, 1, 0.35], ["junk", 1, 2, 0.35], ["cable", 1, 2, 0.2], ["bandage", 1, 1, 0.2], ["mineral_sample", 1, 1, 0.08]],
-		"bedside": [["rusk", 1, 2, 0.4], ["water", 1, 1, 0.3], ["junk", 1, 2, 0.4], ["a762x25", 8, 16, 0.2], ["electronics", 1, 1, 0.1]],
-		"wardrobe": [["junk", 1, 2, 0.4], ["cable", 1, 1, 0.2], ["pack_small", 1, 1, 0.04]],
-		"locker": [["junk", 1, 2, 0.4], ["spare_parts", 1, 1, 0.25], ["tool_ind", 1, 1, 0.08], ["water", 1, 1, 0.25]],
-		"desk": [["junk", 1, 2, 0.5], ["electronics", 1, 1, 0.25], ["a9x19", 8, 20, 0.2], ["tonic", 1, 1, 0.15]],
-		"med": [["bandage", 1, 3, 0.7], ["medkit", 1, 1, 0.3], ["tonic", 1, 2, 0.4]],
-		"kcab": [["can", 1, 3, 0.6], ["rusk", 1, 3, 0.5], ["water", 1, 2, 0.5]],
-		"food": [["can", 1, 3, 0.7], ["rusk", 1, 3, 0.5], ["water", 1, 2, 0.6]],
-		"store": [["junk", 1, 3, 0.6], ["spare_parts", 1, 2, 0.4], ["cable", 1, 2, 0.35], ["scrap_metal", 1, 3, 0.4], ["tool_ind", 1, 1, 0.12], ["can", 1, 2, 0.2]],
-		"toolbox": [["spare_parts", 1, 2, 0.6], ["tool_ind", 1, 1, 0.25], ["electronics", 1, 1, 0.2], ["junk", 1, 2, 0.4]],
-		"crate": [["spare_parts", 1, 2, 0.5], ["scrap_metal", 1, 3, 0.5], ["cable", 1, 2, 0.35], ["junk", 1, 3, 0.4], ["electronics", 1, 1, 0.15]],
-		"acrate": [["a545", 15, 40, 0.4], ["a762x25", 10, 24, 0.3], ["bandage", 1, 2, 0.35], ["spare_parts", 1, 1, 0.3]],
-		"truck": [["spare_parts", 1, 3, 0.6], ["cable", 1, 2, 0.4], ["junk", 1, 3, 0.5], ["water", 1, 1, 0.3], ["tool_ind", 1, 1, 0.12]],
-		"cab": [["junk", 1, 2, 0.5], ["electronics", 1, 1, 0.3], ["water", 1, 1, 0.35], ["rusk", 1, 2, 0.3], ["a9x19", 6, 18, 0.15], ["tt", 1, 1, 0.05]],
-		"machine": [["spare_parts", 1, 3, 0.7], ["cable", 1, 2, 0.45], ["electronics", 1, 2, 0.35], ["scrap_metal", 1, 3, 0.5], ["tool_ind", 1, 1, 0.15]],
-		"uaz": [["a9x19", 10, 30, 0.4], ["bandage", 1, 2, 0.4], ["water", 1, 1, 0.4], ["junk", 1, 3, 0.5], ["tt", 1, 1, 0.08]],
-		"scrap": [["scrap_metal", 2, 5, 0.9], ["spare_parts", 1, 2, 0.4], ["junk", 1, 3, 0.5]],
-		"cable": [["cable", 1, 3, 0.9], ["electronics", 1, 1, 0.25]],
-		"vein": [["mineral_sample", 1, 2, 0.75], ["ore", 1, 3, 0.6], ["rare_mineral", 1, 1, 0.12]],
-		"ore_pile": [["ore", 2, 5, 0.9], ["rock_sample", 1, 1, 0.4], ["mineral_sample", 1, 1, 0.2]],
-		"samples": [["rock_sample", 1, 3, 0.8], ["mineral_sample", 1, 2, 0.5], ["rare_mineral", 1, 1, 0.08]]
+		"room": [
+			[
+				"rusk",
+				1,
+				2,
+				0.4
+			],
+			[
+				"water",
+				1,
+				1,
+				0.35
+			],
+			[
+				"junk",
+				1,
+				2,
+				0.35
+			],
+			[
+				"cable",
+				1,
+				2,
+				0.2
+			],
+			[
+				"bandage",
+				1,
+				1,
+				0.2
+			],
+			[
+				"mineral_sample",
+				1,
+				1,
+				0.08
+			]
+		],
+		"bedside": [
+			[
+				"rusk",
+				1,
+				2,
+				0.4
+			],
+			[
+				"water",
+				1,
+				1,
+				0.3
+			],
+			[
+				"junk",
+				1,
+				2,
+				0.4
+			],
+			[
+				"a762x25",
+				8,
+				16,
+				0.2
+			],
+			[
+				"electronics",
+				1,
+				1,
+				0.1
+			]
+		],
+		"wardrobe": [
+			[
+				"junk",
+				1,
+				2,
+				0.4
+			],
+			[
+				"cable",
+				1,
+				1,
+				0.2
+			],
+			[
+				"pack_small",
+				1,
+				1,
+				0.04
+			]
+		],
+		"locker": [
+			[
+				"junk",
+				1,
+				2,
+				0.4
+			],
+			[
+				"spare_parts",
+				1,
+				1,
+				0.25
+			],
+			[
+				"tool_ind",
+				1,
+				1,
+				0.08
+			],
+			[
+				"water",
+				1,
+				1,
+				0.25
+			]
+		],
+		"desk": [
+			[
+				"junk",
+				1,
+				2,
+				0.5
+			],
+			[
+				"electronics",
+				1,
+				1,
+				0.25
+			],
+			[
+				"a9x19",
+				8,
+				20,
+				0.2
+			],
+			[
+				"tonic",
+				1,
+				1,
+				0.15
+			]
+		],
+		"med": [
+			[
+				"bandage",
+				1,
+				3,
+				0.7
+			],
+			[
+				"medkit",
+				1,
+				1,
+				0.3
+			],
+			[
+				"tonic",
+				1,
+				2,
+				0.4
+			]
+		],
+		"kcab": [
+			[
+				"can",
+				1,
+				3,
+				0.6
+			],
+			[
+				"rusk",
+				1,
+				3,
+				0.5
+			],
+			[
+				"water",
+				1,
+				2,
+				0.5
+			]
+		],
+		"food": [
+			[
+				"can",
+				1,
+				3,
+				0.7
+			],
+			[
+				"rusk",
+				1,
+				3,
+				0.5
+			],
+			[
+				"water",
+				1,
+				2,
+				0.6
+			]
+		],
+		"store": [
+			[
+				"junk",
+				1,
+				3,
+				0.6
+			],
+			[
+				"spare_parts",
+				1,
+				2,
+				0.4
+			],
+			[
+				"cable",
+				1,
+				2,
+				0.35
+			],
+			[
+				"scrap_metal",
+				1,
+				3,
+				0.4
+			],
+			[
+				"tool_ind",
+				1,
+				1,
+				0.12
+			],
+			[
+				"can",
+				1,
+				2,
+				0.2
+			]
+		],
+		"toolbox": [
+			[
+				"spare_parts",
+				1,
+				2,
+				0.6
+			],
+			[
+				"tool_ind",
+				1,
+				1,
+				0.25
+			],
+			[
+				"electronics",
+				1,
+				1,
+				0.2
+			],
+			[
+				"junk",
+				1,
+				2,
+				0.4
+			]
+		],
+		"crate": [
+			[
+				"spare_parts",
+				1,
+				2,
+				0.5
+			],
+			[
+				"scrap_metal",
+				1,
+				3,
+				0.5
+			],
+			[
+				"cable",
+				1,
+				2,
+				0.35
+			],
+			[
+				"junk",
+				1,
+				3,
+				0.4
+			],
+			[
+				"electronics",
+				1,
+				1,
+				0.15
+			]
+		],
+		"acrate": [
+			[
+				"a545",
+				15,
+				40,
+				0.4
+			],
+			[
+				"a762x25",
+				10,
+				24,
+				0.3
+			],
+			[
+				"bandage",
+				1,
+				2,
+				0.35
+			],
+			[
+				"spare_parts",
+				1,
+				1,
+				0.3
+			]
+		],
+		"truck": [
+			[
+				"spare_parts",
+				1,
+				3,
+				0.6
+			],
+			[
+				"cable",
+				1,
+				2,
+				0.4
+			],
+			[
+				"junk",
+				1,
+				3,
+				0.5
+			],
+			[
+				"water",
+				1,
+				1,
+				0.3
+			],
+			[
+				"tool_ind",
+				1,
+				1,
+				0.12
+			]
+		],
+		"cab": [
+			[
+				"junk",
+				1,
+				2,
+				0.5
+			],
+			[
+				"electronics",
+				1,
+				1,
+				0.3
+			],
+			[
+				"water",
+				1,
+				1,
+				0.35
+			],
+			[
+				"rusk",
+				1,
+				2,
+				0.3
+			],
+			[
+				"a9x19",
+				6,
+				18,
+				0.15
+			],
+			[
+				"tt",
+				1,
+				1,
+				0.05
+			]
+		],
+		"machine": [
+			[
+				"spare_parts",
+				1,
+				3,
+				0.7
+			],
+			[
+				"cable",
+				1,
+				2,
+				0.45
+			],
+			[
+				"electronics",
+				1,
+				2,
+				0.35
+			],
+			[
+				"scrap_metal",
+				1,
+				3,
+				0.5
+			],
+			[
+				"tool_ind",
+				1,
+				1,
+				0.15
+			]
+		],
+		"uaz": [
+			[
+				"a9x19",
+				10,
+				30,
+				0.4
+			],
+			[
+				"bandage",
+				1,
+				2,
+				0.4
+			],
+			[
+				"water",
+				1,
+				1,
+				0.4
+			],
+			[
+				"junk",
+				1,
+				3,
+				0.5
+			],
+			[
+				"tt",
+				1,
+				1,
+				0.08
+			]
+		],
+		"scrap": [
+			[
+				"scrap_metal",
+				2,
+				5,
+				0.9
+			],
+			[
+				"spare_parts",
+				1,
+				2,
+				0.4
+			],
+			[
+				"junk",
+				1,
+				3,
+				0.5
+			]
+		],
+		"cable": [
+			[
+				"cable",
+				1,
+				3,
+				0.9
+			],
+			[
+				"electronics",
+				1,
+				1,
+				0.25
+			]
+		],
+		"vein": [
+			[
+				"mineral_sample",
+				1,
+				2,
+				0.75
+			],
+			[
+				"ore",
+				1,
+				3,
+				0.6
+			],
+			[
+				"rare_mineral",
+				1,
+				1,
+				0.12
+			]
+		],
+		"ore_pile": [
+			[
+				"ore",
+				2,
+				5,
+				0.9
+			],
+			[
+				"rock_sample",
+				1,
+				1,
+				0.4
+			],
+			[
+				"mineral_sample",
+				1,
+				1,
+				0.2
+			]
+		],
+		"samples": [
+			[
+				"rock_sample",
+				1,
+				3,
+				0.8
+			],
+			[
+				"mineral_sample",
+				1,
+				2,
+				0.5
+			],
+			[
+				"rare_mineral",
+				1,
+				1,
+				0.08
+			]
+		],
+		"q_remains": [
+			[
+				"junk",
+				1,
+				1,
+				0.4
+			],
+			[
+				"water",
+				1,
+				1,
+				0.2
+			],
+			[
+				"a762x25",
+				4,
+				8,
+				0.15
+			]
+		],
+		"q_things": [
+			[
+				"rusk",
+				1,
+				2,
+				0.4
+			],
+			[
+				"water",
+				1,
+				1,
+				0.3
+			],
+			[
+				"electronics",
+				1,
+				1,
+				0.15
+			]
+		],
+		"q_docs": [
+			[
+				"junk",
+				1,
+				2,
+				0.3
+			],
+			[
+				"tonic",
+				1,
+				1,
+				0.1
+			]
+		]
 	},
 	"quest": {
 		"id": "last_shift",
 		"n": "Последняя смена",
 		"d": "Карьер перенесло вместе со сменой рабочих. Выясните, что с ними стало, и заберите ценные образцы — успейте уйти до перезагрузки.",
 		"traces": 3,
-		"reward": {"spore": 30, "pea": 1}
+		"reward": {
+			"spore": 30,
+			"pea": 1
+		}
 	}
 }
