@@ -146,6 +146,16 @@ func _ready() -> void:
 		# замер графики логова по частям — с настройками игры (как на телефоне), герой бессмертен
 		ULSettings.arena = false
 		ULSettings.place = "lair"
+	if test.begins_with("qr"):
+		# проверки карьера: --as-test=qr (посещение, рельеф, постройки, задание), qrbake (карты и кэш), qrview (снимки), qrperf
+		ULSettings.arena = false
+		ULSettings.place = "quarry"
+		if test == "qrperf":
+			var qc := ULQuarry.qcfg().duplicate(true)
+			qc.pustysh = [qc.pustysh[1], qc.pustysh[1]]
+			qc.lottery = [qc.lottery[1], qc.lottery[1]]
+			qc.ruber_chances = [0, 1]
+			ULQuarry._qcfg = qc
 	if test.begins_with("lr"):
 		# проверки логова муров: --as-test=lr (посещение и бой), lrbake (карты и кэш), lrview (снимки), lrperf
 		ULSettings.arena = false
@@ -154,7 +164,7 @@ func _ready() -> void:
 			var lc := ULLair.lcfg().duplicate(true)
 			lc.murs = [lc.murs[1], lc.murs[1]]
 			ULLair._lcfg = lc
-	lvl = ULSettings.level_test and test == "" or test == "lvl" or test == "lvlbench" or test == "lrview" or test == "gfxdiag"
+	lvl = ULSettings.level_test and test == "" or test == "lvl" or test == "lvlbench" or test == "lrview" or test == "qrview" or test == "gfxdiag"
 	if test != "" or lvl:
 		# проверки и тест уровней: база только в памяти; оружейник установлен (кроме проверки компьютера — там он покупается)
 		ULBase.memory_only = true
@@ -163,7 +173,7 @@ func _ready() -> void:
 			ULBase.data.upgrades["gunsmith"] = 1
 			ULBase.data.staff["gunsmith"] = true
 	arena = ULSettings.arena
-	place = ULSettings.place if not arena and ULSettings.place in ["cowshed", "sanatorium", "convoy", "khutor", "lair"] else "home"
+	place = ULSettings.place if not arena and ULSettings.place in ["cowshed", "sanatorium", "convoy", "khutor", "lair", "quarry"] else "home"
 	ULSettings.apply(get_viewport())
 	if test != "" and not test.ends_with("view") and test != "gfxdiag":
 		# автоматические проверки идут на программной отрисовке (без видеокарты): в полном разрешении со
@@ -261,8 +271,8 @@ func _bake_nav(path := NAV_MESH) -> void:
 		nm.filter_ledge_spans = true            # без «островков» на столах, кроватях и шкафах
 		nm.region_min_size = 9.0
 	nm.geometry_parsed_geometry_type = NavigationMesh.PARSED_GEOMETRY_STATIC_COLLIDERS
-	var hgt := 18.0 if place == "sanatorium" else (7.0 if place == "convoy" or place == "khutor" or place == "lair" else 5.0)   # в санатории — все этажи корпусов; в конвое — вышка
-	var y0 := -3.4 if place == "khutor" else -1.0                # на хуторе — погреба на 2,6 м под землёй
+	var hgt := 18.0 if place == "sanatorium" else (7.0 if place == "convoy" or place == "khutor" or place == "lair" or place == "quarry" else 5.0)   # в санатории — все этажи корпусов; в конвое — вышка
+	var y0 := -3.4 if place == "khutor" else (-15.0 if place == "quarry" else -1.0)   # на хуторе — погреба на 2,6 м под землёй; в карьере — дно на −13,5 м
 	nm.filter_baking_aabb = AABB(Vector3(-size_m * 0.5 - 12.0, y0, -size_m * 0.5 - 12.0), Vector3(size_m + 24.0, hgt - y0 - 1.0, size_m + 24.0))
 	nm.geometry_collision_mask = 1                              # без дверей (слой 2): путь идёт через проём
 	var src := NavigationMeshSourceGeometryData3D.new()
@@ -306,6 +316,7 @@ const CS_NOTES := {
 var place := "home"
 var cowshed: ULCowshed
 var size_m := SIZE
+var size_z := SIZE                      ## поле по z (у карьера 140 м при 180 м по x); выход — за край по своей стороне
 var cs_seed := 0                  ## случайность этого посещения (останки коров, враги)
 var cs_plan: Array = []           ## кто и где появился в этот раз
 var _cs_end := 0.0                ## когда кластер перезагрузится (unix-время, с)
@@ -325,6 +336,7 @@ var prof_parts := {}              ## замер по частям кадра (sn
 
 func _cowshed_world() -> void:
 	size_m = float(ULCowshed.cfg().get("size", 150.0))
+	size_z = size_m
 	cowshed = ULCowshed.new()
 	cowshed.name = "Cowshed"
 	add_child(cowshed)
@@ -349,23 +361,24 @@ var zone: Node3D                  ## текущий временный клас�
 
 
 func _san_world() -> void:
-	san = ULKhutor.new() if place == "khutor" else (ULConvoy.new() if place == "convoy" else (ULLair.new() if place == "lair" else ULSanatorium.new()))
+	san = ULKhutor.new() if place == "khutor" else (ULConvoy.new() if place == "convoy" else (ULLair.new() if place == "lair" else (ULQuarry.new() if place == "quarry" else ULSanatorium.new())))
 	size_m = float(san.conf().get("size", 150.0))
-	san.name = {"khutor": "Khutor", "convoy": "Convoy", "lair": "Lair"}.get(place, "Sanatorium")
+	san.name = {"khutor": "Khutor", "convoy": "Convoy", "lair": "Lair", "quarry": "Quarry"}.get(place, "Sanatorium")
+	size_z = float(san.conf().get("size_z", size_m))
 	add_child(san)
 	zone = san
 	san.build(self)
 	_noise_tex = san._noise_tex
 	_edge_fog()
-	var nav := ULKhutor.K_NAV if place == "khutor" else (ULConvoy.C_NAV if place == "convoy" else (ULLair.L_NAV if place == "lair" else NAV_SANATORIUM))
-	if test == "snbake" or test == "cvbake" or test == "khbake" or test == "lrbake":
+	var nav := ULKhutor.K_NAV if place == "khutor" else (ULConvoy.C_NAV if place == "convoy" else (ULLair.L_NAV if place == "lair" else (ULQuarry.Q_NAV if place == "quarry" else NAV_SANATORIUM)))
+	if test == "snbake" or test == "cvbake" or test == "khbake" or test == "lrbake" or test == "qrbake":
 		_bake_nav(nav)
 	_nav_load(nav)
 
 
 ## кластер с помещениями, в которые можно зайти (санаторий, конвой): этажи, двери, тайники, свет внутри
 func indoor() -> bool:
-	return place == "sanatorium" or place == "convoy" or place == "khutor" or place == "lair"
+	return place == "sanatorium" or place == "convoy" or place == "khutor" or place == "lair" or place == "quarry"
 
 
 ## временный кластер (коровник, санаторий) — не база и не полигон
@@ -374,6 +387,8 @@ func temp() -> bool:
 
 
 func zone_cfg() -> Dictionary:
+	if place == "quarry":
+		return ULQuarry.qcfg()
 	if place == "khutor":
 		return ULKhutor.kcfg()
 	if place == "lair":
@@ -384,6 +399,8 @@ func zone_cfg() -> Dictionary:
 
 
 func zone_name() -> String:
+	if place == "quarry":
+		return ULQuarry.Q_TITLE
 	if place == "khutor":
 		return ULKhutor.K_TITLE
 	if place == "lair":
@@ -394,6 +411,8 @@ func zone_name() -> String:
 
 
 func zone_entry() -> Vector3:
+	if place == "quarry":
+		return ULQuarry.Q_ENTRY
 	if place == "khutor":
 		return ULKhutor.K_ENTRY
 	if place == "lair":
@@ -1209,6 +1228,9 @@ const GROUND_SETS := {
 		"path": "brown_mud_dry", "path_n": "brown_mud_dry", "path_scale": 2.0, "grass_mul": Vector3(0.86, 0.95, 0.66), "path_mul": Vector3(0.86, 0.82, 0.76)},
 	"lair": {"soil": "brown_mud_rocks_01", "soil_n": "brown_mud_rocks_01", "tint": Vector3(1.0, 0.95, 0.88), "wet": 0.6, "dry": 0.35,
 		"path": "brown_mud_dry", "path_n": "brown_mud_dry", "path_scale": 2.0, "grass_mul": Vector3(0.8, 0.9, 0.62), "path_mul": Vector3(0.84, 0.8, 0.76)},
+	# карьер: пыльный сухой грунт посёлка, щебёночные дороги для тяжёлой техники, трава выгоревшая
+	"quarry": {"soil": "dry_ground_01", "soil_n": "dry_ground_01", "tint": Vector3(0.92, 0.88, 0.82), "wet": 0.2, "dry": 0.6,
+		"path": "stony_dirt_path", "path_n": "stony_dirt_path", "path_scale": 2.6, "grass_mul": Vector3(0.82, 0.88, 0.62), "path_mul": Vector3(0.92, 0.9, 0.86)},
 }
 
 
@@ -2200,7 +2222,7 @@ func _process(delta: float) -> void:
 	_fps_tick(delta)
 	_auto_res(delta)
 	# за краем локации: пять секунд на возвращение, потом — на карту мира
-	if not arena and _dead_t <= 0.0 and (absf(player.global_position.x) > size_m * 0.5 or absf(player.global_position.z) > size_m * 0.5):
+	if not arena and _dead_t <= 0.0 and (absf(player.global_position.x) > size_m * 0.5 or absf(player.global_position.z) > size_z * 0.5):
 		_leave_t += delta
 		if _leave_t >= LEAVE_S and not left_location:
 			left_location = true
@@ -2257,7 +2279,7 @@ func _where() -> String:
 	if indoor():
 		if san.hero_b < 0:
 			return zone_name()
-		if place == "convoy" or place == "khutor" or place == "lair":
+		if place == "convoy" or place == "khutor" or place == "lair" or (place == "quarry" and san.blds[san.hero_b].floors <= 1):
 			return "%s, %s" % [zone_name(), san.blds[san.hero_b].title.to_lower()]
 		return "%s, %s, %d этаж" % [zone_name(), san.blds[san.hero_b].title.to_lower(), san.hero_f + 1]
 	if not house.contains(player.global_position):
@@ -4279,6 +4301,42 @@ func _lvl_exit() -> void:
 	ULBase.load_state(true)
 	if test == "":
 		get_tree().change_scene_to_file("res://menu.tscn")
+
+
+## Вид карьера с нескольких точек (снимки в --as-out): общий вид, бровка, съезд, уступы, дно, дробилка, посёлок,
+## постройки внутри. Враги рядом стоят спокойно. Точка — [имя, x, z, высота над землёй, расстояние камеры].
+func _qr_view() -> void:
+	var t0 := Time.get_ticks_msec()
+	while not cs_ready and Time.get_ticks_msec() - t0 < 40000:
+		await get_tree().process_frame
+	var spots := [["q0_entry", -56.0, 58.0, 0.0, 16.0], ["q1_wide", 10.0, -4.0, 0.0, 70.0], ["q2_top", 0.0, 0.0, 0.0, 130.0],
+		["q3_rim_w", -6.0, -14.0, 0.0, 22.0], ["q4_ramp1", 2.0, -30.0, 0.0, 20.0], ["q5_bench1_n", 34.0, -45.0, 0.0, 20.0],
+		["q6_ramp3", 58.0, -26.0, 0.0, 20.0], ["q7_bottom", 36.0, -6.0, 0.0, 22.0], ["q8_bottom_close", 30.0, 4.0, 0.0, 11.0],
+		["q9_bench2_s", 36.0, 24.0, 0.0, 18.0], ["r0_crusher", 62.0, 30.0, 0.0, 24.0], ["r1_pond", 8.0, 46.0, 0.0, 18.0],
+		["r2_village", -44.0, 0.0, 0.0, 30.0], ["r3_dorm1_in", -58.0, -48.5, 0.0, 12.0], ["r4_dorm2_in", -73.0, 2.0, 0.0, 12.0],
+		["r5_canteen_in", -58.0, -22.0, 0.0, 12.0], ["r6_workshop_in", -31.0, -13.0, 0.0, 13.0], ["r7_warehouse_in", -44.0, 23.0, 0.0, 14.0],
+		["r8_med_in", -27.0, -48.0, 0.0, 11.0], ["r9_office_in", -62.0, 42.0, 0.0, 12.0], ["s0_tower", 77.0, -50.0, 0.0, 20.0], ["s1_wall_foot", 45.0, -40.0, 0.0, 12.0]]
+	var only := ""
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--as-only="):
+			only = a.substr(10)
+	if only != "":
+		spots = spots.filter(func(sp): return only.split(",").has(String(sp[0])))
+	for sp in spots:
+		cam_dist = float(sp[4])
+		var q := Vector2(float(sp[1]), float(sp[2]))
+		var at := Vector3(q.x, ULQuarry.height(q) + float(sp[3]), q.y)
+		player.global_position = at + Vector3.UP * 0.1
+		player.velocity = Vector3.ZERO
+		for e in enemies:
+			if e.global_position.distance_to(player.global_position) < 30.0:
+				e.state = "idle"
+				e.wander_r = 0.0
+		_cam_ready = false
+		world_env.fog_enabled = not String(sp[0]) in ["q1_wide", "q2_top"]
+		await get_tree().create_timer(1.4).timeout
+		print("[view] %s: %s, герой (%.1f, %.1f, %.1f)" % [sp[0], _where(), player.global_position.x, player.global_position.y, player.global_position.z])
+		await _snap(String(sp[0]))
 
 
 ## точки замера нагрузки по локации: [название, где]
@@ -6819,7 +6877,7 @@ func _pc_test() -> void:
 	var fx_real := true
 	for o in fx:
 		fx_u[o] = true
-		fx_real = fx_real and String(o) in ["cowshed", "sanatorium", "convoy", "khutor", "lair"]
+		fx_real = fx_real and String(o) in ["cowshed", "sanatorium", "convoy", "khutor", "lair", "quarry"]
 	_ok("старое сохранение с повтором («коровник» дважды) и исчезнувшей локацией — снова 3 разные: %s" % ", ".join(fx), fx.size() == 3 and fx_u.size() == 3 and fx.has("cowshed") and fx_real)
 	# посещение окончено — локация до сброса пропадает из компьютера, вместо карточки — строка «Пройдено…»
 	ULBase.data.offers = ["cowshed", "sanatorium", "convoy"]
@@ -10233,7 +10291,11 @@ func _run_test() -> void:
 		print("[bake] карта земли сохранена: ", GROUND_MASK)
 		get_tree().quit()
 		return
-	if test == "csbake" or test == "snbake" or test == "cvbake" or test == "khbake" or test == "lrbake":
+	if test == "csbake" or test == "snbake" or test == "cvbake" or test == "khbake" or test == "lrbake" or test == "qrbake":
+		get_tree().quit()
+		return
+	if test == "qrview":
+		await _qr_view()
 		get_tree().quit()
 		return
 	if test == "khview":
