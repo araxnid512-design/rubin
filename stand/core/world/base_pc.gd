@@ -452,6 +452,9 @@ func _build_upgrades() -> void:
 	var ups: Dictionary = ULBase.shop().get("upgrades", {})
 	for id in ups:
 		var d: Dictionary = ups[id]
+		if String(id) == "storage":
+			_left_box.add_child(_storage_card(d))
+			continue
 		var card := _card()
 		card.name = "up_" + String(id)
 		_left_box.add_child(card)
@@ -487,8 +490,65 @@ func _build_upgrades() -> void:
 	_left_box.add_child(_soon("Новые улучшения базы появятся позже.", "tools_off"))
 
 
+## Хранилище: уровень N/6, сейфов, вместимость; до покупки — «Купить и установить», потом — «Улучшить» (+1 сейф
+## на 30 ячеек), на шестом — «Максимальный уровень — 6/6». Каждый переход — upgrades.storage.price.
+func _storage_card(d: Dictionary) -> Control:
+	var lv := ULBase.storage_level()
+	var mx := ULBase.STORAGE_MAX
+	var cells := ULBase.SAFE_CELLS
+	var card := _card()
+	card.name = "up_storage"
+	if lv > 0:
+		card.add_theme_stylebox_override("panel", _sb(C_CARD, Color(0.95, 0.78, 0.25), 2, 8, 8))
+	var v0 := VBoxContainer.new()
+	v0.add_theme_constant_override("separation", 6)
+	card.add_child(v0)
+	var h := HBoxContainer.new()
+	h.add_theme_constant_override("separation", 10)
+	v0.add_child(h)
+	h.add_child(_pic(String(d.get("pic_on" if lv > 0 else "pic", d.get("pic", ""))), Vector2(160, 150)))
+	var v := VBoxContainer.new()
+	v.size_flags_horizontal = SIZE_EXPAND_FILL
+	v.add_theme_constant_override("separation", 3)
+	h.add_child(v)
+	var th := HBoxContainer.new()
+	th.add_theme_constant_override("separation", 8)
+	v.add_child(th)
+	th.add_child(_ico(String(d.get("icon", "storage")), 26))
+	var tl := _lbl(String(d.n), 20, Color(0.97, 0.97, 0.94), true)
+	tl.size_flags_horizontal = SIZE_EXPAND_FILL
+	th.add_child(tl)
+	var lvp := PanelContainer.new()
+	lvp.add_theme_stylebox_override("panel", _sb(Color(0.1, 0.09, 0.04, 0.9), Color(0.95, 0.78, 0.25), 1, 4, 2))
+	var lvl := _lbl("Ур. %d / %d" % [lv, mx], 13, Color(1.0, 0.85, 0.4), true)
+	lvl.name = "Level"
+	lvp.add_child(lvl)
+	th.add_child(lvp)
+	if lv > 0:
+		v.add_child(_lbl("✓ Установлено", 14, Color(0.5, 0.95, 0.5), true))
+	v.add_child(_lbl(String(d.d), 12, C_TEXT, false, true))
+	var info := _lbl("Сейфов: %d · Общая вместимость: %d ячеек" % [lv, lv * cells], 13, Color(1.0, 0.85, 0.4))
+	info.name = "Info"
+	v.add_child(info)
+	var b: Button
+	if lv >= mx:
+		b = _btn("МАКСИМАЛЬНЫЙ УРОВЕНЬ — %d/%d" % [mx, mx], "", "gray", func() -> void: pass, Vector2(0, 42), 15)
+		b.disabled = true
+	elif lv == 0:
+		b = _btn("КУПИТЬ И УСТАНОВИТЬ ЗА %s" % ULEconomy.list_text(d.price).to_upper(), "hammer", "green", ask_upgrade.bind("storage"), Vector2(0, 42), 15)
+	else:
+		v0.add_child(_lbl("Следующий уровень: +1 сейф (будет: %d) · общая вместимость: %d ячеек" % [lv + 1, (lv + 1) * cells], 12, Color(1.0, 0.85, 0.4), false, true))
+		b = _btn("УЛУЧШИТЬ ЗА %s" % ULEconomy.list_text(d.price).to_upper(), "arrow", "green", ask_upgrade.bind("storage"), Vector2(0, 42), 15)
+	b.name = "buy"
+	v0.add_child(b)
+	return card
+
+
 ## Нажата «Купить и установить»: не хватает — предупреждение с недостачей; хватает — подтверждение
 func ask_upgrade(id: String) -> void:
+	if id == "storage":
+		_ask_storage()
+		return
 	if busy or ULBase.installed(id):
 		return
 	var d: Dictionary = ULBase.shop().upgrades[id]
@@ -497,6 +557,34 @@ func ask_upgrade(id: String) -> void:
 		_dialog("Не хватает ресурсов", "Для установки «%s» нужно: %s.\nНе хватает: %s." % [String(d.n), ULEconomy.list_text(d.price), ULEconomy.list_text(miss)], Callable())
 		return
 	_dialog("Подтвердите покупку", "Купить и установить «%s» за %s?\nПосле установки он появится в оружейной." % [String(d.n), ULEconomy.list_text(d.price)], _do_upgrade.bind(id))
+
+
+func _ask_storage() -> void:
+	var lv := ULBase.storage_level()
+	if busy or lv >= ULBase.STORAGE_MAX:
+		return
+	var d: Dictionary = ULBase.shop().upgrades.storage
+	var miss := ULEconomy.missing(inv.wallet, d.price)
+	var what := "Купить и установить хранилище" if lv == 0 else "Улучшить хранилище до уровня %d/%d (+1 сейф на %d ячеек)" % [lv + 1, ULBase.STORAGE_MAX, ULBase.SAFE_CELLS]
+	if not miss.is_empty():
+		_dialog("Не хватает ресурсов", "%s — нужно: %s.\nНе хватает: %s." % [what, ULEconomy.list_text(d.price), ULEconomy.list_text(miss)], Callable())
+		return
+	_dialog("Подтвердите покупку", "%s за %s?\nСейф появится в хранилище — первой комнате слева от входа." % [what, ULEconomy.list_text(d.price)], _do_storage)
+
+
+func _do_storage() -> void:
+	if busy:
+		return
+	busy = true
+	var r := ULBase.buy_storage(inv)
+	if r.ok:
+		w.pc_done("upgrade", "storage")
+		var lv := ULBase.storage_level()
+		toast("Хранилище: уровень %d/%d — сейф №%d установлен (%d ячеек всего)." % [lv, ULBase.STORAGE_MAX, lv, lv * ULBase.SAFE_CELLS])
+	elif r.err == "money":
+		toast("Не хватает: " + ULEconomy.list_text(r.miss))
+	_build_upgrades()
+	busy = false
 
 
 func _do_upgrade(id: String) -> void:

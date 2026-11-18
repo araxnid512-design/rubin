@@ -175,7 +175,7 @@ func _ready() -> void:
 	arena = ULSettings.arena
 	place = ULSettings.place if not arena and ULSettings.place in ["cowshed", "sanatorium", "convoy", "khutor", "lair", "quarry"] else "home"
 	ULSettings.apply(get_viewport())
-	if test != "" and not test.ends_with("view") and test != "gfxdiag":
+	if test != "" and not test.ends_with("view") and test != "gfxdiag" and test != "st":
 		# автоматические проверки идут на программной отрисовке (без видеокарты): в полном разрешении со
 		# сглаживанием — 2–3 кадра/с, шаг кадра в треть секунды ломает проверки ходьбы по лестницам; поэтому
 		# проверкам — дешёвая отрисовка (снимки вида — *view — в настройках игры)
@@ -199,6 +199,7 @@ func _ready() -> void:
 		house.build("", TEX + "worn_plaster_wall", TEX + "damaged_concrete_floor", true)
 		_terminal_build()
 		_armory()
+		_storage()
 		_yard()
 		_base_props()
 		_flora()
@@ -2379,6 +2380,8 @@ func _where() -> String:
 		if d < bd:
 			bd = d
 			best = r[0]
+	if best == "Кухня" and ULBase.storage_level() > 0:
+		best = "Хранилище"
 	return "дом, " + best.to_lower()
 
 
@@ -2594,12 +2597,21 @@ func close_inventory() -> void:
 	inv_ui.visible = false
 	_hud.visible = true
 	_open_ground = null
+	if _open_safe > 0:
+		ULBase.save_state()                     # сейф — часть сохранения базы
+		_open_safe = 0
+	inv_ui.cont_cols = 4
+	inv_ui.storage_ops = false
+	inv_ui.safes = []
+	inv_ui.safe_k = 0
 	_preview_on(false)
 	_sync_ground_visuals()
 	_save()
 
 
 func _on_inv_changed() -> void:
+	if _open_safe > 0:
+		ULBase.save_state()
 	_apply_gear()
 	_sync_ground_visuals()
 	_save()
@@ -2839,6 +2851,11 @@ func _find_target() -> void:
 		if dt < bd:
 			bd = dt
 			best = {"type": "terminal"}
+	for k in _safe_nodes.size():
+		var ds := safe_front(k + 1, 0.0).distance_to(p) - 0.45
+		if ds < bd:
+			bd = ds
+			best = {"type": "safe", "k": k + 1}
 	for e in enemies:
 		if not e.alive():
 			var d := e.body_pos().distance_to(p) - 0.3
@@ -2866,6 +2883,8 @@ func _find_target() -> void:
 				node = best.e
 			"terminal":
 				node = _terminal
+			"safe":
+				node = _safe_nodes[int(best.k) - 1]
 	_target = best
 	_box_glow(best)
 	if node != _glow_node:
@@ -2954,6 +2973,8 @@ func _target_pos() -> Vector3:
 		return (_target.e as ULEnemy).body_pos() + Vector3.UP * 0.3
 	if _target.type == "terminal":
 		return _terminal.global_position + Vector3.UP * 1.0
+	if _target.type == "safe":
+		return safe_front(int(_target.k), -SAFE_D * 0.5) + Vector3.UP * (SAFE_H + 0.15)
 	if _target.type == "chest":
 		return (san as ULLair).chest_pos + Vector3.UP * 0.9
 	return (_target.g.node as Node3D).global_position if _target.type == "ground" else (_target.c as Node3D).global_position + Vector3.UP * 0.3
@@ -2972,6 +2993,8 @@ func _target_name() -> String:
 		return "%s (тело)" % String((_target.e as ULEnemy).def.n)
 	if _target.type == "terminal":
 		return "компьютер базы"
+	if _target.type == "safe":
+		return "Сейф №%d" % int(_target.k)
 	if _target.type == "chest":
 		return "Оружейный сундук" if not ULCase.find_key(inv).is_empty() or ULCase.pending() != null else "Закрыто. Требуется ключ главаря муров"
 	return ULItems.title(_target.g.item)
@@ -2988,7 +3011,7 @@ func _action_label() -> String:
 		return "Говорить"
 	if _target.type == "corpse":
 		return "Обыскать"
-	if _target.type == "terminal":
+	if _target.type == "terminal" or _target.type == "safe":
 		return "Открыть"
 	if _target.type == "chest":
 		return "Открыть оружейный сундук" if not ULCase.find_key(inv).is_empty() or ULCase.pending() != null else "Закрыто"
@@ -3008,6 +3031,9 @@ func do_action() -> void:
 		return
 	if _target.type == "terminal":
 		open_terminal()
+		return
+	if _target.type == "safe":
+		open_safe(int(_target.k))
 		return
 	if _target.type == "chest":
 		open_chest()
@@ -3421,6 +3447,8 @@ func _draw_hud() -> void:
 						_hud_icon(_art("use"), c, r * 2.0, ic)
 					"crate", "box", "chest":
 						_hud_icon(_tex("res://assets/icons/crate.png"), c, r * 1.5, ic)
+					"safe":
+						_hud_icon(_tex("res://assets/icons/safe.png"), c, r * 1.5, ic)
 					"corpse":
 						_hud_icon(_tex("res://assets/icons/loot_spore.png"), c, r * 1.4, ic)
 					"terminal":
@@ -4870,6 +4898,259 @@ func _offer_route(id: String) -> void:
 	if not offs.has(id):
 		offs[0] = id
 		ULBase.data.offers = offs
+
+
+## Хранилище базы (--as-test=st [--as-out=папка]): карточка в компьютере на всех уровнях, нехватка споранов,
+## покупка и улучшения по 50, максимум 6/6; комната и ряд сейфов вдоль задней стены, проход; окно сейфа 6 × 5 и все
+## действия (положить, взять, разделить, объединить, переместить, сортировать, в другой сейф, положить всё, ресурсы);
+## сохранение в файл базы, гибель и сброс кластера сейфы не трогают. Снимки комнаты на уровнях 0, 1, 3, 6.
+func _st_test() -> void:
+	var keep_path := ULBase.path
+	ULBase.path = "user://test_storage_base.json"
+	ULBase.memory_only = false
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(ULBase.path))
+	ULBase.load_state(true)
+	ULBase.data.upgrades["gunsmith"] = 1
+	ULBase.data.staff["gunsmith"] = true
+	_storage()
+	await get_tree().create_timer(0.6).timeout
+	var room_at := house.to_global(Vector3(-3.6, 0.05, 4.1))
+	player.global_position = room_at
+	await get_tree().create_timer(0.3).timeout
+	_ok("1. до покупки: уровень 0, сейфов нет, комната пустая и называется «Кухня»", ULBase.storage_level() == 0 and _safe_nodes.is_empty() and _storage_root == null and _where() == "дом, кухня", _where())
+	await _st_snap("st_room_lv0")
+	# компьютер: карточка «Хранилище»
+	player.global_position = house.to_global(terminal_front() + Vector3(0, 0.05, 0))
+	await get_tree().create_timer(0.3).timeout
+	do_action()
+	await get_tree().process_frame
+	var pc := _term_ui as ULBasePC
+	if pc == null:
+		_ok("компьютер открылся", false)
+		print("[inv] итог: ошибок %d" % _fails)
+		get_tree().quit()
+		return
+	var card := func(pc: ULBasePC) -> Dictionary:
+		var c := pc.find_child("up_storage", true, false)
+		if c == null:
+			return {}
+		var b := c.find_child("buy", true, false) as Button
+		var lvl_l := c.find_child("Level", true, false) as Label
+		var info := c.find_child("Info", true, false) as Label
+		return {"btn": b.text if b else "", "dis": b.disabled if b else false, "lvl": lvl_l.text if lvl_l else "", "info": info.text if info else ""}
+	var c0: Dictionary = card.call(pc)
+	_ok("2. в компьютере карточка «Хранилище»: «Ур. 0 / 6», «КУПИТЬ И УСТАНОВИТЬ ЗА 50 СПОРАНОВ»", c0.get("lvl", "") == "Ур. 0 / 6" and String(c0.get("btn", "")) == "КУПИТЬ И УСТАНОВИТЬ ЗА 50 СПОРАНОВ", str(c0))
+	inv.wallet = {"spore": 30}
+	inv.changed.emit()
+	pc.ask_upgrade("storage")
+	var dt := pc.dialog_text()
+	pc.dialog_close()
+	_ok("3. 30 споранов — не хватает 20: предупреждение, ничего не списано, уровень 0", dt.contains("20 споранов") and int(inv.wallet.spore) == 30 and ULBase.storage_level() == 0 and not ULBase.buy_storage(inv).ok, dt.replace("\n", " / "))
+	inv.wallet = {"spore": 400, "pea": 6, "pearl_black": 2, "pearl_red": 1}
+	inv.changed.emit()
+	pc.ask_upgrade("storage")
+	var dt1 := pc.dialog_text()
+	pc.dialog_confirm()
+	pc.dialog_confirm()                     # второе нажатие — окна уже нет
+	var c1: Dictionary = card.call(pc)
+	_ok("4. куплено один раз (400 → 350): уровень 1, сейф №1 в комнате, карточка «Ур. 1 / 6», «Сейфов: 1 · 30 ячеек», «УЛУЧШИТЬ ЗА 50 СПОРАНОВ»",
+		dt1.contains("50 споранов") and int(inv.wallet.spore) == 350 and ULBase.storage_level() == 1 and _safe_nodes.size() == 1 and c1.get("lvl", "") == "Ур. 1 / 6"
+		and String(c1.get("info", "")).contains("Сейфов: 1") and String(c1.get("info", "")).contains("30 ячеек") and String(c1.get("btn", "")) == "УЛУЧШИТЬ ЗА 50 СПОРАНОВ", str(c1))
+	if out != "":
+		await _st_card_view(pc)
+		await _snap("st_pc_lv1")
+	pc.close()
+	await get_tree().process_frame
+	player.global_position = room_at
+	await get_tree().create_timer(0.4).timeout
+	var signs := 0
+	for lb in _storage_root.find_children("*", "Label3D", true, false):
+		if (lb as Label3D).text == "ХРАНИЛИЩЕ":
+			signs += 1
+	_ok("5. комната оборудована: металлическая дверь, лампа со светом, стеллаж, таблички «ХРАНИЛИЩЕ» (%d); название — «Хранилище»" % signs,
+		_storage_root.find_child("StorageLight", true, false) != null and signs == 2 and _where() == "дом, хранилище", _where())
+	await _st_snap("st_room_lv1")
+	# улучшения до 3 и до 6
+	for i in 2:
+		ULBase.buy_storage(inv)
+		pc_done("upgrade", "storage")
+	_ok("6. улучшения до 3: по 50 споранов (350 → 250), сейфов 3", ULBase.storage_level() == 3 and int(inv.wallet.spore) == 250 and _safe_nodes.size() == 3)
+	await get_tree().create_timer(0.3).timeout
+	await _st_snap("st_room_lv3")
+	for i in 3:
+		ULBase.buy_storage(inv)
+		pc_done("upgrade", "storage")
+	player.global_position = house.to_global(terminal_front() + Vector3(0, 0.05, 0))
+	await get_tree().create_timer(0.3).timeout
+	do_action()
+	await get_tree().process_frame
+	pc = _term_ui as ULBasePC
+	var c6: Dictionary = card.call(pc)
+	pc.ask_upgrade("storage")
+	var no_dlg := pc.dialog_text() == ""
+	var r7 := ULBase.buy_storage(inv)
+	_ok("7. уровень 6/6 (спораны 100): кнопка «МАКСИМАЛЬНЫЙ УРОВЕНЬ — 6/6» неактивна, седьмой сейф не купить, не списано",
+		ULBase.storage_level() == 6 and int(inv.wallet.spore) == 100 and c6.get("lvl", "") == "Ур. 6 / 6" and String(c6.get("btn", "")) == "МАКСИМАЛЬНЫЙ УРОВЕНЬ — 6/6" and bool(c6.get("dis", false)) and no_dlg and not r7.ok and r7.err == "max", str(c6))
+	if out != "":
+		await _st_card_view(pc)
+		await _snap("st_pc_lv6")
+	pc.close()
+	await get_tree().process_frame
+	# расположение: один ряд вдоль задней стены, дверцами к герою, промежутки, проход от двери к каждому сейфу
+	var row_ok := _safe_nodes.size() == 6
+	var gaps := []
+	for k in _safe_nodes.size():
+		var sn := _safe_nodes[k]
+		row_ok = row_ok and absf(sn.position.z - SAFE_Z) < 0.01 and absf(sn.rotation.y) < 0.01 and sn.position.x - SAFE_W * 0.5 > -5.89 and sn.position.x + SAFE_W * 0.5 < -1.56
+		if k > 0:
+			gaps.append(snappedf(sn.position.x - _safe_nodes[k - 1].position.x - SAFE_W, 0.01))
+	var space := get_world_3d().direct_space_state
+	var door := house.to_global(Vector3(-1.2, 0.6, 3.25))
+	var blocked := 0
+	for k in range(1, 7):
+		var f := safe_front(k, 0.45) + Vector3.UP * 0.6
+		var q := PhysicsRayQueryParameters3D.create(door, f)
+		q.exclude = [player.get_rid()]
+		if not space.intersect_ray(q).is_empty():
+			blocked += 1
+	_ok("8. шесть сейфов в ряд вдоль задней стены, дверцами к герою, промежутки %s м; от двери к каждому — свободный проход" % str(gaps),
+		row_ok and gaps.size() == 5 and gaps.all(func(g): return g >= 0.05) and blocked == 0, "закрыто %d" % blocked)
+	player.global_position = room_at
+	await get_tree().create_timer(0.4).timeout
+	await _st_snap("st_room_lv6")
+	# подход и окно сейфа
+	player.global_position = safe_front(3, 0.55) + Vector3(0, 0.05, 0)
+	await get_tree().create_timer(0.4).timeout
+	_ok("9. у сейфа №3: цель «Сейф №3», кнопка «Открыть»", _target != null and String(_target.type) == "safe" and int(_target.k) == 3 and _action_label() == "Открыть", _target_name())
+	do_action()
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var cont: Array = inv_ui.cont
+	var btns := []
+	for b in inv_ui.find_children("*", "Button", true, false):
+		btns.append((b as Button).text)
+	_ok("10. открыт сейф №3: 30 ячеек сеткой 6 × 5, кнопки «Взять всё», «Положить всё», «Сортировать»",
+		inv_ui.visible and cont == ULBase.safe_cells(3) and cont.size() == 30 and inv_ui.cont_cols == 6 and btns.has("Положить всё") and btns.has("Сортировать") and btns.has("Взять всё"), str(inv_ui.cont_title))
+	if out != "":
+		await get_tree().create_timer(0.3).timeout
+		await _snap("st_safe_window")
+	# положить: оружие, патроны, ресурсы
+	inv.pockets.fill(null)
+	inv.primary = ULItems.make("ak74m")
+	inv.add(ULItems.make("a545", 60))
+	inv.add(ULItems.make("bandage", 3))
+	inv_ui.refresh()
+	inv_ui._sel_src = "eq:primary"
+	inv_ui._sel_i = -1
+	var gun := String(inv.primary.id) if inv.primary else ""
+	inv_ui._act_slot_to_cont("primary")
+	inv_ui._sel_src = "pockets"
+	inv_ui._sel_i = inv.pockets.find(inv.pockets.filter(func(x): return x != null and String(x.id) == "a545")[0])
+	inv_ui._act_to_cont()
+	for id in ["spore", "pea", "pearl_black"]:
+		inv_ui._money_to_cont(id)
+	var ids := cont.filter(func(x): return x != null).map(func(x): return String(x.id))
+	_ok("11. в сейф легли оружие (%s), патроны, спораны, горох, жемчуг; из инвентаря и кошелька убыло" % gun,
+		gun != "" and ids.has(gun) and ids.has("a545") and ids.has("spore") and ids.has("pea") and ids.has("pearl_black") and inv.primary == null and inv.count("a545") == 0 and int(inv.wallet.get("pea", 0)) == 0, str(ids))
+	# разделить, объединить, переместить
+	var ai := cont.find(cont.filter(func(x): return x != null and String(x.id) == "a545")[0])
+	inv_ui._sel_src = "cont"
+	inv_ui._sel_i = ai
+	inv_ui._act_split()
+	var halves := cont.filter(func(x): return x != null and String(x.id) == "a545").map(func(x): return int(x.n))
+	var bi := -1
+	for i in cont.size():
+		if i != ai and cont[i] != null and String(cont[i].id) == "a545":
+			bi = i
+	inv_ui._sel_src = "cont"
+	inv_ui._sel_i = bi
+	inv_ui._act_move()
+	inv_ui._press("cont", ai)
+	var merged := cont.filter(func(x): return x != null and String(x.id) == "a545").map(func(x): return int(x.n))
+	inv_ui._sel_src = "cont"
+	inv_ui._sel_i = ai
+	inv_ui._act_move()
+	inv_ui._press("cont", 29)
+	_ok("12. разделить 60 → %s, объединить → %s, переместить в последнюю ячейку" % [str(halves), str(merged)], halves == [30, 30] and merged == [60] and cont[29] != null and String(cont[29].id) == "a545" and cont[ai] == null)
+	# взять
+	var spi := cont.find(cont.filter(func(x): return x != null and String(x.id) == "spore")[0])
+	var sp_n := int(cont[spi].n)
+	var w0 := int(inv.wallet.get("spore", 0))
+	inv_ui._sel_src = "cont"
+	inv_ui._sel_i = spi
+	inv_ui._act_take()
+	_ok("13. взять спораны из сейфа — снова в кошельке (+%d)" % sp_n, cont[spi] == null and int(inv.wallet.spore) == w0 + sp_n)
+	inv_ui._money_to_cont("spore")
+	inv_ui._sort_cont()
+	var first_gap := cont.find(null)
+	var after := cont.slice(first_gap).filter(func(x): return x != null).size() if first_gap >= 0 else 0
+	_ok("14. «Сортировать»: оружие первым, предметы подряд без пропусков", cont[0] != null and String(cont[0].id) == gun and after == 0, str(cont.filter(func(x): return x != null).map(func(x): return String(x.id))))
+	# в другой сейф, положить всё
+	inv_ui._sel_src = "cont"
+	inv_ui._sel_i = 0
+	inv_ui._pick_safe = true
+	inv_ui._act_to_safe(5)
+	var s5 := ULBase.safe_cells(5)
+	inv_ui._put_all()
+	_ok("15. «В сейф…»: оружие — в сейф №5; «Положить всё» — бинты из карманов в сейф №3", s5[0] != null and String(s5[0].id) == gun and cont[0] != null and String(cont[0].id) != gun and inv.count("bandage") == 0 and cont.any(func(x): return x != null and String(x.id) == "bandage"))
+	close_inventory()
+	await get_tree().process_frame
+	# сохранение: файл базы, постоянные номера сейфов
+	var snap := _st_dump()
+	ULBase.data = {}
+	ULBase.load_state(true)
+	var keys: Array = ULBase.data.storage.safes.keys()
+	keys.sort()
+	_ok("16. после «перезапуска» (чтение файла базы) — уровень 6, сейфы safe_1…safe_6 и их содержимое те же", ULBase.storage_level() == 6 and keys == ["safe_1", "safe_2", "safe_3", "safe_4", "safe_5", "safe_6"] and _st_dump() == snap, snap)
+	# гибель в кластере и сброс маршрутов
+	var keep_place := place
+	place = "convoy"
+	_cs_done = false
+	cs_finish("dead")
+	place = keep_place
+	ULSettings.place = "home"
+	ULBase.routes_tick(int(Time.get_unix_time_from_system()) + ULBase.refresh_period() * 3)
+	ULBase.close_interrupted()
+	ULBase.data = {}
+	ULBase.load_state(true)
+	_ok("17. гибель с потерей всего при себе и сброс кластера — сейфы целы", inv.used() == 0 and inv.primary == null and _st_dump() == snap, _st_dump())
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(ULBase.path))
+	ULBase.path = keep_path
+	ULBase.memory_only = true
+	print("[inv] итог: ошибок %d" % _fails)
+	get_tree().quit()
+
+
+## прокрутить список улучшений в компьютере до карточки «Хранилище» (для снимка)
+func _st_card_view(pc: ULBasePC) -> void:
+	await get_tree().process_frame
+	var cn := pc.find_child("up_storage", true, false) as Control
+	var scr := cn.get_parent() if cn else null
+	while scr != null and not (scr is ScrollContainer):
+		scr = scr.get_parent()
+	if scr != null:
+		(scr as ScrollContainer).ensure_control_visible(cn)
+	await get_tree().create_timer(3.2).timeout
+
+
+## содержимое сейфов строкой (числа — целыми: после чтения JSON они дробные)
+func _st_dump() -> String:
+	var out_s := "ур.%d" % ULBase.storage_level()
+	for k in range(1, ULBase.STORAGE_MAX + 1):
+		out_s += " | %d:" % k
+		for c in ULBase.safe_cells(k):
+			if c != null:
+				out_s += " %s×%d" % [String(c.id), int(c.n)]
+	return out_s
+
+
+## снимок комнаты хранилища: камера над комнатой, как в игре
+func _st_snap(name: String) -> void:
+	if out == "":
+		return
+	_cam_ready = false
+	await get_tree().create_timer(1.2).timeout
+	await _snap(name)
 
 
 ## Оружейный сундук и прокрутка (--as-test=case): вероятности на 200 000 виртуальных прокрутках, ключ и сундук,
@@ -9851,6 +10132,253 @@ func _armory() -> void:
 		root.add_child(guns)
 
 
+# ---------------- хранилище ----------------
+
+## Хранилище — первая комната слева от входа (бывшая кухня, система дома x −6…−1,5, z 1,5…5). До покупки через
+## компьютер (уровень 0) комната пустая и называется «Кухня». С первого уровня — металлическая дверь (открыта к
+## стене), лампа, стеллаж, табличка «ХРАНИЛИЩЕ» и сейфы №1…№N в ряд вдоль задней стены, дверцами к герою; места
+## будущих сейфов размечены на полу. Сейф — модель Tripo st_safe (нет её — свой: корпус, дверца, штурвал, кодовая
+## панель). Содержимое — ULBase.data.storage.safes.safe_k (общее сохранение базы, гибель и сброс не трогают).
+const SAFE_X := [-5.49, -4.79, -4.09, -3.39, -2.69, -1.99]   ## середины сейфов №1…№6 по x
+const SAFE_Z := 1.86                                          ## середина по z (задняя стена — 1,56)
+const SAFE_W := 0.62
+const SAFE_D := 0.55
+const SAFE_H := 1.3
+var _storage_root: Node3D
+var _safe_nodes: Array[Node3D] = []
+
+
+## перед дверцей сейфа k (система мира) — где встаёт герой
+func safe_front(k: int, d := 0.75) -> Vector3:
+	return house.to_global(Vector3(float(SAFE_X[k - 1]), 0, SAFE_Z + SAFE_D * 0.5 + d))
+
+
+## (пере)строить комнату по уровню хранилища: вызывается при входе на базу и после покупки
+func _storage() -> void:
+	if house == null:
+		return
+	if _storage_root != null:
+		_storage_root.queue_free()
+		_storage_root = null
+	_safe_nodes.clear()
+	var lv := ULBase.storage_level()
+	if lv <= 0:
+		return
+	var root := Node3D.new()
+	root.name = "Storage"
+	house.inner.add_child(root)
+	_storage_root = root
+	var body := StaticBody3D.new()
+	body.name = "StorageBody"
+	root.add_child(body)
+	var steel := _paint(Color(0.29, 0.31, 0.31), 0.7, 0.45)
+	var steel_d := _paint(Color(0.16, 0.17, 0.17), 0.6, 0.5)
+	var yellow := _paint(Color(0.86, 0.68, 0.12), 0.0, 0.8)
+	# металлическая дверь: коробка в проёме и полотно, открытое внутрь к восточной стене (петли — у фасада)
+	var dx := -1.5
+	for jz in [2.72, 3.78]:
+		_box_prop(root, Vector3(0.18, 1.98, 0.06), Vector3(dx, 0.99, jz), steel_d)
+	_box_prop(root, Vector3(0.18, 0.06, 1.12), Vector3(dx, 1.95, 3.25), steel_d)
+	_box_prop(root, Vector3(0.05, 1.9, 0.94), Vector3(dx - 0.115, 0.97, 4.27), steel, body)
+	for hy in [0.35, 1.6]:
+		_box_prop(root, Vector3(0.08, 0.12, 0.05), Vector3(dx - 0.11, hy, 3.79), steel_d)
+	_box_prop(root, Vector3(0.05, 0.03, 0.16), Vector3(dx - 0.16, 1.02, 4.62), _paint(Color(0.55, 0.55, 0.52), 0.8, 0.35))
+	# табличка у двери со стороны сеней и над сейфами
+	_storage_sign(root, Vector3(dx + 0.075, 1.62, 4.28), PI * 0.5, 0.9)
+	_storage_sign(root, Vector3(-3.74, 1.72, 1.575), 0.0, 1.5)
+	# лампа на задней стене над сейфами (плафон в решётке) и свет комнаты
+	var lamp := _paint(Color(1.0, 0.95, 0.82), 0.0, 0.4)
+	lamp.emission_enabled = true
+	lamp.emission = Color(1.0, 0.92, 0.75)
+	lamp.emission_energy_multiplier = 2.2
+	_box_prop(root, Vector3(0.42, 0.1, 0.1), Vector3(-3.74, 1.93, 1.62), steel_d)
+	_box_prop(root, Vector3(0.36, 0.06, 0.07), Vector3(-3.74, 1.88, 1.66), lamp)
+	var lt := OmniLight3D.new()
+	lt.name = "StorageLight"
+	lt.light_color = Color(1.0, 0.93, 0.8)
+	lt.light_energy = 0.9
+	lt.omni_range = 4.2
+	lt.shadow_enabled = false
+	lt.position = Vector3(-3.74, 1.85, 2.4)
+	root.add_child(lt)
+	# металлический стеллаж у левой стены: стойки, полки, коробки
+	var sx := -5.62
+	for z0 in [3.02, 4.58]:
+		for x0 in [sx - 0.2, sx + 0.2]:
+			_box_prop(root, Vector3(0.04, 1.8, 0.04), Vector3(x0, 0.9, z0), steel_d)
+	var shelf_items := ["a545", "a9x19", "a12", "medkit", "bandage", "a762x54", "a762x25"]
+	var n := 0
+	for sy in [0.12, 0.62, 1.12, 1.62]:
+		_box_prop(root, Vector3(0.44, 0.03, 1.6), Vector3(sx, sy, 3.8), steel)
+		if sy < 1.6:
+			for k in 3:
+				_shelf_item(root, String(shelf_items[n % shelf_items.size()]), Vector3(sx, sy + 0.016, 3.27 + k * 0.53), 0.3 * (k - 1), 0.24)
+				n += 1
+	var scs := CollisionShape3D.new()
+	var sbs := BoxShape3D.new()
+	sbs.size = Vector3(0.46, 1.8, 1.62)
+	scs.shape = sbs
+	scs.position = Vector3(sx, 0.9, 3.8)
+	body.add_child(scs)
+	# резиновый коврик вдоль ряда сейфов
+	_box_prop(root, Vector3(4.2, 0.012, 0.7), Vector3(-3.74, 0.032, 2.55), _paint(Color(0.1, 0.1, 0.1), 0.0, 1.0))
+	# сейфы: установленные — модель, будущие места — жёлтая разметка на полу с номером
+	var safe_mesh := _safe_mesh()
+	for k in range(1, ULBase.STORAGE_MAX + 1):
+		var at := Vector3(float(SAFE_X[k - 1]), 0, SAFE_Z)
+		if k <= lv:
+			var sn := Node3D.new()
+			sn.name = "Safe%d" % k
+			sn.position = at
+			root.add_child(sn)
+			if not _armory_model(sn, "st_safe", Vector3.ZERO, 0.0, SAFE_H, "h", Vector3.ZERO, null):
+				var mi := MeshInstance3D.new()
+				mi.mesh = safe_mesh
+				sn.add_child(mi)
+			var cs := CollisionShape3D.new()
+			var bs := BoxShape3D.new()
+			bs.size = Vector3(SAFE_W, SAFE_H, SAFE_D)
+			cs.shape = bs
+			cs.position = at + Vector3(0, SAFE_H * 0.5, 0)
+			body.add_child(cs)
+			var lb := Label3D.new()
+			lb.text = "№%d" % k
+			lb.font_size = 48
+			lb.pixel_size = 0.0016
+			lb.outline_size = 0
+			lb.modulate = Color(0.12, 0.1, 0.06)
+			lb.position = Vector3(0, SAFE_H - 0.12, SAFE_D * 0.5 + 0.046)
+			sn.add_child(lb)
+			_box_prop(sn, Vector3(0.15, 0.07, 0.008), Vector3(0, SAFE_H - 0.12, SAFE_D * 0.5 + 0.04), _paint(Color(0.82, 0.68, 0.32), 0.8, 0.35))
+			_safe_nodes.append(sn)
+		else:
+			for e in [[Vector3(SAFE_W, 0.006, 0.04), Vector3(0, 0, -SAFE_D * 0.5)], [Vector3(SAFE_W, 0.006, 0.04), Vector3(0, 0, SAFE_D * 0.5)],
+					[Vector3(0.04, 0.006, SAFE_D), Vector3(-SAFE_W * 0.5, 0, 0)], [Vector3(0.04, 0.006, SAFE_D), Vector3(SAFE_W * 0.5, 0, 0)]]:
+				_box_prop(root, e[0], at + e[1] + Vector3(0, 0.03, 0), yellow)
+			var fl := Label3D.new()
+			fl.text = str(k)
+			fl.font_size = 64
+			fl.pixel_size = 0.004
+			fl.modulate = Color(0.86, 0.68, 0.12, 0.85)
+			fl.outline_size = 0
+			fl.rotation.x = -PI * 0.5
+			fl.position = at + Vector3(0, 0.035, 0)
+			root.add_child(fl)
+
+
+## табличка «ХРАНИЛИЩЕ»: жёлтая пластина с чёрной надписью; yaw — куда смотрит лицевая сторона (0 — к +z)
+func _storage_sign(root: Node3D, at: Vector3, yaw: float, w: float) -> void:
+	var sn := Node3D.new()
+	sn.position = at
+	sn.rotation.y = yaw
+	root.add_child(sn)
+	_box_prop(sn, Vector3(w, w * 0.2, 0.012), Vector3.ZERO, _paint(Color(0.86, 0.68, 0.12), 0.2, 0.6))
+	var lb := Label3D.new()
+	lb.text = "ХРАНИЛИЩЕ"
+	lb.font_size = 64
+	lb.pixel_size = w * 0.0021
+	lb.outline_size = 0
+	lb.modulate = Color(0.06, 0.06, 0.05)
+	lb.position = Vector3(0, 0, 0.008)
+	sn.add_child(lb)
+
+
+var _safe_mesh_cache: ArrayMesh
+
+
+## Свой сейф (нет модели Tripo): одна сетка из частей по материалам — корпус крашеной стали с цоколем, дверца
+## с зазором, петли, штурвал-кремальера со спицами, ручка, кодовая панель с экранчиком. Дверца — к +z.
+func _safe_mesh() -> ArrayMesh:
+	if _safe_mesh_cache != null:
+		return _safe_mesh_cache
+	var body_m := _paint(Color(0.2, 0.25, 0.23), 0.6, 0.45)
+	var door_m := _paint(Color(0.25, 0.3, 0.28), 0.6, 0.4)
+	var dark_m := _paint(Color(0.07, 0.07, 0.07), 0.5, 0.6)
+	var chrome := _paint(Color(0.78, 0.78, 0.74), 0.9, 0.25)
+	var screen := _paint(Color(0.15, 0.45, 0.2), 0.0, 0.3)
+	screen.emission_enabled = true
+	screen.emission = Color(0.3, 1.0, 0.45)
+	screen.emission_energy_multiplier = 0.9
+	var w := SAFE_W
+	var h := SAFE_H
+	var d := SAFE_D
+	var fz := d * 0.5
+	var parts := []
+	var bx := func(sz: Vector3, at: Vector3, m: Material) -> void:
+		var bm := BoxMesh.new()
+		bm.size = sz
+		parts.append([bm, Transform3D(Basis(), at), m])
+	bx.call(Vector3(w, h - 0.08, d), Vector3(0, 0.08 + (h - 0.08) * 0.5, 0), body_m)
+	bx.call(Vector3(w - 0.04, 0.08, d - 0.04), Vector3(0, 0.04, 0), dark_m)
+	bx.call(Vector3(w + 0.02, 0.03, d + 0.02), Vector3(0, h - 0.015, 0), door_m)
+	bx.call(Vector3(w - 0.07, h - 0.2, 0.012), Vector3(0, 0.08 + (h - 0.08) * 0.5, fz + 0.002), dark_m)
+	bx.call(Vector3(w - 0.09, h - 0.22, 0.035), Vector3(0, 0.08 + (h - 0.08) * 0.5, fz + 0.018), door_m)
+	for hy in [0.3, h - 0.3]:
+		var cy := CylinderMesh.new()
+		cy.top_radius = 0.018
+		cy.bottom_radius = 0.018
+		cy.height = 0.12
+		cy.radial_segments = 8
+		parts.append([cy, Transform3D(Basis(), Vector3(-w * 0.5 + 0.03, hy, fz + 0.03)), chrome])
+	var wy := h * 0.52
+	var wx := 0.04
+	var tm := TorusMesh.new()
+	tm.inner_radius = 0.07
+	tm.outer_radius = 0.09
+	tm.rings = 16
+	tm.ring_segments = 6
+	parts.append([tm, Transform3D(Basis(Vector3.RIGHT, PI * 0.5), Vector3(wx, wy, fz + 0.07)), chrome])
+	for a in 3:
+		var sp := BoxMesh.new()
+		sp.size = Vector3(0.17, 0.014, 0.014)
+		parts.append([sp, Transform3D(Basis(Vector3.BACK, a * PI / 3.0), Vector3(wx, wy, fz + 0.07)), chrome])
+	var hub := CylinderMesh.new()
+	hub.top_radius = 0.028
+	hub.bottom_radius = 0.032
+	hub.height = 0.05
+	hub.radial_segments = 10
+	parts.append([hub, Transform3D(Basis(Vector3.RIGHT, PI * 0.5), Vector3(wx, wy, fz + 0.055)), chrome])
+	bx.call(Vector3(0.02, 0.16, 0.03), Vector3(w * 0.5 - 0.09, wy, fz + 0.05), chrome)
+	bx.call(Vector3(0.11, 0.15, 0.015), Vector3(wx, wy + 0.23, fz + 0.042), dark_m)
+	bx.call(Vector3(0.08, 0.028, 0.004), Vector3(wx, wy + 0.275, fz + 0.051), screen)
+	for r in 3:
+		for c in 3:
+			bx.call(Vector3(0.022, 0.018, 0.006), Vector3(wx - 0.028 + c * 0.028, wy + 0.235 - r * 0.026, fz + 0.051), chrome)
+	var by_mat := {}
+	for pr in parts:
+		var m: Material = pr[2]
+		if not by_mat.has(m):
+			var st := SurfaceTool.new()
+			st.begin(Mesh.PRIMITIVE_TRIANGLES)
+			by_mat[m] = st
+		(by_mat[m] as SurfaceTool).append_from(pr[0], 0, pr[1])
+	var am := ArrayMesh.new()
+	for m in by_mat:
+		var st: SurfaceTool = by_mat[m]
+		st.commit(am)
+		am.surface_set_material(am.get_surface_count() - 1, m)
+	_safe_mesh_cache = am
+	return am
+
+
+## открыть сейф k: сетка 6 × 5, «Положить всё», «Сортировать», перенос ресурсов из кошелька
+var _open_safe := 0
+
+
+func open_safe(k: int) -> void:
+	if k < 1 or k > ULBase.storage_level():
+		return
+	_open_safe = k
+	inv_ui.cont_cols = 6
+	inv_ui.storage_ops = true
+	inv_ui.safe_k = k
+	inv_ui.safes = []
+	for j in range(1, ULBase.storage_level() + 1):
+		inv_ui.safes.append([j, ULBase.safe_cells(j)])
+	open_inventory(ULBase.safe_cells(k), "Сейф №%d" % k, false, "safe")
+	snd.play("click", safe_front(k, 0.0) + Vector3.UP, -6.0)
+
+
 # ---------------- компьютер базы ----------------
 
 ## Компьютер — в сенях у правой стены (за ней оружейная), экраном в сени: стол, монитор, системный блок (модель
@@ -9948,6 +10476,8 @@ func open_terminal() -> void:
 func pc_done(kind: String, id: String) -> void:
 	if kind == "upgrade" and ULBase.installed("gunsmith") and _armory_root == null:
 		_armory()                               # куплено — в кладовой появляется вся оружейная
+	if kind == "upgrade" and id == "storage":
+		_storage()                              # хранилище куплено или улучшено — новый сейф в ряду
 	if kind == "upgrade" and ULBase.has_staff("gunsmith") and npc_by_role("оружейник") == null:
 		_npcs_setup()
 	snd.play("click", player.global_position + Vector3.UP * 1.0, -4.0)
@@ -10463,6 +10993,9 @@ func _run_test() -> void:
 		return
 	if test == "pc":
 		await _pc_test()
+		return
+	if test == "st":
+		await _st_test()
 		return
 	if test == "cs":
 		await _cs_test()

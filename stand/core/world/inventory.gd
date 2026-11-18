@@ -66,6 +66,40 @@ static func put(arr: Array, it: Dictionary) -> int:
 	return left
 
 
+## сортировка ячеек хранилища: одинаковые стопки сливаются, затем по виду (оружие, патроны, лекарства, еда,
+## ресурсы, минералы, хлам) и названию; пустые — в конце
+const SORT_ORDER := ["primary", "pistol", "melee", "pack", "ammo", "med", "food", "loot", "mineral", "parts", "tool", "tech", "junk", "quest"]
+
+
+static func sort_cells(cells: Array) -> void:
+	var merged: Array = []
+	for it in cells:
+		if it == null:
+			continue
+		var done := false
+		if not it.has("items") and not it.has("mag") and not it.has("dur"):
+			for m in merged:
+				if String(m.id) == String(it.id) and int(m.n) < ULItems.stack(String(m.id)):
+					var mv := mini(ULItems.stack(String(m.id)) - int(m.n), int(it.n))
+					m.n = int(m.n) + mv
+					it.n = int(it.n) - mv
+					if int(it.n) <= 0:
+						done = true
+						break
+		if not done:
+			merged.append(it)
+	merged.sort_custom(func(a, b) -> bool:
+		var ka := SORT_ORDER.find(ULItems.kind(a))
+		var kb := SORT_ORDER.find(ULItems.kind(b))
+		ka = 99 if ka < 0 else ka
+		kb = 99 if kb < 0 else kb
+		if ka != kb:
+			return ka < kb
+		return ULItems.title(a) < ULItems.title(b))
+	for i in cells.size():
+		cells[i] = merged[i] if i < merged.size() else null
+
+
 ## положить в инвентарь (карманы, затем рюкзак); оружие — в пустой слот, если он свободен. Остаток — сколько
 ## не влезло (у предмета n уменьшается до остатка)
 func add(it: Dictionary, to_slot := true) -> int:

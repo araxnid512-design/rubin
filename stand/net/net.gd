@@ -147,6 +147,18 @@ func c_call(req: int, op: String, args: Dictionary) -> void:
 			var route := String(args.get("route", ""))
 			var minutes := float(shop.get("routes", {}).get(route, {}).get("minutes", 10))
 			res = state.start_mission(wid, p, route, args.get("ready", []), minutes, now)
+		"storage_upgrade":
+			res = state.storage_upgrade(wid, p, _price("upgrades", "storage"), opid)
+		"safe_view":
+			res = state.safe_view(wid, p, int(args.get("k", 0)))
+		"safe_put":
+			res = state.safe_put(wid, p, int(args.get("k", 0)), args.get("item", {}) if args.get("item") is Dictionary else {}, opid)
+		"safe_take":
+			res = state.safe_take(wid, p, int(args.get("k", 0)), int(args.get("i", -1)), String(args.get("expect", "")), int(args.get("n", 0)), opid)
+		"safe_move":
+			res = state.safe_move(wid, p, int(args.get("k", 0)), int(args.get("i", -1)), int(args.get("k2", 0)), int(args.get("i2", -1)), String(args.get("expect", "")), opid)
+		"safe_sort":
+			res = state.safe_sort(wid, p, int(args.get("k", 0)), opid)
 		"enter":
 			res = state.can_enter(String(args.get("mid", "")), p)
 		"died":

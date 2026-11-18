@@ -36,6 +36,13 @@ var preview_tex: Texture2D = null
 var preview_rot := Callable()     ## повернуть героя на превью: f(dx)
 var stats := {"hp": 100, "en": 100, "water": 100}
 var cell := 84.0
+var cont_cols := 4                ## столбцов у сетки хранилища (сейф — 6 × 5)
+var storage_ops := false          ## «Положить всё», «Сортировать», ресурсы в хранилище — у сейфов и ящиков базы
+var _move_src := ""               ## «Переместить»: откуда (следующее нажатие на ячейку — куда)
+var _move_i := -1
+var safes := []                   ## сейфы базы для «В сейф…»: [[номер, ячейки], …]; safe_k — открытый
+var safe_k := 0
+var _pick_safe := false
 
 var _sel_src := ""
 var _sel_i := -1
@@ -111,6 +118,9 @@ func _process(delta: float) -> void:
 func open(inventory: ULInventory, container = null, title := "", is_pack := false, icon := "crate") -> void:
 	inv = inventory
 	cont = container
+	_move_src = ""
+	_move_i = -1
+	_pick_safe = false
 	cont_title = title
 	cont_is_pack = is_pack
 	cont_icon = icon
@@ -198,7 +208,6 @@ func _build_inventory() -> void:
 
 ## «Хранилище»: картинка и вместимость | содержимое | слоты героя | карманы и рюкзак
 func _build_storage() -> void:
-	var cont_cols := 4
 	var bag_cols := 4
 	var fixed := 28.0 + 150.0 + 132.0 + 30.0 + 3.0 * 20.0 + 24.0
 	cell = clampf((size.x - fixed - (cont_cols + bag_cols - 2) * 6.0) / (cont_cols + bag_cols), 54.0, 96.0)
@@ -229,6 +238,9 @@ func _build_storage() -> void:
 	sp.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	iv.add_child(sp)
 	iv.add_child(_button("Взять всё", _take_all, 150, 48))
+	if storage_ops:
+		iv.add_child(_button("Положить всё", _put_all, 150, 48))
+		iv.add_child(_button("Сортировать", _sort_cont, 150, 48))
 	if cont_is_pack:
 		iv.add_child(_button("Надеть", func(): wear_ground_pack.emit(), 150, 48))
 	# содержимое
@@ -309,9 +321,13 @@ func _wallet_box() -> Control:
 		c.add_theme_constant_override("separation", 0)
 		c.mouse_filter = Control.MOUSE_FILTER_STOP
 		var nm := String(ULItems.get_def(id).n)
+		var rid := String(id)
 		c.gui_input.connect(func(e: InputEvent) -> void:
 			if (e is InputEventScreenTouch or e is InputEventMouseButton) and e.pressed:
-				say("%s: %d" % [nm, n]))
+				if storage_ops and cont != null and n > 0:
+					_money_to_cont(rid)
+				else:
+					say("%s: %d" % [nm, n]))
 		var ic := _icon(String(ULItems.get_def(id).icon), 30)
 		ic.modulate.a = 1.0 if n > 0 else 0.35
 		c.add_child(ic)
@@ -450,6 +466,9 @@ func _cell(src: String, i: int, it, sz: Vector2) -> Control:
 # ---------------- выбор и действия ----------------
 
 func _press(src: String, i: int) -> void:
+	if _move_src != "":
+		_move_to(src, i)
+		return
 	if src == _sel_src and i == _sel_i:
 		if _sel_item() != null:
 			_quick()                    # повторное нажатие — быстрое действие
@@ -532,6 +551,16 @@ func _update_card() -> void:
 	var k := ULItems.kind(it)
 	var slot_k := ULItems.slot_of(it)
 	var acts := []                 # [подпись, действие]
+	if _pick_safe and _sel_src == "cont":
+		for sf in safes:
+			if int(sf[0]) != safe_k:
+				acts.append(["Сейф №%d · свободно %d" % [int(sf[0]), (sf[1] as Array).count(null)], _act_to_safe.bind(int(sf[0]))])
+		acts.append(["Отмена", func() -> void:
+			_pick_safe = false
+			refresh()])
+		for a in acts:
+			_card.add_child(_button(a[0], a[1], 136))
+		return
 	if _sel_src.begins_with("eq:"):
 		var slot := _sel_src.substr(3)
 		if slot != "pack":
@@ -543,6 +572,13 @@ func _update_card() -> void:
 		acts.append(["Взять", _act_take])
 		if slot_k in ["pistol", "primary"]:
 			acts.append(["Экипировать", _act_equip])
+		if int(it.get("n", 1)) > 1:
+			acts.append(["Разделить", _act_split])
+		acts.append(["Переместить", _act_move])
+		if safes.size() > 1:
+			acts.append(["В сейф…", func() -> void:
+				_pick_safe = true
+				refresh()])
 	else:
 		if slot_k in ["pistol", "primary"]:
 			acts.append(["Экипировать", _act_equip])
@@ -552,6 +588,9 @@ func _update_card() -> void:
 			acts.append(["Использовать", _act_use])
 		if cont != null:
 			acts.append(["В хранилище", _act_to_cont])
+		if int(it.get("n", 1)) > 1:
+			acts.append(["Разделить", _act_split])
+		acts.append(["Переместить", _act_move])
 	acts.append(["Выбросить", _act_drop])
 	for a in acts:
 		_card.add_child(_button(a[0], a[1], 136))
@@ -672,6 +711,130 @@ func _take_all() -> void:
 		_done("Хранилище пусто")
 	else:
 		_done("Взято: %d" % moved + (", не поместилось: %d" % stuck if stuck > 0 else ""))
+
+
+## разделить стопку пополам: половина — в первую свободную ячейку того же места
+func _act_split() -> void:
+	var arr := _arr(_sel_src)
+	var it = arr[_sel_i]
+	var n := int(it.n)
+	if n < 2:
+		return
+	var free := arr.find(null)
+	if free < 0:
+		say("Нет свободной ячейки")
+		return
+	var half := n / 2
+	it.n = n - half
+	var nw: Dictionary = (it as Dictionary).duplicate(true)
+	nw.n = half
+	arr[free] = nw
+	_done("Разделено: %d и %d" % [n - half, half])
+
+
+## выбранное в сейфе — в другой сейф базы (сколько поместится)
+func _act_to_safe(k: int) -> void:
+	_pick_safe = false
+	var it = cont[_sel_i]
+	var dst: Array = []
+	for sf in safes:
+		if int(sf[0]) == k:
+			dst = sf[1]
+	var n0 := int(it.n)
+	var left := ULInventory.put(dst, it)
+	if left == n0:
+		say("В сейфе №%d нет места" % k)
+		refresh()
+		return
+	if left == 0:
+		cont[_sel_i] = null
+	else:
+		it.n = left
+	_done("В сейф №%d: %s" % [k, ULItems.get_def(String(it.id)).n] + ("" if left == 0 else " (поместилось не всё)"))
+
+
+## «Переместить»: выбрать, куда (ячейка хранилища, кармана или рюкзака)
+func _act_move() -> void:
+	_move_src = _sel_src
+	_move_i = _sel_i
+	say("Выберите ячейку: пустая — перенести, с тем же предметом — объединить, с другим — поменять местами")
+	refresh()
+
+
+func _move_to(src: String, i: int) -> void:
+	var from := _arr(_move_src)
+	var to := _arr(src)
+	var fi := _move_i
+	_move_src = ""
+	_move_i = -1
+	if from == to and fi == i:
+		refresh()
+		return
+	var a = from[fi] if fi >= 0 and fi < from.size() else null
+	if a == null or i < 0 or i >= to.size():
+		refresh()
+		return
+	var b = to[i]
+	if src != "cont" and ULItems.kind(a) == "pack" and src == "pack":
+		say("Рюкзак в рюкзак не положить")
+		refresh()
+		return
+	if b == null:
+		to[i] = a
+		from[fi] = null
+	elif String(b.id) == String(a.id) and not a.has("items") and not a.has("mag") and not a.has("dur"):
+		var room := ULItems.stack(String(a.id)) - int(b.n)
+		var mv := mini(room, int(a.n))
+		b.n = int(b.n) + mv
+		a.n = int(a.n) - mv
+		if int(a.n) <= 0:
+			from[fi] = null
+	else:
+		to[i] = a
+		from[fi] = b
+	_done()
+
+
+## положить в хранилище всё из карманов и рюкзака (снаряжение в слотах остаётся)
+func _put_all() -> void:
+	var moved := 0
+	var stuck := 0
+	for src in ["pockets", "pack"]:
+		var arr := inv.cells(src)
+		for i in arr.size():
+			var it = arr[i]
+			if it == null:
+				continue
+			var n0 := int(it.n)
+			var left := ULInventory.put(cont, it)
+			if left == 0:
+				arr[i] = null
+				moved += 1
+			else:
+				it.n = left
+				stuck += 1
+				if left < n0:
+					moved += 1
+	_done("Положено: %d" % moved + (", не поместилось: %d" % stuck if stuck > 0 else ""))
+
+
+## сортировка: одинаковые стопки сливаются, затем по виду и названию (ULInventory.sort_cells — та же, что на сервере)
+func _sort_cont() -> void:
+	ULInventory.sort_cells(cont)
+	_done("Отсортировано")
+
+
+## ресурс из кошелька — в хранилище одной стопкой (сколько влезет в стопку)
+func _money_to_cont(id: String) -> void:
+	var n := mini(int(inv.wallet.get(id, 0)), ULItems.stack(id))
+	if n <= 0:
+		return
+	var left := ULInventory.put(cont, ULItems.make(id, n))
+	if left == n:
+		say("В хранилище нет места")
+		return
+	inv.wallet[id] = int(inv.wallet.get(id, 0)) - (n - left)
+	_done("В хранилище: %s" % ULEconomy.amount(id, n - left))
 
 
 func _act_drop() -> void:

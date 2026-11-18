@@ -6,7 +6,7 @@ extends RefCounted
 ## Данные (одним файлом JSON, с тремя резервными копиями):
 ##   players  — pid → {name, token_hash, wallet {ресурс: n}, inv [предметы], char}
 ##   worlds   — wid → {code, owner, members [pid ≤ 2], base {installed {}, routes {маршрут: "bought"},
-##              boxes {ящик: [[предмет, n], …]}}, mission (mid или "")}
+##              boxes {ящик: [[предмет, n], …]}, storage {level 0–6, safes {safe_k: [30 ячеек]}}}, mission (mid или "")}
 ##   missions — mid → {world, route, members [pid], dead [pid], left [pid], open, ends (unix), key_owner, chest_used}
 ##   ops      — номера уже выполненных операций (op_id): повтор той же просьбы не выполняется дважды
 ##
@@ -16,6 +16,8 @@ extends RefCounted
 const MAX_MEMBERS := 2
 const BOX_CELLS := 24
 const STACK := 999
+const STORAGE_MAX := 6
+const SAFE_CELLS := 30
 
 var data := {"players": {}, "worlds": {}, "missions": {}, "ops": {}, "seq": 0}
 var path := ""
@@ -137,7 +139,7 @@ func create_world(pid: String) -> Dictionary:
 			code += alphabet[randi() % alphabet.length()]
 	var wid := _id("w")
 	data.worlds[wid] = {"code": code, "owner": pid, "members": [pid], "mission": "",
-		"base": {"installed": {}, "routes": {}, "boxes": {"base_box": []}}}
+		"base": {"installed": {}, "routes": {}, "boxes": {"base_box": []}, "storage": {"level": 0, "safes": {}}}}
 	save()
 	return {"ok": true, "world": public_world(wid)}
 
@@ -403,3 +405,208 @@ func open_chest(mid: String, pid: String, reward: String, op_id := "") -> Dictio
 	m.chest_used = true
 	(data.players[pid].inv as Array).append(reward)
 	return _done(op_id, {"ok": true, "reward": reward})
+
+
+# ---------------- хранилище базы: общие сейфы ----------------
+## Сейфы мира общие для обоих участников. Каждое действие — одной операцией на сервере (он обрабатывает просьбы по
+## очереди), поэтому «взяли разом одно и то же» достаётся одному, второму — отказ «gone» и свежее содержимое.
+## Предметы приходят из личного инвентаря игрока на сервере (players.inv), ресурсы (спораны, горох, жемчуг) — из
+## кошелька. Ответ хранится по op_id без содержимого сейфа (повтор просьбы — тот же итог, без повторного действия).
+
+func _storage(wid: String) -> Dictionary:
+	var b: Dictionary = data.worlds[wid].base
+	if not (b.get("storage") is Dictionary):
+		b["storage"] = {"level": 0, "safes": {}}
+	return b.storage
+
+
+func _safe(wid: String, k: int) -> Variant:
+	var st := _storage(wid)
+	if k < 1 or k > int(st.level):
+		return null
+	return st.safes.get("safe_%d" % k)
+
+
+static func _norm(it) -> Dictionary:
+	if it is String:
+		return {"id": it, "n": 1}
+	var d: Dictionary = (it as Dictionary).duplicate(true)
+	d["n"] = int(d.get("n", 1))
+	return d
+
+
+static func _wallet_item(id: String) -> bool:
+	return ULItems.kind({"id": id}) == "loot"
+
+
+## сколько штук предмета поместится в ячейки (свободные + досыпать в неполные стопки)
+static func _room(cells: Array, it: Dictionary) -> int:
+	var mx := ULItems.stack(String(it.id))
+	var room := 0
+	for c in cells:
+		if c == null:
+			room += mx
+		elif mx > 1 and String(c.id) == String(it.id) and not c.has("mag") and not c.has("dur") and not it.has("mag") and not it.has("dur"):
+			room += maxi(mx - int(c.n), 0)
+	return room
+
+
+func _fin(op_id: String, res: Dictionary, extra := {}) -> Dictionary:
+	_done(op_id, res.duplicate())
+	var out := res.duplicate()
+	out.merge(extra)
+	return out
+
+
+## купить хранилище (уровень 0 → 1) или улучшить (+1 сейф): платит тот, кто нажал; уровень общий для мира
+func storage_upgrade(wid: String, pid: String, price: Dictionary, op_id := "") -> Dictionary:
+	var seen = _seen(op_id)
+	if seen != null:
+		return seen
+	if not is_member(wid, pid):
+		return {"ok": false, "err": "bad"}
+	var st := _storage(wid)
+	if int(st.level) >= STORAGE_MAX:
+		return _fin(op_id, {"ok": false, "err": "max", "level": int(st.level)})
+	var wl := _wallet(pid)
+	for r in price:
+		if int(wl.get(r, 0)) < int(price[r]):
+			return _fin(op_id, {"ok": false, "err": "money", "level": int(st.level)})
+	for r in price:
+		wl[r] = int(wl.get(r, 0)) - int(price[r])
+	st.level = int(st.level) + 1
+	var key := "safe_%d" % int(st.level)
+	if not st.safes.has(key):
+		var arr := []
+		arr.resize(SAFE_CELLS)
+		st.safes[key] = arr
+	return _fin(op_id, {"ok": true, "level": int(st.level)}, {"wallet": wl})
+
+
+func safe_view(wid: String, pid: String, k: int) -> Dictionary:
+	if not is_member(wid, pid):
+		return {"ok": false, "err": "bad"}
+	var cells = _safe(wid, k)
+	if cells == null:
+		return {"ok": false, "err": "no_safe"}
+	return {"ok": true, "cells": cells, "level": int(_storage(wid).level)}
+
+
+## положить в сейф k предмет из своего инвентаря (или ресурс из кошелька); не помещается целиком — отказ «full»
+func safe_put(wid: String, pid: String, k: int, item: Dictionary, op_id := "") -> Dictionary:
+	var seen = _seen(op_id)
+	if seen != null:
+		return seen
+	if not is_member(wid, pid) or not item.has("id"):
+		return {"ok": false, "err": "bad"}
+	var cells = _safe(wid, k)
+	if cells == null:
+		return _fin(op_id, {"ok": false, "err": "no_safe"})
+	var it := _norm(item)
+	var id := String(it.id)
+	var n := int(it.n)
+	if n <= 0:
+		return {"ok": false, "err": "bad"}
+	var pl: Dictionary = data.players[pid]
+	var src := -1
+	if _wallet_item(id):
+		if int(pl.wallet.get(id, 0)) < n:
+			return _fin(op_id, {"ok": false, "err": "not_enough"}, {"cells": cells})
+	else:
+		var inv: Array = pl.inv
+		for i in inv.size():
+			var c := _norm(inv[i])
+			if String(c.id) == id and int(c.n) >= n:
+				src = i
+				it = c
+				it.n = n
+				break
+		if src < 0:
+			return _fin(op_id, {"ok": false, "err": "not_enough"}, {"cells": cells})
+	if _room(cells, it) < n:
+		return _fin(op_id, {"ok": false, "err": "full"}, {"cells": cells})
+	ULInventory.put(cells, it)
+	if src < 0:
+		pl.wallet[id] = int(pl.wallet.get(id, 0)) - n
+	else:
+		var c := _norm(pl.inv[src])
+		if int(c.n) == n:
+			(pl.inv as Array).remove_at(src)
+		else:
+			c.n = int(c.n) - n
+			pl.inv[src] = c
+	return _fin(op_id, {"ok": true}, {"cells": cells, "wallet": pl.wallet, "inv": pl.inv})
+
+
+## забрать из сейфа k ячейку i (expect — что там ждёт игрок, n — сколько); уже забрал другой — «gone»
+func safe_take(wid: String, pid: String, k: int, i: int, expect: String, n: int, op_id := "") -> Dictionary:
+	var seen = _seen(op_id)
+	if seen != null:
+		return seen
+	if not is_member(wid, pid) or n <= 0:
+		return {"ok": false, "err": "bad"}
+	var cells = _safe(wid, k)
+	if cells == null:
+		return _fin(op_id, {"ok": false, "err": "no_safe"})
+	if i < 0 or i >= (cells as Array).size() or cells[i] == null or String(cells[i].id) != expect or int(cells[i].n) < n:
+		return _fin(op_id, {"ok": false, "err": "gone"}, {"cells": cells})
+	var c: Dictionary = cells[i]
+	var got: Dictionary = c.duplicate(true)
+	got.n = n
+	if int(c.n) == n:
+		cells[i] = null
+	else:
+		c.n = int(c.n) - n
+	var pl: Dictionary = data.players[pid]
+	if _wallet_item(expect):
+		pl.wallet[expect] = int(pl.wallet.get(expect, 0)) + n
+	else:
+		(pl.inv as Array).append(got)
+	return _fin(op_id, {"ok": true, "item": got}, {"cells": cells, "wallet": pl.wallet, "inv": pl.inv})
+
+
+## переложить внутри сейфа или между сейфами: в пустую — перенести, к тому же — дополнить стопку, к другому — поменять
+func safe_move(wid: String, pid: String, k1: int, i1: int, k2: int, i2: int, expect: String, op_id := "") -> Dictionary:
+	var seen = _seen(op_id)
+	if seen != null:
+		return seen
+	if not is_member(wid, pid):
+		return {"ok": false, "err": "bad"}
+	var a = _safe(wid, k1)
+	var b = _safe(wid, k2)
+	if a == null or b == null or i1 < 0 or i1 >= (a as Array).size() or i2 < 0 or i2 >= (b as Array).size():
+		return _fin(op_id, {"ok": false, "err": "no_safe"})
+	if a[i1] == null or String(a[i1].id) != expect:
+		return _fin(op_id, {"ok": false, "err": "gone"}, {"cells": a})
+	if k1 == k2 and i1 == i2:
+		return _fin(op_id, {"ok": true}, {"cells": a})
+	var x: Dictionary = a[i1]
+	var y = b[i2]
+	var mx := ULItems.stack(String(x.id))
+	if y == null:
+		b[i2] = x
+		a[i1] = null
+	elif String(y.id) == String(x.id) and mx > 1 and not x.has("mag") and not x.has("dur"):
+		var mv := mini(mx - int(y.n), int(x.n))
+		y.n = int(y.n) + mv
+		x.n = int(x.n) - mv
+		if int(x.n) <= 0:
+			a[i1] = null
+	else:
+		b[i2] = x
+		a[i1] = y
+	return _fin(op_id, {"ok": true}, {"cells": a, "cells2": b})
+
+
+## сортировка сейфа: одинаковые стопки сливаются, затем по виду и названию (как в окне сейфа на телефоне)
+func safe_sort(wid: String, pid: String, k: int, op_id := "") -> Dictionary:
+	var seen = _seen(op_id)
+	if seen != null:
+		return seen
+	if not is_member(wid, pid):
+		return {"ok": false, "err": "bad"}
+	var cells = _safe(wid, k)
+	if cells == null:
+		return _fin(op_id, {"ok": false, "err": "no_safe"})
+	ULInventory.sort_cells(cells)
+	return _fin(op_id, {"ok": true}, {"cells": cells})

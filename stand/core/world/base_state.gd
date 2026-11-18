@@ -7,6 +7,8 @@ extends RefCounted
 ## Покупки здесь — игровая логика без интерфейса: проверка, списание из кошелька героя, запись, сохранение.
 
 const SHOP := "res://data/base_shop.json"
+const STORAGE_MAX := 6            ## хранилище: до 6 сейфов
+const SAFE_CELLS := 30            ## ячеек в сейфе (сетка 6 × 5)
 static var path := "user://base.json"
 static var data := {}
 static var memory_only := false   ## проверки: состояние только в памяти, файл не трогается
@@ -34,6 +36,22 @@ static func load_state(force := false) -> void:
 	# пройденные с последнего сброса: до следующего сброса их нет в компьютере и их не купить
 	if not (data.get("done") is Array):
 		data["done"] = []
+	# хранилище: уровень 0–6 и сейфы с постоянными номерами (safe_1 … safe_6) — по 30 ячеек
+	if not (data.get("storage") is Dictionary):
+		data["storage"] = {"level": 0, "safes": {}}
+	var stg: Dictionary = data.storage
+	if not (stg.get("safes") is Dictionary):
+		stg["safes"] = {}
+	stg["level"] = clampi(int(stg.get("level", 0)), 0, STORAGE_MAX)
+	for k in range(1, int(stg.level) + 1):
+		var arr = stg.safes.get("safe_%d" % k)
+		if not (arr is Array):
+			arr = []
+		arr.resize(SAFE_CELLS)
+		for i in arr.size():
+			if arr[i] != null and not (arr[i] is Dictionary):
+				arr[i] = null
+		stg.safes["safe_%d" % k] = arr
 
 
 static func save_state() -> void:
@@ -259,3 +277,43 @@ static func close_interrupted() -> void:
 static func clock(sec: int) -> String:
 	sec = maxi(sec, 0)
 	return "%02d:%02d:%02d" % [sec / 3600, (sec / 60) % 60, sec % 60]
+
+
+# ---------------- хранилище (сейфы на базе) ----------------
+
+static func storage_level() -> int:
+	load_state()
+	return int(data.storage.level)
+
+
+## ячейки сейфа k (1…6): тот же массив, что в сохранении базы — изменения сразу в нём (сохранять — save_state)
+static func safe_cells(k: int) -> Array:
+	load_state()
+	if k < 1 or k > storage_level():
+		return []
+	return data.storage.safes["safe_%d" % k]
+
+
+## Купить хранилище (уровень 0 → 1) или улучшить (+1 сейф). Каждый переход — upgrades.storage.price; новый сейф
+## добавляется пустым, содержимое прежних не трогается. Ответ — как у buy_upgrade, err «max» — уже 6/6.
+static func buy_storage(inv: ULInventory) -> Dictionary:
+	load_state()
+	var d: Dictionary = shop().get("upgrades", {}).get("storage", {})
+	if d.is_empty():
+		return {"ok": false, "err": "none", "miss": {}}
+	var lv := storage_level()
+	if lv >= STORAGE_MAX:
+		return {"ok": false, "err": "max", "miss": {}}
+	var miss := ULEconomy.missing(inv.wallet, d.price)
+	if not miss.is_empty() or not inv.pay(d.price):
+		return {"ok": false, "err": "money", "miss": miss}
+	lv += 1
+	data.storage.level = lv
+	var arr := []
+	arr.resize(SAFE_CELLS)
+	if not data.storage.safes.has("safe_%d" % lv):
+		data.storage.safes["safe_%d" % lv] = arr
+	data.upgrades["storage"] = lv
+	save_state()
+	return {"ok": true, "err": "", "miss": {}}
+

@@ -143,6 +143,7 @@ func _phase1() -> void:
 	var ch1: Dictionary = await owner.ask("open_chest", {"mid": mid, "op": owner.op_id()})
 	var ch2: Dictionary = await owner.ask("open_chest", {"mid": mid, "op": owner.op_id()})
 	_ok("сундук открыл владелец ключа: награда «%s» — ему, второй раз — нет" % String(ch1.get("reward", "")), ch1.get("ok", false) and not ch2.get("ok", true) and String(ch2.err) == "used")
+	await _storage_checks(A, B, C, wid, owner, String(ch1.get("reward", "")))
 	var dA: Dictionary = await A.ask("died", {"mid": mid})
 	_ok("первый погиб — миссия идёт дальше (второй жив)", dA.get("ok", false) and bool(dA.open))
 	var eA: Dictionary = await A.ask("enter", {"mid": mid})
@@ -168,8 +169,84 @@ func _phase1() -> void:
 		await get_tree().process_frame
 	var hd: Dictionary = await D.ask("hello", {"name": "Самозванец"})
 	_ok("чужой телефон с идентификатором первого, но без его секрета — не входит", not hd.get("ok", true) and String(hd.err) == "bad_token")
+	var sv: Dictionary = await A.ask("safe_view", {"wid": wid, "k": 2})
 	var f := FileAccess.open("%s/world.txt" % dir, FileAccess.WRITE)
-	f.store_string(JSON.stringify({"wid": wid, "code": code}))
+	f.store_string(JSON.stringify({"wid": wid, "code": code, "safe2": sv.get("cells", [])}))
+
+
+## Хранилище в кооперативе: общий уровень (платит купивший), общие сейфы, «разом взяли одно» — одному,
+## предмет из инвентаря одного — в сейф — другому, перенос между сейфами, сортировка, повтор просьбы, посторонний
+func _storage_checks(A: ULNet, B: ULNet, C: ULNet, wid: String, owner: ULNet, reward: String) -> void:
+	var ma: Dictionary = await A.ask("me")
+	var mb: Dictionary = await B.ask("me")
+	var a0 := int(ma.player.wallet.get("spore", 0))
+	var b0 := int(mb.player.wallet.get("spore", 0))
+	var u1: Dictionary = await B.ask("storage_upgrade", {"wid": wid, "op": B.op_id()})
+	await get_tree().create_timer(0.3).timeout
+	var ma1: Dictionary = await A.ask("me")
+	_ok("хранилище: второй купил (ур. 1) за 50 споранов — %d → %d, у первого не списано (%d)" % [b0, int(u1.get("wallet", {}).get("spore", -1)), int(ma1.player.wallet.spore)],
+		u1.get("ok", false) and int(u1.level) == 1 and int(u1.wallet.spore) == b0 - 50 and int(ma1.player.wallet.spore) == a0)
+	_ok("первому пришло: хранилище ур. 1, сейф №1 — 30 ячеек", int(A.world.get("base", {}).get("storage", {}).get("level", 0)) == 1 and (A.world.base.storage.safes.safe_1 as Array).size() == 30)
+	var u2: Dictionary = await A.ask("storage_upgrade", {"wid": wid, "op": A.op_id()})
+	if a0 < 50:
+		_ok("у первого не хватает (%d) — улучшение не прошло, уровень тот же" % a0, not u2.get("ok", true) and String(u2.err) == "money" and int(u2.level) == 1)
+	else:
+		_ok("первый улучшил до ур. 2", u2.get("ok", false) and int(u2.level) == 2)
+	if int((await B.ask("safe_view", {"wid": wid, "k": 1})).get("level", 0)) < 2:
+		await B.ask("storage_upgrade", {"wid": wid, "op": B.op_id()})
+	var v2: Dictionary = await A.ask("safe_view", {"wid": wid, "k": 2})
+	_ok("уровень 2: у обоих сейф №2", v2.get("ok", false) and int(v2.level) == 2 and (v2.cells as Array).size() == 30)
+	_ok("посторонний не видит сейфы мира", not (await C.ask("safe_view", {"wid": wid, "k": 1})).get("ok", true))
+	# ресурс — в сейф; второй видит; разом берут одно — одному
+	var who: ULNet = A if int((await A.ask("me")).player.wallet.spore) >= 20 else B
+	var p1: Dictionary = await who.ask("safe_put", {"wid": wid, "k": 1, "item": {"id": "spore", "n": 20}, "op": who.op_id()})
+	await get_tree().create_timer(0.3).timeout
+	var s1: Array = B.world.get("base", {}).get("storage", {}).get("safes", {}).get("safe_1", [])
+	_ok("в сейф №1 положено 20 споранов — второй видит их у себя", p1.get("ok", false) and s1.size() == 30 and s1[0] != null and String(s1[0].id) == "spore" and int(s1[0].n) == 20)
+	var tot0 := int((await A.ask("me")).player.wallet.spore) + int((await B.ask("me")).player.wallet.spore) + 20
+	var res := [{}, {}]
+	var ga := func() -> void: res[0] = await A.ask("safe_take", {"wid": wid, "k": 1, "i": 0, "expect": "spore", "n": 20, "op": A.op_id()})
+	var gb := func() -> void: res[1] = await B.ask("safe_take", {"wid": wid, "k": 1, "i": 0, "expect": "spore", "n": 20, "op": B.op_id()})
+	ga.call()
+	gb.call()
+	var tw := Time.get_ticks_msec()
+	while ((res[0] as Dictionary).is_empty() or (res[1] as Dictionary).is_empty()) and Time.get_ticks_msec() - tw < 8000:
+		await get_tree().process_frame
+	var tot1 := int((await A.ask("me")).player.wallet.spore) + int((await B.ask("me")).player.wallet.spore)
+	_ok("двое разом забирают одну ячейку сейфа — получает один, у второго «gone»; споранов не прибавилось (%d = %d)" % [tot0, tot1],
+		int(res[0].get("ok", false)) + int(res[1].get("ok", false)) == 1 and (String(res[0].get("err", "")) == "gone" or String(res[1].get("err", "")) == "gone") and tot0 == tot1)
+	# предмет из инвентаря владельца ключа — в сейф №2 — забирает другой
+	var other: ULNet = B if owner == A else A
+	var pw: Dictionary = await owner.ask("safe_put", {"wid": wid, "k": 2, "item": {"id": reward, "n": 1}, "op": owner.op_id()})
+	var mo: Dictionary = await owner.ask("me")
+	var has_o := false
+	for it in mo.player.inv:
+		if (it is String and it == reward) or (it is Dictionary and String(it.id) == reward):
+			has_o = true
+	_ok("награда сундука «%s» — из инвентаря первого в сейф №2 (у него её больше нет)" % reward, pw.get("ok", false) and not has_o)
+	var c2: Array = pw.get("cells", [])
+	var wi := -1
+	for i in c2.size():
+		if c2[i] != null and String(c2[i].id) == reward:
+			wi = i
+	var tk: Dictionary = await other.ask("safe_take", {"wid": wid, "k": 2, "i": wi, "expect": reward, "n": 1, "op": other.op_id()})
+	var again: Dictionary = await owner.ask("safe_take", {"wid": wid, "k": 2, "i": wi, "expect": reward, "n": 1, "op": owner.op_id()})
+	_ok("второй забрал её себе; повторно взять уже нечего (без дубликата)", tk.get("ok", false) and not again.get("ok", true) and String(again.err) == "gone")
+	# вернуть в сейф №2, перенести в №1, сортировка, повтор той же просьбы
+	await other.ask("safe_put", {"wid": wid, "k": 2, "item": {"id": reward, "n": 1}, "op": other.op_id()})
+	var mv: Dictionary = await A.ask("safe_move", {"wid": wid, "k": 2, "i": 0, "k2": 1, "i2": 5, "expect": reward, "op": A.op_id()})
+	_ok("перенос между сейфами: №2 → №1 (ячейка 6)", mv.get("ok", false) and mv.cells2[5] != null and String(mv.cells2[5].id) == reward and mv.cells[0] == null)
+	var me_a: Dictionary = await A.ask("me")
+	var put_n := mini(int(me_a.player.wallet.spore), 7)
+	var opx := A.op_id()
+	var q1: Dictionary = await A.ask("safe_put", {"wid": wid, "k": 1, "item": {"id": "spore", "n": put_n}, "op": opx})
+	var q2: Dictionary = await A.ask("safe_put", {"wid": wid, "k": 1, "item": {"id": "spore", "n": put_n}, "op": opx})
+	var me_a2: Dictionary = await A.ask("me")
+	_ok("повтор той же просьбы «положить %d» в сейф выполнен один раз" % put_n, put_n == 0 or (q1.get("ok", false) and q2.get("ok", false) and int(me_a2.player.wallet.spore) == int(me_a.player.wallet.spore) - put_n))
+	var so: Dictionary = await B.ask("safe_sort", {"wid": wid, "k": 1, "op": B.op_id()})
+	_ok("сортировка сейфа №1: занятые ячейки — подряд с начала", so.get("ok", false) and so.cells[0] != null and (put_n == 0 or so.cells[1] != null) and so.cells[29] == null)
+	# обратно в сейф №2 — для проверки после перезапуска
+	await B.ask("safe_move", {"wid": wid, "k": 1, "i": int((so.cells as Array).map(func(c): return c != null and String(c.id) == reward).find(true)), "k2": 2, "i2": 0, "expect": reward, "op": B.op_id()})
 
 
 func _phase2() -> void:
@@ -182,5 +259,9 @@ func _phase2() -> void:
 	_ok("совместный мир сохранился: код %s, участников 2" % String(w.code), ws.size() == 1 and String(ws[0].code) == String(w.code) and (ws[0].members as Array).size() == 2)
 	var bv: Dictionary = await B.ask("box_view", {"wid": String(w.wid), "box": "base_box"})
 	_ok("содержимое общего ящика сохранилось", bv.get("ok", false))
+	var sv: Dictionary = await B.ask("safe_view", {"wid": String(w.wid), "k": 2})
+	var c2: Array = sv.get("cells", [])
+	_ok("хранилище после перезапуска: уровень 2, в сейфе №2 — %s (сохранено %s)" % [str(c2[0].id) if c2.size() > 0 and c2[0] != null else "пусто", str(w.safe2[0].id) if (w.safe2 as Array).size() > 0 and w.safe2[0] != null else "пусто"],
+		sv.get("ok", false) and int(sv.level) == 2 and c2.size() == 30 and c2[0] != null and (w.safe2 as Array).size() == 30 and w.safe2[0] != null and String(c2[0].id) == String(w.safe2[0].id))
 	var mb: Dictionary = await B.ask("me")
 	_ok("личные кошельки сохранились раздельно (%d и %d)" % [int(me.player.wallet.spore), int(mb.player.wallet.spore)], int(me.player.wallet.spore) != int(mb.player.wallet.spore))
