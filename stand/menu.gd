@@ -305,6 +305,18 @@ func _run_test() -> void:
 	var mp := find_child("MpMenu", true, false)
 	print("[menu] «Мультиплеер» на картинке открывает экран: профиль, сервер, «Создать», «Присоединиться», «Продолжить», «Назад» — ", "верно" if mp != null else "ОШИБКА")
 	if mp:
+		# выбор персонажа: обе внешности доступны, выбор виден на картинке и сохраняется (и действует в игре)
+		var was := ULHeroes.current()
+		var all_ok: bool = mp._char_btns.size() >= 2
+		for k in mp._char_btns:
+			all_ok = all_ok and not (mp._char_btns[k] as Button).disabled
+		print("[menu] персонажи на выбор: %s — %s" % [", ".join(mp._char_btns.keys().map(func(k): return ULHeroes.name_of(k))), "верно" if all_ok else "ОШИБКА"])
+		mp._pick_char("hero2")
+		await get_tree().create_timer(0.6).timeout
+		get_viewport().get_texture().get_image().save_png(out + "/m4_multiplayer_hero2.png")
+		var shown: bool = mp._prev_rig != null and mp._prev_rig.model_path == ULHeroes.model("hero2") and mp._prev_rig.skel != null
+		print("[menu] выбран второй персонаж: сохранён (%s), на картинке его модель со скелетом — %s" % [ULHeroes.current(), "верно" if ULHeroes.current() == "hero2" and shown else "ОШИБКА"])
+		mp._pick_char(was)
 		mp.queue_free()
 	await get_tree().process_frame
 	_levels()

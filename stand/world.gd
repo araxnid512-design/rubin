@@ -2032,7 +2032,7 @@ func _player() -> void:
 	player.collision_mask = 1 | ULDoor.LAYER       # и двери
 	rig = BCCharacter.new()
 	player.add_child(rig)
-	rig.setup("res://assets/models/hero.glb", "res://assets/anim/hero")
+	ULHeroes.setup_rig(rig)                        # внешность — выбранный персонаж (Сталкер, Лис …)
 	# отшатывание от удара — последним: руки и оружие идут вместе с корпусом
 	flinch = BCFlinch.new()
 	flinch.name = "Flinch"
@@ -2421,7 +2421,7 @@ func _make_preview() -> void:
 	_preview_vp.add_child(stand)
 	_preview_rig = BCCharacter.new()
 	stand.add_child(_preview_rig)
-	_preview_rig.setup("res://assets/models/hero.glb", "res://assets/anim/hero")
+	ULHeroes.setup_rig(_preview_rig)
 	_preview_rig.rotation.y = -0.35
 	# пол: тёмный круг
 	var disc := MeshInstance3D.new()
@@ -4024,7 +4024,7 @@ func _add_mannequin(p: Vector3, yaw: float) -> void:
 	pole.material_override = wood
 	pole.position = Vector3(0, 0.78, -0.16)
 	vis.add_child(pole)
-	var path := "res://assets/models/hero.glb"
+	var path := rig.model_path if rig != null else "res://assets/models/hero.glb"     # масштаб ниже — от этой же модели
 	if ResourceLoader.exists(path) and rig != null:
 		# та же фигура, что у героя, в позе покоя — целиком из мешковины
 		var m: Node3D = (load(path) as PackedScene).instantiate()

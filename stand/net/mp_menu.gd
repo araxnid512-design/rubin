@@ -14,6 +14,8 @@ var _code_lbl: Label
 var _members: Label
 var _cont: Button
 var _char_btns := {}
+var _preview: SubViewportContainer
+var _prev_rig: BCCharacter
 var _busy := false
 
 
@@ -51,10 +53,17 @@ func _ready() -> void:
 	cr.add_theme_constant_override("separation", 8)
 	vb.add_child(cr)
 	cr.add_child(_row_lbl("Персонаж:"))
-	for c in [["hero", "Сталкер"], ["hero2", "Второй (новая внешность)"]]:
-		var b := _fit(ULSettings.button(String(c[1]), _pick_char.bind(String(c[0])), 300.0))
+	for id in ULHeroes.LIST:
+		var ok: bool = id in ULHeroes.ids()
+		var b := _fit(ULSettings.button(ULHeroes.name_of(id) if ok else ULHeroes.name_of(id) + " (нет модели)", _pick_char.bind(id), 220.0))
+		b.disabled = not ok
 		cr.add_child(b)
-		_char_btns[c[0]] = b
+		_char_btns[id] = b
+	_preview = SubViewportContainer.new()
+	_preview.stretch = true
+	_preview.custom_minimum_size = Vector2(150, 200)
+	_preview.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	cr.add_child(_preview)
 	# сервер
 	var sr := HBoxContainer.new()
 	sr.add_theme_constant_override("separation", 8)
@@ -95,7 +104,7 @@ func _ready() -> void:
 	br.add_child(_cont)
 	br.add_child(_fit(ULSettings.button("Назад", queue_free, 200.0)))
 	_load_cfg()
-	_mark_char("hero")
+	_mark_char(ULHeroes.current())
 	net.world_changed.connect(_show_world)
 	net.connection_lost.connect(func() -> void: _status.text = "Состояние сервера: связь потеряна")
 
@@ -138,12 +147,17 @@ func _load_cfg() -> void:
 		var d = JSON.parse_string(FileAccess.get_file_as_string(CFG))
 		if d is Dictionary:
 			addr = String(d.get("addr", addr))
-			_mark_char(String(d.get("char", "hero")))
 	_addr.text = addr
 
 
+## адрес сервера и персонаж — в одном файле; запись адреса не стирает выбор персонажа
 func _save_cfg(ch := "") -> void:
-	var d := {"addr": _addr.text}
+	var d := {}
+	if FileAccess.file_exists(CFG):
+		var old = JSON.parse_string(FileAccess.get_file_as_string(CFG))
+		if old is Dictionary:
+			d = old
+	d["addr"] = _addr.text
 	if ch != "":
 		d["char"] = ch
 	var f := FileAccess.open(CFG, FileAccess.WRITE)
@@ -154,11 +168,43 @@ func _save_cfg(ch := "") -> void:
 func _mark_char(ch: String) -> void:
 	for k in _char_btns:
 		(_char_btns[k] as Button).modulate = Color(1, 1, 1) if k == ch else Color(0.6, 0.65, 0.7)
+	_show_char(ch)
+
+
+## как выглядит выбранный персонаж: маленькая сцена с ним в стойке
+func _show_char(ch: String) -> void:
+	if _preview == null:
+		return
+	for c in _preview.get_children():
+		c.queue_free()
+	var vp := SubViewport.new()
+	vp.own_world_3d = true
+	vp.transparent_bg = true
+	vp.size = Vector2i(150, 200)
+	_preview.add_child(vp)
+	var cam := Camera3D.new()
+	cam.fov = 30
+	cam.position = Vector3(0, 1.0, 4.2)
+	cam.look_at_from_position(cam.position, Vector3(0, 0.92, 0))
+	vp.add_child(cam)
+	var l := DirectionalLight3D.new()
+	l.rotation_degrees = Vector3(-35, 25, 0)
+	vp.add_child(l)
+	var env := WorldEnvironment.new()
+	env.environment = Environment.new()
+	env.environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+	env.environment.ambient_light_color = Color(0.6, 0.62, 0.66)
+	env.environment.ambient_light_energy = 0.8
+	vp.add_child(env)
+	_prev_rig = BCCharacter.new()
+	vp.add_child(_prev_rig)
+	ULHeroes.setup_rig(_prev_rig, ch)
+	_prev_rig.rotation.y = -0.4
 
 
 func _pick_char(ch: String) -> void:
-	_mark_char(ch)
 	_save_cfg(ch)
+	_mark_char(ch)
 	if net.online():
 		await net.ask("set_char", {"char": ch})
 

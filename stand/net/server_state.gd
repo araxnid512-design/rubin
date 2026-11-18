@@ -100,7 +100,7 @@ func public_player(pid: String) -> Dictionary:
 
 
 func set_char(pid: String, ch: String) -> Dictionary:
-	if not data.players.has(pid) or not ch in ["hero", "hero2"]:
+	if not data.players.has(pid) or not ULHeroes.LIST.has(ch):
 		return {"ok": false, "err": "bad"}
 	data.players[pid].char = ch
 	save()

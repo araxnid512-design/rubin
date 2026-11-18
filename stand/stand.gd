@@ -103,6 +103,7 @@ static func enemy_entries(kind: String) -> Array:
 
 
 var who := "hero"                     ## кто на стенде: hero — герой, иначе вид врага из ULEnemy.KINDS
+var hero_id := "hero"                 ## внешность героя на стенде (ULHeroes: hero — Сталкер, hero2 — Лис …)
 var entries: Array = ENTRIES
 const MARKS := "user://marks.json"
 const C_BG := Color(0.05, 0.07, 0.09, 0.9)
@@ -165,6 +166,10 @@ func _ready() -> void:
 		if a.begins_with("--as-out="):
 			out = a.substr(9)
 	who = ULSettings.stand_who if ULEnemy.KINDS.has(ULSettings.stand_who) else "hero"
+	hero_id = ULSettings.stand_hero if ULSettings.stand_hero in ULHeroes.ids() else ULHeroes.current()
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--as-hero=") and a.substr(10) in ULHeroes.ids():
+			hero_id = a.substr(10)          # проверки стенда на другом персонаже
 	if test != "" and test != "enemy":
 		who = "hero"
 	elif test == "enemy":
@@ -238,7 +243,7 @@ void fragment() {
 	rig = BCCharacter.new()
 	holder.add_child(rig)
 	if who == "hero":
-		rig.setup("res://assets/models/hero.glb", "res://assets/anim/hero")
+		ULHeroes.setup_rig(rig, hero_id)
 	else:
 		# враг — как в игре: упрощённый персонаж, клипы как есть (перенос на его скелет — BCAnimSet._rest_fix)
 		rig.simple = true
@@ -863,16 +868,20 @@ func _build_ui() -> void:
 		Engine.time_scale = 1.0
 		get_tree().change_scene_to_file(ULSettings.stand_back), 90, 50, 16))
 	# кого смотреть: герой или враг
-	var whos := [["hero", "Герой"]]
+	var whos := []
+	for hid in ULHeroes.ids():
+		whos.append(["hero", ULHeroes.name_of(hid), hid])
 	for k in ULEnemy.KINDS:
-		whos.append([k, String(ULEnemy.KINDS[k].n)])
+		whos.append([k, String(ULEnemy.KINDS[k].n), ""])
 	for wv2 in whos:
 		var hb2 := _btn(wv2[1], func():
-			if who != wv2[0]:
+			if who != wv2[0] or (wv2[2] != "" and hero_id != wv2[2]):
 				ULSettings.stand_who = wv2[0]
+				if wv2[2] != "":
+					ULSettings.stand_hero = wv2[2]
 				Engine.time_scale = 1.0
 				get_tree().reload_current_scene(), 112, 50, 15)
-		if who == wv2[0]:
+		if who == wv2[0] and (wv2[2] == "" or wv2[2] == hero_id):
 			hb2.add_theme_color_override("font_color", Color(0.45, 0.95, 1.0))
 		abar.add_child(hb2)
 	if who != "hero":

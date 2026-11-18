@@ -46,6 +46,7 @@ static var place := "home"                 ## какую локацию стро
 static var arrival_note := ""              ## что сказать герою по прибытии (после гибели в кластере и т. п.)
 static var arrival_title := ""             ## заголовок записки (название кластера)
 static var stand_who := "hero"             ## кого показывает стенд 3D: hero — герой, иначе вид врага (ULEnemy.KINDS)
+static var stand_hero := ""                ## внешность героя на стенде (ULHeroes); пусто — выбранная игроком
 static var stand_back := "res://world.tscn"   ## куда ведёт «Назад» со стенда
 static var gfx := 1
 static var cam := 1
