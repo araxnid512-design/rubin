@@ -43,7 +43,7 @@ func _ready() -> void:
 
 # ---------------- сервер ----------------
 
-func start_server(port := PORT, save_path := "user://coop_server.json", grant := 0) -> int:
+func start_server(port := PORT, save_path := "user://coop_server.json", grant := -1) -> int:
 	var peer := ENetMultiplayerPeer.new()
 	var err := peer.create_server(port, 16)
 	if err != OK:

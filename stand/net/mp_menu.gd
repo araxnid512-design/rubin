@@ -7,6 +7,10 @@ extends Control
 const CFG := "user://coop_client.json"
 
 var net: ULNet
+var profile_path := ""              ## проверки: свой файл профиля (иначе — ULNet.PROFILE)
+var cfg_path := CFG                 ## проверки: свой файл настроек (адрес сервера, персонаж)
+var _state: Label                   ## что хранит сервер: ресурсы игрока и состояние общего мира
+var _wallet := {}
 var _status: Label
 var _addr: LineEdit
 var _code_in: LineEdit
@@ -45,7 +49,7 @@ func _ready() -> void:
 	sc.add_child(vb)
 	vb.add_child(_lbl("МУЛЬТИПЛЕЕР", 28, Color(0.95, 0.85, 0.6)))
 	net = ULNet.get_net(get_tree())
-	net.load_profile()
+	net.load_profile(profile_path if profile_path != "" else ULNet.PROFILE)
 	var nm := _hero_name()
 	vb.add_child(_lbl("Профиль: %s · номер игрока %s" % [nm, net.pid.substr(1, 6).to_upper()], 17, ULSettings.C_TEXT))
 	# персонаж
@@ -95,6 +99,8 @@ func _ready() -> void:
 	vb.add_child(_code_lbl)
 	_members = _lbl("Игроки мира: —", 17, ULSettings.C_TEXT)
 	vb.add_child(_members)
+	_state = _lbl("", 16, Color(1.0, 0.86, 0.5))
+	vb.add_child(_state)
 	vb.add_child(_lbl("В мире не больше двух игроков; войти можно только по коду приглашения, а потом — только своим профилем. База, постройки, ящики и маршруты — общие; инвентарь и спораны у каждого свои.", 14, Color(0.62, 0.68, 0.76)))
 	var br := HBoxContainer.new()
 	br.add_theme_constant_override("separation", 8)
@@ -143,8 +149,8 @@ func _hero_name() -> String:
 
 func _load_cfg() -> void:
 	var addr := "127.0.0.1:%d" % ULNet.PORT
-	if FileAccess.file_exists(CFG):
-		var d = JSON.parse_string(FileAccess.get_file_as_string(CFG))
+	if FileAccess.file_exists(cfg_path):
+		var d = JSON.parse_string(FileAccess.get_file_as_string(cfg_path))
 		if d is Dictionary:
 			addr = String(d.get("addr", addr))
 	_addr.text = addr
@@ -153,14 +159,14 @@ func _load_cfg() -> void:
 ## адрес сервера и персонаж — в одном файле; запись адреса не стирает выбор персонажа
 func _save_cfg(ch := "") -> void:
 	var d := {}
-	if FileAccess.file_exists(CFG):
-		var old = JSON.parse_string(FileAccess.get_file_as_string(CFG))
+	if FileAccess.file_exists(cfg_path):
+		var old = JSON.parse_string(FileAccess.get_file_as_string(cfg_path))
 		if old is Dictionary:
 			d = old
 	d["addr"] = _addr.text
 	if ch != "":
 		d["char"] = ch
-	var f := FileAccess.open(CFG, FileAccess.WRITE)
+	var f := FileAccess.open(cfg_path, FileAccess.WRITE)
 	if f:
 		f.store_string(JSON.stringify(d))
 
@@ -234,16 +240,23 @@ func _connect() -> void:
 		_status.text = "Состояние сервера: отказ (%s)" % String(r.get("err", ""))
 	else:
 		_status.text = "Состояние сервера: в сети"
+		_wallet = r.get("player", {}).get("wallet", {})
 		var ws: Array = r.get("worlds", [])
 		if not ws.is_empty():
+			# мир игрока хранится на сервере: вошёл снова — он на месте, игра продолжается с того же состояния
 			net.world = ws[0]
 			_show_world(ws[0])
+		else:
+			_state.text = "Ваши ресурсы на сервере: %s. Мира пока нет — создайте его или войдите по коду напарника." % wallet_text(_wallet)
 	_busy = false
 
 
 func _create() -> void:
 	if not net.online():
 		_status.text = "Сначала подключитесь к серверу"
+		return
+	if not net.world.is_empty():
+		_status.text = "У вас уже есть общий мир (код %s) — «Продолжить игру»" % String(net.world.get("code", ""))
 		return
 	var r: Dictionary = await net.ask("create_world")
 	if r.get("ok", false):
@@ -267,9 +280,41 @@ func _show_world(w: Dictionary) -> void:
 	_code_lbl.text = "Код приглашения: %s (передайте напарнику)" % String(w.get("code", ""))
 	var names: Array = w.get("names", [])
 	_members.text = "Игроки мира (%d из 2): %s" % [names.size(), ", ".join(names)]
+	_state.text = "Ваши ресурсы на сервере: %s.\n%s" % [wallet_text(_wallet), world_text(w)]
 	_cont.disabled = false
+
+
+## ресурсы игрока словами (пустой кошелёк — «нет»)
+static func wallet_text(wl: Dictionary) -> String:
+	var have := {}
+	for k in wl:
+		if int(wl[k]) > 0:
+			have[k] = int(wl[k])
+	return ULEconomy.list_text(have) if not have.is_empty() else "нет"
+
+
+## что сейчас в общем мире (хранит сервер): хранилище, маршруты, идёт ли миссия
+static func world_text(w: Dictionary) -> String:
+	var base: Dictionary = w.get("base", {})
+	var st: Dictionary = base.get("storage", {})
+	var lv := int(st.get("level", 0))
+	var parts := ["хранилище — %s" % ("ур. %d из 6" % lv if lv > 0 else "не куплено")]
+	var routes: Dictionary = ULBase.shop().get("routes", {})
+	var rn := []
+	for r in base.get("routes", {}):
+		rn.append("«%s»" % String(routes.get(r, {}).get("n", r)))
+	parts.append("купленные маршруты: %s" % (", ".join(rn) if not rn.is_empty() else "нет"))
+	var inst := []
+	for u in base.get("installed", {}):
+		inst.append(String(ULBase.shop().get("upgrades", {}).get(u, {}).get("n", u)).to_lower())
+	if not inst.is_empty():
+		parts.append("установлено: " + ", ".join(inst))
+	var mi: Dictionary = w.get("mission_info", {})
+	if String(w.get("mission", "")) != "":
+		parts.append("идёт совместная миссия" + (" «%s»" % String(routes.get(String(mi.get("route", "")), {}).get("n", "")) if not mi.is_empty() else ""))
+	return "Общий мир: " + " · ".join(parts) + "."
 
 
 ## совместная игра на локациях — следующие этапы; сейчас мир, база и ящики живут на сервере
 func _continue() -> void:
-	_status.text = "Общий мир на сервере готов. Совместное прохождение на одной локации (видеть напарника, общие враги) — следующий этап разработки."
+	_status.text = "Общий мир на сервере продолжается с сохранённого состояния (база, сейфы, маршруты, ресурсы). Совместное прохождение на одной локации (видеть напарника, общие враги) — следующий этап разработки."

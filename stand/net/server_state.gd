@@ -22,7 +22,7 @@ const SAFE_CELLS := 30
 
 var data := {"players": {}, "worlds": {}, "missions": {}, "ops": {}, "seq": 0}
 var path := ""
-var test_grant := 0                ## для проверок: столько споранов у нового игрока
+var test_grant := -1               ## для проверок: столько споранов у нового игрока (−1 — как в настройках)
 
 
 func _init(save_path := "") -> void:
@@ -92,9 +92,25 @@ func hello(pid: String, token: String, name: String) -> Dictionary:
 			return {"ok": false, "err": "bad_token"}
 		data.players[pid].name = name.substr(0, 16)
 	else:
-		data.players[pid] = {"name": name.substr(0, 16), "token_hash": _hash(token), "wallet": {"spore": test_grant}, "inv": [], "char": "hero"}
+		data.players[pid] = {"name": name.substr(0, 16), "token_hash": _hash(token), "wallet": start_wallet(), "inv": [], "char": "hero"}
 	save()
 	return {"ok": true, "player": public_player(pid), "worlds": worlds_of(pid)}
+
+
+## Стартовые ресурсы нового игрока — один раз, при первом входе (data/base_shop.json → coop.start_wallet;
+## по умолчанию 50 споранов). Повторный вход ничего не добавляет: кошелёк хранится на сервере.
+func start_wallet() -> Dictionary:
+	if test_grant >= 0:
+		return {"spore": test_grant}
+	var out := {"spore": 50}
+	var path := "res://data/base_shop.json"
+	if FileAccess.file_exists(path):
+		var d = JSON.parse_string(FileAccess.get_file_as_string(path))
+		if d is Dictionary and d.get("coop") is Dictionary and d.coop.get("start_wallet") is Dictionary:
+			out = {}
+			for k in d.coop.start_wallet:
+				out[String(k)] = int(d.coop.start_wallet[k])
+	return out
 
 
 func public_player(pid: String) -> Dictionary:
