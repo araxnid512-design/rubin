@@ -1162,7 +1162,7 @@
  "spas12": {
   "n": "Дробовик SPAS-12",
   "model": "res://assets/weapons/w_spas12.glb",
-  "len_m": 1.04,
+  "len_m": 0.82,
   "model_len": 1.0,
   "mode": "rifle",
   "grip": [
