@@ -7,6 +7,7 @@ extends Node
 
 signal replied(req: int, res: Dictionary)
 signal world_changed(world: Dictionary)
+signal loot_changed(mid: String, key: String, cells: Array)
 signal connected_ok
 signal connection_lost
 
@@ -80,10 +81,24 @@ func _push_world(wid: String) -> void:
 		return
 	var pw := state.public_world(wid)
 	if String(pw.mission) != "" and state.data.missions.has(pw.mission):
-		pw["mission_info"] = state.data.missions[pw.mission]
+		var mi: Dictionary = (state.data.missions[pw.mission] as Dictionary).duplicate()
+		mi.erase("loot")                              # содержимое находок — отдельно (s_loot), по одной
+		pw["mission_info"] = mi
 	for id in peers:
 		if state.is_member(wid, String(peers[id])):
 			s_world.rpc_id(id, pw)
+
+
+## находку разобрали: напарникам по миссии — новое содержимое (у кого она открыта — обновится сразу)
+func _push_loot(mid: String, key: String, who: String) -> void:
+	if not state.data.missions.has(mid):
+		return
+	var m: Dictionary = state.data.missions[mid]
+	var cells: Array = m.get("loot", {}).get(key, [])
+	for id in peers:
+		var p := String(peers[id])
+		if p != who and (m.members as Array).has(p):
+			s_loot.rpc_id(id, mid, key, cells)
 
 
 func _price(kind: String, id: String) -> Dictionary:
@@ -165,6 +180,12 @@ func c_call(req: int, op: String, args: Dictionary) -> void:
 			res = state.died(String(args.get("mid", "")), p)
 		"left":
 			res = state.left(String(args.get("mid", "")), p)
+		"loot_open":
+			res = state.loot_open(String(args.get("mid", "")), p, String(args.get("key", "")), String(args.get("table", "")))
+		"loot_take":
+			res = state.loot_take(String(args.get("mid", "")), p, String(args.get("key", "")), int(args.get("i", -1)), String(args.get("expect", "")), int(args.get("n", 0)), opid)
+			if res.get("ok", false):
+				_push_loot(String(args.get("mid", "")), String(args.get("key", "")), p)
 		"take_key":
 			res = state.take_key(String(args.get("mid", "")), p, opid)
 		"open_chest":
@@ -249,6 +270,11 @@ func op_id() -> String:
 @rpc("authority", "reliable")
 func s_reply(req: int, res: Dictionary) -> void:
 	replied.emit(req, res)
+
+
+@rpc("authority", "reliable")
+func s_loot(mid: String, key: String, cells: Array) -> void:
+	loot_changed.emit(mid, key, cells)
 
 
 @rpc("authority", "reliable")

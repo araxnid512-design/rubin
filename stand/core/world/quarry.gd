@@ -1232,7 +1232,7 @@ func junk_points(rng: RandomNumberGenerator) -> Array:
 		# дальше края жилы (её тайник — 1,2 м вокруг): находку на земле видно и можно поднять отдельно
 		var p: Vector3 = (dp.pos as Vector3) + Vector3(cos(a), 0, sin(a)) * rng.randf_range(3.0, 4.4)
 		p.y = height(Vector2(p.x, p.z)) + 0.02
-		if absf(p.y - (dp.pos as Vector3).y) > 0.3 or on_ramp(Vector2(p.x, p.z)):
+		if absf(p.y - (dp.pos as Vector3).y) > 0.3 or on_ramp(Vector2(p.x, p.z)) or not _flat(p, 1.6):
 			continue
 		var r := rng.randf()
 		var id := "ore" if String(dp.kind) == "ore_pile" else ("rare_mineral" if r < 0.06 else ("mineral_sample" if r < 0.5 else "rock_sample"))
@@ -1244,9 +1244,18 @@ func junk_points(rng: RandomNumberGenerator) -> Array:
 			var a := rng.randf() * TAU
 			var p := at + Vector3(cos(a), 0, sin(a)) * rng.randf_range(4.5, 6.0)
 			p.y = height(Vector2(p.x, p.z)) + 0.02
-			if absf(p.y - at.y) < 0.3 and bld_dist(Vector2(p.x, p.z)) > 0.8 and not on_ramp(Vector2(p.x, p.z)):
+			if absf(p.y - at.y) < 0.3 and bld_dist(Vector2(p.x, p.z)) > 0.8 and not on_ramp(Vector2(p.x, p.z)) and _flat(p, 1.6):
 				out.append([p, ["spare_parts", "cable", "scrap_metal", "tech_junk"][rng.randi() % 4], 1])
 	return out
+
+
+## ровное место на r м вокруг (не у бровки уступа): находку на краю обрыва не достать — герой там не стоит
+func _flat(p: Vector3, r: float) -> bool:
+	for k in 8:
+		var a := k * TAU / 8.0
+		if absf(height(Vector2(p.x + cos(a) * r, p.z + sin(a) * r)) + 0.02 - p.y) > 0.3:
+			return false
+	return true
 
 
 ## герой на вышке — её навес скрыт

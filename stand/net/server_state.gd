@@ -7,7 +7,8 @@ extends RefCounted
 ##   players  — pid → {name, token_hash, wallet {ресурс: n}, inv [предметы], char}
 ##   worlds   — wid → {code, owner, members [pid ≤ 2], base {installed {}, routes {маршрут: "bought"},
 ##              boxes {ящик: [[предмет, n], …]}, storage {level 0–6, safes {safe_k: [30 ячеек]}}}, mission (mid или "")}
-##   missions — mid → {world, route, members [pid], dead [pid], left [pid], open, ends (unix), key_owner, chest_used}
+##   missions — mid → {world, route, members [pid], dead [pid], left [pid], open, ends (unix), key_owner, chest_used,
+##              loot {ключ находки: [ячейки]} — что лежит в тайниках, телах и на земле этой миссии}
 ##   ops      — номера уже выполненных операций (op_id): повтор той же просьбы не выполняется дважды
 ##
 ## Все операции возвращают {"ok": bool, "err": "...", …}. Ошибки — короткими словами (для проверки), текст для
@@ -610,3 +611,105 @@ func safe_sort(wid: String, pid: String, k: int, op_id := "") -> Dictionary:
 		return _fin(op_id, {"ok": false, "err": "no_safe"})
 	ULInventory.sort_cells(cells)
 	return _fin(op_id, {"ok": true}, {"cells": cells})
+
+
+# ---------------- добыча в совместной миссии ----------------
+## Что лежит в тайнике, в теле или на земле, решает сервер — один раз на миссию для каждой находки (ключ: «c:12» —
+## тайник, «e:3» — тело, «g:7» — на земле). Оба игрока открывают одно и то же; взять ячейку успевает первый,
+## второму — «gone» и свежее содержимое. Погибший и вышедший брать не могут. Розыгрыш — по таблицам добычи локации
+## (data/<маршрут>.json → loot, container_cells, empty_chance), по видам врагов (data/enemies.json) или предмет на
+## земле (только хлам, минералы, запчасти, еда, лекарства, патроны — оружие так не выдаётся).
+const LOOT_KEYS_MAX := 3000
+const GROUND_KINDS := ["junk", "mineral", "tech", "parts", "tool", "food", "med", "ammo"]
+static var _zone_cache := {}
+
+
+static func _zone(route: String) -> Dictionary:
+	if not _zone_cache.has(route):
+		var path := "res://data/%s.json" % route
+		var d = JSON.parse_string(FileAccess.get_file_as_string(path)) if FileAccess.file_exists(path) else null
+		_zone_cache[route] = d if d is Dictionary else {}
+	return _zone_cache[route]
+
+
+func _roll_loot(m: Dictionary, mid: String, key: String, table: String) -> Variant:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash(mid + "|" + key)
+	if table.begins_with("enemy:"):
+		var kind := table.substr(6)
+		if not ULEnemy.KINDS.has(kind):
+			return null
+		return ULEnemy.roll_loot(kind, rng.randi())
+	if table.begins_with("item:"):
+		var parts := table.split(":")
+		if parts.size() != 3:
+			return null
+		var id := String(parts[1])
+		if ULItems.get_def(id).is_empty() or not GROUND_KINDS.has(ULItems.kind({"id": id})):
+			return null
+		var cells := []
+		cells.resize(1)
+		cells[0] = ULItems.make(id, clampi(int(parts[2]), 1, ULItems.stack(id)))
+		return cells
+	var zc := _zone(String(m.route))
+	var tables: Dictionary = zc.get("loot", {})
+	if not tables.has(table):
+		return null
+	var cells := []
+	cells.resize(int(zc.get("container_cells", 6)))
+	if rng.randf() > float(zc.get("empty_chance", 0.3)):
+		for l in tables[table]:
+			var ch := float(l[3]) if l.size() > 3 else 1.0
+			if rng.randf() <= ch:
+				var n := rng.randi_range(int(l[1]), int(l[2]))
+				if n > 0:
+					ULInventory.put(cells, ULItems.make(String(l[0]), n))
+	return cells
+
+
+## открыть находку: первый открывший — сервер разыгрывает содержимое; дальше оба видят его как есть
+func loot_open(mid: String, pid: String, key: String, table: String) -> Dictionary:
+	var ce := can_enter(mid, pid)
+	if not ce.ok:
+		return ce
+	var m: Dictionary = data.missions[mid]
+	if not (m.get("loot") is Dictionary):
+		m["loot"] = {}
+	if not m.loot.has(key):
+		if key.length() > 32 or (m.loot as Dictionary).size() >= LOOT_KEYS_MAX:
+			return {"ok": false, "err": "limit"}
+		var cells = _roll_loot(m, mid, key, table)
+		if cells == null:
+			return {"ok": false, "err": "bad_table"}
+		m.loot[key] = cells
+		save()
+	return {"ok": true, "key": key, "cells": m.loot[key]}
+
+
+## взять из находки ячейку i (expect — что там видит игрок, n — сколько): кто первый — тому; уже забрали — «gone»
+func loot_take(mid: String, pid: String, key: String, i: int, expect: String, n: int, op_id := "") -> Dictionary:
+	var seen = _seen(op_id)
+	if seen != null:
+		return seen
+	var ce := can_enter(mid, pid)
+	if not ce.ok:
+		return ce
+	var m: Dictionary = data.missions[mid]
+	var cells = (m.get("loot", {}) as Dictionary).get(key)
+	if cells == null or n <= 0:
+		return _fin(op_id, {"ok": false, "err": "no_loot"})
+	if i < 0 or i >= (cells as Array).size() or cells[i] == null or String(cells[i].id) != expect or int(cells[i].n) < n:
+		return _fin(op_id, {"ok": false, "err": "gone"}, {"key": key, "cells": cells})
+	var c: Dictionary = cells[i]
+	var got: Dictionary = c.duplicate(true)
+	got.n = n
+	if int(c.n) == n:
+		cells[i] = null
+	else:
+		c.n = int(c.n) - n
+	var pl: Dictionary = data.players[pid]
+	if _wallet_item(expect):
+		pl.wallet[expect] = int(pl.wallet.get(expect, 0)) + n
+	else:
+		(pl.inv as Array).append(got)
+	return _fin(op_id, {"ok": true, "item": got}, {"key": key, "cells": cells, "wallet": pl.wallet, "inv": pl.inv})

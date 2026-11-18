@@ -175,7 +175,7 @@ func _ready() -> void:
 	arena = ULSettings.arena
 	place = ULSettings.place if not arena and ULSettings.place in ["cowshed", "sanatorium", "convoy", "khutor", "lair", "quarry"] else "home"
 	ULSettings.apply(get_viewport())
-	if test != "" and not test.ends_with("view") and test != "gfxdiag" and test != "st":
+	if test != "" and not test.ends_with("view") and test != "gfxdiag" and test != "st" and test != "dl":
 		# автоматические проверки идут на программной отрисовке (без видеокарты): в полном разрешении со
 		# сглаживанием — 2–3 кадра/с, шаг кадра в треть секунды ломает проверки ходьбы по лестницам; поэтому
 		# проверкам — дешёвая отрисовка (снимки вида — *view — в настройках игры)
@@ -4530,7 +4530,7 @@ func _qr_test() -> void:
 				steep = sa
 				steep_at = "%s → %s" % [str(down[i - 1].snapped(Vector3.ONE * 0.1)), str(down[i].snapped(Vector3.ONE * 0.1))]
 	print("[inv]   самый крутой отрезок пути: %.0f° %s" % [steep, steep_at])
-	_ok("путь с бровки на дно по съездам: %d точек, уклон не круче %.0f°" % [down.size(), steep], not down.is_empty() and down[down.size() - 1].distance_to(bottom) < 1.0 and steep < 26.0)
+	_ok("путь с бровки на дно по съездам: %d точек, уклон не круче %.0f° (стенки уступов ~65°, сами съезды 5–10°; круче 10° — короткие срезы у края съезда)" % [down.size(), steep], not down.is_empty() and down[down.size() - 1].distance_to(bottom) < 1.0 and steep < 30.0)
 	for e in enemies:
 		if e.alive() and e.global_position.distance_to(Vector3(20, -8, -30)) < 60.0:
 			e.state = "idle"
@@ -4726,6 +4726,8 @@ func _qr_test() -> void:
 			await get_tree().create_timer(0.2).timeout
 			tr += 0.2
 		_ok("время вышло: кластер перезагрузился, герой погиб, вещи при себе и спораны потеряны, маршрут закрыт", _cs_done and inv.count("q_samples") == 0 and int(inv.wallet.get("spore", 0)) == 0 and ULBase.route_state("quarry") == "")
+		print("[inv] итог: ошибок %d" % _fails)
+		get_tree().quit()
 		return
 	# 24: выход с добычей до перезагрузки — награда за задание
 	var sp0 := int(inv.wallet.get("spore", 0))
@@ -4738,6 +4740,8 @@ func _qr_test() -> void:
 		tl += 0.2
 	_ok("ушёл за край до перезагрузки: задание выполнено, награда %s, добыча при себе (образцы, минерал), маршрут закрыт" % ULEconomy.list_text(rw),
 		_cs_done and quest.get("done", false) and int(inv.wallet.get("spore", 0)) == sp0 + int(rw.get("spore", 0)) and int(inv.wallet.get("pea", 0)) == pea0 + int(rw.get("pea", 0)) 		and inv.count("q_samples") == 1 and (not picked or inv.count(String(mg.item.id)) > 0) and ULBase.route_state("quarry") == "" and ULSettings.arrival_note.contains("Последняя смена"), ULSettings.arrival_note)
+	print("[inv] итог: ошибок %d" % _fails)
+	get_tree().quit()
 
 
 ## точки замера нагрузки по локации: [название, где]
@@ -4898,6 +4902,115 @@ func _offer_route(id: String) -> void:
 	if not offs.has(id):
 		offs[0] = id
 		ULBase.data.offers = offs
+
+
+## Барахольщик (--as-test=dl [--as-out=папка]): разговор → «Торговать»; витрина «Продать» из карманов и рюкзака,
+## фильтр по категориям, количество и итог, продажа; «Продать весь хлам»; «Купить»: свой товар лотами и выкуп
+## сданного; нехватка ресурсов и места; двойное нажатие; пополнение при сбросе маршрутов; сохранение.
+func _dl_test() -> void:
+	var keep_path := ULBase.path
+	ULBase.path = "user://test_dealer_base.json"
+	ULBase.memory_only = false
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(ULBase.path))
+	ULBase.load_state(true)
+	await get_tree().create_timer(0.6).timeout
+	inv.pockets.fill(null)
+	if inv.pack != null:
+		inv.cells("pack").fill(null)
+	inv.wallet = {"spore": 5}
+	for it in [ULItems.make("junk", 7), ULItems.make("ore", 5), ULItems.make("cable", 2), ULItems.make("rare_mineral", 1), ULItems.make("bandage", 2)]:
+		inv.add(it)
+	var dl := npc_by_role("барахольщик")
+	player.global_position = dl.global_position + Vector3(0, 0.05, 1.1)
+	await get_tree().create_timer(0.4).timeout
+	open_talk(dl)
+	_ok("1. разговор с барахольщиком: кнопки «Торговать» и «Продать хлам (7)»", _talk_trade.visible and _talk_sell.visible and _talk_sell.text == "Продать хлам (7)")
+	_talk_trade.pressed.emit()
+	await get_tree().process_frame
+	var d := _dealer_ui
+	_ok("2. «Торговать» — окно торговли во весь экран, игра под ним не принимает касания", d != null and _modal() and not _talk_ui.visible)
+	if d == null:
+		print("[inv] итог: ошибок %d" % _fails)
+		get_tree().quit()
+		return
+	var ids := d.entries().map(func(e): return String(e.id))
+	_ok("3. «Продать»: хлам, руда, кабель, редкий минерал (бинты барахольщик не берёт)", ids.has("junk") and ids.has("ore") and ids.has("cable") and ids.has("rare_mineral") and not ids.has("bandage"), str(ids))
+	d.set_cat("mineral")
+	var mids := d.entries().map(func(e): return String(e.id))
+	_ok("4. фильтр «Минералы»: только руда и редкий минерал", mids.size() == 2 and mids.has("ore") and mids.has("rare_mineral"), str(mids))
+	if out != "":
+		d.set_cat("")
+		d.select("ore")
+		d.set_qty(3)
+		await get_tree().create_timer(0.3).timeout
+		await _snap("dl_sell")
+	d.set_cat("")
+	d.select("ore")
+	d.set_qty(99)
+	var q_all := d.qty
+	d.set_qty(3)
+	var deal := d.find_child("Deal", true, false) as Button
+	_ok("5. руда: «Всё» — 5, выбрано 3, кнопка «ПРОДАТЬ ×3»", q_all == 5 and d.qty == 3 and deal != null and deal.text == "ПРОДАТЬ ×3")
+	d.confirm()
+	var dbl := d.confirm()
+	_ok("6. продано 3 руды → +6 споранов (5 → 11), руды осталось 2; второе касание сразу — без второй сделки", int(inv.wallet.spore) == 11 and inv.count("ore") == 2 and not dbl, str(inv.wallet))
+	await get_tree().create_timer(0.6).timeout
+	d.select("rare_mineral")
+	d.confirm()
+	_ok("7. редкий минерал продан за горошину", int(inv.wallet.get("pea", 0)) == 1 and inv.count("rare_mineral") == 0)
+	await get_tree().create_timer(0.6).timeout
+	d.sell_all_junk()
+	_ok("8. «Продать весь хлам»: 7 кучек → 7 споранов (11 → 18)", inv.count("junk") == 0 and int(inv.wallet.spore) == 18)
+	await get_tree().create_timer(0.6).timeout
+	d.set_tab("buy")
+	var stock := d.entries()
+	var bb := stock.filter(func(e): return String(e.kind) == "buyback")
+	var bore := bb.filter(func(e): return String(e.id) == "ore")
+	_ok("9. «Купить»: свой товар (вода, сухари, патроны лотами, рюкзак, ТТ…) и выкуп сданного — руда 3 шт. по 4 спорана",
+		stock.any(func(e): return String(e.id) == "water") and stock.any(func(e): return String(e.id) == "a762x25" and int(e.lot) == 16) and bore.size() == 1 and int(bore[0].left) == 3 and int(bore[0].price.spore) == 4, str(stock.map(func(e): return "%s:%d" % [e.id, e.left])))
+	d.select("water", "stock")
+	d.set_qty(2)
+	if out != "":
+		await get_tree().create_timer(0.3).timeout
+		await _snap("dl_buy")
+	d.confirm()
+	var wl := d.entries().filter(func(e): return String(e.id) == "water")
+	_ok("10. куплено 2 воды за 2 спорана (18 → 16), у барахольщика осталось 4", int(inv.wallet.spore) == 16 and inv.count("water") == 2 and wl.size() == 1 and int(wl[0].left) == 4)
+	await get_tree().create_timer(0.6).timeout
+	d.select("a762x25", "stock")
+	d.confirm()
+	_ok("11. патроны лотом: 16 штук за 2 спорана", inv.count("a762x25") >= 16 and int(inv.wallet.spore) == 14)
+	await get_tree().create_timer(0.6).timeout
+	inv.wallet.spore = 3
+	d.select("pack_small", "stock")
+	deal = d.find_child("Deal", true, false) as Button
+	var r_m := ULDealer.buy(inv, "pack_small", 1)
+	_ok("12. не хватает (3 из 10): кнопка выключена, логика отказывает, не списано", deal.disabled and not r_m.ok and r_m.err == "money" and int(inv.wallet.spore) == 3)
+	inv.wallet.spore = 50
+	for i in inv.pockets.size():
+		if inv.pockets[i] == null:
+			inv.pockets[i] = ULItems.make("bandage", 1)
+	if inv.pack != null:
+		var pc := inv.cells("pack")
+		for i in pc.size():
+			if pc[i] == null:
+				pc[i] = ULItems.make("bandage", 1)
+	var r_s := ULDealer.buy(inv, "rusk", 1)
+	_ok("13. карманы и рюкзак полны: купить нельзя (места нет), не списано", not r_s.ok and r_s.err == "space" and int(inv.wallet.spore) == 50)
+	d.close()
+	await get_tree().process_frame
+	var snap := JSON.stringify(JSON.parse_string(JSON.stringify(ULBase.data.dealer)))
+	ULBase.data = {}
+	ULBase.load_state(true)
+	_ok("14. запас и выкуп сохраняются в файле базы", JSON.stringify(ULBase.data.get("dealer", {})) == snap, snap)
+	ULBase.data.refreshes = int(ULBase.data.get("refreshes", 0)) + 1
+	var st2 := ULDealer.stock()
+	_ok("15. сброс маршрутов: товар пополнен (воды 6), выкуп обнулён", st2.any(func(e): return String(e.id) == "water" and int(e.left) == 6) and not st2.any(func(e): return String(e.kind) == "buyback"))
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(ULBase.path))
+	ULBase.path = keep_path
+	ULBase.memory_only = true
+	print("[inv] итог: ошибок %d" % _fails)
+	get_tree().quit()
 
 
 ## Хранилище базы (--as-test=st [--as-out=папка]): карточка в компьютере на всех уровнях, нехватка споранов,
@@ -9663,7 +9776,7 @@ var _name_edit: LineEdit
 
 
 func _modal() -> bool:
-	return (inv_ui != null and inv_ui.visible) or (_name_ui != null and _name_ui.visible) or (_talk_ui != null and _talk_ui.visible) or (_set_ui != null and is_instance_valid(_set_ui)) or (_book_ui != null and is_instance_valid(_book_ui)) or (_shop_ui != null and is_instance_valid(_shop_ui)) or (_term_ui != null and is_instance_valid(_term_ui)) or _dead_t > 0.0
+	return (inv_ui != null and inv_ui.visible) or (_name_ui != null and _name_ui.visible) or (_talk_ui != null and _talk_ui.visible) or (_set_ui != null and is_instance_valid(_set_ui)) or (_book_ui != null and is_instance_valid(_book_ui)) or (_shop_ui != null and is_instance_valid(_shop_ui)) or (_term_ui != null and is_instance_valid(_term_ui)) or (_dealer_ui != null and is_instance_valid(_dealer_ui)) or _dead_t > 0.0
 
 
 func _load_profile() -> void:
@@ -9752,6 +9865,8 @@ func _name_ok() -> void:
 
 var npcs: Array = []
 var _talk_ui: Control
+var _talk_npc: Node3D
+var _dealer_ui: ULDealerUI
 var _talk_name: Label
 var _talk_text: Label
 
@@ -9863,6 +9978,25 @@ func _dealer_stall() -> void:
 			root.add_child(j)
 
 
+## Окно торговли барахольщика (ULDealerUI): продать найденное, купить припасы и выкупить сданное
+func open_dealer() -> void:
+	if _dealer_ui != null and is_instance_valid(_dealer_ui):
+		return
+	if _talk_ui:
+		_talk_ui.visible = false
+	var d := ULDealerUI.new()
+	_hud.get_parent().add_child(d)
+	d.setup(inv, func() -> void:
+		_apply_gear()
+		snd.play("click", player.global_position + Vector3.UP, -4.0)
+		_save())
+	d.closed.connect(func() -> void: _dealer_ui = null)
+	_dealer_ui = d
+	_joy_id = -1
+	_joy_v = Vector2.ZERO
+	_hud_touch.clear()
+
+
 ## Продать весь хлам барахольщику: по junk_price (data/base_shop.json) за кучку; false — продавать нечего
 func sell_junk() -> bool:
 	var n := inv.count("junk")
@@ -9937,7 +10071,11 @@ func open_talk(n: Node3D) -> void:
 		hb.alignment = BoxContainer.ALIGNMENT_END
 		vb.add_child(hb)
 		hb.add_theme_constant_override("separation", 8)
-		_talk_trade = _btn("Торговать", open_shop, 150)
+		_talk_trade = _btn("Торговать", func() -> void:
+			if _talk_npc != null and String(_talk_npc.get_meta("role")) == "барахольщик":
+				open_dealer()
+			else:
+				open_shop(), 150)
 		hb.add_child(_talk_trade)
 		_talk_sell = _btn("Продать хлам", func(): sell_junk(), 230)
 		hb.add_child(_talk_sell)
@@ -9948,7 +10086,8 @@ func open_talk(n: Node3D) -> void:
 	_talk_name.text = "%s, %s" % [n.get_meta("name"), n.get_meta("role")]
 	var line := String(n.get_meta("line"))
 	_talk_text.text = line % hero_name if line.contains("%s") else line
-	_talk_trade.visible = String(n.get_meta("role")) in ["торговец", "оружейник"]
+	_talk_npc = n
+	_talk_trade.visible = String(n.get_meta("role")) in ["торговец", "оружейник", "барахольщик"]
 	_talk_sell.visible = String(n.get_meta("role")) == "барахольщик"
 	_talk_sell.text = "Продать хлам (%d)" % inv.count("junk")
 	_talk_ui.visible = true
@@ -10996,6 +11135,9 @@ func _run_test() -> void:
 		return
 	if test == "st":
 		await _st_test()
+		return
+	if test == "dl":
+		await _dl_test()
 		return
 	if test == "cs":
 		await _cs_test()

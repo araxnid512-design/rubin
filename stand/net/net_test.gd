@@ -126,6 +126,7 @@ func _phase1() -> void:
 	var sm2: Dictionary = await B.ask("start_mission", {"wid": wid, "route": "sanatorium", "ready": [B.pid]})
 	_ok("вторую копию той же миссии не создать", not sm2.get("ok", true))
 	_ok("оба входят в миссию", (await A.ask("enter", {"mid": mid})).get("ok", false) and (await B.ask("enter", {"mid": mid})).get("ok", false))
+	await _loot_checks(A, B, C, mid)
 	var kres := [{}, {}]
 	var ka := func() -> void: kres[0] = await A.ask("take_key", {"mid": mid, "op": A.op_id()})
 	var kb := func() -> void: kres[1] = await B.ask("take_key", {"mid": mid, "op": B.op_id()})
@@ -148,6 +149,9 @@ func _phase1() -> void:
 	_ok("первый погиб — миссия идёт дальше (второй жив)", dA.get("ok", false) and bool(dA.open))
 	var eA: Dictionary = await A.ask("enter", {"mid": mid})
 	_ok("погибший в ту же миссию не входит", not eA.get("ok", true) and String(eA.err) == "dead")
+	var lo: Dictionary = await B.ask("loot_open", {"mid": mid, "key": "g:2", "table": "item:junk:2"})
+	var ld: Dictionary = await A.ask("loot_take", {"mid": mid, "key": "g:2", "i": 0, "expect": "junk", "n": 2, "op": A.op_id()})
+	_ok("погибший ничего не берёт из миссии (находку забирает живой)", lo.get("ok", false) and not ld.get("ok", true) and String(ld.err) == "dead")
 	_ok("посторонний в миссию не входит", not (await C.ask("enter", {"mid": mid})).get("ok", true))
 	# обрыв связи — не смерть: второй переподключается и возвращается
 	B.multiplayer.multiplayer_peer.close()
@@ -172,6 +176,74 @@ func _phase1() -> void:
 	var sv: Dictionary = await A.ask("safe_view", {"wid": wid, "k": 2})
 	var f := FileAccess.open("%s/world.txt" % dir, FileAccess.WRITE)
 	f.store_string(JSON.stringify({"wid": wid, "code": code, "safe2": sv.get("cells", [])}))
+
+
+## Добыча в совместной миссии: оба видят одно содержимое; разом взяли одну ячейку — одному; на земле — первому;
+## тело — одно на двоих; второй получает обновление сразу; посторонний не открывает; повтор не дублирует
+func _loot_checks(A: ULNet, B: ULNet, C: ULNet, mid: String) -> void:
+	var b_events := []
+	B.loot_changed.connect(func(m: String, k: String, cells: Array) -> void: b_events.append([k, cells.duplicate(true)]))
+	var key := ""
+	var oa := {}
+	for t in 40:
+		key = "c:%d" % t
+		oa = await A.ask("loot_open", {"mid": mid, "key": key, "table": "store"})
+		if (oa.get("cells", []) as Array).any(func(c): return c != null):
+			break
+	var ob: Dictionary = await B.ask("loot_open", {"mid": mid, "key": key, "table": "store"})
+	_ok("тайник %s: содержимое разыграл сервер, оба видят одно и то же" % key, oa.get("ok", false) and ob.get("ok", false) and JSON.stringify(oa.cells) == JSON.stringify(ob.cells), JSON.stringify(oa.get("cells", [])).substr(0, 120))
+	var ci := (oa.cells as Array).find((oa.cells as Array).filter(func(c): return c != null)[0])
+	var it: Dictionary = oa.cells[ci]
+	var before_a := JSON.stringify((await A.ask("me")).player)
+	var res := [{}, {}]
+	var ga := func() -> void: res[0] = await A.ask("loot_take", {"mid": mid, "key": key, "i": ci, "expect": String(it.id), "n": int(it.n), "op": A.op_id()})
+	var gb := func() -> void: res[1] = await B.ask("loot_take", {"mid": mid, "key": key, "i": ci, "expect": String(it.id), "n": int(it.n), "op": B.op_id()})
+	ga.call()
+	gb.call()
+	var tw := Time.get_ticks_msec()
+	while ((res[0] as Dictionary).is_empty() or (res[1] as Dictionary).is_empty()) and Time.get_ticks_msec() - tw < 8000:
+		await get_tree().process_frame
+	var oks := int(res[0].get("ok", false)) + int(res[1].get("ok", false))
+	var loser: Dictionary = res[1] if res[0].get("ok", false) else res[0]
+	_ok("оба разом берут «%s ×%d» из одного тайника — получает один, второму «gone» и пустая ячейка" % [String(it.id), int(it.n)],
+		oks == 1 and String(loser.get("err", "")) == "gone" and (loser.get("cells", []) as Array).size() > ci and loser.cells[ci] == null)
+	var cnt := 0
+	for P in [A, B]:
+		var pl: Dictionary = (await P.ask("me")).player
+		for x in pl.inv:
+			if x is Dictionary and String(x.id) == String(it.id):
+				cnt += int(x.n)
+		cnt += int(pl.wallet.get(String(it.id), 0)) if ULServerState._wallet_item(String(it.id)) else 0
+	_ok("предмет теперь ровно у одного игрока, копий нет", ULServerState._wallet_item(String(it.id)) or cnt == int(it.n), "%d шт." % cnt)
+	# на земле: первый подобрал — второму нечего
+	var g1: Dictionary = await B.ask("loot_open", {"mid": mid, "key": "g:1", "table": "item:ore:3"})
+	var gt1: Dictionary = await B.ask("loot_take", {"mid": mid, "key": "g:1", "i": 0, "expect": "ore", "n": 3, "op": B.op_id()})
+	var gt2: Dictionary = await A.ask("loot_take", {"mid": mid, "key": "g:1", "i": 0, "expect": "ore", "n": 3, "op": A.op_id()})
+	_ok("руда на земле: подобрал второй — первому уже нечего («gone»)", g1.get("ok", false) and gt1.get("ok", false) and not gt2.get("ok", true) and String(gt2.err) == "gone")
+	var ga2: Dictionary = await A.ask("loot_open", {"mid": mid, "key": "g:1", "table": "item:svd:1"})
+	var gw: Dictionary = await A.ask("loot_open", {"mid": mid, "key": "g:99", "table": "item:svd:1"})
+	_ok("та же находка не разыгрывается заново под другую таблицу; оружие «с земли» сервер не выдаёт", ga2.get("ok", false) and ga2.cells[0] == null and not gw.get("ok", true))
+	# тело: одно содержимое на двоих, частями
+	var e1: Dictionary = await A.ask("loot_open", {"mid": mid, "key": "e:1", "table": "enemy:infected"})
+	var e2: Dictionary = await B.ask("loot_open", {"mid": mid, "key": "e:1", "table": "enemy:infected"})
+	_ok("тело пустыша: у обоих одна и та же добыча", e1.get("ok", false) and JSON.stringify(e1.cells) == JSON.stringify(e2.cells), JSON.stringify(e1.get("cells", [])))
+	b_events.clear()
+	var took := 0
+	for j in (e1.cells as Array).size():
+		var c = e1.cells[j]
+		if c != null:
+			var r: Dictionary = await A.ask("loot_take", {"mid": mid, "key": "e:1", "i": j, "expect": String(c.id), "n": int(c.n), "op": A.op_id()})
+			took += int(r.get("ok", false))
+	await get_tree().create_timer(0.4).timeout
+	var e3: Dictionary = await B.ask("loot_open", {"mid": mid, "key": "e:1", "table": "enemy:infected"})
+	_ok("первый обыскал тело (%d) — второму пришло обновление, тело пустое" % took, (took == 0 or b_events.size() == took) and (e3.cells as Array).all(func(c): return c == null))
+	_ok("посторонний не открывает находки чужой миссии", not (await C.ask("loot_open", {"mid": mid, "key": key, "table": "store"})).get("ok", true))
+	var g3: Dictionary = await A.ask("loot_open", {"mid": mid, "key": "g:3", "table": "item:junk:5"})
+	var opx := A.op_id()
+	var r1: Dictionary = await A.ask("loot_take", {"mid": mid, "key": "g:3", "i": 0, "expect": "junk", "n": 2, "op": opx})
+	var r2: Dictionary = await A.ask("loot_take", {"mid": mid, "key": "g:3", "i": 0, "expect": "junk", "n": 2, "op": opx})
+	var g4: Dictionary = await B.ask("loot_open", {"mid": mid, "key": "g:3", "table": "item:junk:5"})
+	_ok("повтор той же просьбы «взять 2 хлама» выполнен один раз (осталось 3)", g3.get("ok", false) and r1.get("ok", false) and r2.get("ok", false) and g4.cells[0] != null and int(g4.cells[0].n) == 3)
 
 
 ## Хранилище в кооперативе: общий уровень (платит купивший), общие сейфы, «разом взяли одно» — одному,

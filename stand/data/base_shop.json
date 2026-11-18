@@ -148,5 +148,92 @@
  },
  "junk_price": {
   "spore": 1
+ },
+ "dealer": {
+  "n": "Кузьмич",
+  "d": "Барахольщик у крыльца: покупает всё, у чего в каталоге есть цена (ULItems), по базовой цене за штуку; продаёт свой товар и выкупленное у героя (в buy_k раз дороже). Запас — на один период маршрутов, при сбросе пополняется.",
+  "buy_k": 2,
+  "stock": [
+   {
+    "id": "water",
+    "lot": 1,
+    "price": {
+     "spore": 1
+    },
+    "qty": 6
+   },
+   {
+    "id": "rusk",
+    "lot": 1,
+    "price": {
+     "spore": 1
+    },
+    "qty": 6
+   },
+   {
+    "id": "can",
+    "lot": 1,
+    "price": {
+     "spore": 2
+    },
+    "qty": 4
+   },
+   {
+    "id": "bandage",
+    "lot": 1,
+    "price": {
+     "spore": 2
+    },
+    "qty": 4
+   },
+   {
+    "id": "tonic",
+    "lot": 1,
+    "price": {
+     "spore": 3
+    },
+    "qty": 2
+   },
+   {
+    "id": "a762x25",
+    "lot": 16,
+    "price": {
+     "spore": 2
+    },
+    "qty": 2
+   },
+   {
+    "id": "a12",
+    "lot": 8,
+    "price": {
+     "spore": 3
+    },
+    "qty": 2
+   },
+   {
+    "id": "pack_small",
+    "lot": 1,
+    "price": {
+     "spore": 10
+    },
+    "qty": 1
+   },
+   {
+    "id": "machete",
+    "lot": 1,
+    "price": {
+     "spore": 10
+    },
+    "qty": 1
+   },
+   {
+    "id": "tt",
+    "lot": 1,
+    "price": {
+     "spore": 9
+    },
+    "qty": 1
+   }
+  ]
  }
 }
