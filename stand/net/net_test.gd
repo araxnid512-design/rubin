@@ -121,7 +121,8 @@ func _phase1() -> void:
 	# маршрут: платит купивший, второму бесплатно, повторно не списывается
 	var a_before := int(me.player.wallet.spore)
 	var br: Dictionary = await A.ask("buy_route", {"wid": wid, "route": "sanatorium", "op": A.op_id()})
-	_ok("первый купил «Санаторий Луч» за 25 споранов: %d → %d" % [a_before, int(br.get("wallet", {}).get("spore", -1))], br.get("ok", false) and int(br.wallet.spore) == a_before - 25)
+	var sn_price := int(ULBase.shop().routes.sanatorium.price.spore)
+	_ok("первый купил «Санаторий Луч» за %d споранов: %d → %d" % [sn_price, a_before, int(br.get("wallet", {}).get("spore", -1))], br.get("ok", false) and int(br.wallet.spore) == a_before - sn_price)
 	var mb: Dictionary = await B.ask("me")
 	var br2: Dictionary = await B.ask("buy_route", {"wid": wid, "route": "sanatorium", "op": B.op_id()})
 	var mb2: Dictionary = await B.ask("me")
@@ -364,8 +365,9 @@ func _phase3() -> void:
 	var up: Dictionary = await A.ask("storage_upgrade", {"wid": wid, "op": A.op_id()})
 	var put: Dictionary = await B.ask("safe_put", {"wid": wid, "k": 1, "item": {"id": "spore", "n": 20}, "op": B.op_id()})
 	var br: Dictionary = await B.ask("buy_route", {"wid": wid, "route": "cowshed", "op": B.op_id()})
-	_ok("хост купил хранилище за свои 50 (осталось 0); напарник положил 20 в сейф №1 и купил маршрут за 10 (осталось 20)",
-		up.get("ok", false) and int(up.wallet.spore) == 0 and put.get("ok", false) and br.get("ok", false) and int(br.wallet.spore) == 20)
+	var cs_price := int(ULBase.shop().routes.cowshed.price.spore)
+	_ok("хост купил хранилище за свои 50 (осталось 0); напарник положил 20 в сейф №1 и купил маршрут за %d (осталось %d)" % [cs_price, 30 - cs_price],
+		up.get("ok", false) and int(up.wallet.spore) == 0 and put.get("ok", false) and br.get("ok", false) and int(br.wallet.spore) == 30 - cs_price)
 	var sm: Dictionary = await B.ask("start_mission", {"wid": wid, "route": "cowshed", "ready": [A.pid, B.pid]})
 	var mid := String(sm.get("mission", ""))
 	_ok("совместная миссия начата, оба участники", sm.get("ok", false) and (sm.members as Array).size() == 2)
@@ -403,8 +405,9 @@ func _phase4() -> void:
 	var okc: bool = await _connect(A, "Хост") and await _connect(B, "Напарник")
 	var ma: Dictionary = await A.ask("me")
 	var mb: Dictionary = await B.ask("me")
-	_ok("после перезапуска сервера оба входят; кошельки те же (хост 5, напарник 20) — стартовые 50 повторно не выданы",
-		okc and int(ma.player.wallet.get("spore", -1)) == 5 and int(mb.player.wallet.get("spore", -1)) == 20, "%s / %s" % [str(ma.get("player", {}).get("wallet")), str(mb.get("player", {}).get("wallet"))])
+	var b_left := 30 - int(ULBase.shop().routes.cowshed.price.spore)       # напарник: 50 − 20 в сейф − маршрут коровника
+	_ok("после перезапуска сервера оба входят; кошельки те же (хост 5, напарник %d) — стартовые 50 повторно не выданы" % b_left,
+		okc and int(ma.player.wallet.get("spore", -1)) == 5 and int(mb.player.wallet.get("spore", -1)) == b_left, "%s / %s" % [str(ma.get("player", {}).get("wallet")), str(mb.get("player", {}).get("wallet"))])
 	var ws: Array = ma.get("worlds", [])
 	var base: Dictionary = ws[0].base if ws.size() == 1 else {}
 	var s1: Array = base.get("storage", {}).get("safes", {}).get("safe_1", [])

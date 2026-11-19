@@ -3680,7 +3680,7 @@ func _pmap_test() -> void:
 	targets.clear()
 	await get_tree().create_timer(1.0).timeout
 	# цены и снимки
-	var want := {"cowshed": 3, "sanatorium": 8, "convoy": 12, "khutor": 6, "lair": 17, "quarry": 8}
+	var want := {"cowshed": 5, "sanatorium": 13, "convoy": 18, "khutor": 9, "lair": 25, "quarry": 13}
 	var got := {}
 	var pics := 0
 	for id in want:
@@ -5500,6 +5500,11 @@ func _lvl_test() -> void:
 
 ## проверки: маршрут id — в наборе компьютера (набор случайный: 3 из всех локаций)
 ## маршрут id — в наборе компьютера (как после сброса: пройденный снова доступен)
+## цена маршрута в споранах — из настроек (data/base_shop.json): проверки не привязаны к числу
+func _rp(id: String) -> int:
+	return int(ULBase.shop().routes[id].price.spore)
+
+
 func _offer_route(id: String) -> void:
 	(ULBase.data.done as Array).erase(id)
 	var offs: Array = ULBase.offers()
@@ -6192,7 +6197,7 @@ func _cs_test() -> void:
 		tl += get_process_delta_time()
 	_ok("ушёл за край: посещение окончено, добыча при себе, маршрут закрыт", _cs_done and int(inv.wallet.get("spore", 0)) == 7 and inv.primary != null and ULBase.route_state("cowshed") == "" and ULSettings.place == "home", ULSettings.arrival_note)
 	# новое посещение: снова купить маршрут
-	inv.wallet = {"spore": 10}
+	inv.wallet = {"spore": _rp("cowshed")}
 	_offer_route("cowshed")
 	var rb := ULBase.buy_route(inv, "cowshed")
 	_ok("для нового посещения маршрут покупается снова", rb.ok and ULBase.route_state("cowshed") == "bought" and int(inv.wallet.get("spore", 0)) == 0)
@@ -6664,10 +6669,10 @@ func _sn_test() -> void:
 		tl += get_process_delta_time()
 	_ok("ушёл через ворота за край: посещение окончено, добыча при себе, маршрут закрыт", _cs_done and int(inv.wallet.get("spore", 0)) == 7 and ULBase.route_state("sanatorium") == "" and ULSettings.place == "home" and ULSettings.arrival_title == "Санаторий Луч", ULSettings.arrival_note)
 	_ok("санатория снова нет на карте", not ULMap.place_shown("sanatorium"))
-	inv.wallet = {"spore": 25}
+	inv.wallet = {"spore": _rp("sanatorium")}
 	_offer_route("sanatorium")
 	var rb := ULBase.buy_route(inv, "sanatorium")
-	_ok("для нового посещения маршрут покупается снова (25 споранов) и появляется на карте", rb.ok and ULBase.route_state("sanatorium") == "bought" and int(inv.wallet.get("spore", 0)) == 0 and ULMap.place_shown("sanatorium"))
+	_ok("для нового посещения маршрут покупается снова (%d споранов) и появляется на карте" % _rp("sanatorium"), rb.ok and ULBase.route_state("sanatorium") == "bought" and int(inv.wallet.get("spore", 0)) == 0 and ULMap.place_shown("sanatorium"))
 	_cs_done = false
 	left_location = false
 	_leave_t = 0.0
@@ -7169,7 +7174,7 @@ func _cv_test() -> void:
 	_ok("убитые враги в этом посещении больше не появляются", _respawn.is_empty())
 	# 13: маршрут в компьютере и на карте
 	var rt: Dictionary = ULBase.shop().get("routes", {}).get("convoy", {})
-	_ok("маршрут «Разбитый конвой» в компьютере: 35 споранов", not rt.is_empty() and int((rt.price as Dictionary).get("spore", 0)) == 35 and (rt.price as Dictionary).size() == 1, str(rt.get("price", {})))
+	_ok("маршрут «Разбитый конвой» в компьютере: 53 спорана", not rt.is_empty() and int((rt.price as Dictionary).get("spore", 0)) == 53 and (rt.price as Dictionary).size() == 1, str(rt.get("price", {})))
 	var hr: Rect2 = ULMap.PLACES.home.rect
 	var vr: Rect2 = ULMap.PLACES.convoy.rect
 	_ok("на глобальной карте конвой — ниже домашнего стаба", vr.get_center().y > hr.end.y - 20.0, "%s / %s" % [str(hr), str(vr)])
@@ -7185,13 +7190,13 @@ func _cv_test() -> void:
 		tl += get_process_delta_time()
 	_ok("ушёл по дороге за южный край: посещение окончено, добыча при себе (патронов %d, споранов 7), маршрут закрыт" % a_keep, _cs_done and int(inv.wallet.get("spore", 0)) == 7 and inv.count("a545") == a_keep and a_keep >= 30 and ULBase.route_state("convoy") == "" and ULSettings.place == "home" and ULSettings.arrival_title == "Разбитый конвой", ULSettings.arrival_note)
 	_ok("конвоя снова нет на карте", not ULMap.place_shown("convoy"))
-	inv.wallet = {"spore": 34}
+	inv.wallet = {"spore": _rp("convoy") - 1}
 	_offer_route("convoy")
 	var rb0 := ULBase.buy_route(inv, "convoy")
-	_ok("за 34 спорана маршрут не купить", not rb0.ok and int(inv.wallet.get("spore", 0)) == 34 and not ULMap.place_shown("convoy"))
-	inv.wallet = {"spore": 35}
+	_ok("без одного спорана маршрут не купить", not rb0.ok and int(inv.wallet.get("spore", 0)) == _rp("convoy") - 1 and not ULMap.place_shown("convoy"))
+	inv.wallet = {"spore": _rp("convoy")}
 	var rb1 := ULBase.buy_route(inv, "convoy")
-	_ok("для нового посещения маршрут покупается снова (35 споранов) и появляется на карте", rb1.ok and ULBase.route_state("convoy") == "bought" and int(inv.wallet.get("spore", 0)) == 0 and ULMap.place_shown("convoy"))
+	_ok("для нового посещения маршрут покупается снова (%d спорана) и появляется на карте" % _rp("convoy"), rb1.ok and ULBase.route_state("convoy") == "bought" and int(inv.wallet.get("spore", 0)) == 0 and ULMap.place_shown("convoy"))
 	_cs_done = false
 	left_location = false
 	_leave_t = 0.0
@@ -7997,7 +8002,7 @@ func _kh_test() -> void:
 	# 14–16: таймер, маршрут, карта
 	_ok("таймер кластера — 10:00 и идёт (в том числе под землёй)", int(c.minutes) == 10 and _cs_end - float(cs_start) > 599.0 and cs_left() < 600.0)
 	var rt: Dictionary = ULBase.shop().get("routes", {}).get("khutor", {})
-	_ok("маршрут «Хутор» в компьютере: 18 споранов, кнопка «Открыть маршрут»", int((rt.get("price", {}) as Dictionary).get("spore", 0)) == 18 and String(rt.get("btn", "")) == "ОТКРЫТЬ МАРШРУТ")
+	_ok("маршрут «Хутор» в компьютере: 27 споранов, кнопка «Открыть маршрут»", int((rt.get("price", {}) as Dictionary).get("spore", 0)) == 27 and String(rt.get("btn", "")) == "ОТКРЫТЬ МАРШРУТ")
 	var hr: Rect2 = ULMap.PLACES.home.rect
 	var kr: Rect2 = ULMap.PLACES.khutor.rect
 	_ok("на глобальной карте хутор — слева и ниже дома", kr.get_center().x < hr.get_center().x and kr.get_center().y > hr.get_center().y)
@@ -8023,11 +8028,11 @@ func _kh_test() -> void:
 	ULBase.routes_tick(nowk)
 	_ok("сброс маршрутов — пройденные снова доступны (если попали в новый набор)", not ULBase.route_done("khutor") and (ULBase.data.done as Array).is_empty())
 	_offer_route("khutor")
-	inv.wallet = {"spore": 17}
+	inv.wallet = {"spore": _rp("khutor") - 1}
 	var r0 := ULBase.buy_route(inv, "khutor")
-	inv.wallet = {"spore": 18}
+	inv.wallet = {"spore": _rp("khutor")}
 	var r1 := ULBase.buy_route(inv, "khutor")
-	_ok("за 17 споранов не купить, за 18 — куплен, хутор на карте", not r0.ok and r1.ok and int(inv.wallet.get("spore", 0)) == 0 and ULMap.place_shown("khutor"), "%s / %s, маршрут %s" % [str(r0), str(r1), ULBase.route_state("khutor")])
+	_ok("за 26 споранов не купить, за 27 — куплен, хутор на карте", not r0.ok and r1.ok and int(inv.wallet.get("spore", 0)) == 0 and ULMap.place_shown("khutor"), "%s / %s, маршрут %s" % [str(r0), str(r1), ULBase.route_state("khutor")])
 	_cs_done = false
 	left_location = false
 	_leave_t = 0.0
@@ -8140,35 +8145,35 @@ func _pc_test() -> void:
 	# --- маршрут ---
 	_ok("до покупки маршрута коровника нет на карте", ULBase.route_state("cowshed") == "" and not ULMap.place_shown("cowshed"))
 	pc.ask_route("cowshed")
-	_ok("маршрут: подтверждение за 10 споранов", pc.dialog_text().contains("10 споранов"))
+	_ok("маршрут: подтверждение за 15 споранов", pc.dialog_text().contains("15 споранов"))
 	pc.dialog_confirm()
-	_ok("маршрут куплен: спораны 80 → 70", int(inv.wallet.spore) == 70 and ULBase.route_state("cowshed") == "bought")
+	_ok("маршрут куплен: спораны 80 → 65", int(inv.wallet.spore) == 65 and ULBase.route_state("cowshed") == "bought")
 	_ok("коровник появился на глобальной карте", ULMap.place_shown("cowshed"))
 	var r2 := ULBase.buy_route(inv, "cowshed")
 	var rb := pc.find_child("route_cowshed", true, false).find_child("buy", true, false) as Button
-	_ok("пока маршрут куплен — повторная покупка недоступна", not r2.ok and r2.err == "have" and int(inv.wallet.spore) == 70 and rb.disabled)
-	# --- маршрут в санаторий: карточка по макету, 25 споранов, слева выше дома ---
+	_ok("пока маршрут куплен — повторная покупка недоступна", not r2.ok and r2.err == "have" and int(inv.wallet.spore) == 65 and rb.disabled)
+	# --- маршрут в санаторий: карточка по макету, 38 споранов, слева выше дома ---
 	var sc := pc.find_child("route_sanatorium", true, false)
 	var sb := sc.find_child("buy", true, false) as Button if sc != null else null
-	_ok("в компьютере есть «Санаторий Луч»: 25 споранов, кнопка «Открыть маршрут»", sc != null and sb != null and sb.text == "ОТКРЫТЬ МАРШРУТ" and int(ULBase.shop().routes.sanatorium.price.spore) == 25)
+	_ok("в компьютере есть «Санаторий Луч»: 38 споранов, кнопка «Открыть маршрут»", sc != null and sb != null and sb.text == "ОТКРЫТЬ МАРШРУТ" and int(ULBase.shop().routes.sanatorium.price.spore) == 38)
 	_ok("до покупки санатория нет на карте", ULBase.route_state("sanatorium") == "" and not ULMap.place_shown("sanatorium"))
 	pc.ask_route("sanatorium")
 	pc.dialog_confirm()
 	var mr: Rect2 = ULMap.PLACES.sanatorium.rect
 	var hr: Rect2 = ULMap.PLACES.home.rect
-	_ok("санаторий куплен: спораны 70 → 45, он на карте слева выше дома", int(inv.wallet.spore) == 45 and ULBase.route_state("sanatorium") == "bought" and ULMap.place_shown("sanatorium") and mr.get_center().x < hr.get_center().x and mr.get_center().y < hr.get_center().y)
+	_ok("санаторий куплен: спораны 65 → 27, он на карте слева выше дома", int(inv.wallet.spore) == 27 and ULBase.route_state("sanatorium") == "bought" and ULMap.place_shown("sanatorium") and mr.get_center().x < hr.get_center().x and mr.get_center().y < hr.get_center().y)
 	if out != "":
 		await get_tree().create_timer(0.4).timeout
 		await _snap("pc_routes_bought")
 	# --- карта локации: докупить к купленному маршруту ---
 	var cmb := pc.find_child("route_cowshed", true, false).find_child("buy_map", true, false) as Button
-	_ok("у купленного маршрута без карты — кнопка «КАРТА — 3 спорана»", cmb != null and cmb.text.contains("3 спорана"), cmb.text if cmb != null else "кнопки нет")
+	_ok("у купленного маршрута без карты — кнопка «КАРТА — 5 споранов»", cmb != null and cmb.text.contains("5 споранов"), cmb.text if cmb != null else "кнопки нет")
 	pc.ask_map("cowshed")
-	_ok("карта: подтверждение за 3 спорана", pc.dialog_text().contains("3 спорана") and pc.dialog_text().contains("Купить карту"))
+	_ok("карта: подтверждение за 5 споранов", pc.dialog_text().contains("5 споранов") and pc.dialog_text().contains("Купить карту"))
 	if out != "":
 		await _snap("pc_map_confirm")
 	pc.dialog_confirm()
-	_ok("карта коровника куплена: спораны 45 → 42, кнопки «Карта» у него больше нет", int(inv.wallet.spore) == 42 and ULBase.has_map("cowshed") and pc.find_child("route_cowshed", true, false).find_child("buy_map", true, false) == null, str(inv.wallet))
+	_ok("карта коровника куплена: спораны 27 → 22, кнопки «Карта» у него больше нет", int(inv.wallet.spore) == 22 and ULBase.has_map("cowshed") and pc.find_child("route_cowshed", true, false).find_child("buy_map", true, false) == null, str(inv.wallet))
 	ULBase.set_route("sanatorium", "")
 	inv.wallet.spore = 70
 	inv.changed.emit()
@@ -8176,21 +8181,21 @@ func _pc_test() -> void:
 	pc._build_routes()
 	pc.ask_route("sanatorium")
 	var exb := pc._dlg.find_child("Extra", true, false) as Button if pc._dlg != null else null
-	_ok("покупка маршрута: в окне цена карты (8 споранов) и вариант «С КАРТОЙ — 33 спорана»", pc.dialog_text().contains("Карта локации") and pc.dialog_text().contains("8 споранов") and exb != null and exb.text.contains("33 спорана") and not exb.disabled, exb.text if exb != null else "кнопки нет")
+	_ok("покупка маршрута: в окне цена карты (13 споранов) и вариант «С КАРТОЙ — 51 споран»", pc.dialog_text().contains("Карта локации") and pc.dialog_text().contains("13 споранов") and exb != null and exb.text.contains("51 споран") and not exb.disabled, exb.text if exb != null else "кнопки нет")
 	if out != "":
 		await get_tree().create_timer(0.3).timeout
 		await _snap("pc_route_map")
 	pc.dialog_extra()
-	_ok("маршрут с картой: спораны 70 → 37, маршрут и карта куплены", int(inv.wallet.spore) == 37 and ULBase.route_state("sanatorium") == "bought" and ULBase.has_map("sanatorium"), str(inv.wallet))
+	_ok("маршрут с картой: спораны 70 → 19, маршрут и карта куплены", int(inv.wallet.spore) == 19 and ULBase.route_state("sanatorium") == "bought" and ULBase.has_map("sanatorium"), str(inv.wallet))
 	ULBase.set_route("sanatorium", "")
-	inv.wallet.spore = 30
+	inv.wallet.spore = 45
 	inv.changed.emit()
 	pc._build_routes()
 	pc.ask_route("sanatorium")
 	exb = pc._dlg.find_child("Extra", true, false) as Button if pc._dlg != null else null
-	_ok("на маршрут с картой не хватает (30 из 33): вариант «с картой» недоступен, в окне — сколько не хватает", exb != null and exb.disabled and pc.dialog_text().contains("не хватает"))
+	_ok("на маршрут с картой не хватает (45 из 51): вариант «с картой» недоступен, в окне — сколько не хватает", exb != null and exb.disabled and pc.dialog_text().contains("не хватает"))
 	pc.dialog_extra()
-	_ok("нажатие на недоступный вариант ничего не покупает", int(inv.wallet.spore) == 30 and ULBase.route_state("sanatorium") == "")
+	_ok("нажатие на недоступный вариант ничего не покупает", int(inv.wallet.spore) == 45 and ULBase.route_state("sanatorium") == "")
 	pc.dialog_close()
 	inv.wallet.spore = 70
 	inv.changed.emit()
