@@ -85,6 +85,8 @@ func _ready() -> void:
 		if a.begins_with("--as-gfx="):
 			ULSettings.load_cfg()
 			ULSettings.gfx = clampi(int(a.substr(9)), 0, ULSettings.GFX.size() - 1)    # уровень графики для проверок и снимков
+		if a.begins_with("--as-sharp="):
+			_sharp_test = clampi(int(a.substr(11)), 0, 2)                              # резкость для снимков
 		if a.begins_with("--as-cam="):
 			ULSettings.load_cfg()
 			ULSettings.cam = clampi(int(a.substr(9)), 0, ULSettings.CAMS.size() - 1)   # угол камеры для снимков
@@ -115,6 +117,12 @@ func _ready() -> void:
 			sc.lottery = [sc.lottery[1], sc.lottery[1]]
 			sc.ruber_chances = [0, 0, 1]                 # и два Рубера — всего 57
 			ULSanatorium._cfg = sc
+	if test == "gqview":
+		# сравнение чёткости: одна точка локации (--as-place=, --as-at=x,z), разные доли разрешения и резкость
+		ULSettings.arena = false
+		for a in OS.get_cmdline_user_args():
+			if a.begins_with("--as-place="):
+				ULSettings.place = a.substr(11)
 	if test == "lvl" or test == "lvlbench":
 		# проверка «Теста уровней»: --as-place=khutor (по умолчанию — дом); lvlbench — с «Замером FPS»
 		ULSettings.arena = false
@@ -1035,6 +1043,11 @@ func _env() -> void:
 		e.fog_depth_curve = 1.3
 		sun.light_energy = 1.22
 		sun.light_color = Color(1.0, 0.93, 0.83)
+		if place == "quarry":
+			# карьер по видео-образцу: тёплое солнце, дымка светлее и теплее (сила света — как на других локациях:
+			# ярче — и светлая штукатурка с бетоном «выгорают» в белое)
+			sun.light_color = Color(1.0, 0.9, 0.76)
+			e.fog_light_color = Color(0.64, 0.63, 0.57)
 	# тени солнца — на всех локациях (и на базе) по настройкам графики: одна карта теней на 34 м (камера видит
 	# ~25 м; с двумя каскадами всё, что отбрасывает тень, рисовалось в карту теней дважды); на «Ультра» — мягче
 	if ULSettings.shadows() >= 1 and not arena:
@@ -3295,7 +3308,21 @@ func _btn(text: String, cb: Callable, w := 110.0) -> Button:
 	return b
 
 
+## резкость: проход поверх 3D (см. ULSharpen); в проверках выключена, если не задано --as-sharp=
+var _sharp: ULSharpen
+var _sharp_test := -1
+
+
+func _sharp_apply() -> void:
+	if _sharp == null:
+		_sharp = ULSharpen.new()
+		add_child(_sharp)
+	var lv := ULSettings.sharp if test == "" else maxi(_sharp_test, 0)
+	_sharp.set_level(lv, get_viewport().scaling_3d_scale)
+
+
 func _ui() -> void:
+	_sharp_apply()
 	var ui := CanvasLayer.new()
 	add_child(ui)
 	_hud = Control.new()
@@ -4515,9 +4542,14 @@ func _pano(shots: Array, px: Vector2i) -> void:
 	add_child(sv)
 	var tc := Camera3D.new()
 	tc.near = 1.0
-	tc.far = 600.0
+	tc.far = 1500.0
 	sv.add_child(tc)
 	tc.current = true
+	# у игровой камеры горизонта в кадре нет (фон — ровный цвет); у обзорной — есть: небо из тех же настроек
+	var bg0 := world_env.background_mode
+	var fsa0 := world_env.fog_sky_affect
+	world_env.background_mode = Environment.BG_SKY
+	world_env.fog_sky_affect = 0.55
 	var fog0 := world_env.fog_enabled
 	var fb0 := world_env.fog_depth_begin
 	var fe0 := world_env.fog_depth_end
@@ -4545,6 +4577,8 @@ func _pano(shots: Array, px: Vector2i) -> void:
 	world_env.fog_enabled = fog0
 	world_env.fog_depth_begin = fb0
 	world_env.fog_depth_end = fe0
+	world_env.background_mode = bg0
+	world_env.fog_sky_affect = fsa0
 	sv.queue_free()
 
 
@@ -10053,6 +10087,7 @@ func open_settings() -> void:
 			sun.shadow_enabled = _shadow_pref
 		_res_fails = 0
 		_res_hold = 0.0
+		_sharp_apply()
 		_cam_apply(), [
 		["Главное меню", func() -> void:
 			if lvl:
@@ -10120,6 +10155,7 @@ func _auto_res(delta: float) -> void:
 	vp.msaa_3d = (Viewport.MSAA_4X if ms >= 4 else Viewport.MSAA_2X) if bool(nx.msaa) else Viewport.MSAA_DISABLED
 	if sun:
 		sun.shadow_enabled = bool(nx.shadows)
+	_sharp_apply()                                     # сила резкости — по новой доле разрешения
 
 
 var _res_fails := 0
@@ -11974,6 +12010,37 @@ func _run_test() -> void:
 		return
 	if test == "qrview":
 		await _qr_view()
+		get_tree().quit()
+		return
+	if test == "gqview":
+		# один и тот же кадр игровой камеры при разной доле разрешения 3D и разной резкости — для сравнения
+		var tg0 := Time.get_ticks_msec()
+		while temp() and not cs_ready and Time.get_ticks_msec() - tg0 < 30000:
+			await get_tree().process_frame
+		DirAccess.make_dir_recursive_absolute(out)
+		for a in OS.get_cmdline_user_args():
+			if a.begins_with("--as-at="):
+				var xz := a.substr(8).split(",")
+				var q0 := Vector3(float(xz[0]), 0, float(xz[1]))
+				player.global_position = NavigationServer3D.map_get_closest_point(get_world_3d().navigation_map, q0) + Vector3.UP * 0.1
+		player.velocity = Vector3.ZERO
+		for e in enemies:
+			e.visible = false                       # кадр должен быть неподвижным: без врагов (и их ИИ)
+		enemies.clear()
+		targets.clear()
+		_cam_ready = false
+		await get_tree().create_timer(4.0).timeout
+		var vpg := get_viewport()
+		for sc in [0.62, 0.7, 0.85, 1.0]:
+			for lv in [0, 1, 2]:
+				vpg.scaling_3d_scale = sc
+				vpg.msaa_3d = Viewport.MSAA_2X if sc >= 0.85 else Viewport.MSAA_DISABLED   # как оставляет подстройка
+				_sharp_test = lv
+				_sharp_apply()
+				for i in 4:
+					await get_tree().process_frame
+				await _snap("gq_%d_s%d" % [int(round(sc * 100.0)), lv])
+				print("[gq] %d %% резкость %d" % [int(round(sc * 100.0)), lv])
 		get_tree().quit()
 		return
 	if test == "khview":

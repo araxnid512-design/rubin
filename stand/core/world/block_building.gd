@@ -51,6 +51,7 @@ uniform float sat = 1.0;
 uniform float second_bias = 0.0;
 uniform float streaks = 0.0;
 uniform float rusty = 0.0;
+uniform bool sheet = false;           // кровля из листов профнастила: волна вдоль ската, листы разного тона, нахлёсты
 uniform float storey = 3.3;
 uniform float cut_y = 1000.0;
 uniform vec4 hole = vec4(0.5, 0.5, 0.0, 0.0);
@@ -74,7 +75,8 @@ void fragment() {
 	}
 	vec3 an = abs(wnrm);
 	vec2 uv;
-	if (an.y > 0.6) { uv = wpos.xz; }
+	bool top = an.y > 0.6;
+	if (top) { uv = (sheet && an.x > an.z) ? wpos.zx : wpos.xz; }
 	else if (an.x > an.z) { uv = vec2(wpos.z, -wpos.y); }
 	else { uv = vec2(wpos.x, -wpos.y); }
 	uv /= scale;
@@ -82,7 +84,7 @@ void fragment() {
 	// пол: против повтора досок — второй кусок той же текстуры со сдвигом (доски того же направления и
 	// ширины), смешанный крупными пятнами шума; швы плиток текстуры больше не идут ровной сеткой
 	float fl = 0.0;
-	if (an.y > 0.6) {
+	if (top && !sheet) {
 		fl = smoothstep(0.42, 0.58, texture(noise, wpos.xz / 4.3 + vec2(0.19, 0.83)).r);
 		c = mix(c, texture(albedo_tex, uv + vec2(0.37, 0.61)).rgb, fl);
 	}
@@ -92,6 +94,15 @@ void fragment() {
 	float mean = mean_l;
 	c *= clamp(mix(1.0, macro / max(mean, 0.05), 0.4), 0.7, 1.3);
 	c = mix(vec3(dot(c, vec3(0.3, 0.59, 0.11))), c, sat) * tint.rgb;
+	if (sheet && top) {
+		// листы кровли 1,05 × 2,4 м со сдвигом через ряд: у каждого свой тон, по нахлёсту — тёмная линия
+		vec2 cell = uv * scale / vec2(1.05, 2.4);
+		cell.y += 0.5 * step(0.5, fract(floor(cell.x) * 0.5));
+		c *= mix(0.78, 1.14, texture(noise, (floor(cell) + 0.5) / 37.0).r);
+		vec2 f = fract(cell);
+		float seam = min(min(f.x, 1.0 - f.x) * 1.05, min(f.y, 1.0 - f.y) * 2.4);
+		c *= mix(0.7, 1.0, smoothstep(0.0, 0.04, seam));
+	}
 	float n = texture(noise, wpos.xz / 5.0 + vec2(wpos.y * 0.11, -wpos.y * 0.07)).r;
 	float hy = paint ? mod(wpos.y + 0.02, storey) : wpos.y;
 	if (paint && an.y < 0.6) {
@@ -121,7 +132,8 @@ void fragment() {
 		float rp = texture(noise, vec2(wpos.x * 0.35, wpos.z * 0.35) + vec2(wpos.y * 0.9, 0.0)).r;
 		float rs = texture(noise, vec2((wpos.x - wpos.z) * 0.9, (wpos.x + wpos.z) * 0.08)).r;
 		float r = smoothstep(0.55, 0.78, rp * 0.6 + rs * 0.4);
-		c = mix(c, c * vec3(0.95, 0.55, 0.32) + vec3(0.06, 0.02, 0.0), r * rusty);
+		// на листовой кровле ржавчина бурая и ложится на тон листа, а не рыжими пятнами по светлой жести
+		c = sheet ? mix(c, c * vec3(0.74, 0.5, 0.36), r * rusty) : mix(c, c * vec3(0.95, 0.55, 0.32) + vec3(0.06, 0.02, 0.0), r * rusty);
 	}
 	c *= mix(0.88, 1.06, texture(noise, wpos.xz / 23.0 + wpos.y * 0.013).r);
 	ALBEDO = c;
@@ -172,8 +184,8 @@ const MATS := {
 	"green": ["worn_plaster_wall", 1.0, Color(0.25, 0.42, 0.26), 0.0, 0.95, {"sat": 0.2}],
 	"rust": ["rusty_corrugated_iron", 1.4, Color(1.2, 1.15, 1.1), 0.2, 0.7, {"sat": 0.62}],
 	# карьер: старый профнастил — тёмно-бурая ржавчина с серыми потёками (по видео-образцу), не «черепица»
-	"q_rust": ["rusty_corrugated_iron", 1.6, Color(0.74, 0.6, 0.5), 0.55, 0.8, {"sat": 0.5, "streaks": 0.8}],
-	"q_tin": ["worn_corrugated_iron", 1.6, Color(0.62, 0.62, 0.6), 0.5, 0.65, {"metal": 0.2, "sat": 0.35, "rusty": 1.0, "streaks": 0.6}],
+	"q_rust": ["worn_corrugated_iron", 2.2, Color(0.6, 0.53, 0.47), 0.5, 0.78, {"sat": 0.5, "rusty": 0.85, "sheet": true}],
+	"q_tin": ["worn_corrugated_iron", 2.2, Color(0.62, 0.62, 0.6), 0.5, 0.65, {"metal": 0.2, "sat": 0.35, "rusty": 0.5, "sheet": true}],
 	"canvas": ["worn_plaster_wall", 2.2, Color(0.46, 0.5, 0.33), 0.5, 0.96, {"sat": 0.25, "streaks": 0.6}],
 	"canvas_in": ["worn_plaster_wall", 2.2, Color(0.6, 0.62, 0.46), 0.3, 0.96, {"sat": 0.25}],
 	"armygreen": ["rusty_metal_02", 1.6, Color(0.5, 0.58, 0.42), 0.5, 0.6, {"metal": 0.3, "sat": 0.15, "streaks": 0.8}],
@@ -271,6 +283,7 @@ static func make_materials(noise: Texture2D) -> void:
 		m.set_shader_parameter("rough", float(d[4]))
 		m.set_shader_parameter("streaks", float(ex.get("streaks", 0.0)))
 		m.set_shader_parameter("rusty", float(ex.get("rusty", 0.0)))
+		m.set_shader_parameter("sheet", bool(ex.get("sheet", false)))
 		m.set_shader_parameter("sat", float(ex.get("sat", 1.0)))
 		m.set_shader_parameter("metal", float(ex.get("metal", 0.0)))
 		m.set_shader_parameter("storey", float(ex.get("storey", STOREY)))

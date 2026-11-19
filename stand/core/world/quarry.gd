@@ -771,6 +771,7 @@ func build(world: Node3D) -> void:
 	props.name = "Props"
 	add_child(props)
 	_q_forest(rng)
+	_q_outskirts()
 	var tris := _q_pit()
 	tris.append_array(_q_pond())
 	tris.append_array(_q_ground())
@@ -786,6 +787,7 @@ func build(world: Node3D) -> void:
 	_c_vegetation()
 	_q_spots(rng)
 	_light_pool()
+	_q_glows()
 	add_child(body)
 	if w.test == "qrbake":
 		var cr := ULBlockCache.new()
@@ -796,6 +798,242 @@ func build(world: Node3D) -> void:
 		var err := ResourceSaver.save(cr, Q_CACHE, ResourceSaver.FLAG_COMPRESS)
 		print("[bake] кэш построек карьера: %s (%s)" % [Q_CACHE, error_string(err)])
 	print("[quarry] карьер собран: %d мс, построек %d, столкновений %d, треугольников земли %d, тайников в помещениях %d, вне — %d" % [Time.get_ticks_msec() - t0, blds.size(), body.get_child_count(), tris.size() / 3, _count_cont(), extra.size()])
+
+
+# ---------------- окружение: лес за краем поля, холмы, свет у входов ----------------
+
+## Ель «для дали»: ствол и три конуса, 32 треугольника, цвет — в вершинах (низ ярусов темнее). Высота 11 м.
+func _far_spruce() -> ArrayMesh:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var bark := Color(0.5, 0.36, 0.26)
+	for i in 4:
+		var a0 := TAU * i / 4.0
+		var a1 := TAU * (i + 1) / 4.0
+		var b0 := Vector3(cos(a0), 0, sin(a0))
+		var b1 := Vector3(cos(a1), 0, sin(a1))
+		var v := [b0 * 0.2, b1 * 0.2, b1 * 0.14 + Vector3.UP * 2.4, b0 * 0.14 + Vector3.UP * 2.4]
+		var nn := [b0, b1, b1, b0]
+		for k in [0, 2, 1, 0, 3, 2]:
+			st.set_normal(nn[k])
+			st.set_color(bark)
+			st.add_vertex(v[k])
+	var tier := 0
+	for c in [[1.5, 5.8, 2.7], [4.2, 8.6, 2.0], [7.0, 11.0, 1.25]]:
+		var y0 := float(c[0])
+		var y1 := float(c[1])
+		var r := float(c[2])
+		var slope := r / (y1 - y0)
+		var lo := Color(0.34, 0.42, 0.36) * (0.8 + 0.1 * tier)
+		var hi := Color(0.95, 1.0, 0.78) * (0.84 + 0.08 * tier)
+		for i in 8:
+			var a0 := TAU * (i + 0.5 * tier) / 8.0
+			var a1 := TAU * (i + 1 + 0.5 * tier) / 8.0
+			var am := (a0 + a1) * 0.5
+			var d0 := Vector3(cos(a0), 0, sin(a0))
+			var d1 := Vector3(cos(a1), 0, sin(a1))
+			var dm := Vector3(cos(am), 0, sin(am))
+			# обход — как у ствола (лицевая сторона наружу): низ0, верх, низ1
+			st.set_normal((d0 + Vector3.UP * slope).normalized())
+			st.set_color(lo)
+			st.add_vertex(d0 * r + Vector3.UP * y0)
+			st.set_normal((dm + Vector3.UP * slope).normalized())
+			st.set_color(hi)
+			st.add_vertex(Vector3.UP * y1)
+			st.set_normal((d1 + Vector3.UP * slope).normalized())
+			st.set_color(lo)
+			st.add_vertex(d1 * r + Vector3.UP * y0)
+		tier += 1
+	var m := StandardMaterial3D.new()
+	m.vertex_color_use_as_albedo = true
+	m.albedo_color = Color(0.15, 0.21, 0.125)
+	m.roughness = 1.0
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_PER_VERTEX
+	m.cull_mode = BaseMaterial3D.CULL_DISABLED
+	st.set_material(m)
+	return st.commit()
+
+
+## За краем поля — сплошной ельник, дальше — лесистые холмы в дымке: карта не «висит в пустоте», а с уступов
+## и у границы поля за туманом виден лес. Туда не дойти (граница — в 9 м за краем поля), поэтому всё самое
+## дешёвое: ель — 32 треугольника, свет по вершинам, без теней и столкновений; участками 100 × 100 м (камера
+## отсекает невидимые). Ближе 22 м к краю поля высоких елей нет: камера висит в 7 м позади героя на высоте
+## 9,5 м — крона закрыла бы обзор. Свой генератор случайных чисел: расстановка на поле (и карта проходимости)
+## от этого не меняется.
+func _q_outskirts() -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 90417
+	var mesh := _far_spruce()
+	var cells := {}
+	var lim := 204.0
+	var x := -lim
+	while x <= lim:
+		var z := -lim
+		while z <= lim:
+			var q := Vector2(x + rng.randf_range(-2.3, 2.3), z + rng.randf_range(-2.3, 2.3))
+			var kx := rng.randf()
+			var kn := rng.randf()
+			var sc := rng.randf_range(0.8, 1.45)
+			var sy := rng.randf_range(0.9, 1.25)
+			var yaw := rng.randf() * TAU
+			var tone := rng.randf()
+			z += 5.6
+			var d := maxf(absf(q.x) - HX, absf(q.y) - HZ)
+			if d < 22.0:
+				continue
+			if kx < clampf((d - 45.0) / 120.0, 0.0, 0.55):
+				continue                                    # дальше от поля — реже: там всё равно дымка
+			if _noise(q / 70.0 + Vector2(0.11, 0.57)) < 0.3 and kn < 0.75:
+				continue                                    # поляны
+			var key := Vector2i(int(floor(q.x / 100.0)), int(floor(q.y / 100.0)))
+			if not cells.has(key):
+				cells[key] = []
+			# ближние к полю — пониже: кромка леса поднимается от поля вдаль
+			var near := clampf((d - 22.0) / 30.0, 0.0, 1.0)
+			sc *= lerpf(0.62, 1.0, near)
+			cells[key].append([Transform3D(Basis(Vector3.UP, yaw).scaled(Vector3(sc, sc * sy, sc)), Vector3(q.x, -0.15, q.y)), tone])
+		x += 5.6
+	var total := 0
+	for key in cells:
+		var arr: Array = cells[key]
+		var mm := MultiMesh.new()
+		mm.transform_format = MultiMesh.TRANSFORM_3D
+		mm.use_colors = true
+		mm.mesh = mesh
+		mm.instance_count = arr.size()
+		for i in arr.size():
+			mm.set_instance_transform(i, arr[i][0])
+			var t := float(arr[i][1])
+			mm.set_instance_color(i, Color(lerpf(0.78, 1.1, t), lerpf(0.85, 1.05, t), lerpf(0.8, 0.95, t)))
+		var mi := MultiMeshInstance3D.new()
+		mi.name = "FarForest_%d_%d" % [key.x, key.y]
+		mi.multimesh = mm
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(mi)
+		total += arr.size()
+	# земля до горизонта (под лесом — тёмная хвойная подстилка) и холмы: приплюснутые шары в дымке
+	var fm := StandardMaterial3D.new()
+	fm.albedo_color = Color(0.2, 0.22, 0.15)
+	fm.roughness = 1.0
+	fm.shading_mode = BaseMaterial3D.SHADING_MODE_PER_VERTEX
+	# рамка вокруг поля (над общей подложкой, под туманом границы): середина — само поле с выработкой — открыта
+	var fo := 1800.0
+	for r in [[-fo, -fo, fo, -half], [-fo, half, fo, fo], [-fo, -half, -half, half], [half, -half, fo, half]]:
+		var far := MeshInstance3D.new()
+		far.name = "FarGround"
+		var pm := PlaneMesh.new()
+		pm.size = Vector2(float(r[2]) - float(r[0]), float(r[3]) - float(r[1]))
+		far.mesh = pm
+		far.material_override = fm
+		far.position = Vector3((float(r[0]) + float(r[2])) * 0.5, -0.04, (float(r[1]) + float(r[3])) * 0.5)
+		far.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(far)
+	var hm := StandardMaterial3D.new()
+	hm.albedo_color = Color(0.15, 0.2, 0.15)
+	hm.roughness = 1.0
+	hm.shading_mode = BaseMaterial3D.SHADING_MODE_PER_VERTEX
+	var sph := SphereMesh.new()
+	sph.radius = 1.0
+	sph.height = 2.0
+	sph.radial_segments = 20
+	sph.rings = 8
+	for i in 16:
+		var a := TAU * (i + rng.randf_range(-0.25, 0.25)) / 16.0
+		var r := rng.randf_range(520.0, 760.0)
+		var hill := MeshInstance3D.new()
+		hill.mesh = sph
+		hill.material_override = hm
+		hill.position = Vector3(cos(a) * r, -10.0, sin(a) * r)
+		hill.scale = Vector3(rng.randf_range(190.0, 320.0), rng.randf_range(24.0, 52.0), rng.randf_range(150.0, 240.0))
+		hill.rotation.y = rng.randf() * TAU
+		hill.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(hill)
+	print("[quarry] лес за краем поля: %d елей в %d участках (по 32 треугольника)" % [total, cells.size()])
+
+
+const GLOW_SHADER := """shader_type spatial;
+render_mode unshaded, blend_add, depth_draw_never, cull_disabled, shadows_disabled;
+// пятно света на земле: у входа — от двери (UV.y = 0) наружу, у жилы — кругом; цвет и сила — в цвете экземпляра
+varying vec4 tint;
+void vertex() { tint = COLOR; }
+void fragment() {
+	vec2 p = tint.a > 0.5 ? vec2((UV.x - 0.5) * 2.0, UV.y) : (UV - 0.5) * 2.0;
+	float a = 1.0 - smoothstep(0.05, 1.0, length(p));
+	ALBEDO = tint.rgb * a * a;
+}
+"""
+
+
+## Свет у входов и свечение минеральных жил — как в образце: из дверей на землю ложится тёплое пятно, над
+## дверью горит лампа; у жил — холодный голубой отсвет. Источников света нет (на телефоне каждый — заметная цена):
+## пятна — один MultiMesh с прибавляющим смешением, лампы — коробочки со светящимся материалом.
+func _q_glows() -> void:
+	var xs: Array = []          # [Transform3D, Color]
+	var lamps: Array[Transform3D] = []
+	for dd in doors:
+		var d := dd as ULDoor
+		if not d.has_meta("ext") or d.floor_i != 0:
+			continue
+		var n: Vector3 = d.global_transform.basis.z.normalized() if d.is_inside_tree() else d.basis.z.normalized()
+		var c := d.center
+		if bld_dist(Vector2(c.x + n.x * 1.3, c.z + n.z * 1.3)) < bld_dist(Vector2(c.x - n.x * 1.3, c.z - n.z * 1.3)):
+			n = -n
+		var along := Vector3(-n.z, 0, n.x)
+		var wd := maxf(d.width * 2.8, 3.8)
+		var y := height(Vector2(c.x + n.x * 1.5, c.z + n.z * 1.5)) + 0.04
+		# плоскость: x — вдоль стены, z — наружу; UV.y = 0 у двери
+		xs.append([Transform3D(Basis(along * wd, Vector3.UP, n * 5.6), Vector3(c.x, y, c.z) + n * 2.9), Color(1.0, 0.62, 0.26, 1.0) * Color(0.62, 0.62, 0.62, 1.0)])
+		lamps.append(Transform3D(Basis(along, Vector3.UP, n), Vector3(c.x, c.y + 2.42, c.z) + n * 0.2))
+	for dp in deposits:
+		if String(dp.kind) != "vein":
+			continue
+		var p: Vector3 = dp.pos
+		var y2 := height(Vector2(p.x, p.z)) + 0.05
+		xs.append([Transform3D(Basis(Vector3(7.5, 0, 0), Vector3.UP, Vector3(0, 0, 7.5)), Vector3(p.x, y2, p.z)), Color(0.2, 0.5, 1.0, 0.0) * Color(0.5, 0.5, 0.5, 1.0)])
+	print("[quarry] пятна света: %d (у входов %d, у жил %d)" % [xs.size(), lamps.size(), xs.size() - lamps.size()])
+	if not xs.is_empty():
+		var qm := QuadMesh.new()
+		qm.size = Vector2(1, 1)
+		qm.orientation = PlaneMesh.FACE_Y
+		var sh := Shader.new()
+		sh.code = GLOW_SHADER
+		var gm := ShaderMaterial.new()
+		gm.shader = sh
+		gm.render_priority = 3
+		qm.material = gm
+		var mm := MultiMesh.new()
+		mm.transform_format = MultiMesh.TRANSFORM_3D
+		mm.use_colors = true
+		mm.mesh = qm
+		mm.instance_count = xs.size()
+		for i in xs.size():
+			mm.set_instance_transform(i, xs[i][0])
+			mm.set_instance_color(i, xs[i][1])
+		var mi := MultiMeshInstance3D.new()
+		mi.name = "Glows"
+		mi.multimesh = mm
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(mi)
+	if not lamps.is_empty():
+		var bm := BoxMesh.new()
+		bm.size = Vector3(0.34, 0.14, 0.2)
+		var lm := StandardMaterial3D.new()
+		lm.albedo_color = Color(1.0, 0.9, 0.7)
+		lm.emission_enabled = true
+		lm.emission = Color(1.0, 0.74, 0.4)
+		lm.emission_energy_multiplier = 2.6
+		bm.material = lm
+		var mm2 := MultiMesh.new()
+		mm2.transform_format = MultiMesh.TRANSFORM_3D
+		mm2.mesh = bm
+		mm2.instance_count = lamps.size()
+		for i in lamps.size():
+			mm2.set_instance_transform(i, lamps[i])
+		var mi2 := MultiMeshInstance3D.new()
+		mi2.name = "DoorLamps"
+		mi2.multimesh = mm2
+		mi2.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(mi2)
 
 
 # ---------------- предметы и техника ----------------

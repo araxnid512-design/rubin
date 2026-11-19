@@ -24,6 +24,7 @@ static var res_pct := 0
 static var shadows_o := -1
 static var grass_o := -1.0
 static var auto_fps := true
+static var sharp := 1                      ## резкость картинки (ULSharpen): 0 — выкл, 1 — мягкая, 2 — сильная
 ## Камера: угол наклона (от земли) и поворот вокруг героя. «С наклоном» — как в DoZ Survival, «По диагонали» —
 ## как в Last Day on Earth (дома и заборы — ромбом).
 const CAMS := [
@@ -66,6 +67,7 @@ static func load_cfg() -> void:
 			shadows_o = int(d.get("shadows", -1)) if SHADOW_OPTS.has(int(d.get("shadows", -1))) else -1
 			grass_o = float(d.get("grass", -1.0))
 			auto_fps = bool(d.get("auto", true))
+			sharp = clampi(int(d.get("sharp", 1)), 0, 2)
 			volume = clampf(float(d.get("volume", 0.8)), 0.0, 1.0)
 			cam = clampi(int(d.get("cam", 1)), 0, CAMS.size() - 1)
 
@@ -73,7 +75,7 @@ static func load_cfg() -> void:
 static func save_cfg() -> void:
 	var f := FileAccess.open(PATH, FileAccess.WRITE)
 	if f:
-		f.store_string(JSON.stringify({"gfx": gfx, "volume": volume, "cam": cam, "res": res_pct, "shadows": shadows_o, "grass": grass_o, "auto": auto_fps}))
+		f.store_string(JSON.stringify({"gfx": gfx, "volume": volume, "cam": cam, "res": res_pct, "shadows": shadows_o, "grass": grass_o, "auto": auto_fps, "sharp": sharp}))
 
 
 ## действующие настройки графики: пресет и свои поправки поверх
@@ -202,6 +204,7 @@ static func panel(parent: Node, changed: Callable, extra: Array = []) -> Control
 	choice.call("Разрешение 3D", ["Как в качестве", "60 %", "70 %", "80 %", "90 %", "100 %"], func() -> int: return RES_OPTS.find(res_pct), func(j: int) -> void: res_pct = int(RES_OPTS[j]))
 	choice.call("Тени", ["Как в качестве", "Выкл", "Хорошие", "Лучшие"], func() -> int: return SHADOW_OPTS.find(shadows_o), func(j: int) -> void: shadows_o = int(SHADOW_OPTS[j]))
 	choice.call("Трава", ["Как в качестве", "Мало", "Средне", "Много"], func() -> int: return maxi(0, GRASS_OPTS.find(grass_o)), func(j: int) -> void: grass_o = float(GRASS_OPTS[j]))
+	choice.call("Резкость", ["Выкл", "Мягкая", "Сильная"], func() -> int: return sharp, func(j: int) -> void: sharp = j)
 	choice.call("Подстройка FPS", ["Вкл", "Выкл"], func() -> int: return 0 if auto_fps else 1, func(j: int) -> void: auto_fps = j == 0)
 	vb.add_child(lab.call("Подстройка держит плавность: при нехватке FPS сначала снимает сглаживание, потом тени и только потом понижает разрешение (не ниже 62 %). Трава и тени меняются при следующем входе на локацию.", 13, Color(0.62, 0.68, 0.76)))
 	# камера: сверху / с наклоном / по диагонали
