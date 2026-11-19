@@ -4496,6 +4496,58 @@ func _foot_slide(body: CharacterBody3D, sk: Skeleton3D, sec: float) -> Array:
 	return [sp / maxf(n, 1), slide / maxf(slide_n, 1)]
 
 
+## Обзорные снимки отдельной камерой в своё окно отрисовки: без кнопок интерфейса, без ограничения дальности
+## прорисовки (она рассчитана на игровую камеру). shots — [имя, где камера, куда смотрит, угол обзора (0 — без
+## перспективы, отвесно вниз)]. Дымка остаётся (для вида «как в игре»), кроме снимка без перспективы.
+func _pano(shots: Array, px: Vector2i) -> void:
+	await get_tree().create_timer(1.0).timeout
+	for n in get_tree().root.find_children("*", "GeometryInstance3D", true, false):
+		(n as GeometryInstance3D).visibility_range_end = 0.0
+	if sun.shadow_enabled:
+		sun.directional_shadow_max_distance = 320.0
+		RenderingServer.directional_shadow_atlas_set_size(8192, true)
+	var sv := SubViewport.new()
+	sv.size = px
+	sv.world_3d = get_viewport().world_3d
+	sv.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	sv.msaa_3d = Viewport.MSAA_4X
+	sv.mesh_lod_threshold = 0.0
+	add_child(sv)
+	var tc := Camera3D.new()
+	tc.near = 1.0
+	tc.far = 600.0
+	sv.add_child(tc)
+	tc.current = true
+	var fog0 := world_env.fog_enabled
+	var fb0 := world_env.fog_depth_begin
+	var fe0 := world_env.fog_depth_end
+	for sp in shots:
+		var ortho := float(sp[3]) <= 0.0
+		if ortho:
+			tc.projection = Camera3D.PROJECTION_ORTHOGONAL
+			tc.size = maxf(size_m, size_z) + 8.0
+			tc.look_at_from_position(sp[1], sp[2], Vector3(0, 0, -1))
+			world_env.fog_enabled = false
+		else:
+			tc.projection = Camera3D.PROJECTION_PERSPECTIVE
+			tc.fov = float(sp[3])
+			tc.look_at_from_position(sp[1], sp[2], Vector3.UP)
+			# дымка игры рассчитана на камеру в 12 м от героя; для обзора с высоты — та же густота на своём расстоянии
+			world_env.fog_enabled = fog0
+			var dist := (sp[1] as Vector3).distance_to(sp[2])
+			world_env.fog_depth_begin = dist * 0.75
+			world_env.fog_depth_end = dist * 3.2
+		for i in 6:
+			await get_tree().process_frame
+		await RenderingServer.frame_post_draw
+		sv.get_texture().get_image().save_png("%s/%s.png" % [out, String(sp[0])])
+		print("[pano] %s" % String(sp[0]))
+	world_env.fog_enabled = fog0
+	world_env.fog_depth_begin = fb0
+	world_env.fog_depth_end = fe0
+	sv.queue_free()
+
+
 func _snap(name: String) -> void:
 	if DisplayServer.get_name() == "headless":
 		return                                  # без экрана снимка нет (и кадр отрисовки не наступит)
@@ -11893,6 +11945,24 @@ func _run_test() -> void:
 		get_tree().quit()
 		return
 	if test == "csbake" or test == "snbake" or test == "cvbake" or test == "khbake" or test == "lrbake" or test == "qrbake":
+		get_tree().quit()
+		return
+	if test == "qrpano":
+		# обзорные снимки карьера с высоты (как пролёт над локацией): общий вид с юга, посёлок, выработка, сверху
+		var tq0 := Time.get_ticks_msec()
+		while not cs_ready and Time.get_ticks_msec() - tq0 < 30000:
+			await get_tree().process_frame
+		DirAccess.make_dir_recursive_absolute(out)
+		var shots := [["p0_south", Vector3(12, 78, 138), Vector3(14, 0, 4), 46.0], ["p1_village", Vector3(-118, 52, 78), Vector3(-30, 0, -14), 46.0],
+			["p2_pit", Vector3(-2, 46, 62), Vector3(44, -8, -8), 50.0], ["p3_crusher", Vector3(34, 30, 86), Vector3(64, -2, 34), 46.0],
+			["p4_gate", Vector3(-70, 26, 98), Vector3(-52, 0, 44), 46.0], ["p5_top", Vector3(0, 220, 0.01), Vector3.ZERO, 0.0]]
+		var only := ""
+		for a in OS.get_cmdline_user_args():
+			if a.begins_with("--as-only="):
+				only = a.substr(10)
+		if only != "":
+			shots = shots.filter(func(sp): return only.split(",").has(String(sp[0])))
+		await _pano(shots, Vector2i(1920, 1104))
 		get_tree().quit()
 		return
 	if test == "qrview":
