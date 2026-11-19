@@ -3861,7 +3861,7 @@ func _shoot(it: Dictionary, d: Dictionary) -> void:
 	var pellets := int(fc.get("pellets", 1))
 	var spread := deg_to_rad(float(fc.get("spread", 0.6 if pellets == 1 else 2.2)))
 	var space := get_world_3d().direct_space_state
-	var reach := float(d.get("range", 28.0)) + 12.0
+	var reach := float(d.get("range", 28.0)) + 1.0          # дальше своей дальности пуля не летит и не ранит
 	for i in pellets:
 		var dir := (f + Vector3(randf_range(-1, 1), randf_range(-0.4, 0.4), randf_range(-1, 1)) * tan(spread)).normalized()
 		var q := PhysicsRayQueryParameters3D.create(from, from + dir * reach)
@@ -4406,6 +4406,42 @@ func _auto_vec() -> Vector2:
 	var right := Vector3(-fwd.z, 0, fwd.x)
 	var dn := d.normalized()
 	return Vector2(dn.dot(right), -dn.dot(fwd)) * _auto_k
+
+
+## замер походки: средняя скорость тела и скольжение стопы, стоящей на земле (носок не выше 3 см над самым
+## низким положением два кадра отрисовки подряд), м/с
+func _foot_slide(body: CharacterBody3D, sk: Skeleton3D, sec: float) -> Array:
+	var prev := {}
+	var slide := 0.0
+	var slide_n := 0
+	var sp := 0.0
+	var n := 0
+	var t := 0.0
+	while t < sec:
+		await get_tree().process_frame
+		var dt := get_process_delta_time()
+		t += dt
+		var mv := Vector3(body.velocity.x, 0, body.velocity.z)
+		if mv.length() < 0.4:
+			prev.clear()
+			continue
+		sp += mv.length()
+		n += 1
+		for fn in ["L_ToeBase", "R_ToeBase"]:
+			var fp: Vector3 = sk.global_transform * sk.get_bone_global_pose(sk.find_bone(fn)).origin
+			var rel_y: float = fp.y - body.global_position.y
+			if not prev.has("low") or rel_y < float(prev.low):
+				prev["low"] = rel_y
+			if prev.has(fn) and dt > 0.0:
+				var py: float = (prev[fn] as Vector3).y - float(prev.get("gy", body.global_position.y))
+				if rel_y < float(prev.low) + 0.03 and py < float(prev.low) + 0.03:
+					var dv: Vector3 = fp - (prev[fn] as Vector3)
+					dv.y = 0.0
+					slide += dv.length() / dt
+					slide_n += 1
+			prev[fn] = fp
+		prev["gy"] = body.global_position.y
+	return [sp / maxf(n, 1), slide / maxf(slide_n, 1)]
 
 
 func _snap(name: String) -> void:
@@ -8164,14 +8200,26 @@ func _inv_test() -> void:
 	await get_tree().create_timer(2.6).timeout
 	_ok("после перезарядки магазин полон (30), запас 0", int(inv.primary.mag) == 30 and inv.count("a545") == 0, "магазин %d, запас %d" % [int(inv.primary.mag), inv.count("a545")])
 	# пули: летят от ствола, урон — когда долетят
-	player.global_position = mq.global_position + Vector3(-12.0, 0.05, 0.0)
+	player.global_position = mq.global_position + Vector3(-9.0, 0.05, 0.0)
 	await get_tree().create_timer(0.3).timeout
 	var hh := hits
 	_atk_cd = 0.0
 	attack()
 	_ok("выстрел: пуля в полёте, попадания ещё нет", _bullets.size() == 1 and hits == hh and (_bullets[0].n as MeshInstance3D).visible)
 	await get_tree().create_timer(0.45).timeout
-	_ok("пуля долетела за время полёта (12 м): попадание засчитано", _bullets.is_empty() and hits == hh + 1)
+	_ok("пуля долетела за время полёта (9 м): попадание засчитано", _bullets.is_empty() and hits == hh + 1)
+	# дальше своей дальности оружие не бьёт: цель в 14 м (АК-74М — 11 м) — прицел её не берёт, пуля до неё не долетает
+	player.global_position = mq.global_position + Vector3(-14.0, 0.05, 0.0)
+	await get_tree().create_timer(0.3).timeout
+	var hh2 := hits
+	var out_t = _nearest_target(float(ULItems.get_def("ak74m").range), 180.0, true)
+	_atk_cd = 0.0
+	attack()
+	await get_tree().create_timer(0.5).timeout
+	_ok("цель дальше дальности оружия (14 м при 11 м): прицел её не берёт, пуля не долетает, урона нет", out_t == null and hits == hh2 and _bullets.is_empty(),
+		"цель %s, попаданий %d → %d" % [str(out_t), hh2, hits])
+	player.global_position = mq.global_position + Vector3(-9.0, 0.05, 0.0)
+	await get_tree().create_timer(0.2).timeout
 	inv.primary = I.make("spas12")
 	inv.add(I.make("a12", 8))
 	_apply_gear()
@@ -9104,7 +9152,7 @@ func _lair_test() -> void:
 	_ok("за ушедшим героем гонится не дальше %d м от своего места (отошёл на %.1f м)" % [int(ak.gun.pursue_r), maxd], maxd <= float(ak.gun.pursue_r) + 2.0)
 	# укрытие: мур у юго-восточного угла склада, герой на открытом месте — между очередями уходит за стену и садится
 	park.call(ak, snapf.call(Vector3(-26, 0, 30.5)))
-	player.global_position = snapf.call(Vector3(-22, 0, 14)) + Vector3.UP * 0.1
+	player.global_position = snapf.call(Vector3(-24, 0, 21)) + Vector3.UP * 0.1
 	await get_tree().create_timer(0.2).timeout
 	ak.hear(player.global_position)
 	var cv0 := ak.covers
@@ -9124,7 +9172,7 @@ func _lair_test() -> void:
 	var ps: Vector3 = snapf.call(Vector3(14, 0, 40))
 	park.call(sg, ps)
 	sg.rotation.y = PI
-	player.global_position = snapf.call(Vector3(14, 0, 24)) + Vector3.UP * 0.1
+	player.global_position = snapf.call(Vector3(14, 0, 29.5)) + Vector3.UP * 0.1
 	var d_first := -1.0
 	var sh_s := sg.shots
 	var lat := 0.0
@@ -12163,6 +12211,103 @@ func _run_test() -> void:
 			print("[loco] %s: кадров %d, наибольшее отклонение тела от направления бега %.0f°, таз уходит вбок от капсулы %.2f…%.2f м, скорость %.1f м/с" % [e.def.n, n, face_dev, lat_min, lat_max, Vector3(e.velocity.x, 0, e.velocity.z).length()])
 		get_tree().quit()
 		return
+	if test == "murmove":
+		# Как ходит мур: дозор шагом, подход к герою, бой (стойка, шаг боком, укрытие). Кадры — своей камерой
+		# рядом с муром; замеры — куда смотрит тело относительно движения, скользят ли стопы, какой клип шага.
+		DirAccess.make_dir_recursive_absolute(out)
+		var kind := "mur_ak"
+		for a in OS.get_cmdline_user_args():
+			if a.begins_with("--as-kind="):
+				kind = a.substr(10)
+		player.global_position = Vector3(0, 0.05, 46)
+		var m := spawn_enemy(kind, Vector3(-4, 0, 16)) as ULMur
+		m.patrol = PackedVector3Array([Vector3(-4, 0, 16), Vector3(6, 0, 16), Vector3(6, 0, 24), Vector3(-4, 0, 24)])
+		var c2 := Camera3D.new()
+		add_child(c2)
+		c2.fov = 34.0
+		c2.current = true
+		var follow := func() -> void:
+			var t: Vector3 = m.global_position + Vector3.UP * 0.9
+			c2.global_position = t + Vector3(sin(CAM_YAW) * cos(0.62), sin(0.62), cos(CAM_YAW) * cos(0.62)) * 7.5
+			c2.look_at(t, Vector3.UP)
+		var measure := func(sec: float, tag: String, shots: Array) -> void:
+			var sk: Skeleton3D = m.rig.skel
+			var dev := 0.0
+			var dev_sum := 0.0
+			var n := 0
+			var slide := 0.0
+			var slide_n := 0
+			var prev := {}
+			var sp_sum := 0.0
+			var t := 0.0
+			var si := 0
+			var states := {}
+			while t < sec:
+				# по кадрам отрисовки: поза скелета обновляется в них (между ними тело идёт, а поза стоит)
+				await get_tree().process_frame
+				var dt := get_process_delta_time()
+				t += dt
+				follow.call()
+				states["%s/%s" % [m.state, m.phase]] = true
+				var mv := Vector3(m.velocity.x, 0, m.velocity.z)
+				if mv.length() > 0.4:
+					var lt: Vector3 = sk.global_transform * sk.get_bone_global_pose(sk.find_bone("L_Thigh")).origin
+					var rt: Vector3 = sk.global_transform * sk.get_bone_global_pose(sk.find_bone("R_Thigh")).origin
+					var left := lt - rt
+					left.y = 0.0
+					var body_fwd := left.cross(Vector3.UP).normalized()
+					var a := rad_to_deg(body_fwd.angle_to(mv.normalized()))
+					dev = maxf(dev, a)
+					dev_sum += a
+					n += 1
+					sp_sum += mv.length()
+					# скольжение: стопа, которая стоит на земле два кадра подряд (носок не выше 3 см над самым низким
+					# положением), должна оставаться на месте
+					var pos := {}
+					for fn in ["L_ToeBase", "R_ToeBase"]:
+						var fp: Vector3 = sk.global_transform * sk.get_bone_global_pose(sk.find_bone(fn)).origin
+						pos[fn] = fp
+						var rel_y: float = fp.y - m.global_position.y
+						if not prev.has("low") or rel_y < float(prev.low):
+							prev["low"] = rel_y
+						if prev.has(fn) and dt > 0.0:
+							var py: float = (prev[fn] as Vector3).y - float(prev.get("gy", m.global_position.y))
+							if rel_y < float(prev.low) + 0.03 and py < float(prev.low) + 0.03:
+								var dv: Vector3 = fp - (prev[fn] as Vector3)
+								dv.y = 0.0
+								slide += dv.length() / dt
+								slide_n += 1
+					for fn in pos:
+						prev[fn] = pos[fn]
+					prev["gy"] = m.global_position.y
+				if si < shots.size() and t >= float(shots[si]):
+					await _snap("%s_%d" % [tag, si])
+					si += 1
+			print("[murmove] %s: состояния %s; в движении кадров %d, скорость %.2f м/с; тело от направления движения — в среднем %.0f°, наибольшее %.0f°; опорная стопа скользит %.2f м/с; шаг «в любую сторону» %.2f, оружие «%s», поза «%s»" % [
+				tag, str(states.keys()), n, sp_sum / maxf(n, 1), dev_sum / maxf(n, 1), dev, slide / maxf(slide_n, 1), m.rig.dir_w, m.rig.hold.stance_now(), m._body_now])
+		# для сравнения — герой: шагом и бегом по прямой, тот же замер опорной стопы
+		for hk in [[0.36, "шагом"], [1.0, "бегом"]]:
+			_auto_k = float(hk[0])
+			_auto = [player.global_position + Vector3(0, 0, 14)]
+			await get_tree().create_timer(0.8).timeout
+			var hs := await _foot_slide(player, rig.skel, 2.2)
+			_auto.clear()
+			print("[murmove] герой %s: скорость %.2f м/с, опорная стопа скользит %.2f м/с" % [hk[1], hs[0], hs[1]])
+			await get_tree().create_timer(0.4).timeout
+		_auto_k = 0.6
+		player.global_position = Vector3(0, 0.05, 46)
+		await get_tree().create_timer(0.5).timeout
+		print("[murmove] клипы шага: обычные %s; «в любую сторону» %s (есть: %s); герой: %s / %s" % [str(m.rig._speeds), str(m.rig._dir_sp), str(m.rig.has_dir), str(rig._speeds), str(rig._dir_sp)])
+		await measure.call(6.0, "m0_patrol", [1.0, 1.6, 2.2, 2.8, 5.5])
+		# герой показался в 12 м: заметил, идёт на дистанцию стрельбы
+		player.global_position = m.global_position + Vector3(1, 0, 12)
+		player.global_position.y = 0.05
+		await measure.call(4.5, "m1_approach", [0.6, 1.2, 1.8, 2.6, 3.6])
+		# бой на дистанции
+		await measure.call(7.0, "m2_combat", [0.5, 1.5, 2.5, 3.5, 5.0, 6.5])
+		print("[murmove] до героя %.1f м, выстрелов %d, укрытий %d, перезарядок %d" % [m.global_position.distance_to(player.global_position), m.shots, m.covers, m.reloads])
+		get_tree().quit()
+		return
 	if test == "arena":
 		# полигон: площадка 10×10 м, борта, оружие, враги по кнопке
 		DirAccess.make_dir_recursive_absolute(out)
@@ -12441,6 +12586,47 @@ func _run_test() -> void:
 		open_inventory()
 		await get_tree().create_timer(0.5).timeout
 		await _snap("e8_loot_items")
+		get_tree().quit()
+		return
+	if test == "top":
+		# цельный снимок локации сверху: своё окно отрисовки (без кнопок и надписей), камера без перспективы смотрит
+		# отвесно вниз на всё поле; верх снимка — туда же, куда «вверх» на экране в игре (−z)
+		DirAccess.make_dir_recursive_absolute(out)
+		var px := 4096
+		var span := maxf(size_m, size_z) + 6.0
+		for a in OS.get_cmdline_user_args():
+			if a.begins_with("--as-px="):
+				px = int(a.substr(8))
+			elif a.begins_with("--as-span="):
+				span = float(a.substr(10))
+		await get_tree().create_timer(1.5).timeout
+		# дальность прорисовки рассчитана на игровую камеру; на общем снимке видно всё
+		for n in get_tree().root.find_children("*", "GeometryInstance3D", true, false):
+			(n as GeometryInstance3D).visibility_range_end = 0.0
+		world_env.fog_enabled = false
+		if sun.shadow_enabled:
+			sun.directional_shadow_max_distance = span * 2.2
+			RenderingServer.directional_shadow_atlas_set_size(8192, true)
+		var sv := SubViewport.new()
+		sv.size = Vector2i(px, px)
+		sv.world_3d = get_viewport().world_3d
+		sv.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+		sv.msaa_3d = Viewport.MSAA_4X
+		sv.mesh_lod_threshold = 0.0
+		add_child(sv)
+		var tc := Camera3D.new()
+		tc.projection = Camera3D.PROJECTION_ORTHOGONAL
+		tc.size = span
+		tc.near = 1.0
+		tc.far = 260.0
+		sv.add_child(tc)
+		tc.look_at_from_position(Vector3(0, 120, 0), Vector3.ZERO, Vector3(0, 0, -1))
+		tc.current = true
+		for i in 8:
+			await get_tree().process_frame
+		await RenderingServer.frame_post_draw
+		sv.get_texture().get_image().save_png("%s/top.png" % out)
+		print("[top] снимок %d×%d точек, поле %.0f×%.0f м, в кадре %.0f м" % [px, px, size_m, size_z, span])
 		get_tree().quit()
 		return
 	if test == "view":

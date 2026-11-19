@@ -32,7 +32,9 @@ var reloads := 0
 var covers := 0
 var specials := 0
 var phase := ""                     ## в бою: move, aim, fire, pause, reload; главарь: sp_aim, sp_lock, sp_rec
-var _body_now := ""                 ## какая стойка тела сейчас задана (armed_idle / aim_idle / rest_idle)
+var _body_now := ""                 ## какая стойка тела сейчас задана (armed_idle / aim_idle / rest_idle; "" — на ходу)
+var _strafe := false                ## шагает лицом к герою (в любую сторону), а не по ходу
+var _spd := 0.0                     ## скорость с разгоном и торможением, м/с
 var hp_bar: Node3D
 var line: MeshInstance3D
 var _pi := 0
@@ -105,6 +107,12 @@ func damage(d: float, from := Vector3.INF) -> void:
 		_pt = minf(_pt, 0.25)                          # попали — быстрее отвечает
 
 
+## на сколько бьёт оружие мура, м: как у героя — в пределах экрана (снайперу на вышке дальность и зрение
+## увеличивает сама локация)
+func gun_range() -> float:
+	return float(gun.get("range", 11.0))
+
+
 # ---------------- кадр ----------------
 
 func tick(delta: float, p: Vector3, can_see: bool, hero_alive: bool) -> void:
@@ -139,14 +147,34 @@ func tick(delta: float, p: Vector3, can_see: bool, hero_alive: bool) -> void:
 		"chase":
 			speed = _combat(delta, p, to, dist, can_see, hero_alive)
 	_bar_tick(delta, p)
-	# поворот и шаг: в бою идёт, глядя на героя (боком, спиной вперёд) — клипы шага в любую сторону
+	# Поворот и шаг — как у героя. Целится, стреляет, переступает на виду у героя (и главарь, когда пятится) —
+	# стоит лицом к нему и шагает в любую сторону (вперёд, боком, спиной), не быстрее прицельного шага героя.
+	# Бежит к укрытию, ищет героя, идёт дозором — лицом по ходу, обычным шагом и бегом.
+	_strafe = false
+	if state == "chase" and _move_dir.length() > 0.05 and speed > 0.05:
+		var engaged := phase == "aim" or phase == "fire" or phase.begins_with("sp_")
+		if phase == "pause" and can_see and _cover == Vector3.INF:
+			engaged = true
+		if boss and dist < float(gun.get("retreat", 5.0)) + 0.5:
+			engaged = true
+		var md := _move_dir.normalized()
+		var fwdness := md.dot(to.normalized()) if dist > 0.01 else 1.0
+		# идёт почти прямо на героя — это обычный шаг вперёд (клип шага «в сторону взгляда» вперёд — бег: на малой
+		# скорости он шёл бы замедленно и стопы скользили бы); боком и спиной вперёд — шаг в сторону
+		_strafe = engaged and fwdness < 0.75
+		if _strafe:
+			speed = minf(speed, lerpf(2.2, 3.4, clampf((fwdness - 0.2) / 0.7, 0.0, 1.0)))
+		elif not engaged:
+			_face_dir = _move_dir
 	if _face_dir.length() > 0.05:
-		_face(_face_dir, delta, 8.0 if state == "chase" else 5.0)
+		_face(_face_dir, delta, 12.0 if state == "chase" else 7.0)
 	var mv := _move_dir if _move_dir.length() > 0.05 else Vector3(sin(rotation.y), 0, cos(rotation.y))
 	mv = mv.normalized()
 	if speed > 0.05 and _move_dir.length() > 0.05:
 		mv = _steer(mv, delta)
-	velocity = Vector3(mv.x * speed * step_k, velocity.y - 9.8 * delta, mv.z * speed * step_k)
+	# разгон и торможение — не мгновенно (у героя — так же)
+	_spd = move_toward(_spd, speed, delta * (12.0 if speed > _spd else 18.0))
+	velocity = Vector3(mv.x * _spd * step_k, velocity.y - 9.8 * delta, mv.z * _spd * step_k)
 	move_and_slide()
 	velocity.x /= step_k
 	velocity.z /= step_k
@@ -164,7 +192,7 @@ func tick(delta: float, p: Vector3, can_see: bool, hero_alive: bool) -> void:
 	var left := Vector3(cos(rotation.y), 0, -sin(rotation.y))
 	var hv := Vector3(velocity.x, 0, velocity.z)
 	var local := Vector2(hv.dot(left), hv.dot(fwd))
-	rig.set_dir_move(local.normalized() if real > 0.2 and state == "chase" else Vector2.ZERO, real, delta)
+	rig.set_dir_move(local.normalized() if real > 0.2 and _strafe else Vector2.ZERO, real, delta)
 	# в укрытии (дошёл до него и ждёт или перезаряжается) — присел; выглядывает и стреляет — стоя
 	var in_cover := state == "chase" and _cover != Vector3.INF and _cover.distance_to(global_position) < 0.7 and (phase == "pause" or phase == "reload")
 	crouch = move_toward(crouch, 1.0 if in_cover else 0.0, delta * 4.0)
@@ -174,11 +202,15 @@ func tick(delta: float, p: Vector3, can_see: bool, hero_alive: bool) -> void:
 	if rig.hold != null and rig.hold.wid != "":
 		var rifle := String(rig.hold.w.get("mode", "")) == "rifle"
 		rig.hold.still = real < 0.2 and state != "chase"
-		var want := "armed_idle"
-		if rifle and real < 0.2 and crouch < 0.1 and rig.hold.stance == "aim" and rig.info.has("aim_idle"):
-			want = "aim_idle"
-		elif rifle and rig.hold.stance_now() == "rest" and rig.info.has("rest_idle"):
-			want = "rest_idle"
+		# стоит — стойка с оружием (прицел / покой); идёт, бежит или сидит за укрытием — поза снята, тело ведут
+		# клипы шага и приседа (раньше стойка держалась и на ходу: ноги не шагали, мур «ехал»)
+		var want := ""
+		if real < 0.2 and crouch < 0.05:
+			want = "armed_idle"
+			if rifle and rig.hold.stance == "aim" and rig.info.has("aim_idle"):
+				want = "aim_idle"
+			elif rifle and rig.hold.stance_now() == "rest" and rig.info.has("rest_idle"):
+				want = "rest_idle"
 		if want != _body_now:
 			_body_now = want
 			rig.set_pose(want)
@@ -253,7 +285,7 @@ func _combat_inner(delta: float, p: Vector3, to: Vector3, dist: float, can_see: 
 		if rig.hold != null:
 			rig.hold.set_stance("ready")
 		return 0.0
-	var rng_g := float(gun.get("range", 25.0))
+	var rng_g := gun_range()
 	var keep: Array = gun.get("keep", [6, 18])
 	_face_dir = to
 	_cover_t = maxf(0.0, _cover_t - delta)
@@ -399,7 +431,7 @@ func _reposition(delta: float, p: Vector3, to: Vector3, dist: float, keep: Array
 
 
 ## Укрытие: из 14 точек вокруг (2–7 м, на карте проходимости) — где луч от груди героя до груди мура упирается в
-## препятствие (стена, ящики, техника), а до героя по-прежнему в пределах выстрела; ближе — лучше. Дробовик ищет
+## препятствие (стена, ящики, техника), а до героя — не дальше выстрела плюс полтора метра; ближе — лучше. Дробовик ищет
 ## укрытие ближе к герою.
 func _find_cover(p: Vector3, dist: float) -> void:
 	if _cover_t > 0.0 or sniper or not is_inside_tree():
@@ -422,7 +454,8 @@ func _find_cover(p: Vector3, dist: float) -> void:
 		if boss and area.size.x > 0.0 and not area.grow(-0.5).has_point(Vector2(cand.x, cand.z)):
 			continue
 		var dp := Vector2(cand.x - p.x, cand.z - p.z).length()
-		if dp > float(gun.get("range", 25.0)) * 0.95 or dp < 2.5:
+		# укрытие может быть чуть дальше выстрела: отсидится и снова подойдёт на дальность
+		if dp > gun_range() + 1.5 or dp < 2.5:
 			continue
 		# сидя (грудь ~0,8 м) за ящиками, мешками, бочками, техникой, стеной
 		var q := PhysicsRayQueryParameters3D.create(p + Vector3.UP * 1.3, cand + Vector3.UP * 0.8)
@@ -468,7 +501,7 @@ func _fire(p: Vector3, dist: float) -> void:
 	rig.hold.fire()
 	var mz := rig.hold.muzzle_world() if rig.hold != null else []
 	var from: Vector3 = mz[0] if not mz.is_empty() else global_position + Vector3.UP * 1.4
-	var rng_g := float(gun.get("range", 25.0))
+	var rng_g := gun_range()
 	var acc := lerpf(float(gun.get("acc", 0.6)), float(gun.get("acc_far", 0.3)), clampf(dist / rng_g, 0.0, 1.0))
 	var tgt := p + Vector3.UP * 1.15
 	var dirs: Array = []
@@ -491,7 +524,7 @@ func _fire(p: Vector3, dist: float) -> void:
 	var dmg := float(gun.get("dmg", 0.0))
 	if gun.has("dmg_pct"):
 		dmg = -float(gun.dmg_pct)                     # мир переводит долю здоровья героя в урон
-	shoot.emit(from, dirs, dmg, {"range": rng_g + 6.0, "near": float(gun.get("near", 0.0)), "far_k": float(gun.get("far_k", 1.0)),
+	shoot.emit(from, dirs, dmg, {"range": rng_g + 1.0, "near": float(gun.get("near", 0.0)), "far_k": float(gun.get("far_k", 1.0)),
 		"sound": String(gun.get("sound", "shot_ak")), "db": float(gun.get("db", 0.0)), "tracer": String(gun.get("tracer", "a545")), "pellets": pellets})
 
 
