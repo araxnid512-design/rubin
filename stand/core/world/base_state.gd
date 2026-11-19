@@ -103,8 +103,44 @@ static func set_route(id: String, state: String) -> void:
 			(data.done as Array).append(id)      # посещение окончено — локация пройдена до следующего сброса
 		data.routes.erase(id)
 	else:
+		var keep_map := has_map(id)                # карта куплена вместе с маршрутом — остаётся с ним до конца посещения
 		data.routes[id] = {"state": state, "at": int(Time.get_unix_time_from_system())}
+		if keep_map:
+			data.routes[id]["map"] = true
 	save_state()
+
+
+## Карта локации (вид сверху, на локации — кнопка «Карта» и метка героя): продаётся вместе с маршрутом за треть
+## его цены сверху (по каждому ресурсу цены, округление до целого, не меньше 1) и действует, пока действует
+## маршрут — на одно посещение. Купить можно сразу с маршрутом или позже, пока маршрут не использован.
+static func map_price(id: String) -> Dictionary:
+	var out := {}
+	var pr: Dictionary = shop().get("routes", {}).get(id, {}).get("price", {})
+	for r in pr:
+		out[r] = maxi(int(round(float(pr[r]) / 3.0)), 1)
+	return out
+
+
+static func has_map(id: String) -> bool:
+	load_state()
+	var r = data.routes.get(id)
+	return r is Dictionary and bool(r.get("map", false))
+
+
+## Докупить карту к купленному маршруту. Ответ — как у buy_route; err: "none" — маршрута нет, "have" — карта уже есть.
+static func buy_map(inv: ULInventory, id: String) -> Dictionary:
+	load_state()
+	if route_state(id) == "":
+		return {"ok": false, "err": "none", "miss": {}}
+	if has_map(id):
+		return {"ok": false, "err": "have", "miss": {}}
+	var price := map_price(id)
+	var miss := ULEconomy.missing(inv.wallet, price)
+	if not miss.is_empty() or not inv.pay(price):
+		return {"ok": false, "err": "money", "miss": miss}
+	data.routes[id]["map"] = true
+	save_state()
+	return {"ok": true, "err": "", "miss": {}}
 
 
 ## Купить и установить улучшение базы (оружейник). Ответ: {ok, err: ""|"have"|"money"|"none", miss: {ресурс: сколько
@@ -133,8 +169,9 @@ static func route_done(id: String) -> bool:
 
 
 ## Купить маршрут — только из тех, что сейчас предлагает компьютер. Пока маршрут куплен или идёт посещение —
-## повторно не купить; пройденный — только после следующего сброса.
-static func buy_route(inv: ULInventory, id: String) -> Dictionary:
+## повторно не купить; пройденный — только после следующего сброса. with_map — сразу с картой локации (цена
+## маршрута и треть сверху одним платежом: не хватает на оба — не списывается ничего).
+static func buy_route(inv: ULInventory, id: String, with_map := false) -> Dictionary:
 	load_state()
 	var d: Dictionary = shop().get("routes", {}).get(id, {})
 	if d.is_empty() or d.get("soon", false) or not offers().has(id):
@@ -143,10 +180,18 @@ static func buy_route(inv: ULInventory, id: String) -> Dictionary:
 		return {"ok": false, "err": "done", "miss": {}}
 	if route_state(id) != "":
 		return {"ok": false, "err": "have", "miss": {}}
-	var miss := ULEconomy.missing(inv.wallet, d.price)
-	if not miss.is_empty() or not inv.pay(d.price):
+	var price: Dictionary = (d.price as Dictionary).duplicate()
+	if with_map:
+		var mp := map_price(id)
+		for r in mp:
+			price[r] = int(price.get(r, 0)) + int(mp[r])
+	var miss := ULEconomy.missing(inv.wallet, price)
+	if not miss.is_empty() or not inv.pay(price):
 		return {"ok": false, "err": "money", "miss": miss}
 	set_route(id, "bought")
+	if with_map:
+		data.routes[id]["map"] = true
+		save_state()
 	return {"ok": true, "err": "", "miss": {}}
 
 

@@ -117,8 +117,8 @@ func _ready() -> void:
 			sc.lottery = [sc.lottery[1], sc.lottery[1]]
 			sc.ruber_chances = [0, 0, 1]                 # и два Рубера — всего 57
 			ULSanatorium._cfg = sc
-	if test == "gqview":
-		# сравнение чёткости: одна точка локации (--as-place=, --as-at=x,z), разные доли разрешения и резкость
+	if test == "gqview" or test == "mapbake" or test == "pmap":
+		# сравнение чёткости (gqview), запекание карты локации (mapbake), проверка карты (pmap): место — --as-place=
 		ULSettings.arena = false
 		for a in OS.get_cmdline_user_args():
 			if a.begins_with("--as-place="):
@@ -3428,6 +3428,8 @@ const HUD_BTNS := {
 	# сверху справа (отсчёт от правого верхнего угла): постройка (поставить ящик) и меню
 	"build": [Vector2(-140, 52), 36.0, "top"],
 	"menu": [Vector2(-54, 52), 36.0, "top"],
+	# карта локации (вид сверху и метка героя): на базе — всегда, во временном кластере — если куплена с маршрутом
+	"map": [Vector2(-226, 52), 36.0, "top"],
 }
 var _hud_tex := {}
 var _menu_bar: HBoxContainer
@@ -3541,6 +3543,10 @@ func _draw_hud() -> void:
 				active = it != null and d.has("ammo") and int(it.get("mag", 0)) < int(d.mag) and inv.count(String(d.ammo)) > 0
 				if it == null or not d.has("ammo"):
 					continue                               # без огнестрела кнопки перезарядки нет
+			"map":
+				if not map_exists():
+					continue                               # у этого места карты нет (полигон)
+				active = map_ok()                          # не куплена — кнопка тусклая, с замком
 		var line := Color(1.0, 0.8, 0.3, 0.95) if (k == "take" and active) else (Color(1.0, 0.5, 0.4, 0.9) if k == "fire" else Color(0.6, 0.85, 1.0, 0.65 if active else 0.25))
 		if k == "reload" and active and int(it.get("mag", 0)) <= 0:
 			# магазин пуст — кнопка перезарядки зовёт: красная, «дышит»
@@ -3593,6 +3599,8 @@ func _draw_hud() -> void:
 				_hud_icon(_art("build"), c, r * 2.0, ic)
 			"menu":
 				_hud_icon(_art("menu"), c, r * 2.0, ic)
+			"map":
+				_hud_map_glyph(c, r, ic, not active)
 		_hud.draw_arc(c, r, 0, TAU, 44, line, 3.0 if k == "fire" else 2.5)
 	_cs_hud(vs, font0)
 	_boss_hud(vs, font0)
@@ -3612,6 +3620,8 @@ func _draw_hud() -> void:
 func _hud_hit(p: Vector2) -> String:
 	for k in HUD_BTNS:
 		if k == "take" and _target == null:
+			continue
+		if k == "map" and not map_exists():
 			continue
 		if p.distance_to(_hud_pos(k)) <= float(HUD_BTNS[k][1]) + 8.0:
 			return k
@@ -3648,8 +3658,226 @@ func _hud_press(k: String) -> void:
 				say("Поставлен ящик")
 		"menu":
 			_menu_bar.visible = not _menu_bar.visible
+		"map":
+			open_place_map()
 		"name":
 			open_name_panel()
+
+
+# ---------------- карта локации ----------------
+
+## Проверка карты локации (--as-test=pmap --as-place=quarry|home|…): цена — треть маршрута, покупка с маршрутом
+## и отдельно, карта живёт вместе с маршрутом, кнопка на локации, метка героя на своём месте, снимок совпадает
+## с локацией (не устарел и не перевёрнут).
+func _pmap_test() -> void:
+	var t0 := Time.get_ticks_msec()
+	while temp() and not cs_ready and Time.get_ticks_msec() - t0 < 30000:
+		await get_tree().process_frame
+	DirAccess.make_dir_recursive_absolute(out)
+	for e in enemies:
+		e.visible = false
+	enemies.clear()
+	targets.clear()
+	await get_tree().create_timer(1.0).timeout
+	# цены и снимки
+	var want := {"cowshed": 3, "sanatorium": 8, "convoy": 12, "khutor": 6, "lair": 17, "quarry": 8}
+	var got := {}
+	var pics := 0
+	for id in want:
+		got[id] = int(ULBase.map_price(id).get("spore", 0))
+		pics += 1 if ULPlaceMap.exists(id) else 0
+	pics += 1 if ULPlaceMap.exists("home") else 0
+	_ok("цена карты — треть цены маршрута, до целого: %s" % str(got), got == want)
+	_ok("снимки сверху есть для базы и всех шести локаций", pics == 7, "%d из 7" % pics)
+	# покупка — на тех трёх маршрутах, что сейчас предлагает компьютер
+	ULBase.data.routes.clear()
+	(ULBase.data.done as Array).clear()
+	var offs: Array = ULBase.offers()
+	_ok("компьютер предлагает три маршрута", offs.size() >= 3, str(offs))
+	if offs.size() < 3:
+		return
+	var ra := String(offs[0])
+	var rb := String(offs[1])
+	var rc := String(offs[2])
+	var pa := int(ULBase.shop().routes[ra].price.spore)
+	var pb := int(ULBase.shop().routes[rb].price.spore)
+	var pc := int(ULBase.shop().routes[rc].price.spore)
+	var ma := int(ULBase.map_price(ra).spore)
+	var mb := int(ULBase.map_price(rb).spore)
+	var mc := int(ULBase.map_price(rc).spore)
+	inv.wallet = {"spore": 200}
+	var r1 := ULBase.buy_route(inv, ra)
+	_ok("маршрут «%s» без карты: списано %d, карты нет" % [ra, pa], r1.ok and int(inv.wallet.spore) == 200 - pa and not ULBase.has_map(ra))
+	var r2 := ULBase.buy_map(inv, ra)
+	_ok("карту можно докупить к купленному маршруту: ещё %d" % ma, r2.ok and int(inv.wallet.spore) == 200 - pa - ma and ULBase.has_map(ra))
+	var r3 := ULBase.buy_map(inv, ra)
+	_ok("вторую карту к тому же маршруту не продают", not r3.ok and String(r3.err) == "have" and int(inv.wallet.spore) == 200 - pa - ma)
+	var w1 := int(inv.wallet.spore)
+	var r4 := ULBase.buy_route(inv, rb, true)
+	_ok("маршрут «%s» сразу с картой: %d + %d одним платежом" % [rb, pb, mb], r4.ok and int(inv.wallet.spore) == w1 - pb - mb and ULBase.has_map(rb) and ULBase.route_state(rb) == "bought")
+	inv.wallet = {"spore": pc + mc - 1}
+	var r5 := ULBase.buy_route(inv, rc, true)
+	_ok("на маршрут «%s» с картой (%d + %d) не хватает одного спорана: ничего не списано, маршрут не куплен" % [rc, pc, mc], not r5.ok and String(r5.err) == "money" and int(inv.wallet.spore) == pc + mc - 1 and ULBase.route_state(rc) == "")
+	var r6 := ULBase.buy_map(inv, rc)
+	_ok("карту без маршрута не купить", not r6.ok and String(r6.err) == "none" and int(inv.wallet.spore) == pc + mc - 1)
+	ULBase.set_route(ra, "active")
+	_ok("во время посещения карта остаётся при маршруте", ULBase.has_map(ra) and ULBase.route_state(ra) == "active")
+	ULBase.set_route(ra, "")
+	_ok("посещение окончено — карта ушла вместе с маршрутом", not ULBase.has_map(ra) and ULBase.route_state(ra) == "")
+	# на локации
+	_ok("у места есть карта, кнопка «Карта» — справа вверху", map_exists() and _hud_hit(_hud_pos("map")) == "map" and _hud_pos("map").x > get_viewport().get_visible_rect().size.x * 0.7 and _hud_pos("map").y < 100.0)
+	if temp():
+		ULBase.data.routes.erase(place)
+		ULBase.set_route(place, "active")
+		var op0 := open_place_map()
+		_ok("карта не куплена: кнопка с замком, карта не открывается", not map_ok() and not op0 and _map_ui == null)
+		if out != "":
+			await _snap("pm_locked")
+		ULBase.data.routes[place]["map"] = true
+	else:
+		_ok("на базе карта есть всегда, без покупки", map_ok())
+	_hud_press("map")
+	await get_tree().process_frame
+	await get_tree().process_frame
+	_ok("карта открывается кнопкой, игра под ней не принимает касаний", _map_ui != null and is_instance_valid(_map_ui) and _modal())
+	if _map_ui == null:
+		return
+	var mr := _map_ui.map_rect()
+	var sp := ULPlaceMap.span(size_m, size_z)
+	var ppm := mr.size.x / sp.x
+	var vsz := get_viewport().get_visible_rect().size
+	_ok("карта целиком на экране, стороны — как у локации (%.0f × %.0f м)" % [sp.x, sp.y], Rect2(Vector2.ZERO, vsz).encloses(mr) and absf(mr.size.x / mr.size.y - sp.x / sp.y) < 0.01 and ppm > 2.0, "точек на метр %.2f" % ppm)
+	# метка героя: середина поля — середина карты; восточный и южный края поля — у правого и нижнего краёв карты
+	_map_ui.hero_fn = Callable()
+	_map_ui.hero = Vector3.ZERO
+	var c0 := _map_ui.marker_px()
+	_map_ui.hero = Vector3(size_m * 0.5, 0, size_z * 0.5)
+	var c1 := _map_ui.marker_px()
+	_map_ui.hero = Vector3(-size_m * 0.5, 0, -size_z * 0.5)
+	var c2 := _map_ui.marker_px()
+	_ok("метка: середина поля — в середине карты, юго-восточный угол поля — справа внизу, северо-западный — слева вверху",
+		c0.distance_to(mr.get_center()) < 1.0 and absf(mr.end.x - c1.x - ULPlaceMap.MARGIN * ppm) < 1.0 and absf(mr.end.y - c1.y - ULPlaceMap.MARGIN * ppm) < 1.0
+		and absf(c2.x - mr.position.x - ULPlaceMap.MARGIN * ppm) < 1.0 and absf(c2.y - mr.position.y - ULPlaceMap.MARGIN * ppm) < 1.0)
+	_map_ui.hero = Vector3(size_m * 2.0, 0, 0)
+	_ok("герой за краем карты — метка прижата к краю", absf(_map_ui.marker_px().x - mr.end.x) < 1.0)
+	# живая метка идёт за героем: 8 м на восток — на 8 м вправо
+	_map_ui.hero_fn = func() -> Array: return [player.global_position, player.rotation.y]
+	await get_tree().process_frame
+	var p0 := _map_ui.marker_px()
+	var w0 := player.global_position
+	_ok("метка стоит там, где герой", p0.distance_to(mr.position + ULPlaceMap.to_uv(w0, size_m, size_z) * mr.size) < 1.0)
+	if out != "":
+		await _snap("pm_map")
+	_map_ui.toggle_zoom()
+	await get_tree().process_frame
+	var vz := _map_ui.view_uv()
+	_ok("«Крупнее»: показана часть карты вокруг героя, метка — внутри карты", absf(vz.size.x - 1.0 / ULMapView.ZOOM_K) < 0.001 and vz.position.x >= 0.0 and vz.end.x <= 1.0001 and mr.grow(1.0).has_point(_map_ui.marker_px()))
+	if out != "":
+		await _snap("pm_zoom")
+	_map_ui.toggle_zoom()
+	_map_ui.close()
+	await get_tree().process_frame
+	await get_tree().process_frame
+	_ok("«Закрыть» убирает карту, управление возвращается", _map_ui == null and not _modal())
+	# снимок совпадает с локацией: свежий вид сверху против запечённого (и против зеркальных — карта не перевёрнута)
+	player.visible = false
+	for g in ground:
+		(g.node as Node3D).visible = false
+	var side := maxf(sp.x, sp.y)
+	var live: Image = await _top_image(256, side)
+	var cw := int(round(256.0 * sp.x / side))
+	var ch := int(round(256.0 * sp.y / side))
+	live = live.get_region(Rect2i((256 - cw) / 2, (256 - ch) / 2, cw, ch))
+	live.resize(48, 48, Image.INTERPOLATE_LANCZOS)
+	var baked: Image = (load(ULPlaceMap.path(place)) as Texture2D).get_image()
+	if baked.is_compressed():
+		baked.decompress()
+	baked.resize(48, 48, Image.INTERPOLATE_LANCZOS)
+	var sim := {}
+	for mode in ["как есть", "зеркало по x", "зеркало по z"]:
+		var sa := 0.0
+		var sb := 0.0
+		var saa := 0.0
+		var sbb := 0.0
+		var sab := 0.0
+		for y in 48:
+			for x in 48:
+				var a := live.get_pixel(x, y).get_luminance()
+				var b := baked.get_pixel(47 - x if mode == "зеркало по x" else x, 47 - y if mode == "зеркало по z" else y).get_luminance()
+				sa += a
+				sb += b
+				saa += a * a
+				sbb += b * b
+				sab += a * b
+		var nn := 48.0 * 48.0
+		var den := sqrt(maxf((saa - sa * sa / nn) * (sbb - sb * sb / nn), 1e-9))
+		sim[mode] = snappedf((sab - sa * sb / nn) / den, 0.01)
+	_ok("снимок на карте совпадает с локацией и не перевёрнут: сходство %s" % str(sim), float(sim["как есть"]) > 0.6 and float(sim["как есть"]) > float(sim["зеркало по x"]) + 0.1 and float(sim["как есть"]) > float(sim["зеркало по z"]) + 0.1)
+	print("[inv] итог: ошибок %d" % _fails)
+
+var _map_ui: ULMapView
+var _map_free := false               ## проверки: карта доступна без покупки
+
+
+## есть ли у этого места карта (снимок сверху)
+func map_exists() -> bool:
+	return not arena and ULPlaceMap.exists(place)
+
+
+## можно ли её открыть: на базе и в «Тесте уровней» — всегда, во временном кластере — если куплена с маршрутом
+func map_ok() -> bool:
+	return map_exists() and (not temp() or lvl or _map_free or ULBase.has_map(place))
+
+
+## значок кнопки: сложенная «гармошкой» карта с меткой; не куплена — с замком
+func _hud_map_glyph(c: Vector2, r: float, col: Color, locked: bool) -> void:
+	var w := r * 1.16
+	var h := r * 0.84
+	var top := PackedVector2Array()
+	var bot := PackedVector2Array()
+	for i in 4:
+		var x := c.x - w * 0.5 + w * i / 3.0
+		var dy := (-1.0 if i % 2 == 0 else 1.0) * h * 0.11
+		top.append(Vector2(x, c.y - h * 0.5 + dy))
+		bot.append(Vector2(x, c.y + h * 0.5 + dy))
+	for i in 3:
+		var shade := Color(0.86, 0.8, 0.6) if i % 2 == 0 else Color(0.68, 0.62, 0.45)
+		_hud.draw_colored_polygon(PackedVector2Array([top[i], top[i + 1], bot[i + 1], bot[i]]), Color(shade.r, shade.g, shade.b, col.a))
+	var outline := PackedVector2Array([top[0], top[1], top[2], top[3], bot[3], bot[2], bot[1], bot[0], top[0]])
+	_hud.draw_polyline(outline, Color(0.12, 0.1, 0.06, col.a), 2.0)
+	for i in [1, 2]:
+		_hud.draw_line(top[i], bot[i], Color(0.12, 0.1, 0.06, 0.55 * col.a), 1.5)
+	var pin := c + Vector2(w * 0.1, -h * 0.02)
+	_hud.draw_colored_polygon(PackedVector2Array([pin + Vector2(-5.5, -5), pin + Vector2(5.5, -5), pin + Vector2(0, 7)]), Color(0.85, 0.2, 0.15, col.a))
+	_hud.draw_circle(pin + Vector2(0, -6), 6.0, Color(0.85, 0.2, 0.15, col.a))
+	_hud.draw_circle(pin + Vector2(0, -6), 2.4, Color(1, 1, 1, col.a))
+	if locked:
+		var lc := c + Vector2(r * 0.5, r * 0.46)
+		_hud.draw_arc(lc + Vector2(0, -5), 5.0, PI, TAU, 12, Color(1.0, 0.85, 0.4), 2.5)
+		_hud.draw_rect(Rect2(lc + Vector2(-7.5, -5), Vector2(15, 12)), Color(1.0, 0.85, 0.4))
+
+
+## открыть карту локации; false — карты нет или она не куплена (тогда — подсказка, где её взять)
+func open_place_map() -> bool:
+	if not map_exists():
+		return false
+	if not map_ok():
+		say("Карты этой локации нет: её продают в компьютере базы вместе с маршрутом — ещё треть его цены")
+		return false
+	if _map_ui != null and is_instance_valid(_map_ui):
+		return true
+	_menu_bar.visible = false
+	_joy_id = -1
+	_joy_v = Vector2.ZERO
+	_hud_touch.clear()
+	_map_ui = ULMapView.new()
+	_map_ui.setup(load(ULPlaceMap.path(place)), size_m, size_z, zone_name() if temp() else "Домашний стаб")
+	_map_ui.hero_fn = func() -> Array: return [player.global_position, player.rotation.y]
+	if temp():
+		_map_ui.marks = [{"pos": zone_entry(), "text": "вход на локацию", "col": Color(0.5, 1.0, 0.55)}]
+	_hud.get_parent().add_child(_map_ui)
+	_map_ui.closed.connect(func() -> void: _map_ui = null)
+	return true
 
 
 ## касания: кнопки справа (каждый палец отдельно — можно бежать и стрелять), джойстик слева, два пальца — масштаб
@@ -4535,6 +4763,39 @@ func _foot_slide(body: CharacterBody3D, sk: Skeleton3D, sec: float) -> Array:
 ## Обзорные снимки отдельной камерой в своё окно отрисовки: без кнопок интерфейса, без ограничения дальности
 ## прорисовки (она рассчитана на игровую камеру). shots — [имя, где камера, куда смотрит, угол обзора (0 — без
 ## перспективы, отвесно вниз)]. Дымка остаётся (для вида «как в игре»), кроме снимка без перспективы.
+## Снимок локации строго сверху: своё окно отрисовки (без интерфейса), камера без перспективы над серединой
+## поля; span — сколько метров в кадре по стороне; верх снимка — «вверх» на экране в игре (−z).
+func _top_image(px: int, span: float) -> Image:
+	# дальность прорисовки рассчитана на игровую камеру; на общем снимке видно всё
+	for n in get_tree().root.find_children("*", "GeometryInstance3D", true, false):
+		(n as GeometryInstance3D).visibility_range_end = 0.0
+	world_env.fog_enabled = false
+	if sun.shadow_enabled:
+		sun.directional_shadow_max_distance = span * 2.2
+		RenderingServer.directional_shadow_atlas_set_size(8192, true)
+	var sv := SubViewport.new()
+	sv.size = Vector2i(px, px)
+	sv.world_3d = get_viewport().world_3d
+	sv.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	sv.msaa_3d = Viewport.MSAA_4X
+	sv.mesh_lod_threshold = 0.0
+	add_child(sv)
+	var tc := Camera3D.new()
+	tc.projection = Camera3D.PROJECTION_ORTHOGONAL
+	tc.size = span
+	tc.near = 1.0
+	tc.far = 260.0
+	sv.add_child(tc)
+	tc.look_at_from_position(Vector3(0, 120, 0), Vector3.ZERO, Vector3(0, 0, -1))
+	tc.current = true
+	for i in 8:
+		await get_tree().process_frame
+	await RenderingServer.frame_post_draw
+	var img := sv.get_texture().get_image()
+	sv.queue_free()
+	return img
+
+
 func _pano(shots: Array, px: Vector2i) -> void:
 	await get_tree().create_timer(1.0).timeout
 	for n in get_tree().root.find_children("*", "GeometryInstance3D", true, false):
@@ -7899,7 +8160,38 @@ func _pc_test() -> void:
 	if out != "":
 		await get_tree().create_timer(0.4).timeout
 		await _snap("pc_routes_bought")
+	# --- карта локации: докупить к купленному маршруту ---
+	var cmb := pc.find_child("route_cowshed", true, false).find_child("buy_map", true, false) as Button
+	_ok("у купленного маршрута без карты — кнопка «КАРТА — 3 спорана»", cmb != null and cmb.text.contains("3 спорана"), cmb.text if cmb != null else "кнопки нет")
+	pc.ask_map("cowshed")
+	_ok("карта: подтверждение за 3 спорана", pc.dialog_text().contains("3 спорана") and pc.dialog_text().contains("Купить карту"))
+	if out != "":
+		await _snap("pc_map_confirm")
+	pc.dialog_confirm()
+	_ok("карта коровника куплена: спораны 45 → 42, кнопки «Карта» у него больше нет", int(inv.wallet.spore) == 42 and ULBase.has_map("cowshed") and pc.find_child("route_cowshed", true, false).find_child("buy_map", true, false) == null, str(inv.wallet))
 	ULBase.set_route("sanatorium", "")
+	inv.wallet.spore = 70
+	inv.changed.emit()
+	# --- маршрут сразу с картой: в окне покупки — цена карты и второй вариант ---
+	pc._build_routes()
+	pc.ask_route("sanatorium")
+	var exb := pc._dlg.find_child("Extra", true, false) as Button if pc._dlg != null else null
+	_ok("покупка маршрута: в окне цена карты (8 споранов) и вариант «С КАРТОЙ — 33 спорана»", pc.dialog_text().contains("Карта локации") and pc.dialog_text().contains("8 споранов") and exb != null and exb.text.contains("33 спорана") and not exb.disabled, exb.text if exb != null else "кнопки нет")
+	if out != "":
+		await get_tree().create_timer(0.3).timeout
+		await _snap("pc_route_map")
+	pc.dialog_extra()
+	_ok("маршрут с картой: спораны 70 → 37, маршрут и карта куплены", int(inv.wallet.spore) == 37 and ULBase.route_state("sanatorium") == "bought" and ULBase.has_map("sanatorium"), str(inv.wallet))
+	ULBase.set_route("sanatorium", "")
+	inv.wallet.spore = 30
+	inv.changed.emit()
+	pc._build_routes()
+	pc.ask_route("sanatorium")
+	exb = pc._dlg.find_child("Extra", true, false) as Button if pc._dlg != null else null
+	_ok("на маршрут с картой не хватает (30 из 33): вариант «с картой» недоступен, в окне — сколько не хватает", exb != null and exb.disabled and pc.dialog_text().contains("не хватает"))
+	pc.dialog_extra()
+	_ok("нажатие на недоступный вариант ничего не покупает", int(inv.wallet.spore) == 30 and ULBase.route_state("sanatorium") == "")
+	pc.dialog_close()
 	inv.wallet.spore = 70
 	inv.changed.emit()
 	# --- таймер новых маршрутов ---
@@ -10325,7 +10617,7 @@ var _name_edit: LineEdit
 
 
 func _modal() -> bool:
-	return (inv_ui != null and inv_ui.visible) or (_name_ui != null and _name_ui.visible) or (_talk_ui != null and _talk_ui.visible) or (_set_ui != null and is_instance_valid(_set_ui)) or (_book_ui != null and is_instance_valid(_book_ui)) or (_shop_ui != null and is_instance_valid(_shop_ui)) or (_term_ui != null and is_instance_valid(_term_ui)) or (_dealer_ui != null and is_instance_valid(_dealer_ui)) or _dead_t > 0.0
+	return (inv_ui != null and inv_ui.visible) or (_name_ui != null and _name_ui.visible) or (_talk_ui != null and _talk_ui.visible) or (_set_ui != null and is_instance_valid(_set_ui)) or (_book_ui != null and is_instance_valid(_book_ui)) or (_shop_ui != null and is_instance_valid(_shop_ui)) or (_term_ui != null and is_instance_valid(_term_ui)) or (_dealer_ui != null and is_instance_valid(_dealer_ui)) or _dead_t > 0.0 or (_map_ui != null and is_instance_valid(_map_ui))
 
 
 func _load_profile() -> void:
@@ -12090,6 +12382,10 @@ func _run_test() -> void:
 		await _qr_view()
 		get_tree().quit()
 		return
+	if test == "pmap":
+		await _pmap_test()
+		get_tree().quit()
+		return
 	if test == "gqview":
 		# один и тот же кадр игровой камеры при разной доле разрешения 3D и разной резкости — для сравнения
 		var tg0 := Time.get_ticks_msec()
@@ -13619,33 +13915,39 @@ func _run_test() -> void:
 			elif a.begins_with("--as-span="):
 				span = float(a.substr(10))
 		await get_tree().create_timer(1.5).timeout
-		# дальность прорисовки рассчитана на игровую камеру; на общем снимке видно всё
-		for n in get_tree().root.find_children("*", "GeometryInstance3D", true, false):
-			(n as GeometryInstance3D).visibility_range_end = 0.0
-		world_env.fog_enabled = false
-		if sun.shadow_enabled:
-			sun.directional_shadow_max_distance = span * 2.2
-			RenderingServer.directional_shadow_atlas_set_size(8192, true)
-		var sv := SubViewport.new()
-		sv.size = Vector2i(px, px)
-		sv.world_3d = get_viewport().world_3d
-		sv.render_target_update_mode = SubViewport.UPDATE_ALWAYS
-		sv.msaa_3d = Viewport.MSAA_4X
-		sv.mesh_lod_threshold = 0.0
-		add_child(sv)
-		var tc := Camera3D.new()
-		tc.projection = Camera3D.PROJECTION_ORTHOGONAL
-		tc.size = span
-		tc.near = 1.0
-		tc.far = 260.0
-		sv.add_child(tc)
-		tc.look_at_from_position(Vector3(0, 120, 0), Vector3.ZERO, Vector3(0, 0, -1))
-		tc.current = true
-		for i in 8:
-			await get_tree().process_frame
-		await RenderingServer.frame_post_draw
-		sv.get_texture().get_image().save_png("%s/top.png" % out)
+		(await _top_image(px, span)).save_png("%s/top.png" % out)
 		print("[top] снимок %d×%d точек, поле %.0f×%.0f м, в кадре %.0f м" % [px, px, size_m, size_z, span])
+		get_tree().quit()
+		return
+	if test == "mapbake":
+		# карта локации для игрока (ULPlaceMap): вид строго сверху на всё поле с запасом MARGIN, без героя, врагов
+		# и находок; снимок обрезается по сторонам поля (карьер — 180 × 140 м)
+		var tb0 := Time.get_ticks_msec()
+		while temp() and not cs_ready and Time.get_ticks_msec() - tb0 < 30000:
+			await get_tree().process_frame
+		DirAccess.make_dir_recursive_absolute(out)
+		var mpx := 1536
+		for a in OS.get_cmdline_user_args():
+			if a.begins_with("--as-px="):
+				mpx = int(a.substr(8))
+		player.visible = false
+		for e in enemies:
+			e.visible = false
+		enemies.clear()
+		targets.clear()
+		for g in ground:
+			(g.node as Node3D).visible = false
+		for nn in get_tree().root.find_children("*", "Label3D", true, false):
+			(nn as Label3D).visible = false
+		await get_tree().create_timer(1.5).timeout
+		var sp2 := ULPlaceMap.span(size_m, size_z)
+		var side := maxf(sp2.x, sp2.y)
+		var big: Image = await _top_image(mpx, side)
+		var cw := int(round(mpx * sp2.x / side))
+		var ch := int(round(mpx * sp2.y / side))
+		var img := big.get_region(Rect2i((mpx - cw) / 2, (mpx - ch) / 2, cw, ch))
+		img.save_png("%s/top_%s.png" % [out, place])
+		print("[mapbake] %s: %d×%d точек, поле %.0f×%.0f м, на карте %.0f×%.0f м" % [place, cw, ch, size_m, size_z, sp2.x, sp2.y])
 		get_tree().quit()
 		return
 	if test == "view":

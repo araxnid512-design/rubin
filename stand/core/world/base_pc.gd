@@ -40,6 +40,7 @@ var _left_box: VBoxContainer
 var _right_box: VBoxContainer
 var _dlg: Control
 var _dlg_ok: Callable
+var _dlg_extra: Callable
 var _toast: PanelContainer
 var _toast_lbl: Label
 var _toast_tw: Tween
@@ -708,6 +709,11 @@ func _route_card(id: String, d: Dictionary, compact := false, dense := false) ->
 	if cs.has("ruber_chances"):
 		var rmax := (cs.ruber_chances as Array).size() - 1
 		stats.append(["st_skull", ("Руберы 0–%d" if dense else "Руберы: 0 – %d (%s)") % ([rmax] if dense else [rmax, "шанс" if rmax == 1 else "случайно"])])
+	if not ULBase.has_map(id):
+		var mpt := ULEconomy.list_text(ULBase.map_price(id))
+		stats.append(["map", ("Карта +%s" if dense else "Карта локации: ещё %s") % mpt])
+	else:
+		stats.append(["map", "Карта куплена" if dense else "Карта локации: куплена"])
 	var grid := GridContainer.new()
 	grid.columns = 3 if dense else (2 if compact else 1)
 	grid.add_theme_constant_override("h_separation", 12)
@@ -739,6 +745,11 @@ func _route_card(id: String, d: Dictionary, compact := false, dense := false) ->
 		var sp := Control.new()
 		sp.size_flags_horizontal = SIZE_EXPAND_FILL
 		row.add_child(sp)
+	elif dense and not ULBase.has_map(id):
+		# плотная карточка: рядом с кнопкой «Карта» длинная подпись не помещается — вместо неё пустое место
+		var sp2 := Control.new()
+		sp2.size_flags_horizontal = SIZE_EXPAND_FILL
+		row.add_child(sp2)
 	else:
 		var nl := _lbl(("Открыт: на карте — %s." % String(d.get("where", "рядом с домашним стабом")) if dense else "Маршрут открыт: «%s» на глобальной карте — %s." % [String(d.n), String(d.get("where", "рядом с домашним стабом"))]) if st == "bought" else "Вы сейчас на этой локации.", 10 if dense else 12, C_GLOW, false, true)
 		nl.name = "note"
@@ -747,6 +758,11 @@ func _route_card(id: String, d: Dictionary, compact := false, dense := false) ->
 	var b: Button
 	var bs := Vector2(170, 28) if dense else (Vector2(214, 36) if compact else Vector2(230, 42))
 	var bf := 13 if dense else (15 if compact else 16)
+	if st != "" and not ULBase.has_map(id):
+		# маршрут уже куплен без карты — её можно докупить, пока маршрут не использован
+		var mb := _btn("КАРТА — %s" % ULEconomy.list_text(ULBase.map_price(id)), "", "green", ask_map.bind(id), Vector2(bs.x * 0.92, bs.y), bf)
+		mb.name = "buy_map"
+		row.add_child(mb)
 	match st:
 		"bought":
 			b = _btn("МАРШРУТ КУПЛЕН", "", "gray", func() -> void: pass, bs, bf)
@@ -769,17 +785,51 @@ func ask_route(id: String) -> void:
 	if not miss.is_empty():
 		_dialog("Не хватает ресурсов", "Маршрут «%s» стоит %s.\nНе хватает: %s." % [String(d.n), ULEconomy.list_text(d.price), ULEconomy.list_text(miss)], Callable())
 		return
-	_dialog("Подтвердите покупку", "Купить маршрут «%s» за %s?\nМаршрут действует на одно посещение (%d минут на локации)." % [String(d.n), ULEconomy.list_text(d.price), int(d.get("minutes", 10))], _do_route.bind(id))
+	# карта локации — ещё треть цены: вместе с маршрутом сразу или позже, пока маршрут не использован
+	var mp := ULBase.map_price(id)
+	var both: Dictionary = (d.price as Dictionary).duplicate()
+	for r in mp:
+		both[r] = int(both.get(r, 0)) + int(mp[r])
+	var can_map := ULEconomy.missing(inv.wallet, both).is_empty()
+	_dialog("Подтвердите покупку", "Купить маршрут «%s» за %s?\nМаршрут действует на одно посещение (%d минут на локации).\n\nКарта локации — ещё %s: вид сверху и метка, где вы находитесь (кнопка «Карта» справа вверху на локации).%s" % [String(d.n), ULEconomy.list_text(d.price), int(d.get("minutes", 10)), ULEconomy.list_text(mp), "" if can_map else "\nНа маршрут с картой не хватает: %s." % ULEconomy.list_text(ULEconomy.missing(inv.wallet, both))],
+		_do_route.bind(id, false), ["С КАРТОЙ — %s" % ULEconomy.list_text(both), _do_route.bind(id, true), can_map], "БЕЗ КАРТЫ")
 
 
-func _do_route(id: String) -> void:
+## докупить карту к уже купленному маршруту
+func ask_map(id: String) -> void:
+	if busy or ULBase.route_state(id) == "" or ULBase.has_map(id):
+		return
+	var d: Dictionary = ULBase.shop().routes[id]
+	var mp := ULBase.map_price(id)
+	var miss := ULEconomy.missing(inv.wallet, mp)
+	if not miss.is_empty():
+		_dialog("Не хватает ресурсов", "Карта локации «%s» стоит %s.\nНе хватает: %s." % [String(d.n), ULEconomy.list_text(mp), ULEconomy.list_text(miss)], Callable())
+		return
+	_dialog("Подтвердите покупку", "Купить карту локации «%s» за %s?\nВид сверху и метка, где вы находитесь: кнопка «Карта» справа вверху на локации. Карта действует вместе с маршрутом — на одно посещение." % [String(d.n), ULEconomy.list_text(mp)], _do_map.bind(id))
+
+
+func _do_map(id: String) -> void:
 	if busy:
 		return
 	busy = true
-	var r := ULBase.buy_route(inv, id)
+	var r := ULBase.buy_map(inv, id)
 	if r.ok:
 		w.pc_done("route", id)
-		toast("Маршрут куплен — «%s» появился на глобальной карте." % String(ULBase.shop().routes[id].n))
+		toast("Карта локации «%s» куплена." % String(ULBase.shop().routes[id].n))
+	elif r.err == "money":
+		toast("Не хватает: " + ULEconomy.list_text(r.miss))
+	_build_routes()
+	busy = false
+
+
+func _do_route(id: String, with_map := false) -> void:
+	if busy:
+		return
+	busy = true
+	var r := ULBase.buy_route(inv, id, with_map)
+	if r.ok:
+		w.pc_done("route", id)
+		toast(("Маршрут с картой куплен — «%s» появился на глобальной карте." if with_map else "Маршрут куплен — «%s» появился на глобальной карте.") % String(ULBase.shop().routes[id].n))
 	elif r.err == "money":
 		toast("Не хватает: " + ULEconomy.list_text(r.miss))
 	_build_routes()
@@ -1116,10 +1166,13 @@ func ex_confirm() -> bool:
 # ---------------- подтверждение и сообщения ----------------
 
 ## окно поверх: заголовок, текст; ok пустой — только «Понятно», иначе «Отмена» и «Подтвердить»
-func _dialog(title: String, text: String, ok: Callable) -> void:
+## extra — ещё один вариант рядом с «Подтвердить»: [подпись, что сделать, доступна ли]; yes_text — подпись
+## основной кнопки (маршрут: «БЕЗ КАРТЫ» и «С КАРТОЙ»)
+func _dialog(title: String, text: String, ok: Callable, extra: Array = [], yes_text := "ПОДТВЕРДИТЬ") -> void:
 	if _dlg:
 		_dlg.queue_free()
 	_dlg_ok = ok
+	_dlg_extra = extra[1] if extra.size() > 1 and (extra.size() < 3 or bool(extra[2])) else Callable()
 	_dlg = Control.new()
 	_dlg.name = "Dialog"
 	add_child(_dlg)
@@ -1146,9 +1199,14 @@ func _dialog(title: String, text: String, ok: Callable) -> void:
 	v.add_child(h)
 	if ok.is_valid():
 		h.add_child(_btn("ОТМЕНА", "", "gray", dialog_close, Vector2(160, 50), 17))
-		var yes := _btn("ПОДТВЕРДИТЬ", "", "green", dialog_confirm, Vector2(200, 50), 17)
+		var yes := _btn(yes_text, "", "green" if extra.is_empty() else "gray", dialog_confirm, Vector2(200, 50), 17)
 		yes.name = "Yes"
 		h.add_child(yes)
+		if not extra.is_empty():
+			var ex2 := _btn(String(extra[0]), "", "green", dialog_extra, Vector2(240, 50), 17)
+			ex2.name = "Extra"
+			ex2.disabled = not _dlg_extra.is_valid()
+			h.add_child(ex2)
 	else:
 		h.add_child(_btn("ПОНЯТНО", "", "gray", dialog_close, Vector2(180, 50), 17))
 	_dlg.modulate.a = 0.0
@@ -1169,6 +1227,15 @@ func dialog_close() -> void:
 		_dlg.queue_free()
 		_dlg = null
 	_dlg_ok = Callable()
+	_dlg_extra = Callable()
+
+
+## второй вариант окна (маршрут с картой): как «Подтвердить» — окно закрывается до покупки
+func dialog_extra() -> void:
+	var cb := _dlg_extra
+	dialog_close()
+	if cb.is_valid():
+		cb.call()
 
 
 ## «Подтвердить»: окно закрывается до покупки — второе нажатие уже некуда сделать
