@@ -160,7 +160,8 @@ func setup(k: String, at: Vector3, seed_n: int) -> void:
 	rig.fx_cfg = def.get("fx", {})
 	rig.height = tall
 	rig.speed_k = float(def.get("stride_k", 1.0))    # рослый — шаг длиннее: темп клипов по росту, стопы не скользят
-	rig.alias = def.get("clips", {})                 # свои клипы вместо общих (главарь муров)
+	rig.alias = def.get("clips", {})                 # свои клипы вместо общих (главарь муров, пустыш)
+	rig.extra_build = String(def.get("build", ""))   # клипы по ключевым позам сверх набора (пустыш)
 	add_child(rig)
 	var path := String(def.model)
 	var own := ResourceLoader.exists(path)
@@ -503,6 +504,12 @@ func tick(delta: float, p: Vector3, can_see: bool, hero_alive: bool) -> void:
 		rig.fx.bite = pulse if _fx_bite else 0.0
 		rig.fx.breath_hz = 0.9 if state == "chase" or state == "attack" else 0.35
 	var fwd := Vector3(sin(rotation.y), 0, cos(rotation.y))
+	# разгон (accel, м/с²): из стойки в бег — не рывком, а через шаг; тормозит сразу (удар с подбега — как прежде)
+	if def.has("accel") and speed > _spd_s:
+		_spd_s = move_toward(_spd_s, speed, delta * float(def.accel))
+		speed = _spd_s
+	else:
+		_spd_s = speed
 	velocity = Vector3(fwd.x * speed * step_k, velocity.y - 9.8 * delta, fwd.z * speed * step_k)
 	move_and_slide()
 	velocity.x /= step_k
@@ -649,6 +656,7 @@ func _start_attack(dist: float) -> void:
 
 
 var _hero_p := Vector3.ZERO
+var _spd_s := 0.0                 ## скорость с разгоном (accel)
 var _strikes: Array = []          ## [через сколько секунд, рука "L"/"R"] — лапа к герою по ходу удара
 
 
@@ -669,13 +677,13 @@ func _plan_strikes(clip: String, len_s: float, hit_s: float) -> void:
 			_strikes = [[maxf(hit_s - len_s * 0.24, 0.12), "R"], [hit_s, "L"]]
 		"backhand":
 			_strikes = [[hit_s, "L"]]
-		"hook_r", "slash_r":
+		"hook_r", "slash_r", "infected_attack_right":
 			_strikes = [[hit_s, "R"]]
-		"hook_l", "slash_l":
+		"hook_l", "slash_l", "infected_attack_left":
 			_strikes = [[hit_s, "L"]]
 		"combo5":
 			_strikes = [[maxf(hit_s - len_s * 0.3, 0.1), "R"], [maxf(hit_s - len_s * 0.15, 0.12), "L"], [hit_s, "R"]]
-		"leap", "shove":
+		"leap", "shove", "infected_attack_grab":
 			_strikes = [[hit_s, "R"], [hit_s, "L"]]          # обе лапы доходят до героя разом
 
 

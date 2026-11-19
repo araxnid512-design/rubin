@@ -12480,6 +12480,191 @@ func _run_test() -> void:
 			print("[loco] %s: кадров %d, наибольшее отклонение тела от направления бега %.0f°, таз уходит вбок от капсулы %.2f…%.2f м, скорость %.1f м/с" % [e.def.n, n, face_dev, lat_min, lat_max, Vector3(e.velocity.x, 0, e.velocity.z).length()])
 		get_tree().quit()
 		return
+	if test == "photo":
+		# Портрет персонажа в полный рост на чистом белом фоне (образец для сторонних инструментов): своё окно
+		# отрисовки со своим миром — только фигура, ровный свет, без земли и теней. --as-kind=mur_boss (или другой враг)
+		DirAccess.make_dir_recursive_absolute(out)
+		var pk := "mur_boss"
+		for a in OS.get_cmdline_user_args():
+			if a.begins_with("--as-kind="):
+				pk = a.substr(10)
+		var sv := SubViewport.new()
+		sv.own_world_3d = true
+		sv.size = Vector2i(1536, 2048)
+		sv.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+		sv.msaa_3d = Viewport.MSAA_4X
+		add_child(sv)
+		var we := WorldEnvironment.new()
+		var en := Environment.new()
+		en.background_mode = Environment.BG_COLOR
+		en.background_color = Color.WHITE
+		en.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+		en.ambient_light_color = Color(1, 1, 1)
+		en.ambient_light_energy = 0.8
+		en.tonemap_mode = Environment.TONE_MAPPER_LINEAR
+		we.environment = en
+		sv.add_child(we)
+		for lt in [[Vector3(-32, 28, 0), 1.15], [Vector3(-20, -140, 0), 0.45], [Vector3(-10, 170, 0), 0.25]]:
+			var dl := DirectionalLight3D.new()
+			dl.rotation_degrees = lt[0]
+			dl.light_energy = float(lt[1])
+			dl.shadow_enabled = false
+			sv.add_child(dl)
+		var pe: ULEnemy = ULMur.new() if ULEnemy.KINDS[pk].has("gun") else ULEnemy.new()
+		sv.add_child(pe)
+		pe.setup(pk, Vector3.ZERO, 11)
+		pe.set_active(true)
+		if pe is ULMur and (pe as ULMur).hp_bar != null:
+			(pe as ULMur).hp_bar.visible = false
+		var ph: float = float(pe.def.get("height", 1.8))
+		var pc := Camera3D.new()
+		pc.fov = 22.0
+		sv.add_child(pc)
+		var dist := ph * 0.62 / tan(deg_to_rad(11.0))
+		pc.look_at_from_position(Vector3(0, ph * 0.52, dist), Vector3(0, ph * 0.5, 0), Vector3.UP)
+		pc.current = true
+		var poses := [["stand", "throw", "armed_idle"], ["aim", "aim", "boss_pistol_aim"]] if pe is ULMur else [["stand", "", ""]]
+		for po in poses:
+			if pe is ULMur and pe.rig.hold != null and String(po[1]) != "" and pe.rig.hold.w.stances.has(String(po[1])):
+				pe.rig.hold.set_stance(String(po[1]))
+				if pe.rig.info.has(String(po[2])):
+					pe.rig.set_pose(String(po[2]))
+			await get_tree().create_timer(1.4).timeout
+			for vw in [["front", 0.0], ["front34", -32.0], ["side", -90.0], ["back34", -148.0], ["back", 180.0], ["front34r", 32.0]]:
+				pe.rotation.y = deg_to_rad(float(vw[1]))
+				for i in 4:
+					await get_tree().process_frame
+				await RenderingServer.frame_post_draw
+				sv.get_texture().get_image().save_png("%s/%s_%s_%s.png" % [out, pk, po[0], vw[0]])
+		print("[photo] %s готов" % pk)
+		get_tree().quit()
+		return
+	if test == "zdemo":
+		# Запись движений заражённого из игры (--write-movie файл.avi --fixed-fps 30; --as-kind=infected): ожидание,
+		# бег за героем, удары — спереди, сбоку и игровой камерой. Герой неуязвим; в сцене бега его ведёт запись.
+		var zkind := "infected"
+		for a in OS.get_cmdline_user_args():
+			if a.begins_with("--as-kind="):
+				zkind = a.substr(10)
+		for e0 in enemies.duplicate():
+			e0.damage(1000000.0)
+		hp_lock = true
+		inv.hand = ""
+		_apply_gear()
+		player.global_position = Vector3(26, 0.05, 58)        # ближе 36 м (дальше враг не считается), но за спиной у камеры
+		var z := spawn_enemy(zkind, Vector3(26, 0, 32))
+		z.def = z.def.duplicate(true)
+		var see0: float = z.def.see
+		z.def.see = 0.0
+		z.def.hear = 0.0
+		z.def.hear_run = 0.0
+		z.def.hear_walk = 0.0
+		z.wander_r = 0.0
+		z.rotation.y = 0.0
+		var c2 := Camera3D.new()
+		add_child(c2)
+		c2.current = true
+		var cl := CanvasLayer.new()
+		cl.layer = 50
+		add_child(cl)
+		var cap := Label.new()
+		cap.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
+		cap.offset_top = -64
+		cap.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		cap.add_theme_font_size_override("font_size", 26)
+		cap.add_theme_color_override("font_color", Color(1.0, 0.92, 0.7))
+		cap.add_theme_color_override("font_outline_color", Color(0, 0, 0))
+		cap.add_theme_constant_override("outline_size", 8)
+		cl.add_child(cap)
+		_hud.visible = false
+		var st := {"mode": "front", "at": Vector3.ZERO, "side": Vector3(1, 0, 0), "hero_v": Vector3.ZERO}
+		var place_cam := func() -> void:
+			var t: Vector3 = z.global_position + Vector3.UP * 0.95
+			st.at = (st.at as Vector3).lerp(t, 0.35) if st.at != Vector3.ZERO else t
+			var cam_at: Vector3 = st.at
+			var fwd := Vector3(sin(z.rotation.y), 0, cos(z.rotation.y))
+			match String(st.mode):
+				"game":
+					c2.fov = 34.0
+					c2.global_position = cam_at + Vector3(sin(CAM_YAW) * cos(CAM_PITCH), sin(CAM_PITCH), cos(CAM_YAW) * cos(CAM_PITCH)) * 11.0
+					c2.look_at(cam_at, Vector3.UP)
+				"side":
+					c2.fov = 30.0
+					c2.global_position = cam_at + (st.side as Vector3) * 6.2 + Vector3.UP * 0.35
+					c2.look_at(cam_at + Vector3.UP * 0.05, Vector3.UP)
+				"front":
+					c2.fov = 30.0
+					c2.global_position = cam_at + (st.side as Vector3) * 4.8 + Vector3.UP * 0.5
+					c2.look_at(cam_at + Vector3.UP * 0.05, Vector3.UP)
+		var run_scene := func(sec: float) -> void:
+			var t := 0.0
+			while t < sec:
+				await get_tree().process_frame
+				var dt := get_process_delta_time()
+				t += dt
+				if (st.hero_v as Vector3).length() > 0.01:
+					player.global_position += (st.hero_v as Vector3) * dt
+				place_cam.call()
+		await get_tree().create_timer(0.6).timeout
+		# ---- ожидание ----
+		cap.text = "Ожидание: спереди"
+		st.mode = "front"
+		st.side = Vector3(0, 0, 1)
+		await run_scene.call(6.0)
+		cap.text = "Ожидание: игровая камера"
+		st.mode = "game"
+		st.at = Vector3.ZERO
+		await run_scene.call(3.0)
+		# ---- бег за героем: герой уходит по прямой с той же скоростью ----
+		cap.text = "Заметил — бег за целью: сбоку"
+		st.mode = "side"
+		st.side = Vector3(0, 0, 1)
+		st.at = Vector3.ZERO
+		z.global_position = Vector3(-6, 0, 36)
+		z.rotation.y = PI * 0.5
+		player.global_position = Vector3(1, 0.05, 36)
+		st.hero_v = Vector3(float(z.def.run), 0, 0)
+		z.def.see = see0
+		z._notice(player.global_position)
+		await run_scene.call(5.5)
+		cap.text = "Бег с поворотом: игровая камера"
+		st.mode = "game"
+		st.at = Vector3.ZERO
+		st.hero_v = Vector3(float(z.def.run) * 0.7, 0, -float(z.def.run) * 0.7)
+		await run_scene.call(2.4)
+		st.hero_v = Vector3(-float(z.def.run) * 0.7, 0, -float(z.def.run) * 0.7)
+		await run_scene.call(2.4)
+		# ---- атака: герой стоит ----
+		st.hero_v = Vector3.ZERO
+		cap.text = "Атака руками: спереди"
+		st.mode = "front"
+		st.at = Vector3.ZERO
+		await run_scene.call(0.6)
+		var fz := (player.global_position - z.global_position)
+		fz.y = 0.0
+		st.side = fz.normalized().rotated(Vector3.UP, 1.05)    # спереди-сбоку: герой не заслоняет
+		await run_scene.call(5.5)
+		cap.text = "Атака руками: сбоку"
+		st.mode = "side"
+		st.at = Vector3.ZERO
+		st.side = fz.normalized().rotated(Vector3.UP, PI * 0.5)
+		await run_scene.call(5.5)
+		cap.text = "Атака: игровая камера; цель отошла — промах и погоня"
+		st.mode = "game"
+		st.at = Vector3.ZERO
+		await run_scene.call(3.0)
+		st.hero_v = fz.normalized() * 3.4
+		await run_scene.call(2.6)
+		st.hero_v = Vector3.ZERO
+		cap.text = "Попадание и гибель"
+		await run_scene.call(1.2)
+		z.damage(20.0, player.global_position)
+		await run_scene.call(0.9)
+		z.damage(1000000.0, player.global_position)
+		await run_scene.call(2.4)
+		print("[zdemo] ударов %d" % z.strikes if "strikes" in z else "[zdemo] конец")
+		get_tree().quit()
+		return
 	if test == "bossdemo":
 		# Запись движений главаря из игры (запускать с --write-movie файл.avi --fixed-fps 30): бег, стрельба, граната —
 		# каждое игровым ракурсом и сбоку / крупно. Камера — своя (игровой угол и расстояние либо сбоку), герой неуязвим.

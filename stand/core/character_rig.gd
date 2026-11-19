@@ -58,6 +58,7 @@ var hands: BCHandIK
 var hold: BCWeaponHold          ## хват оружия: обе руки к оружию, пальцы на рукояти
 var speed_k := 1.0              ## длина шага против описанной в наборе клипов: у рослого персонажа (главарь 2,25 м) шаг длиннее — без поправки стопы скользят; задать до setup
 var alias := {}                 ## свои клипы вместо общих: {"run": "boss_pistol_run"} — задать до setup
+var extra_build := ""           ## свои клипы по ключевым позам сверх набора: "infected" — заражённый (BCPoseBuilder.install_extra); задать до setup
 var ground: BCGroundClamp       ## лежащее тело — на полу (клипы с пометкой "ground")
 var probe: BCProbe              ## итоговая поза для проверок
 var pose_report := []           ## замеры кисти в построенных ударах
@@ -99,7 +100,7 @@ func setup(path := "", set_dir := "") -> void:
 	model.add_child(ap)
 	ap.root_node = ap.get_path_to(model)
 	# библиотека клипов — одна на модель: второй такой же персонаж (ещё один заражённый) берёт готовую
-	var key := "%s|%s|%s|%s" % [model_path, anim_set, built_poses, anim_cfg]
+	var key := "%s|%s|%s|%s|%s" % [model_path, anim_set, built_poses, anim_cfg, extra_build]
 	var cached: bool = _lib_cache.has(key)
 	var built: Dictionary = _lib_cache[key] if cached else BCAnimSet.build(skel, model, BCAnimSet.load_config(anim_cfg), scale_k, anim_set)
 	info = built.info
@@ -121,6 +122,9 @@ func setup(path := "", set_dir := "") -> void:
 		pb.install(built.lib, info)
 		pose_report = pb.report
 		built["report"] = pose_report
+	if not cached and extra_build != "":
+		# клипы этого вида по ключевым позам (стойка, бег, удары) — в ту же библиотеку, общую на всех таких же
+		BCPoseBuilder.new(self).install_extra(built.lib, info, extra_build)
 	_lib_cache[key] = built
 	_build_tree()
 	# порядок модификаторов: стопы (IK, фиксация) → разворот колен/локтей → руки вне тела → кисть к цели.
@@ -199,9 +203,9 @@ func _anim(n: String) -> AnimationNodeAnimation:
 	var an: String = String(alias.get(n, n)) if info.has(String(alias.get(n, n))) else n
 	a.animation = "bc/" + (an if info.has(an) else "idle")
 	# цикл шага → общая шкала: 1 с шкалы = 1 двойной шаг (фаза уже выровнена в BCAnimSet)
-	if info.has(n) and float(info[n].strides) > 0.0:
+	if info.has(an) and float(info[an].strides) > 0.0:
 		a.use_custom_timeline = true
-		a.timeline_length = float(info[n].strides)
+		a.timeline_length = float(info[an].strides)
 		a.stretch_time_scale = true
 		a.loop_mode = Animation.LOOP_LINEAR
 	return a
@@ -224,15 +228,17 @@ func _build_tree() -> void:
 	var last := 0.0
 	for k in ["walk", "run", "sprint"]:
 		if info.has(k):
-			var sp: float = (info[k].speed if info[k].speed > 0.1 else {"walk": 1.3, "run": 3.6, "sprint": 5.6}[k]) * speed_k
+			# свой клип вместо общего — со своей скоростью и разметкой шага
+			var ak: String = String(alias.get(k, k)) if info.has(String(alias.get(k, k))) else k
+			var sp: float = (info[ak].speed if info[ak].speed > 0.1 else {"walk": 1.3, "run": 3.6, "sprint": 5.6}[k]) * speed_k
 			# точки только по возрастанию скорости: клип, который медленнее предыдущего, не годится как «быстрее»
 			if sp <= last + 0.3:
 				continue
 			last = sp
 			_speeds[k] = sp
 			loco.add_blend_point(_anim(k), sp)
-			var strides: float = info[k].strides
-			var T: float = info[k].len / strides if strides > 0.0 else info[k].len
+			var strides: float = info[ak].strides
+			var T: float = info[ak].len / strides if strides > 0.0 else info[ak].len
 			_loco_pts.append([k, sp, T, sp * T, strides > 0.0])
 	if _loco_pts.is_empty():
 		loco.add_blend_point(_anim("idle"), 0.0)

@@ -361,6 +361,159 @@ func _breath(base: Dictionary, length := 8.0) -> Callable:
 		})
 
 
+## значение по циклическим ключам [[фаза 0..1, [числа]], …]: между ключами — линейно, стык цикла — без скачка
+static func cyc(keys: Array, ph: float) -> Array:
+	ph = fposmod(ph, 1.0)
+	var n := keys.size()
+	for i in n:
+		var a: Array = keys[i]
+		var b: Array = keys[(i + 1) % n]
+		var pa := float(a[0])
+		var pb := float(b[0]) + (1.0 if i == n - 1 else 0.0)
+		if ph >= pa and ph <= pb:
+			var u := (ph - pa) / maxf(pb - pa, 0.0001)
+			var out := []
+			for j in (a[1] as Array).size():
+				out.append(lerpf(float(a[1][j]), float(b[1][j]), u))
+			return out
+	return keys[0][1]
+
+
+## зеркальная поза: левое ↔ правое (удар левой — из удара правой)
+static func mirror_pose(p: Dictionary) -> Dictionary:
+	var o := p.duplicate(true)
+	o.hip.yaw = -float(p.hip.yaw)
+	o.hip.roll = -float(p.hip.get("roll", 0.0))
+	o.hip.off = [p.hip.off[0], p.hip.off[1], -float(p.hip.off[2])]
+	o.chest.yaw = -float(p.chest.yaw)
+	o.head.yaw = -float(p.head.yaw)
+	for pr in [["L", "R"], ["R", "L"]]:
+		var f: Dictionary = (p["foot" + pr[1]] as Dictionary).duplicate(true)
+		f.pos = [f.pos[0], -float(f.pos[1])]
+		f.yaw = -float(f.yaw)
+		f.air = [f.air[0], f.air[1], -float(f.air[2])]
+		o["foot" + pr[0]] = f
+		var h2: Dictionary = (p["hand" + pr[1]] as Dictionary).duplicate(true)
+		for k2 in ["pos", "F", "P", "dir"]:
+			if h2.has(k2):
+				h2[k2] = [h2[k2][0], h2[k2][1], -float(h2[k2][2])]
+		o["hand" + pr[0]] = h2
+	return o
+
+
+## Свои клипы вида сверх набора — по ключевым позам (скелетные, общие на всех персонажей этого вида).
+## infected — заражённый (пустыш) по видео-образцу: стойка с осматриванием, бег за целью, удары руками.
+func install_extra(lib: AnimationLibrary, info: Dictionary, kind: String) -> void:
+	if kind != "infected":
+		return
+	# ---- ожидание: сутулая стойка, руки висят чуть впереди с согнутыми локтями, голова опущена; медленно
+	# осматривается — голова ведёт, грудь доворачивает, вес переходит на ближнюю ногу; дыхание и покачивание ----
+	var z_idle := over(NEUTRAL, {"hip": {"off": [0.0, -0.035, 0.0], "lean": 5.0}, "chest": {"lean": 15.0}, "head": {"pitch": 13.0},
+		"footL": {"pos": [0.01, -0.05], "yaw": -9.0}, "footR": {"pos": [-0.02, 0.05], "yaw": 11.0},
+		"handL": {"hang": 0.72, "pos": [0.22, -0.34, -0.25], "F": [0.5, -0.8, 0.1], "P": [-0.2, 0.0, 1.0]},
+		"handR": {"hang": 0.66, "pos": [0.24, -0.32, 0.27], "F": [0.55, -0.75, -0.1], "P": [-0.2, 0.0, -1.0]}})
+	var z_l := over(z_idle, {"hip": {"off": [0.0, -0.04, -0.014], "yaw": -3.0}, "chest": {"yaw": -10.0, "lean": 13.0}, "head": {"yaw": -36.0, "pitch": 9.0}})
+	var z_r := over(z_idle, {"hip": {"off": [0.0, -0.04, 0.016], "yaw": 4.0}, "chest": {"yaw": 11.0, "lean": 14.0}, "head": {"yaw": 40.0, "pitch": 11.0}})
+	var z_low := over(z_idle, {"chest": {"lean": 18.0}, "head": {"yaw": 6.0, "pitch": 21.0}})
+	var idle_k := [[0.0, z_idle], [0.17, z_l], [0.29, z_l], [0.5, z_r], [0.6, z_r], [0.78, z_low], [1.0, z_idle]]
+	var idle_len := 7.2
+	_add("infected_idle", clip(idle_len, true, func(t: float) -> Dictionary:
+		var p: Dictionary = at_keys(idle_k, t / idle_len)
+		var br := sin(TAU * t / 3.6)
+		var sw := sin(TAU * t / idle_len * 2.0)
+		return over(p, {"chest": {"lean": float(p.chest.lean) - 1.1 * br}, "hip": {"off": [float(p.hip.off[0]) + 0.004 * sw, float(p.hip.off[1]) + 0.003 * br, p.hip.off[2]]},
+			"handR": {"pos": [float(p.handR.pos[0]) + 0.012 * sw, p.handR.pos[1], p.handR.pos[2]]}}), 6.0), lib, info, 0.35)
+	# ---- бег за целью: тяжёлый, с сильным наклоном; под скорость 2,9 м/с (цикл 0,7 с, шаг ~1 м): опорная стопа
+	# идёт по земле ровно со скоростью тела (не скользит), маховая — по дуге с подъёмом пятки и выносом колена;
+	# таз проседает на опоре и доворачивается за ногой, грудь — навстречу; руки — разные: правая машет шире и
+	# ниже, левая поджата выше; голова держит цель ----
+	var run_v := 2.9
+	var run_T := 0.7
+	var st_k := 0.4                                   # доля цикла на опоре
+	var x0 := run_v * run_T * st_k * 0.5              # вынос стопы вперёд на постановке, м
+	var foot := func(ph: float) -> Dictionary:
+		ph = fposmod(ph, 1.0)
+		if ph < st_k:
+			var u := ph / st_k
+			return {"pos": [x0 - 2.0 * x0 * u, 0.0], "yaw": 0.0, "heel": 0.09 * smoothstep(0.62, 1.0, u), "free": 0.0, "air": [x0 - 2.0 * x0 * u, 0.03, 0.0]}
+		var sw2 := (ph - st_k) / (1.0 - st_k)
+		# дуга маха: от отрыва до постановки, скорость на концах — как у земли (стопа «загребает» назад перед постановкой)
+		var m := -run_v * run_T * (1.0 - st_k)
+		var hx := (2.0 * sw2 * sw2 * sw2 - 3.0 * sw2 * sw2 + 1.0) * -x0 + (sw2 * sw2 * sw2 - 2.0 * sw2 * sw2 + sw2) * m + (-2.0 * sw2 * sw2 * sw2 + 3.0 * sw2 * sw2) * x0 + (sw2 * sw2 * sw2 - sw2 * sw2) * m
+		var hy := 0.03 + 0.34 * sin(PI * sw2) * (1.0 - 0.4 * sw2)
+		var fr := smoothstep(0.0, 0.14, sw2) * (1.0 - smoothstep(0.9, 1.0, sw2))
+		return {"pos": [hx, 0.0], "yaw": 0.0, "heel": 0.09 * (1.0 - smoothstep(0.0, 0.3, sw2)), "free": fr, "air": [hx, hy, 0.0]}
+	var run_pose := func(ph: float) -> Dictionary:
+		# фаза 0 — постановка левой стопы; правая — через полцикла
+		var sR := cos(TAU * (ph - 0.45))               # +1 — правая рука впереди (левая нога в отрыве назад… правая в махе)
+		var uR := 0.5 + 0.5 * sR
+		var uL := 1.0 - uR
+		var bob := -0.075 + 0.032 * cos(TAU * 2.0 * (ph - 0.45))
+		var tw := cos(TAU * (ph + 0.05))               # +1 — левая нога впереди
+		return {
+			"hip": {"off": [0.02, bob, 0.012 * sin(TAU * (ph - 0.2))], "yaw": 8.0 * tw, "lean": 14.0, "roll": 2.5 * sin(TAU * (ph - 0.2))},
+			"chest": {"yaw": -17.0 * tw, "lean": 19.0 + 2.0 * cos(TAU * 2.0 * (ph - 0.2))},
+			"head": {"yaw": 0.0, "pitch": 3.0},
+			"footL": foot.call(ph), "footR": foot.call(ph + 0.5),
+			"handL": {"hang": 0.0, "pos": [lerpf(-0.13, 0.25, uL), lerpf(-0.2, -0.03, uL), lerpf(-0.24, -0.15, uL)], "F": [0.75, 0.6, 0.15], "P": [0.0, -0.3, 1.0], "curl": "relax", "ext": 0.0, "dir": [1.0, 0.0, 0.0]},
+			"handR": {"hang": 0.0, "pos": [lerpf(-0.3, 0.3, uR), lerpf(-0.32, -0.15, uR), lerpf(0.27, 0.2, uR)], "F": [0.85, 0.35, -0.1], "P": [0.0, -0.3, -1.0], "curl": "relax", "ext": 0.0, "dir": [1.0, 0.0, 0.0]},
+		}
+	_add("infected_chase_run", clip(run_T, true, func(t: float) -> Dictionary: return run_pose.call(t / run_T), 60.0), lib, info, 0.25, false, 0.0)
+	info["infected_chase_run"].speed = run_v
+	info["infected_chase_run"].strides = 1.0
+	# ---- удары: из полуприседа с руками-когтями перед грудью ----
+	var z_ready := over(NEUTRAL, {"hip": {"off": [0.02, -0.095, 0.0], "lean": 8.0}, "chest": {"lean": 15.0}, "head": {"pitch": 4.0},
+		"footL": {"pos": [0.14, -0.07], "yaw": -6.0}, "footR": {"pos": [-0.13, 0.07], "yaw": 16.0},
+		"handL": {"hang": 0.0, "pos": [0.3, -0.06, -0.2], "F": [0.75, 0.6, 0.1], "P": [0.2, -0.5, 1.0]},
+		"handR": {"hang": 0.0, "pos": [0.26, -0.1, 0.23], "F": [0.75, 0.6, -0.1], "P": [0.2, -0.5, -1.0]}})
+	# размашистый удар правой: замах — правое плечо и рука уходят назад-вбок на уровне плеча, вес на задней ноге;
+	# удар — таз и грудь доворачиваются, рука идёт по дуге вперёд и поперёк, вес на передней ноге, пятка задней
+	# отрывается; проводка — рука уходит за середину; возврат в стойку
+	var r_wind := over(z_ready, {"hip": {"off": [-0.035, -0.1, 0.02], "yaw": 14.0, "lean": 4.0}, "chest": {"yaw": 30.0, "lean": 9.0}, "head": {"yaw": -6.0},
+		"handR": {"hang": 0.0, "pos": [-0.14, 0.04, 0.5], "F": [0.3, 0.3, 1.0], "P": [1.0, -0.2, 0.0]},
+		"handL": {"pos": [0.3, -0.02, -0.14]}})
+	var r_hit := over(z_ready, {"hip": {"off": [0.12, -0.115, -0.02], "yaw": -16.0, "lean": 12.0}, "chest": {"yaw": -28.0, "lean": 19.0}, "head": {"yaw": 5.0, "pitch": 6.0},
+		"footR": {"pos": [-0.13, 0.07], "yaw": 6.0, "heel": 0.07},
+		"handR": {"hang": 0.0, "ext": 1.0, "dir": [1.0, 0.02, -0.22], "P": [0.0, -1.0, 0.0]},
+		"handL": {"pos": [0.16, -0.12, -0.26]}})
+	var r_thru := over(r_hit, {"hip": {"yaw": -20.0}, "chest": {"yaw": -38.0, "lean": 21.0},
+		"handR": {"hang": 0.0, "ext": 0.55, "dir": [0.6, -0.25, -0.75], "pos": [0.3, -0.16, -0.22], "P": [0.0, -1.0, 0.0]}})
+	var atk_r := [[0.0, z_ready], [0.3, r_wind, "out"], [0.36, r_wind], [0.5, r_hit, "in"], [0.62, r_thru, "out"], [1.0, z_ready]]
+	_add("infected_attack_right", clip(0.95, false, func(t: float) -> Dictionary: return at_keys(atk_r, t / 0.95), 40.0), lib, info, 0.12, true, 0.5)
+	var atk_l: Array = []
+	var z_ready_m := mirror_pose(z_ready)
+	for kf in atk_r:
+		var mk: Array = [kf[0], mirror_pose(kf[1])]
+		if (kf as Array).size() > 2:
+			mk.append(kf[2])
+		atk_l.append(mk)
+	# удар левой начинается и кончается в той же стойке, что и правой (ноги не переставляются)
+	atk_l[0] = [0.0, z_ready]
+	atk_l[atk_l.size() - 1] = [1.0, z_ready]
+	for i2 in range(1, atk_l.size() - 1):
+		atk_l[i2][1] = over(atk_l[i2][1], {"footL": z_ready.footL, "footR": over(z_ready.footR, {"heel": 0.0}), "hip": {"off": [float(atk_l[i2][1].hip.off[0]), atk_l[i2][1].hip.off[1], float(atk_l[i2][1].hip.off[2]) * 0.5]}})
+	if z_ready_m.is_empty():
+		return
+	_add("infected_attack_left", clip(0.95, false, func(t: float) -> Dictionary: return at_keys(atk_l, t / 0.95), 40.0), lib, info, 0.12, true, 0.5)
+	# попытка схватить: руки подтягиваются к груди, корпус на миг выпрямляется; выпад — шаг передней ногой, таз и
+	# плечи вперёд, обе руки вытянуты к цели и сходятся, голова за руками; возврат в стойку
+	var g_wind2 := over(z_ready, {"hip": {"off": [-0.04, -0.07, 0.0], "lean": 3.0}, "chest": {"lean": 7.0}, "head": {"pitch": -2.0},
+		"handL": {"pos": [0.2, 0.02, -0.24], "F": [0.5, 0.85, 0.0], "P": [0.6, -0.3, 0.7]},
+		"handR": {"pos": [0.2, 0.02, 0.26], "F": [0.5, 0.85, 0.0], "P": [0.6, -0.3, -0.7]}})
+	var g_step2 := over(g_wind2, {"hip": {"off": [0.06, -0.09, 0.0], "lean": 10.0}, "chest": {"lean": 14.0},
+		"footL": {"free": 1.0, "air": [0.24, 0.07, -0.07]}})
+	var g_reach := over(z_ready, {"hip": {"off": [0.2, -0.125, 0.0], "lean": 18.0}, "chest": {"lean": 24.0}, "head": {"pitch": 2.0},
+		"footL": {"pos": [0.34, -0.07], "yaw": -4.0}, "footR": {"pos": [-0.13, 0.07], "yaw": 10.0, "heel": 0.08},
+		"handL": {"hang": 0.0, "ext": 1.0, "dir": [1.0, 0.12, 0.16], "P": [0.3, -0.6, 0.7]},
+		"handR": {"hang": 0.0, "ext": 1.0, "dir": [1.0, 0.12, -0.16], "P": [0.3, -0.6, -0.7]}})
+	var g_clutch := over(g_reach, {"hip": {"off": [0.21, -0.13, 0.0]}, "chest": {"lean": 27.0},
+		"handL": {"hang": 0.0, "ext": 0.78, "dir": [1.0, 0.0, 0.3], "pos": [0.34, -0.06, -0.08], "P": [0.2, -0.3, 1.0]},
+		"handR": {"hang": 0.0, "ext": 0.78, "dir": [1.0, 0.0, -0.3], "pos": [0.34, -0.06, 0.08], "P": [0.2, -0.3, -1.0]}})
+	var g_back := over(z_ready, {"footL": {"free": 1.0, "air": [0.24, 0.05, -0.07]}, "hip": {"off": [0.1, -0.1, 0.0]}})
+	var atk_g := [[0.0, z_ready], [0.24, g_wind2, "out"], [0.36, g_step2], [0.5, g_reach, "in"], [0.6, g_clutch], [0.7, g_clutch], [0.86, g_back], [1.0, z_ready]]
+	_add("infected_attack_grab", clip(1.05, false, func(t: float) -> Dictionary: return at_keys(atk_g, t / 1.05), 40.0), lib, info, 0.12, true, 0.5)
+
+
 ## собрать все позы и движения в библиотеку персонажа
 func install(lib: AnimationLibrary, info: Dictionary) -> void:
 	_add("idle", clip(8.0, true, _breath(NEUTRAL), 4.0), lib, info, 0.3)
