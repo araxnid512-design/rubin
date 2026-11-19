@@ -1279,6 +1279,7 @@ uniform vec3 tint : source_color = vec3(0.62, 0.68, 0.6);
 uniform float dens = 0.36;
 uniform float drift = 1.0;
 uniform float half = 50.0;
+uniform float solid = 0.0;        // карьер: дальше от края туман сплошной — за ним ничего не видно
 varying vec3 wp;
 void vertex() { wp = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz; }
 void fragment() {
@@ -1286,7 +1287,8 @@ void fragment() {
 	float d = max(abs(p.x), abs(p.y)) - half;
 	float n = texture(noise, p / 38.0 + TIME * vec2(0.006, 0.004) * drift).r * 0.6 + texture(noise, p / 13.0 - TIME * vec2(0.011, 0.007) * drift).r * 0.4;
 	ALBEDO = tint * (0.86 + 0.28 * n);
-	ALPHA = smoothstep(-5.0, 8.0, d + (n - 0.5) * 9.0) * dens;
+	float e = d + (n - 0.5) * 9.0;
+	ALPHA = max(smoothstep(-5.0, 8.0, e) * dens, smoothstep(8.0, 40.0, e) * solid);
 }
 """
 
@@ -1298,6 +1300,12 @@ func _edge_fog() -> void:
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var a := size_m * 0.5 - 10.0
 	var b := size_m * 0.5 + 30.0
+	var solid := 0.0
+	if place == "quarry":
+		# карьер: за краем поля — только туман границы кластера (ни леса, ни земли до горизонта): рамка идёт далеко
+		# за край и в 10–40 м от него становится сплошной
+		b = size_m * 0.5 + 700.0
+		solid = 1.0
 	# рамка из четырёх полос
 	for r in [[-b, -b, b, -a], [-b, a, b, b], [-b, -a, -a, a], [a, -a, b, a]]:
 		var v := [Vector3(r[0], 0, r[1]), Vector3(r[2], 0, r[1]), Vector3(r[2], 0, r[3]), Vector3(r[0], 0, r[3])]
@@ -1316,6 +1324,7 @@ func _edge_fog() -> void:
 		m.set_shader_parameter("dens", l[1])
 		m.set_shader_parameter("drift", l[2])
 		m.set_shader_parameter("half", size_m * 0.5)
+		m.set_shader_parameter("solid", solid)
 		var fi := MeshInstance3D.new()
 		fi.mesh = mesh
 		fi.material_override = m
