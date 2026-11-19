@@ -233,6 +233,22 @@
     ],
     "follow": 1.0,
     "twist": 0
+   },
+   "throw": {
+    "anchor": "grip",
+    "pos": [
+     0.34,
+     -0.26,
+     0.14
+    ],
+    "dir": [
+     0.85,
+     -0.4,
+     0.3
+    ],
+    "follow": 1.0,
+    "twist": 0,
+    "one": true
    }
   },
   "holster": {

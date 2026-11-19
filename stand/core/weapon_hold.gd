@@ -61,6 +61,9 @@ var _head := -1
 var fx: BCShotFx                  ## гильзы, вспышка и дымок выстрела (в мировых координатах)
 var fx_on := true                 ## false — без эффектов выстрела (далёкий или невидимый стрелок)
 var fx_flash := true              ## false — вспышку у ствола рисует сам владелец (герой в игре)
+var size_k := 1.0                 ## оружие крупнее описанного (главарь муров: пистолет под его рост); задать до equip
+var flash_k := 1.0                ## вспышка и дымок крупнее (тяжёлый пистолет главаря)
+var recoil_k := 1.0               ## отдача сильнее
 const BRASS := Color(0.78, 0.6, 0.24)
 
 
@@ -234,6 +237,12 @@ func equip(id: String, in_hands := true) -> void:
 		w = {}
 		return
 	w = config()[id]
+	if size_k != 1.0:
+		# своё описание: длина и толщина рукояти — крупнее, точки хвата — те же (в единицах модели)
+		w = w.duplicate(true)
+		w.len_m = float(w.len_m) * size_k
+		if w.has("grip_half"):
+			w.grip_half = float(w.grip_half) * size_k
 	node = Node3D.new()
 	node.name = "Weapon"
 	var m: Node3D = (load(w.model) as PackedScene).instantiate()
@@ -330,6 +339,7 @@ func fire() -> void:
 		var mz := g * Vector3(w.muzzle[0], w.muzzle[1], w.muzzle[2])
 		# у пистолета вспышка и дымок меньше, у ружья и пулемёта — больше
 		var fk := 0.62 if String(w.get("mode", "")) == "pistol" else (1.25 if pump or float(w.get("len_m", 0.9)) > 1.1 else 1.0)
+		fk *= flash_k
 		if fx_flash:
 			fx.flash(mz, dir, fk)
 		fx.puff(mz, dir, fk)
@@ -608,8 +618,8 @@ func _process_modification_with_delta(delta: float) -> void:
 	if not rc.is_empty() and _recoil_t < float(rc.time) * 4.0:
 		var x := _recoil_t / (float(rc.time) * 0.25)
 		rk = x * exp(1.0 - x)
-		pose = pose * _about(grip, Basis(Vector3.RIGHT, deg_to_rad(float(rc.pitch)) * rk))
-		pose.origin += pose.basis.z * (float(rc.back) * k * rk)
+		pose = pose * _about(grip, Basis(Vector3.RIGHT, deg_to_rad(float(rc.pitch)) * rk * recoil_k))
+		pose.origin += pose.basis.z * (float(rc.back) * k * rk * recoil_k)
 	# оружие следует за грудью (наклоны и покачивание из клипа), в прицеле — частично
 	var Gc := s.get_bone_global_pose(_chest)
 	var Gr := s.get_bone_global_rest(_chest)
@@ -632,7 +642,7 @@ func _process_modification_with_delta(delta: float) -> void:
 		W.basis = W.basis.orthonormalized().slerp(pose.basis.orthonormalized(), _lock)
 		W.origin = keep - W.basis * ap
 	# разворот корпуса (левое плечо вперёд), чтобы левая рука доставала до цевья; отдача толкает плечи назад
-	var lean := deg_to_rad(float(rc.get("body", 0.0))) * rk - deg_to_rad(_lean_f) * lift
+	var lean := deg_to_rad(float(rc.get("body", 0.0))) * rk * recoil_k - deg_to_rad(_lean_f) * lift
 	if absf(_twist * lift) > 0.5 or absf(lean) > 0.0005:
 		for b in _sp:
 			var G := s.get_bone_global_pose(b)

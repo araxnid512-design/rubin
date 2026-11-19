@@ -308,7 +308,7 @@ func damage(d: float, from := Vector3.INF) -> void:
 			# оглушён до броска: камень рассыпается в руках, метка гаснет
 			_rock_abort()
 			state = "chase"
-	elif not rig.busy():
+	elif not rig.busy() and not bool(def.get("no_flinch", false)):
 		var hc := "hit_back" if side == "back" and rig.has_clip("hit_back") else "hit_front"
 		if rig.has_clip(hc):
 			rig.play(hc, 1.4)

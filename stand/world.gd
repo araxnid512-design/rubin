@@ -754,6 +754,42 @@ func _cs_hud(vs: Vector2, font0: Font) -> void:
 	_quest_hud(vs, font0)
 
 
+## Главарь в бою: вверху экрана — его имя и широкая полоса здоровья с двумя засечками (границы фаз), справа —
+## номер фазы. Убывает с задержкой (светлый след за красной полосой).
+var _boss_lag := 1.0
+var _boss_cam := Vector3.ZERO      ## сдвиг камеры к главарю в бою с ним
+
+
+func boss_hud_on() -> bool:
+	return boss != null and is_instance_valid(boss) and boss.engaged()
+
+
+func _boss_hud(vs: Vector2, font0: Font) -> void:
+	if not boss_hud_on():
+		_boss_lag = 1.0 if boss == null or not is_instance_valid(boss) or not boss.alive() else _boss_lag
+		return
+	var k := clampf(boss.hp / float(boss.def.hp), 0.0, 1.0)
+	_boss_lag = maxf(k, move_toward(_boss_lag, k, get_process_delta_time() * 0.25))
+	var w := minf(vs.x * 0.44, 600.0)
+	var x := vs.x * 0.5 - w * 0.5
+	var y := 132.0
+	var nm := String(boss.def.n).to_upper()
+	var nw := font0.get_string_size(nm, HORIZONTAL_ALIGNMENT_LEFT, -1, 20).x
+	var rage := boss.raging()
+	var ncol := Color(1.0, 0.45, 0.3) if rage and int(Time.get_ticks_msec() / 300) % 2 == 0 else Color(1.0, 0.84, 0.72)
+	_hud.draw_string_outline(font0, Vector2(vs.x * 0.5 - nw * 0.5, y - 6), nm, HORIZONTAL_ALIGNMENT_LEFT, -1, 20, 7, Color(0, 0, 0, 0.9))
+	_hud.draw_string(font0, Vector2(vs.x * 0.5 - nw * 0.5, y - 6), nm, HORIZONTAL_ALIGNMENT_LEFT, -1, 20, ncol)
+	_hud.draw_rect(Rect2(x - 3, y - 1, w + 6, 20), Color(0.03, 0.02, 0.02, 0.82))
+	_hud.draw_rect(Rect2(x, y + 2, w * _boss_lag, 14), Color(0.95, 0.8, 0.6, 0.75))
+	_hud.draw_rect(Rect2(x, y + 2, w * k, 14), Color(0.86, 0.1, 0.07) if not rage else Color(1.0, 0.25, 0.08))
+	for th in boss.def.get("phases", []):
+		_hud.draw_rect(Rect2(x + w * float(th) - 1.5, y, 3, 18), Color(0.03, 0.02, 0.02, 0.95))
+	_hud.draw_rect(Rect2(x - 3, y - 1, w + 6, 20), Color(0.9, 0.7, 0.55, 0.8), false, 1.5)
+	var st: String = ["I", "II", "III"][clampi(boss.stage - 1, 0, 2)]
+	_hud.draw_string_outline(font0, Vector2(x + w + 12, y + 16), st, HORIZONTAL_ALIGNMENT_LEFT, -1, 20, 6, Color(0, 0, 0, 0.9))
+	_hud.draw_string(font0, Vector2(x + w + 12, y + 16), st, HORIZONTAL_ALIGNMENT_LEFT, -1, 20, ncol)
+
+
 ## записка после возвращения из временного кластера (почему вернулись и что с вещами)
 func _arrival(t: String) -> void:
 	var shade := ColorRect.new()
@@ -2299,6 +2335,15 @@ func _process(delta: float) -> void:
 			house.set_inside(ins)
 		house.update_walls(player.global_position, delta)
 	var dist_t := minf(cam_dist, 13.0) if ins else cam_dist
+	# бой с главарём: камера сдвигается к нему (в кадре оба) и чуть отходит; вне боя — возвращается
+	var boss_off := Vector3.ZERO
+	if boss_hud_on():
+		var bd := boss.global_position - player.global_position
+		bd.y = 0.0
+		if bd.length() < 18.0:
+			boss_off = bd.limit_length(9.0) * 0.58
+			dist_t = maxf(dist_t, 14.5)
+	_boss_cam = _boss_cam.lerp(boss_off, 1.0 - exp(-delta * 2.5))
 	if not _cam_ready:
 		_cam_t = player.global_position
 		_cam_d = dist_t
@@ -2306,12 +2351,17 @@ func _process(delta: float) -> void:
 	_cam_t = _cam_t.lerp(player.global_position, 1.0 - exp(-delta * 16.0))
 	_cam_d = lerpf(_cam_d, dist_t, 1.0 - exp(-delta * 6.0))
 	var cp := Vector3(sin(CAM_YAW) * cos(CAM_PITCH), sin(CAM_PITCH), cos(CAM_YAW) * cos(CAM_PITCH)) * _cam_d
-	var look := _cam_t + Vector3.UP * 0.8
+	var look := _cam_t + _boss_cam + Vector3.UP * 0.8
 	cam.global_position = look + cp
 	if _hurt_t > 0.0:
 		# удар по герою: камера коротко вздрагивает (сильнее от сильного удара)
 		var k := _hurt_t / 0.35 * _hurt_amp
 		cam.global_position += Vector3(sin(Time.get_ticks_msec() * 0.09), 0.0, cos(Time.get_ticks_msec() * 0.11)) * 0.12 * k
+	if _shake_t > 0.0:
+		_shake_t = maxf(0.0, _shake_t - delta)
+		var sk := _shake_amp * (_shake_t / maxf(_shake_len, 0.01))
+		var ms := Time.get_ticks_msec()
+		cam.global_position += Vector3(sin(ms * 0.071), sin(ms * 0.093) * 0.6, cos(ms * 0.083)) * 0.16 * sk
 	_cam_ready = true
 	cam.look_at(look, Vector3.UP)
 	var _p0 := Time.get_ticks_usec()
@@ -3509,6 +3559,7 @@ func _draw_hud() -> void:
 				_hud_icon(_art("menu"), c, r * 2.0, ic)
 		_hud.draw_arc(c, r, 0, TAU, 44, line, 3.0 if k == "fire" else 2.5)
 	_cs_hud(vs, font0)
+	_boss_hud(vs, font0)
 	if _leave_t > 0.0:
 		var lt := "Вы покидаете локацию: %d" % int(ceil(maxf(LEAVE_S - _leave_t, 0.0)))
 		var lw := font0.get_string_size(lt, HORIZONTAL_ALIGNMENT_LEFT, -1, 30).x
@@ -3949,6 +4000,7 @@ const BULLETS := {
 	"a762x54": [0.52, 0.082, Color(0.62, 0.62, 0.66), true],
 	"a9x39": [0.44, 0.094, Color(0.42, 0.43, 0.46), false],
 	"a12": [0.085, 0.085, Color(0.5, 0.5, 0.54), false],
+	"boss50": [0.62, 0.15, Color(1.0, 0.72, 0.3), false],      # тяжёлый пистолет главаря муров: крупная, светлая — видно, откуда летит
 }
 const BULLET_SPEED := 62.0        ## м/с: медленнее настоящей — чтобы полёт был виден
 var _flash_t := 0.0
@@ -8922,14 +8974,139 @@ func _mur_special(from: Vector3, dir: Vector3, length: float, width: float, pct:
 		if get_world_3d().direct_space_state.intersect_ray(q).is_empty():
 			special_hits += 1
 			hurt(pct * HP_MAX, from)
+			_knock = dir * 5.0                         # отбрасывает вдоль выстрела
+			shake(1.3, 0.4)
 			end = pp + Vector3.UP * 1.2
 			say("Прицельный выстрел главаря: −%d" % int(round(pct * HP_MAX)))
 		else:
 			special_miss += 1
 	else:
 		special_miss += 1
-	_fly_bullet("a762x54", from, end, null, 0.0, true)
-	snd.play("shot_svd", from, 4.0, 0.03)
+	_fly_bullet("boss50", from, end, null, 0.0, true)
+	snd.play(String(m.gun.get("sound", "shot_svd")), from, 7.0, 0.03, 0.0, 0.9)
+
+
+## Удар главаря ногой: достаёт героя перед собой (reach, в угле arc) — урон в долю здоровья и отбрасывание.
+var boss_kick_hits := 0
+
+
+func _mur_melee(at: Vector3, dir: Vector3, reach: float, arc: float, pct: float, knock: float, m: ULMur) -> void:
+	snd.play("swoosh", at + Vector3.UP * 0.9, 2.0, 0.06, 0.0, 0.8)
+	var rel := player.global_position - at
+	var dy := absf(rel.y)
+	rel.y = 0.0
+	if _dead_t > 0.0 or rel.length() > reach or dy > 1.5:
+		return
+	if rel.length() > 0.3 and rad_to_deg(dir.angle_to(rel.normalized())) > arc * 0.5:
+		return
+	boss_kick_hits += 1
+	hurt(pct * HP_MAX, at)
+	var push := rel.normalized() if rel.length() > 0.05 else dir
+	_knock = push * knock
+	shake(1.1, 0.35)
+	snd.play("punch", player.global_position + Vector3.UP * 1.0, 3.0, 0.05, 0.0, 0.75)
+	say("Удар главаря: −%d" % int(round(pct * HP_MAX)))
+
+
+## Взрыв гранаты главаря: герой в круге и не за стеной — урон (в центре полный, у края edge_k) и отбрасывание.
+var boss_blasts := 0
+var boss_blast_hits := 0
+
+
+func _mur_blast(at: Vector3, r: float, pct: float, edge_k: float, knock: float, _m: ULMur) -> void:
+	boss_blasts += 1
+	snd.play("grenade_boom", at + Vector3.UP * 0.4, 6.0, 0.04)
+	var pp := player.global_position
+	var d := Vector2(pp.x - at.x, pp.z - at.z).length()
+	shake(clampf(1.6 - d * 0.1, 0.3, 1.6), 0.55)
+	if _dead_t > 0.0 or d > r or absf(pp.y - at.y) > 1.8:
+		return
+	# стена, ящики, мебель между взрывом и героем — закрывают
+	var q := PhysicsRayQueryParameters3D.create(at + Vector3.UP * 0.6, pp + Vector3.UP * 1.0)
+	q.exclude = [player.get_rid()]
+	q.collision_mask = 1
+	var hit := get_world_3d().direct_space_state.intersect_ray(q)
+	if not hit.is_empty() and not (hit.collider is CharacterBody3D):
+		return
+	boss_blast_hits += 1
+	var dmg := pct * HP_MAX * lerpf(1.0, edge_k, clampf(d / maxf(r, 0.1), 0.0, 1.0))
+	hurt(dmg, at)
+	var push := Vector3(pp.x - at.x, 0, pp.z - at.z)
+	_knock = (push.normalized() if push.length() > 0.05 else Vector3.FORWARD) * knock
+	say("Граната главаря: −%d" % int(round(dmg)))
+
+
+## События главаря: вступление, смена фазы (зовёт бойцов), звуки атак, гибель
+var boss_calls := 0
+
+
+func _boss_event(what: String, n: int, m: ULMur) -> void:
+	var at := m.global_position + Vector3.UP * 1.6
+	var voice: Array = m.def.get("voice", [0.75, 3.0])
+	match what:
+		"intro":
+			snd.play("hurt", at, 2.0 + float(voice[1]), 0.03, 0.0, float(voice[0]))
+			shake(0.5, 0.3)
+		"stage":
+			snd.play("hurt", at, 3.0 + float(voice[1]), 0.03, 0.0, float(voice[0]) * 0.92)
+			shake(0.8, 0.4)
+			var came := _boss_call(m)
+			say("Главарь муров: фаза %d из 3%s" % [n, (" — зовёт бойцов (%d)" % came) if came > 0 else ""])
+		"aim":
+			snd.play("bolt_back", at, 4.0, 0.03, 0.0, 0.8)      # взводит курок
+		"kick":
+			snd.play("cloth", at - Vector3.UP * 0.6, 2.0, 0.06)
+		"grenade":
+			snd.play("click", at, 6.0, 0.03, 0.0, 1.2)           # чека
+		"land":
+			if m.nade != null and is_instance_valid(m.nade):
+				snd.play("grenade_tink", m.nade.at + Vector3.UP * 0.1, 3.0, 0.08)
+		"dead":
+			shake(1.0, 0.5)
+			say("Главарь муров убит. Ключ — при нём")
+
+
+## главарь зовёт бойцов: ближайшие живые муры (не снайперы) бросают посты и идут к нему; сколько откликнулось
+func _boss_call(m: ULMur) -> int:
+	var cfg: Dictionary = m.def.get("call", {})
+	var want := int(cfg.get("n", 2))
+	var r := float(cfg.get("r", 80.0))
+	var list: Array = []
+	for e in enemies:
+		if e is ULMur and e != m and e.alive() and not (e as ULMur).sniper and not (e as ULMur).boss and not e.has_meta("called"):
+			var d := e.global_position.distance_to(m.global_position)
+			if d <= r:
+				list.append([d, e])
+	list.sort_custom(func(a, b) -> bool: return float(a[0]) < float(b[0]))
+	var came := 0
+	for it in list:
+		if came >= want:
+			break
+		var mm := it[1] as ULMur
+		mm.set_meta("called", true)
+		mm.patrol = PackedVector3Array()
+		mm.home = m.global_position                # новое место — у главаря: гонится за героем от него
+		mm.wander_r = 0.0
+		if mm._calm():
+			mm._notice(player.global_position)
+		else:
+			mm._last = player.global_position
+		came += 1
+	boss_calls += came
+	return came
+
+
+## встряска камеры (взрыв, тяжёлый удар): сила и длительность
+var _shake_t := 0.0
+var _shake_len := 0.3
+var _shake_amp := 0.0
+
+
+func shake(amp: float, sec := 0.3) -> void:
+	if amp * sec >= _shake_amp * _shake_t:
+		_shake_amp = amp
+		_shake_t = sec
+		_shake_len = sec
 
 
 ## Оружейный сундук главаря: ключ (только от этого логова) → награда выбирается и записывается сразу → прокрутка
@@ -9236,28 +9413,45 @@ func _lair_test() -> void:
 	var hits0 := mur_hits
 	var t_b := 0.0
 	bos._sp_cd = 99.0                                  # сначала — обычные выстрелы
+	bos._kick_cd = 99.0
+	bos._gr_cd = 99.0
 	var bs0 := bos.shots
+	var lost_b := 0.0
 	while t_b < 20.0 and (t_b < 8.0 or bos.shots - bs0 < 10):
 		await get_tree().physics_frame
 		t_b += get_physics_process_delta_time()
 		if not bos.area.grow(0.05).has_point(Vector2(bos.global_position.x, bos.global_position.z)):
 			inside_area = false
 		min_d = minf(min_d, bos.global_position.distance_to(player.global_position))
+		if hp < hp_c:
+			# урон копится в счётчике, здоровье возвращается: десяти тяжёлых выстрелов герой не переживёт
+			lost_b += hp_c - hp
+			hp = HP_MAX
+			hp_c = hp
 	await get_tree().create_timer(0.5).timeout
-	var per := (hp_c - hp) / maxf(float(mur_hits - hits0), 1.0)
-	_ok("обычный выстрел Desert Eagle — 10 %% здоровья (%.1f за попадание), не каждый попадает (%d из %d)" % [per, mur_hits - hits0, bos.shots - bs0], absf(per - HP_MAX * 0.1) < 0.6 and mur_hits - hits0 < bos.shots - bs0 and mur_hits - hits0 > 0)
-	# подошёл вплотную — отступает
-	var close_p: Vector3 = bos.global_position + (player.global_position - bos.global_position).normalized() * 2.5
+	lost_b += hp_c - hp
+	hp = HP_MAX
+	var per := lost_b / maxf(float(mur_hits - hits0), 1.0)
+	_ok("тяжёлый выстрел Desert Eagle — 12 %% здоровья (%.1f за попадание), не каждый попадает (%d из %d)" % [per, mur_hits - hits0, bos.shots - bs0], absf(per - HP_MAX * 0.12) < 0.6 and mur_hits - hits0 < bos.shots - bs0 and mur_hits - hits0 > 0)
+	# подошёл вплотную — главарь не пятится, а бьёт ногой и отбрасывает
+	bos._kick_cd = 0.0
+	var close_p: Vector3 = bos.global_position + (player.global_position - bos.global_position).normalized() * 2.0
 	player.global_position = snapf.call(close_p) + Vector3.UP * 0.1
 	var d0 := bos.global_position.distance_to(player.global_position)
+	var kk0 := boss_kick_hits
+	hp = HP_MAX
 	var t_r := 0.0
-	while t_r < 2.5:
+	while t_r < 3.0 and boss_kick_hits == kk0:
 		await get_tree().physics_frame
 		t_r += get_physics_process_delta_time()
 		if not bos.area.grow(0.05).has_point(Vector2(bos.global_position.x, bos.global_position.z)):
 			inside_area = false
+	await get_tree().create_timer(0.6).timeout
 	var d1 := bos.global_position.distance_to(player.global_position)
-	_ok("герой подошёл вплотную (%.1f м) — главарь отступает (через 2,5 с — %.1f м)" % [d0, d1], d1 > d0 + 0.6)
+	_ok("герой подошёл вплотную (%.1f м) — главарь бьёт ногой: −15 %% здоровья, отбрасывает (%.1f м)" % [d0, d1], boss_kick_hits == kk0 + 1 and d1 > d0 + 0.8 and hp <= HP_MAX - HP_MAX * 0.15 + 0.5,
+		"ударов %d, попаданий %d, фаза %s" % [bos.kicks, boss_kick_hits - kk0, bos.phase])
+	bos._kick_cd = 99.0
+	hp = HP_MAX
 	_ok("главарь не выходит из штаба", inside_area)
 	# прицельный выстрел: красная полоса → застыла → выстрел; ушёл с полосы — мимо
 	cam_dist = 17.0                                    # для снимка: в кадре и главарь, и полоса
@@ -9313,9 +9507,9 @@ func _lair_test() -> void:
 		tsp3 += get_physics_process_delta_time()
 	await get_tree().create_timer(0.2).timeout
 	var got := hp_s2 - hp
-	_ok("стоял на полосе — попадание в треть здоровья (%.1f)" % got, special_hits == hit1 + 1 and got >= HP_MAX * 0.333 - 0.5,
+	_ok("стоял на полосе — попадание в 30 %% здоровья (%.1f)" % got, special_hits == hit1 + 1 and got >= HP_MAX * 0.3 - 0.5,
 		"фаза %s, прицельных %d, попаданий %d, промахов %d, до героя %.1f, видит %s, ждали %.1f с" % [bos.phase, bos.specials, special_hits, special_miss, bos.global_position.distance_to(player.global_position), str(bos.get_meta("sees", false)), tsp3])
-	_ok("перезарядка прицельного выстрела ~10 с", bos._sp_cd > 8.0 or bos.phase == "sp_rec")
+	_ok("перезарядка прицельного выстрела ~9 с", bos._sp_cd > 7.0 or bos.phase == "sp_rec")
 	# ---- 4. ключ и сундук ----
 	await _find_target_at(lr.chest_pos + Vector3(0, 0, 1.2) if lr.chest_yaw == 0.0 else lr.chest_pos - Vector3(0, 0, 1.2))
 	_ok("у сундука без ключа: «Закрыто. Требуется ключ главаря муров»", _target != null and String(_target.type) == "chest" and _action_label() == "Закрыто" and _target_name().contains("Требуется ключ главаря муров"), "%s / %s" % [_action_label(), _target_name()])
@@ -9413,6 +9607,11 @@ func spawn_enemy(kind: String, at: Vector3) -> ULEnemy:
 	if e is ULMur:
 		(e as ULMur).shoot.connect(_mur_shoot.bind(e))
 		(e as ULMur).special_hit.connect(_mur_special.bind(e))
+		(e as ULMur).melee.connect(_mur_melee.bind(e))
+		(e as ULMur).blast.connect(_mur_blast.bind(e))
+		(e as ULMur).boss_event.connect(_boss_event.bind(e))
+		if (e as ULMur).boss:
+			boss = e
 	e.hit_player.connect(hurt)
 	e.noise.connect(_enemy_noise.bind(e))
 	e.sky = _open_sky
@@ -12209,6 +12408,227 @@ func _run_test() -> void:
 				n += 1
 			print("[loco] %s: состояние %s, место %s, до героя %.1f м, видит %s" % [e.def.n, e.state, str(e.global_position.snapped(Vector3.ONE * 0.1)), e.global_position.distance_to(player.global_position), str(e.get_meta("sees", "?"))])
 			print("[loco] %s: кадров %d, наибольшее отклонение тела от направления бега %.0f°, таз уходит вбок от капсулы %.2f…%.2f м, скорость %.1f м/с" % [e.def.n, n, face_dev, lat_min, lat_max, Vector3(e.velocity.x, 0, e.velocity.z).length()])
+		get_tree().quit()
+		return
+	if test == "bossview":
+		# Главарь муров как босс: размер, вступление, тяжёлый выстрел, прицельный выстрел, удар ногой, фазы, подмога,
+		# граната, гибель. Снимки игровой камерой (как видит игрок), замеры — в журнал.
+		DirAccess.make_dir_recursive_absolute(out)
+		for e0 in enemies.duplicate():
+			e0.damage(1000000.0)                     # заражённые стартовой локации бою не мешают
+		var hero_at := Vector3(15, 0.05, 30)
+		player.global_position = hero_at
+		cam_dist = 13.0
+		_cam_ready = false
+		inv.primary = ULItems.make("ak74m")
+		inv.hand = "primary"
+		_apply_gear()
+		await _wait_drawn()
+		var help1 := spawn_enemy("mur_ak", Vector3(38, 0, 36)) as ULMur
+		var help2 := spawn_enemy("mur_sg", Vector3(-10, 0, 40)) as ULMur
+		help1.def = help1.def.duplicate(true)
+		help2.def = help2.def.duplicate(true)
+		for hm in [help1, help2]:
+			hm.def.see = 0.0
+			hm.def.hear = 0.0
+			hm.def.hear_run = 0.0
+			hm.def.hear_walk = 0.0
+		var bos := spawn_enemy("mur_boss", Vector3(15, 0, 22)) as ULMur
+		bos.rotation.y = PI
+		var c2 := Camera3D.new()
+		add_child(c2)
+		c2.fov = 34.0
+		var close := func(on: bool) -> void:
+			# крупный план главаря (и героя рядом) — проверить сами движения
+			if on:
+				var t: Vector3 = bos.global_position + Vector3.UP * 1.0
+				c2.global_position = t + Vector3(sin(CAM_YAW + 0.5) * cos(0.5), sin(0.5), cos(CAM_YAW + 0.5) * cos(0.5)) * 7.0
+				c2.look_at(t, Vector3.UP)
+			c2.current = on
+			cam.current = not on
+		var wait_for := func(cond: Callable, sec: float) -> bool:
+			var tw := 0.0
+			while tw < sec:
+				if bool(cond.call()):
+					return true
+				await get_tree().physics_frame
+				tw += get_physics_process_delta_time()
+				if hp < 45.0:
+					hp = HP_MAX
+			return bool(cond.call())
+		# --- размер ---
+		await get_tree().create_timer(0.3).timeout
+		var head_b: float = (bos.rig.skel.global_transform * bos.rig.skel.get_bone_global_pose(bos.rig.skel.find_bone("Head")).origin).y - bos.global_position.y
+		var head_h: float = (rig.skel.global_transform * rig.skel.get_bone_global_pose(rig.skel.find_bone("Head")).origin).y - player.global_position.y
+		_ok("главарь крупнее героя: голова на %.2f м против %.2f м у героя; пистолет %.2f м (обычный — 0,27)" % [head_b, head_h, float(bos.rig.hold.w.len_m)], head_b > head_h * 1.18 and float(bos.rig.hold.w.len_m) > 0.38)
+		_ok("прочность %d, от пуль не дёргается (no_flinch), три фазы" % int(bos.def.hp), int(bos.def.hp) >= 2500 and bool(bos.def.get("no_flinch", false)) and (bos.def.phases as Array).size() == 2)
+		# --- вступление ---
+		await wait_for.call(func(): return bos.state == "alert" or bos.state == "chase", 4.0)
+		await get_tree().create_timer(0.4).timeout
+		_ok("заметил героя: реплика над ним, на экране — полоса здоровья главаря", boss == bos and boss_hud_on() and bos._say != null and bos._say.visible, "состояние %s" % bos.state)
+		await _snap("b0_intro")
+		close.call(true)
+		await _snap("c0_intro")
+		close.call(false)
+		# --- тяжёлый выстрел ---
+		bos._sp_cd = 99.0
+		bos._kick_cd = 99.0
+		var s0 := bos.shots
+		var h0 := mur_hits
+		var hp0 := hp
+		Engine.time_scale = 0.3
+		await wait_for.call(func(): return bos.phase == "aim", 6.0)
+		close.call(true)
+		await _snap("c1_aim")
+		await wait_for.call(func(): return bos.shots > s0, 6.0)
+		await _snap("c1_shot")
+		await get_tree().create_timer(0.04).timeout
+		await _snap("c1_recoil")
+		close.call(false)
+		s0 = bos.shots
+		await wait_for.call(func(): return bos.shots > s0, 6.0)
+		await _snap("b1_shot")
+		Engine.time_scale = 1.0
+		hp = HP_MAX
+		hp0 = hp
+		h0 = mur_hits
+		s0 = bos.shots
+		var lost := 0.0
+		var tsh := 0.0
+		while tsh < 14.0 and mur_hits - h0 < 3:
+			await get_tree().physics_frame
+			tsh += get_physics_process_delta_time()
+			if hp < hp0:
+				lost += hp0 - hp
+				hp = HP_MAX
+				hp0 = hp
+		await get_tree().create_timer(0.4).timeout
+		if hp < hp0:
+			lost += hp0 - hp
+		var per := lost / maxf(float(mur_hits - h0), 1.0)
+		_ok("тяжёлый выстрел: %.1f здоровья за попадание (12 %%), попал %d из %d; звук и пуля — свои" % [per, mur_hits - h0, bos.shots - s0], absf(per - HP_MAX * 0.12) < 0.6 and mur_hits - h0 >= 1 and snd._streams("shot_deagle").size() >= 2 and BULLETS.has("boss50"))
+		# --- от пуль не дёргается ---
+		var hp_b := bos.hp
+		var flinched := false
+		for i in 10:
+			bos.damage(26.0, player.global_position)
+			await get_tree().physics_frame
+			flinched = flinched or String(bos.rig._action) == "hit_front" or String(bos.rig._action) == "stagger"
+		_ok("десять попаданий автомата: здоровье %d → %d, главарь не дёргается и не сбивается" % [int(hp_b), int(bos.hp)], not flinched and absf(hp_b - bos.hp - 260.0) < 0.5 and bos.stage == 1)
+		# --- прицельный выстрел ---
+		hp = HP_MAX
+		player.global_position = hero_at
+		bos._sp_cd = 0.0
+		bos._sp_gap = 0.0
+		await wait_for.call(func(): return bos.phase == "sp_lock", 8.0)
+		await _snap("b2_line")
+		var hp_s := hp
+		var sh0 := special_hits
+		await wait_for.call(func(): return bos.phase == "sp_rec", 3.0)
+		await get_tree().create_timer(0.25).timeout
+		_ok("прицельный выстрел по полосе: −%.0f здоровья (30 %%), отбрасывает" % (hp_s - hp), special_hits == sh0 + 1 and absf((hp_s - hp) - HP_MAX * 0.3) < 0.6)
+		bos._sp_cd = 99.0
+		# --- удар ногой ---
+		await wait_for.call(func(): return not bos.phase.begins_with("sp_"), 3.0)
+		hp = HP_MAX
+		var fwd_b := Vector3(sin(bos.rotation.y), 0, cos(bos.rotation.y))
+		player.global_position = bos.global_position + fwd_b * 1.9 + Vector3.UP * 0.05
+		bos._kick_cd = 0.0
+		var k0 := bos.kicks
+		var kh0 := boss_kick_hits
+		await wait_for.call(func(): return bos.kicks > k0, 3.0)
+		Engine.time_scale = 0.3
+		close.call(true)
+		await wait_for.call(func(): return bos._pt < float(bos.def.kick.wind_s) * 0.5, 2.0)
+		await _snap("c3_windup")
+		await wait_for.call(func(): return bos.phase == "sp_kick_rec", 2.0)
+		var hp_k := hp
+		await _snap("c3_kick")
+		close.call(false)
+		await _snap("b3_kick")
+		Engine.time_scale = 1.0
+		await get_tree().create_timer(0.7).timeout
+		var d_k := player.global_position.distance_to(bos.global_position)
+		_ok("подошёл вплотную — удар ногой: −%.0f здоровья (15 %%), героя отбросило на %.1f м от главаря" % [HP_MAX - hp if hp < HP_MAX else HP_MAX - hp_k, d_k], boss_kick_hits == kh0 + 1 and d_k > 3.4)
+		bos._kick_cd = 99.0
+		# --- вторая фаза: пошатнулся, зовёт бойцов; сразу за этим — граната ---
+		hp = HP_MAX
+		player.global_position = hero_at
+		var c0 := boss_calls
+		var g0 := bos.grenades
+		var bl0 := boss_blasts
+		var bh0 := boss_blast_hits
+		bos.gun = bos.gun.duplicate(true)
+		bos.gun.acc = 0.0                              # дальше замеряется граната: обычные выстрелы — мимо
+		bos.gun.acc_far = 0.0
+		bos.damage(bos.hp - float(bos.def.hp) * 0.6, player.global_position)
+		bos._sp_cd = 99.0
+		await get_tree().physics_frame
+		_ok("здоровье ниже 66 %% — вторая фаза: пошатнулся, позвал бойцов (%d)" % (boss_calls - c0), bos.stage == 2 and bos.phase == "sp_stun" and boss_calls - c0 == 2 and help1.has_meta("called") and help2.has_meta("called"))
+		var dh1 := help1.global_position.distance_to(player.global_position)
+		await get_tree().create_timer(0.5).timeout
+		await _snap("b4_stage2")
+		close.call(true)
+		await _snap("c4_stagger")
+		close.call(false)
+		await wait_for.call(func(): return bos.grenades > g0, 6.0)
+		Engine.time_scale = 0.3
+		await get_tree().create_timer(0.1).timeout
+		await _snap("b5_gren_mark")
+		var mark_at: Vector3 = bos.nade.at if bos.nade != null and is_instance_valid(bos.nade) else Vector3.INF
+		close.call(true)
+		await wait_for.call(func(): return bos._pt < float(bos.def.grenade.throw_s) * 0.45, 2.0)
+		await _snap("c5_windup")
+		await wait_for.call(func(): return bos.nade == null or not is_instance_valid(bos.nade) or bos.nade.phase == "fly", 2.0)
+		await get_tree().create_timer(0.04).timeout
+		await _snap("c5_throw")
+		close.call(false)
+		await get_tree().create_timer(0.06).timeout
+		await _snap("b5_gren_fly")
+		var hp_pre := hp
+		var tg := 0.0
+		while boss_blasts == bl0 and tg < 5.0:
+			hp_pre = hp
+			await get_tree().physics_frame
+			tg += get_physics_process_delta_time()
+		var got_g := hp_pre - hp
+		await get_tree().create_timer(0.03).timeout
+		await _snap("b5_boom")
+		Engine.time_scale = 1.0
+		await get_tree().create_timer(0.3).timeout
+		_ok("граната: красный круг там, где стоял герой (%.1f м от него), взрыв — −%.0f здоровья (35 %% в центре)" % [mark_at.distance_to(hero_at) if mark_at != Vector3.INF else -1.0, got_g], boss_blast_hits == bh0 + 1 and mark_at != Vector3.INF and mark_at.distance_to(hero_at) < 0.8 and got_g > HP_MAX * 0.3 and got_g <= HP_MAX * 0.35 + 0.1 and snd._streams("grenade_boom").size() >= 1,
+			"взрывов %d, попаданий %d" % [boss_blasts - bl0, boss_blast_hits - bh0])
+		_ok("позванные муры бросили посты и идут на помощь (%.1f → %.1f м до героя; состояния %s, %s)" % [dh1, help1.global_position.distance_to(player.global_position), help1.state, help2.state], help1.state != "idle" and help2.state != "idle" and help1.global_position.distance_to(player.global_position) < dh1 - 2.0)
+		help1.damage(1000000.0)
+		help2.damage(1000000.0)
+		# вторая граната: вышел из круга — мимо
+		hp = HP_MAX
+		player.global_position = hero_at
+		await wait_for.call(func(): return not bos.phase.begins_with("sp_"), 3.0)
+		bos._gr_cd = 0.0
+		bos._sp_gap = 0.0
+		g0 = bos.grenades
+		bh0 = boss_blast_hits
+		bl0 = boss_blasts
+		await wait_for.call(func(): return bos.grenades > g0, 8.0)
+		player.global_position = hero_at + Vector3(4.5, 0, 0)
+		await wait_for.call(func(): return boss_blasts > bl0, 5.0)
+		await get_tree().create_timer(0.3).timeout
+		_ok("вышел из круга до взрыва — граната не задела", boss_blasts == bl0 + 1 and boss_blast_hits == bh0 and hp >= HP_MAX - 0.1, "здоровье %.0f" % hp)
+		bos._gr_cd = 99.0
+		# --- третья фаза ---
+		bos._pt = 0.0
+		player.global_position = hero_at
+		bos.damage(bos.hp - float(bos.def.hp) * 0.3, player.global_position)
+		await get_tree().create_timer(0.6).timeout
+		_ok("здоровье ниже 33 %% — третья фаза: звереет (паузы ×%.2f, прицельный раз в %.0f с, граната раз в %.0f с)" % [float(bos.def.rage.pause_k), float(bos.def.rage.sp_cd), float(bos.def.rage.gr_cd)], bos.stage == 3 and bos.raging())
+		await _snap("b6_rage")
+		# --- гибель ---
+		bos.damage(1000000.0, player.global_position)
+		await get_tree().create_timer(1.2).timeout
+		_ok("главарь убит: полоса на экране убрана", not bos.alive() and not boss_hud_on())
+		await _snap("b7_dead")
+		print("[inv] итог: ошибок %d" % _fails)
 		get_tree().quit()
 		return
 	if test == "murmove":

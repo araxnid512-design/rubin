@@ -136,7 +136,7 @@ func flash(muzzle: Vector3, dir: Vector3, size := 1.0) -> void:
 	_flash.global_position = muzzle + dir * (0.09 * size)
 	_flash.scale = Vector3.ONE * (randf_range(0.8, 1.2) * size)
 	_flash.visible = true
-	_flash_t = 0.05
+	_flash_t = 0.05 * clampf(size, 1.0, 2.2)       # большая вспышка (тяжёлый пистолет главаря) держится чуть дольше
 	set_process(true)
 
 

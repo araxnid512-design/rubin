@@ -14,11 +14,18 @@ extends ULEnemy
 ##     не выходит; раз в special.cd — «прицельный выстрел»: замирает и целится, на полу от него вдоль прицела горит
 ##     красная полоса (до первой стены); через aim_s направление застывает, ещё lock_s — и выстрел по полосе:
 ##     герой на полосе (и не за стеной) — dmg_pct здоровья, ушёл — мимо; потом recovery rec_s.
+##     Главарь — босс: крупный, от пуль не дёргается, не прячется. Бой в три фазы (stage — по доле здоровья,
+##     phases): подошли вплотную — удар ногой с отбрасыванием (kick); со второй фазы — зовёт ближайших муров и
+##     бросает гранаты (grenade: красный круг на полу, через fuse_s — взрыв); в третьей звереет (rage): паузы
+##     короче, атаки чаще. О каждой атаке — надпись над ним. Смену фазы и вступление сообщает сигнал boss_event.
 ## Попадание считает мир (сигнал shoot: лучи от дульного среза, стены и укрытия останавливают пули). Точность —
 ## не 100 %: шанс попасть падает с расстоянием (acc → acc_far на дальности range), промах уходит мимо героя.
 
 signal shoot(from: Vector3, dirs: Array, dmg: float, info: Dictionary)
 signal special_hit(from: Vector3, dir: Vector3, length: float, width: float, dmg: float)
+signal melee(at: Vector3, dir: Vector3, reach: float, arc_deg: float, pct: float, knock: float)
+signal blast(at: Vector3, r: float, pct: float, edge_k: float, knock: float)
+signal boss_event(what: String, n: int)     ## intro — заметил героя; stage — новая фаза (n = 2, 3); aim — взвёл курок; kick, grenade, land — звуки атак
 
 var gun := {}
 var mag := 0
@@ -31,6 +38,10 @@ var bursts := 0
 var reloads := 0
 var covers := 0
 var specials := 0
+var kicks := 0
+var grenades := 0
+var stage := 1                      ## главарь: фаза боя (1–3)
+var nade: ULGrenade                 ## граната главаря, пока не взорвалась
 var phase := ""                     ## в бою: move, aim, fire, pause, reload; главарь: sp_aim, sp_lock, sp_rec
 var _body_now := ""                 ## какая стойка тела сейчас задана (armed_idle / aim_idle / rest_idle; "" — на ходу)
 var _strafe := false                ## шагает лицом к герою (в любую сторону), а не по ходу
@@ -55,6 +66,14 @@ var _hp_shown := 1.0
 var _reload_n := 0
 var crouch := 0.0                   ## присел за низким укрытием (0..1)
 var _hide_t := 0.0                  ## сколько уже сидит в укрытии
+var _kick_cd := 0.0
+var _kick_rec := 0.0
+var _gr_cd := 0.0
+var _gr_rec := 0.0
+var _sp_gap := 0.0                  ## после любой особой атаки — пауза до следующей (кроме удара вблизи)
+var _met := false                   ## главарь уже встречал героя (вступление — один раз)
+var _say: Label3D
+var _say_t := 0.0
 
 
 func setup(k: String, at: Vector3, seed_n: int) -> void:
@@ -65,11 +84,16 @@ func setup(k: String, at: Vector3, seed_n: int) -> void:
 	if rig.hold != null:
 		rig.hold.draw_rate = 2.0
 		rig.hold.reload_rate = 1.3
+		# у главаря оружие под его рост, вспышка и отдача — тяжёлого пистолета
+		rig.hold.size_k = float(gun.get("scale", 1.0))
+		rig.hold.flash_k = float(gun.get("flash", 1.0))
+		rig.hold.recoil_k = float(gun.get("recoil", 1.0))
 		rig.hold.equip(String(gun.get("weapon", "rifle")), true)
 		rig.hold.set_stance("ready")
 	rig.set_pose("armed_idle")
 	_body_now = "armed_idle"
 	_sp_cd = float(def.get("special", {}).get("cd", 10.0)) * 0.5
+	_gr_cd = 2.0
 	if boss:
 		_make_bar()
 
@@ -86,6 +110,14 @@ func _notice(at: Vector3) -> void:
 	if rig.hold != null:
 		rig.hold.set_stance("aim")
 	noise.emit("mur_alert", global_position)
+	if boss:
+		if not _met:
+			# вступление: поворачивается к герою, реплика, на экране — его полоса здоровья
+			_met = true
+			tell(String(def.get("lines", {}).get("intro", "")), 3.0, Color(1.0, 0.86, 0.7))
+			boss_event.emit("intro", 1)
+		else:
+			_t = minf(_t, 0.5)
 
 
 ## услышал выстрел — дальше обычного (оружие слышно далеко), снайпер на вышке — тоже
@@ -103,8 +135,51 @@ func damage(d: float, from := Vector3.INF) -> void:
 			hp_bar.visible = false
 		if rig.hold != null:
 			rig.hold.set_stance("ready")
+		if nade != null and is_instance_valid(nade):
+			nade.cancel()                              # не успел бросить — граната не взрывается
+		if boss:
+			boss_event.emit("dead", stage)
 	elif alive() and state == "chase" and phase == "pause":
 		_pt = minf(_pt, 0.25)                          # попали — быстрее отвечает
+	if boss and alive():
+		_stage_check()
+
+
+## главарь: фаза боя по доле здоровья. Новая фаза — пошатнулся (единственное, что его сбивает), реплика, зовёт
+## бойцов (мир — по сигналу), со второй — гранаты, в третьей — звереет
+func _stage_check() -> void:
+	var k := hp / float(def.hp)
+	var n := 1
+	for th in def.get("phases", []):
+		if k <= float(th):
+			n += 1
+	if n <= stage:
+		return
+	stage = n
+	_line_off()
+	if nade != null and is_instance_valid(nade):
+		nade.cancel()
+	state = "chase"
+	phase = "sp_stun"
+	_pt = 1.1
+	if rig.has_clip("stagger"):
+		rig.play("stagger", 1.2)
+	if rig.hold != null:
+		rig.hold.set_stance("ready")
+	tell(String(def.get("lines", {}).get("stage%d" % stage, "")), 3.0, Color(1.0, 0.5, 0.35))
+	_gr_cd = 1.2                                       # сразу после — граната
+	_sp_cd = minf(_sp_cd, 4.0)
+	_sp_gap = 0.0
+	boss_event.emit("stage", stage)
+
+
+func raging() -> bool:
+	return boss and stage >= 3 and def.has("rage")
+
+
+## в бою ли главарь (для полосы здоровья на экране)
+func engaged() -> bool:
+	return alive() and (state == "chase" or state == "alert")
 
 
 ## на сколько бьёт оружие мура, м: как у героя — в пределах экрана (снайперу на вышке дальность и зрение
@@ -126,6 +201,14 @@ func tick(delta: float, p: Vector3, can_see: bool, hero_alive: bool) -> void:
 	to.y = 0.0
 	var dist := to.length()
 	_sp_cd = maxf(0.0, _sp_cd - delta)
+	_kick_cd = maxf(0.0, _kick_cd - delta)
+	_gr_cd = maxf(0.0, _gr_cd - delta)
+	_sp_gap = maxf(0.0, _sp_gap - delta)
+	if _say != null and _say.visible:
+		_say_t -= delta
+		_say.modulate.a = clampf(_say_t / 0.4, 0.0, 1.0)
+		if _say_t <= 0.0:
+			_say.visible = false
 	var speed := 0.0
 	_move_dir = Vector3.ZERO
 	_face_dir = Vector3.ZERO
@@ -293,9 +376,19 @@ func _combat_inner(delta: float, p: Vector3, to: Vector3, dist: float, can_see: 
 	# главарь: прицельный выстрел
 	if phase.begins_with("sp_"):
 		return _special_tick(delta, p, can_see)
-	if boss and def.has("special") and _sp_cd <= 0.0 and can_see and dist >= float(def.special.get("from", 4.0)) and dist <= float(def.special.get("to", 20.0)) and phase != "reload":
+	# главарь: подошли вплотную — бьёт ногой (и перезарядку прервёт)
+	if boss and def.has("kick") and _kick_cd <= 0.0 and can_see and dist <= float(def.kick.get("from", 2.4)) and rig.has_clip("kick"):
+		_kick_start(to)
+		return 0.0
+	if boss and def.has("special") and _sp_cd <= 0.0 and _sp_gap <= 0.0 and can_see and dist >= float(def.special.get("from", 4.0)) and dist <= float(def.special.get("to", 20.0)) and phase != "reload":
 		_special_start(p)
 		return 0.0
+	# граната — со второй фазы; и за укрытие, куда герой только что спрятался
+	if boss and def.has("grenade") and stage >= int(def.grenade.get("stage", 2)) and _gr_cd <= 0.0 and _sp_gap <= 0.0 and phase != "reload" and (can_see or _unseen < 2.5):
+		var gd := Vector2(_last.x - global_position.x, _last.z - global_position.z).length()
+		if gd >= float(def.grenade.get("from", 3.5)) and gd <= float(def.grenade.get("to", 12.0)) and absf(_last.y - global_position.y) < 1.0:
+			_grenade_start(_last)
+			return 0.0
 	match phase:
 		"reload":
 			_pt -= delta
@@ -343,7 +436,7 @@ func _combat_inner(delta: float, p: Vector3, to: Vector3, dist: float, can_see: 
 				if _burst <= 0 or not can_see:
 					phase = "pause"
 					var ps: Array = gun.get("pause", [0.8, 1.4])
-					_pt = _rng.randf_range(float(ps[0]), float(ps[1]))
+					_pt = _rng.randf_range(float(ps[0]), float(ps[1])) * (float(def.rage.get("pause_k", 0.6)) if raging() else 1.0)
 					if mag <= 0:
 						_start_reload()
 					elif bool(gun.get("cover", false)) and _rng.randf() < 0.55:
@@ -427,7 +520,7 @@ func _reposition(delta: float, p: Vector3, to: Vector3, dist: float, keep: Array
 		radial = -1.6                                  # подошли вплотную — главарь отступает
 	var mv := lat + dirn * radial
 	_move_dir = mv
-	return float(def.walk) * (1.5 if radial < -1.0 else 1.1)
+	return float(def.walk) * (1.5 if radial < -1.0 else 1.1) * (float(def.rage.get("walk_k", 1.2)) if raging() else 1.0)
 
 
 ## Укрытие: из 14 точек вокруг (2–7 м, на карте проходимости) — где луч от груди героя до груди мура упирается в
@@ -540,6 +633,92 @@ func _special_start(p: Vector3) -> void:
 	_sp_dir = _sp_dir.normalized()
 	_line_on()
 	noise.emit("boss_aim", global_position)
+	tell(String(def.special.get("n", "Прицельный выстрел")), 1.6, Color(1.0, 0.3, 0.2))
+	boss_event.emit("aim", stage)
+
+
+## удар ногой: замах wind_s (клип ускорен под него), удар — мир проверяет, достал ли; потом возврат ноги
+func _kick_start(to: Vector3) -> void:
+	var kc: Dictionary = def.kick
+	var wind := float(kc.get("wind_s", 0.42))
+	var inf: Dictionary = rig.info["kick"]
+	var hk := float(inf.get("hit", 0.54))
+	if hk <= 0.0:
+		hk = 0.54
+	var full := rig.clip_len("kick")
+	var dur := rig.play("kick", full * hk / wind)
+	_line_off()
+	phase = "sp_kick"
+	_pt = wind
+	_kick_rec = maxf(dur - wind, 0.15)
+	_sp_dir = to.normalized() if to.length() > 0.01 else Vector3(sin(rotation.y), 0, cos(rotation.y))
+	kicks += 1
+	if rig.hold != null:
+		rig.hold.set_stance("ready")
+	tell(String(kc.get("n", "Удар ногой")), 1.0, Color(1.0, 0.6, 0.3))
+	boss_event.emit("kick", stage)
+
+
+## граната: красный круг там, где стоял герой; замах throw_s (левая рука, оружие в правой) — бросок — взрыв
+func _grenade_start(at: Vector3) -> void:
+	var gc: Dictionary = def.grenade
+	var thr := float(gc.get("throw_s", 0.6))
+	_line_off()
+	phase = "sp_gren"
+	_pt = thr
+	_gr_rec = 0.45
+	if rig.has_clip("throw_l"):
+		var inf: Dictionary = rig.info["throw_l"]
+		var hk := float(inf.get("hit", 0.56))
+		var dur := rig.play("throw_l", rig.clip_len("throw_l") * (hk if hk > 0.0 else 0.56) / thr)
+		_gr_rec = maxf(dur - thr, 0.2)
+	if rig.hold != null:
+		rig.hold.set_stance("throw" if rig.hold.w.stances.has("throw") else "ready")
+	var d := at - global_position
+	d.y = 0.0
+	_sp_dir = d.normalized() if d.length() > 0.01 else Vector3(sin(rotation.y), 0, cos(rotation.y))
+	grenades += 1
+	nade = ULGrenade.new()
+	get_parent().add_child(nade)
+	nade.hand = _left_hand
+	nade.setup(Vector3(at.x, global_position.y, at.z), float(gc.get("r", 2.6)), thr, float(gc.get("fly_s", 0.8)), float(gc.get("fuse_s", 2.3)))
+	nade.exploded.connect(func(p: Vector3, r: float):
+		blast.emit(p, r, float(gc.get("dmg_pct", 0.35)), float(gc.get("edge_k", 0.4)), float(gc.get("knock", 6.0))))
+	nade.landed.connect(func(_p: Vector3): boss_event.emit("land", stage))
+	tell(String(gc.get("n", "Граната")) + "!", 1.6, Color(1.0, 0.3, 0.2))
+	boss_event.emit("grenade", stage)
+
+
+func _left_hand() -> Vector3:
+	if rig == null or rig.skel == null:
+		return global_position + Vector3.UP * 1.5
+	var l := rig.skel.find_bone("L_Hand")
+	if l < 0:
+		return global_position + Vector3.UP * 1.5
+	return rig.skel.global_transform * rig.skel.get_bone_global_pose(l).origin
+
+
+## надпись над главарём: реплика или название атаки
+func tell(t: String, sec := 2.0, col := Color(1.0, 0.9, 0.8)) -> void:
+	if t == "" or hp_bar == null:
+		return
+	if _say == null:
+		_say = Label3D.new()
+		_say.font_size = 44
+		_say.pixel_size = 0.0042
+		_say.outline_size = 12
+		_say.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+		_say.no_depth_test = true
+		_say.render_priority = 6
+		_say.layers = 1 | 2
+		_say.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		_say.width = 620.0
+		add_child(_say)
+		_say.position = Vector3(0, float(def.get("height", 1.9)) + 0.95, 0)
+	_say.text = t
+	_say.modulate = col
+	_say.visible = true
+	_say_t = sec
 
 
 func _special_tick(delta: float, p: Vector3, can_see: bool) -> float:
@@ -575,10 +754,44 @@ func _special_tick(delta: float, p: Vector3, can_see: bool) -> float:
 		"sp_rec":
 			_face_dir = _sp_dir
 			if _pt <= 0.0:
-				_sp_cd = float(sp.get("cd", 10.0))
+				_sp_cd = float(def.rage.get("sp_cd", 6.0)) if raging() else float(sp.get("cd", 10.0))
+				_sp_gap = 1.2
 				phase = "pause"
 				_pt = 0.3
 				rig.hold.set_stance("ready")
+		"sp_kick":
+			_face_dir = _sp_dir
+			if _pt <= 0.0:
+				var kc: Dictionary = def.kick
+				melee.emit(global_position, _sp_dir, float(kc.get("reach", 2.9)), float(kc.get("arc", 70.0)), float(kc.get("dmg_pct", 0.15)), float(kc.get("knock", 8.0)))
+				phase = "sp_kick_rec"
+				_pt = _kick_rec
+		"sp_kick_rec":
+			_face_dir = _sp_dir
+			if _pt <= 0.0:
+				_kick_cd = float(def.rage.get("kick_cd", 2.5)) if raging() else float(def.kick.get("cd", 3.5))
+				phase = "aim" if can_see else "pause"
+				_pt = 0.25
+		"sp_gren":
+			_face_dir = _sp_dir
+			if _pt <= 0.0:
+				if nade != null and is_instance_valid(nade):
+					nade.release()
+				phase = "sp_gren_rec"
+				_pt = _gr_rec
+		"sp_gren_rec":
+			_face_dir = _sp_dir
+			if _pt <= 0.0:
+				_gr_cd = float(def.rage.get("gr_cd", 7.0)) if raging() else float(def.grenade.get("cd", 11.0))
+				_sp_gap = 1.0
+				phase = "aim" if can_see else "pause"
+				_pt = 0.3
+				rig.hold.set_stance("aim" if can_see else "ready")
+		"sp_stun":
+			# пошатнулся на смене фазы
+			if _pt <= 0.0:
+				phase = "pause"
+				_pt = 0.2
 	return 0.0
 
 
@@ -669,18 +882,7 @@ func _make_bar() -> void:
 	hp_bar.add_child(mk.call(Color(0.05, 0.05, 0.05, 0.8), 1.24, 0.16, 3))
 	_bar_fill = mk.call(Color(0.86, 0.12, 0.1, 0.95), 1.2, 0.12, 4)
 	hp_bar.add_child(_bar_fill)
-	var lb := Label3D.new()
-	lb.text = String(def.n)
-	lb.font_size = 40
-	lb.pixel_size = 0.004
-	lb.outline_size = 10
-	lb.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-	lb.no_depth_test = true
-	lb.render_priority = 5
-	lb.position = Vector3(0, 0.2, 0)
-	lb.modulate = Color(1.0, 0.86, 0.8)
-	lb.layers = 1 | 2
-	hp_bar.add_child(lb)
+	# имя главаря — на экране, над полосой здоровья (мир рисует её вверху экрана); над головой — только полоска
 	hp_bar.visible = false
 
 
