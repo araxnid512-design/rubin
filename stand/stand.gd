@@ -24,6 +24,7 @@ const ENTRIES := [
 	{"id": "p_fire", "g": "Пистолет", "n": "Выстрел", "weapon": "pistol", "stance": "aim", "proc": "fire"},
 	{"id": "p_reload", "g": "Пистолет", "n": "Перезарядка", "weapon": "pistol", "stance": "aim", "proc": "reload"},
 	{"id": "r_draw", "g": "Автомат", "n": "Взять и убрать", "weapon": "rifle", "stance": "ready", "proc": "draw"},
+	{"id": "r_rest", "g": "Автомат", "n": "Покой (поперёк груди)", "weapon": "rifle", "stance": "ready", "still": true},
 	{"id": "r_ready", "g": "Автомат", "n": "Стойка наготове", "weapon": "rifle", "stance": "ready"},
 	{"id": "r_aim", "g": "Автомат", "n": "Прицел стоя", "weapon": "rifle", "stance": "aim"},
 	{"id": "r_walk", "g": "Автомат", "n": "Ходьба наготове", "weapon": "rifle", "stance": "ready", "speed": 1.3},
@@ -31,26 +32,31 @@ const ENTRIES := [
 	{"id": "r_fire", "g": "Автомат", "n": "Очередь", "weapon": "rifle", "stance": "aim", "proc": "burst"},
 	{"id": "r_reload", "g": "Автомат", "n": "Перезарядка", "weapon": "rifle", "stance": "ready", "proc": "reload"},
 	{"id": "s_draw", "g": "Дробовик SPAS-12", "n": "Взять и убрать", "weapon": "spas12", "stance": "ready", "proc": "draw"},
+	{"id": "s_rest", "g": "Дробовик SPAS-12", "n": "Покой (поперёк груди)", "weapon": "spas12", "stance": "ready", "still": true},
 	{"id": "s_aim", "g": "Дробовик SPAS-12", "n": "Прицел стоя", "weapon": "spas12", "stance": "aim"},
 	{"id": "s_walk", "g": "Дробовик SPAS-12", "n": "Ходьба наготове", "weapon": "spas12", "stance": "ready", "speed": 1.3},
 	{"id": "s_fire", "g": "Дробовик SPAS-12", "n": "Выстрел и цевьё", "weapon": "spas12", "stance": "aim", "proc": "burst"},
 	{"id": "s_reload", "g": "Дробовик SPAS-12", "n": "Перезарядка", "weapon": "spas12", "stance": "ready", "proc": "reload"},
 	{"id": "f_draw", "g": "FN FAL", "n": "Взять и убрать", "weapon": "fnfal", "stance": "ready", "proc": "draw"},
+	{"id": "f_rest", "g": "FN FAL", "n": "Покой (поперёк груди)", "weapon": "fnfal", "stance": "ready", "still": true},
 	{"id": "f_aim", "g": "FN FAL", "n": "Прицел стоя", "weapon": "fnfal", "stance": "aim"},
 	{"id": "f_walk", "g": "FN FAL", "n": "Ходьба наготове", "weapon": "fnfal", "stance": "ready", "speed": 1.3},
 	{"id": "f_fire", "g": "FN FAL", "n": "Выстрел", "weapon": "fnfal", "stance": "aim", "proc": "burst"},
 	{"id": "f_reload", "g": "FN FAL", "n": "Перезарядка", "weapon": "fnfal", "stance": "ready", "proc": "reload"},
 	{"id": "v_draw", "g": "ВСС", "n": "Взять и убрать", "weapon": "vss", "stance": "ready", "proc": "draw"},
+	{"id": "v_rest", "g": "ВСС", "n": "Покой (поперёк груди)", "weapon": "vss", "stance": "ready", "still": true},
 	{"id": "v_aim", "g": "ВСС", "n": "Прицел стоя", "weapon": "vss", "stance": "aim"},
 	{"id": "v_walk", "g": "ВСС", "n": "Ходьба наготове", "weapon": "vss", "stance": "ready", "speed": 1.3},
 	{"id": "v_fire", "g": "ВСС", "n": "Выстрел", "weapon": "vss", "stance": "aim", "proc": "burst"},
 	{"id": "v_reload", "g": "ВСС", "n": "Перезарядка", "weapon": "vss", "stance": "ready", "proc": "reload"},
 	{"id": "h_draw", "g": "MP5", "n": "Взять и убрать", "weapon": "mp5", "stance": "ready", "proc": "draw"},
+	{"id": "h_rest", "g": "MP5", "n": "Покой (поперёк груди)", "weapon": "mp5", "stance": "ready", "still": true},
 	{"id": "h_aim", "g": "MP5", "n": "Прицел стоя", "weapon": "mp5", "stance": "aim"},
 	{"id": "h_walk", "g": "MP5", "n": "Ходьба наготове", "weapon": "mp5", "stance": "ready", "speed": 1.3},
 	{"id": "h_fire", "g": "MP5", "n": "Очередь", "weapon": "mp5", "stance": "aim", "proc": "burst"},
 	{"id": "h_reload", "g": "MP5", "n": "Перезарядка", "weapon": "mp5", "stance": "ready", "proc": "reload"},
 	{"id": "k_draw", "g": "Ручной пулемёт «Печенег»", "n": "Взять и убрать", "weapon": "pkp", "stance": "ready", "proc": "draw"},
+	{"id": "k_rest", "g": "Ручной пулемёт «Печенег»", "n": "Покой (поперёк груди)", "weapon": "pkp", "stance": "ready", "still": true},
 	{"id": "k_aim", "g": "Ручной пулемёт «Печенег»", "n": "Прицел стоя", "weapon": "pkp", "stance": "aim"},
 	{"id": "k_walk", "g": "Ручной пулемёт «Печенег»", "n": "Ходьба наготове", "weapon": "pkp", "stance": "ready", "speed": 1.3},
 	{"id": "k_fire", "g": "Ручной пулемёт «Печенег»", "n": "Очередь", "weapon": "pkp", "stance": "aim", "proc": "burst"},
@@ -61,6 +67,7 @@ const ENTRIES := [
 	{"id": "b_fire", "g": "Пистолет Beretta 92FS", "n": "Выстрел", "weapon": "beretta", "stance": "aim", "proc": "burst"},
 	{"id": "b_reload", "g": "Пистолет Beretta 92FS", "n": "Перезарядка", "weapon": "beretta", "stance": "aim", "proc": "reload"},
 	{"id": "d_draw", "g": "СВД", "n": "Достать и убрать", "weapon": "svd", "stance": "ready", "proc": "draw"},
+	{"id": "d_rest", "g": "СВД", "n": "Покой (поперёк груди)", "weapon": "svd", "stance": "ready", "still": true},
 	{"id": "d_aim", "g": "СВД", "n": "Прицел стоя", "weapon": "svd", "stance": "aim"},
 	{"id": "d_walk", "g": "СВД", "n": "Ходьба наготове", "weapon": "svd", "stance": "ready", "speed": 1.3},
 	{"id": "d_fire", "g": "СВД", "n": "Выстрел", "weapon": "svd", "stance": "aim", "proc": "burst"},
@@ -522,6 +529,11 @@ func _body_pose() -> void:
 	var wpn := rig.hold.wid if rig.hold.drawn > 0.0 or rig.hold._draw_dir > 0.0 else ""
 	if pose == "" and not cur.has("speed") and not cur.has("action"):
 		pose = "" if wpn == "" else ("combat_idle" if rig.hold.w.mode == "melee" else "armed_idle")
+		if wpn != "" and rig.hold.w.mode == "rifle" and rig.hold.stance == "aim" and rig.info.has("aim_idle"):
+			pose = "aim_idle"
+		elif wpn != "" and rig.hold.w.mode == "rifle" and bool(cur.get("still", false)) and rig.hold.w.stances.has("rest") and rig.info.has("rest_idle"):
+			pose = "rest_idle"
+	rig.hold.still = bool(cur.get("still", false))
 	rig.set_pose(pose if rig.info.has(pose) else "")
 
 
@@ -1661,6 +1673,10 @@ func _run_test() -> void:
 		await _grips_test()
 		get_tree().quit()
 		return
+	if test == "vidseq":
+		await _vidseq_test()
+		get_tree().quit()
+		return
 	ui.visible = false
 	cam.h_offset = 0.0
 	if OS.get_cmdline_user_args().has("--as-ik=off"):
@@ -1689,12 +1705,17 @@ func _run_test() -> void:
 			# построенные удары снимаются в момент касания ("hit" — доля длины клипа)
 			var hit := float(rig.info.get(en.action, {}).get("hit", 0.42))
 			times = [0.5 + (1.3 if en.has("pre_pose") else 0.0) + (al * hit if rig.info.get(en.action, {}).get("built", false) else 0.45), (al * 0.25 if rig.info.get(en.action, {}).get("built", false) else 0.5)]
+		# покой включается сам через BCWeaponHold.REST_AFTER с после остановки: ждём его и переход в него не считаем
+		var skip := 0.45
+		if bool(en.get("still", false)):
+			skip = BCWeaponHold.REST_AFTER + 1.0
+			times = [skip + 0.6, 0.5]
 		for m in times.size():
 			var t := 0.0
 			while t < float(times[m]):
 				await get_tree().process_frame
 				t += get_process_delta_time()
-				if (m > 0 or t > 0.45) and rig.hold.wid != "" and rig.hold.ik_on:
+				if (m > 0 or t > skip) and rig.hold.wid != "" and rig.hold.ik_on:
 					for sd in (["R", "L"] if rig.hold.two_hands else ["R"]):
 						for ji in 3:
 							var v: float = rig.hold.joints[sd][ji]
@@ -1702,13 +1723,17 @@ func _run_test() -> void:
 							if not rng.has(key):
 								rng[key] = [v, v]
 							rng[key] = [minf(rng[key][0], v), maxf(rng[key][1], v)]
-				if m > 0 or t > 0.45:                     # переход из прошлой стойки не считаем
+				if m > 0 or t > skip:                     # переход из прошлой стойки не считаем
 					er = maxf(er, rig.hold.err_r)
 					el = maxf(el, rig.hold.err_l)
 					dev = maxf(dev, rig.hold.aim_dev)
 			var was := Engine.time_scale
 			Engine.time_scale = 0.0
-			for v in [["a", 0.6, 0.15, 2.9, 1.0], ["b", -PI * 0.5, 0.1, 2.9, 1.0], ["c", -1.0, 0.3, 0.75, -1.0], ["d", 1.1, 0.25, 0.75, -1.0], ["e", 0.0, 1.35, 1.0, -1.0]]:
+			var views := [["a", 0.6, 0.15, 2.9, 1.0], ["b", -PI * 0.5, 0.1, 2.9, 1.0], ["c", -1.0, 0.3, 0.75, -1.0], ["d", 1.1, 0.25, 0.75, -1.0], ["e", 0.0, 1.35, 1.0, -1.0]]
+			if OS.get_cmdline_user_args().has("--as-views=vid"):
+				# как в видео-образце: спереди в рост, справа в рост, справа крупно (плечи и оружие), спереди-справа крупно
+				views = [["f", 0.0, 0.06, 3.3, 0.95], ["s", -PI * 0.5, 0.04, 3.3, 0.95], ["k", -PI * 0.5, 0.03, 1.35, 1.42], ["q", -0.55, 0.08, 1.5, 1.4]]
+			for v in views:
 				yaw = v[1]
 				pitch = v[2]
 				dist = v[3]
@@ -1735,6 +1760,16 @@ func _run_test() -> void:
 						bad.append("%s %s" % ["правая" if sd == "R" else "левая", nm[ji]])
 				line += "\n    %s кисть: %s" % ["правая" if sd == "R" else "левая", ", ".join(parts)]
 			line += "\n    анатомия: %s" % ("в пределах" if bad.is_empty() else "ВНЕ ПРЕДЕЛОВ — " + ", ".join(bad))
+			# установившаяся поза (последний кадр): отдельно от размаха за всё движение, куда входит и переход в стойку
+			var fin := []
+			for sd in (["R", "L"] if rig.hold.two_hands else ["R"]):
+				var jj: Array = rig.hold.joints[sd]
+				var okj := true
+				for ji in 3:
+					if float(jj[ji]) < float(lim[ji][2]) - 0.5 or float(jj[ji]) > float(lim[ji][3]) + 0.5:
+						okj = false
+				fin.append("%s %.0f/%.0f/%.0f°%s" % ["правая" if sd == "R" else "левая", jj[0], jj[1], jj[2], "" if okj else " (ВНЕ)"])
+			line += "\n    в конце (сгиб/вбок/предплечье): %s; ладони мимо: правая %.1f см, левая %.1f см; стойка «%s»" % [", ".join(fin), rig.hold.err_r * 100.0, rig.hold.err_l * 100.0, rig.hold.stance_now()]
 		print("[stand] " + line)
 		lines.append(line)
 	var f := FileAccess.open(out.path_join("log.txt"), FileAccess.WRITE)
@@ -1950,6 +1985,71 @@ func _hands_test() -> void:
 				cam.look_at(c, v[2])
 				await get_tree().process_frame
 				await _snap("%s/hand_%s_%s%s.png" % [out, pose, side, v[0]])
+
+
+## Последовательность как в видео-образце: покой (оружие поперёк груди) → вскинул → прицел → выстрелы → опустил.
+## Кадры справа в рост (как в видео) в заданные моменты; --as-only=<приставка оружия>, по умолчанию r (автомат).
+func _vidseq_test() -> void:
+	DirAccess.make_dir_recursive_absolute(out)
+	ui.visible = false
+	cam.h_offset = 0.0
+	var pre := "r"
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--as-only="):
+			pre = a.substr(10)
+	var pick := func(id: String) -> void:
+		for i in entries.size():
+			if entries[i].id == id:
+				select(i)
+	var shot := func(nm: String, front: bool) -> void:
+		var was := Engine.time_scale
+		Engine.time_scale = 0.0
+		yaw = 0.0 if front else -PI * 0.5
+		pitch = 0.05
+		dist = 3.3
+		look_hands = false
+		look_h = 0.95
+		_camera()
+		await get_tree().process_frame
+		await _snap("%s/%s.png" % [out, nm])
+		Engine.time_scale = was
+	var wait := func(sec: float) -> void:
+		var t := 0.0
+		while t < sec:
+			await get_tree().process_frame
+			t += get_process_delta_time()
+	paused = true                      # сами ведём последовательность: без повторов движения стенда
+	pick.call(pre + "_rest")
+	rig.set_motion(0.0, 0.0, 0.016)
+	await wait.call(BCWeaponHold.REST_AFTER + 1.6)
+	await shot.call("q0_rest_front", true)
+	await shot.call("q1_rest", false)
+	pick.call(pre + "_aim")
+	var prev := 0.0
+	var k := 2
+	for tm in [0.1, 0.2, 0.32, 0.5, 0.9]:
+		await wait.call(float(tm) - prev)
+		prev = tm
+		await shot.call("q%d_raise_%03d" % [k, int(float(tm) * 100.0)], false)
+		k += 1
+	_fire()
+	await wait.call(0.04)
+	await shot.call("q%d_fire_a" % k, false)
+	k += 1
+	await wait.call(0.06)
+	_fire()
+	await wait.call(0.05)
+	await shot.call("q%d_fire_b" % k, false)
+	k += 1
+	await wait.call(0.5)
+	pick.call(pre + "_rest")
+	prev = 0.0
+	for tm in [0.3, BCWeaponHold.REST_AFTER + 0.2, BCWeaponHold.REST_AFTER + 0.5, BCWeaponHold.REST_AFTER + 1.4]:
+		await wait.call(float(tm) - prev)
+		prev = tm
+		await shot.call("q%d_lower_%03d" % [k, int(float(tm) * 100.0)], false)
+		k += 1
+	print("[stand] vidseq %s: кадров %d, ладони в конце: правая %.1f см, левая %.1f см, стойка «%s»" % [pre, k, rig.hold.err_r * 100.0, rig.hold.err_l * 100.0, rig.hold.stance_now()])
 
 
 ## кисти на оружии крупным планом: справа, слева, сверху, снизу-спереди

@@ -32,6 +32,7 @@ var reloads := 0
 var covers := 0
 var specials := 0
 var phase := ""                     ## в бою: move, aim, fire, pause, reload; главарь: sp_aim, sp_lock, sp_rec
+var _body_now := ""                 ## какая стойка тела сейчас задана (armed_idle / aim_idle / rest_idle)
 var hp_bar: Node3D
 var line: MeshInstance3D
 var _pi := 0
@@ -65,6 +66,7 @@ func setup(k: String, at: Vector3, seed_n: int) -> void:
 		rig.hold.equip(String(gun.get("weapon", "rifle")), true)
 		rig.hold.set_stance("ready")
 	rig.set_pose("armed_idle")
+	_body_now = "armed_idle"
 	_sp_cd = float(def.get("special", {}).get("cd", 10.0)) * 0.5
 	if boss:
 		_make_bar()
@@ -167,6 +169,19 @@ func tick(delta: float, p: Vector3, can_see: bool, hero_alive: bool) -> void:
 	var in_cover := state == "chase" and _cover != Vector3.INF and _cover.distance_to(global_position) < 0.7 and (phase == "pause" or phase == "reload")
 	crouch = move_toward(crouch, 1.0 if in_cover else 0.0, delta * 4.0)
 	rig.set_motion(real, crouch, delta)
+	# стойка тела под оружие: целится стоя из длинного оружия — левая нога вперёд, колени согнуты; стоит
+	# спокойно — оружие поперёк груди (покой); иначе обычная стойка с оружием
+	if rig.hold != null and rig.hold.wid != "":
+		var rifle := String(rig.hold.w.get("mode", "")) == "rifle"
+		rig.hold.still = real < 0.2 and state != "chase"
+		var want := "armed_idle"
+		if rifle and real < 0.2 and crouch < 0.1 and rig.hold.stance == "aim" and rig.info.has("aim_idle"):
+			want = "aim_idle"
+		elif rifle and rig.hold.stance_now() == "rest" and rig.info.has("rest_idle"):
+			want = "rest_idle"
+		if want != _body_now:
+			_body_now = want
+			rig.set_pose(want)
 
 
 ## спокойный: стоит, бродит у своего места или идёт дозором по маршруту

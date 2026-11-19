@@ -2375,8 +2375,16 @@ var _pose_now := "?"
 ## стойка: с оружием в руках — стойка стрелка, иначе обычная; на ходу — клипы передвижения
 func _body_pose(speed: float) -> void:
 	var want := ""
+	# стоит и не целится — длинное оружие уходит в покой (поперёк груди стволом вниз-влево)
+	rig.hold.still = speed < 0.2 and not aiming
 	if speed < 0.2 and rig.hold.wid != "" and rig.hold.drawn > 0.5:
 		want = "combat_idle" if String(rig.hold.w.get("mode", "")) == "melee" else "armed_idle"
+		if String(rig.hold.w.get("mode", "")) == "rifle":
+			# прицел из длинного оружия — левая нога вперёд, колени согнуты, корпус к оружию; покой — стоит прямо
+			if rig.hold.stance == "aim" and rig.info.has("aim_idle"):
+				want = "aim_idle"
+			elif rig.hold.stance_now() == "rest" and rig.info.has("rest_idle"):
+				want = "rest_idle"
 	if want != _pose_now:
 		_pose_now = want
 		rig.set_pose(want)
@@ -2589,7 +2597,10 @@ func _update_preview() -> void:
 		_preview_rig.hold.equip(wid, true)
 		if wid != "":
 			_preview_rig.hold.set_stance("ready")
-	_preview_rig.set_pose("armed_idle" if wid != "" else "")
+	# в окне снаряжения герой с длинным оружием стоит в покое: оружие поперёк груди
+	var rest: bool = wid != "" and String(_preview_rig.hold.w.get("mode", "")) == "rifle" and _preview_rig.hold.w.stances.has("rest") and _preview_rig.info.has("rest_idle")
+	_preview_rig.hold.still = rest
+	_preview_rig.set_pose(("rest_idle" if rest else "armed_idle") if wid != "" else "")
 
 
 func _preview_on(on: bool) -> void:

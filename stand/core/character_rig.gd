@@ -40,6 +40,9 @@ var _move_w := 0.0              ## вес «движение» против «с
 var _slot := "a"                ## слот разового действия (два — для плавной смены действий)
 var _pose_tw: Tween
 var _pose_w := 0.0
+var _pose_slot := 0               ## какая ячейка позы сейчас ведущая (pose_anim / pose_anim_b)
+var _pose_x := 0.0
+var _pose_x_tw: Tween
 var _crouch_move_w := 0.0
 var _loco_pts: Array = []       ## точки смешения передвижения: [клип, скорость м/с, время двойного шага, длина двойного шага]
 var arms: BCArmClear
@@ -293,10 +296,19 @@ func _build_tree() -> void:
 	var pose := AnimationNodeAnimation.new()
 	pose.animation = "bc/idle"
 	bt.add_node("pose_anim", pose, Vector2(400, 300))
+	# вторая ячейка позы: смена одной удерживаемой позы на другую (стойка с оружием → прицел → покой) идёт
+	# плавным переходом между ячейками, а не скачком
+	var pose2 := AnimationNodeAnimation.new()
+	pose2.animation = "bc/idle"
+	bt.add_node("pose_anim_b", pose2, Vector2(400, 420))
+	var px := AnimationNodeBlend2.new()
+	bt.add_node("pose_x", px, Vector2(500, 340))
+	bt.connect_node("pose_x", 0, "pose_anim")
+	bt.connect_node("pose_x", 1, "pose_anim_b")
 	var pb := AnimationNodeBlend2.new()
 	bt.add_node("pose_blend", pb, Vector2(600, 150))
 	bt.connect_node("pose_blend", 0, "dir_blend")
-	bt.connect_node("pose_blend", 1, "pose_anim")
+	bt.connect_node("pose_blend", 1, "pose_x")
 	# разовое действие — два слота поверх позы: новое действие во время старого запускается в свободном слоте,
 	# старое плавно уходит (иначе повторный запуск OneShot обрывал клип и начинал новый с кадра 0 — рывок)
 	var below := "pose_blend"
@@ -415,8 +427,21 @@ func set_pose(n: String, delay := 0.0) -> void:
 	if tree == null:
 		return
 	if n != "" and info.has(n):
-		var pa: AnimationNodeAnimation = tree.tree_root.get_node("pose_anim")
-		pa.animation = "bc/" + n
+		var cur_node := "pose_anim_b" if _pose_slot == 1 else "pose_anim"
+		var pa: AnimationNodeAnimation = tree.tree_root.get_node(cur_node)
+		if _pose_w > 0.05 and String(pa.animation) != "bc/" + n:
+			# поза уже держится — новая встаёт в свободную ячейку и плавно сменяет прежнюю
+			_pose_slot = 1 - _pose_slot
+			pa = tree.tree_root.get_node("pose_anim_b" if _pose_slot == 1 else "pose_anim")
+			pa.animation = "bc/" + n
+			if _pose_x_tw and _pose_x_tw.is_valid():
+				_pose_x_tw.kill()
+			_pose_x_tw = create_tween()
+			_pose_x_tw.tween_method(func(v):
+				_pose_x = v
+				tree.set("parameters/pose_x/blend_amount", v * v * (3.0 - 2.0 * v)), _pose_x, float(_pose_slot), 0.28)
+		else:
+			pa.animation = "bc/" + n
 	if _pose_tw and _pose_tw.is_valid():
 		_pose_tw.kill()
 	_pose_tw = create_tween()

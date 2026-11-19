@@ -51,6 +51,13 @@ var _sc := Vector3.ZERO           ## середина плеч в позе по�
 var _chest := -1
 var _sp := [-1, -1]
 var _wscale := 1.0
+var still := false                ## персонаж стоит на месте и не целится: длинное оружие — в стойку покоя (rest)
+var _still_t := 0.0
+var _lean_f := 0.0                ## наклон корпуса вперёд по стойке, град (сглажен)
+var _hd := Vector3.ZERO           ## посадка головы по стойке: [разворот вправо, наклон вниз, крен вправо], град
+var _hd_w := 0.0
+var _neck := -1
+var _head := -1
 
 
 static func config() -> Dictionary:
@@ -118,6 +125,8 @@ func setup(units_per_m: float, forward: Vector3) -> void:
 	var s := get_skeleton()
 	_chest = s.find_bone("Spine02")
 	_sp = [s.find_bone("Spine01"), s.find_bone("Spine02")]
+	_neck = s.find_bone("NeckTwist01")
+	_head = s.find_bone("Head")
 	_sc = (s.get_bone_global_rest(s.find_bone("L_Upperarm")).origin + s.get_bone_global_rest(s.find_bone("R_Upperarm")).origin) * 0.5
 	for side in ["R", "L"]:
 		_hf[side] = _hand_frame(s, side)
@@ -266,6 +275,17 @@ func set_stance(st: String) -> void:
 		stance = st
 
 
+## действующая стойка: «наготове» у стоящего на месте (дольше REST_AFTER с) — покой: оружие поперёк груди
+## стволом вниз-влево (rest), если она описана у оружия; на ходу, в прицеле, при перезарядке — как задано
+const REST_AFTER := 0.7
+
+
+func stance_now() -> String:
+	if stance == "ready" and _still_t >= REST_AFTER and _reload_t < 0.0 and drawn >= 1.0 and w.stances.has("rest"):
+		return "rest"
+	return stance
+
+
 ## Угол запястья правой руки сейчас, град (по позе после IK, см. _joint_angles): x — сгибание (+) / разгибание (−),
 ## y — отведение (к большому пальцу +, к мизинцу −). IK держит кисть в пределах (_wrist_fix: сгиб −58…60°,
 ## отведение −30…18°): если поза оружия требует больше — ладонь отходит от рукояти (err_r растёт).
@@ -408,7 +428,7 @@ func _move_pose() -> Array:
 			if mv.has("edge_n"):
 				return [_pose_u(_v(a[1]).lerp(_v(b[1]), u) * _reach_k, f, _spine(_v(mv.edge_n), f), "grip"), lerpf(float(a[3]), float(b[3]), u)]
 			return [_pose_at(_v(a[1]).lerp(_v(b[1]), u) * _reach_k, f, 0.0, "grip"), lerpf(float(a[3]), float(b[3]), u)]
-	return [_stance_pose(w.stances[stance]), 0.0]
+	return [_stance_pose(w.stances[stance_now()]), 0.0]
 
 
 func _process_modification_with_delta(delta: float) -> void:
@@ -466,7 +486,8 @@ func _process_modification_with_delta(delta: float) -> void:
 	var m_l := smoothstep(float(lj[0]), float(lj[1]), drawn)
 	var chest_l := bool(dk.get("left_chest", false)) and drawn < 1.0
 	var w_l := smoothstep(0.04, grab, drawn) if chest_l else m_l
-	var st: Dictionary = w.stances[stance]
+	_still_t = _still_t + delta if still else 0.0
+	var st: Dictionary = w.stances[stance_now()]
 	var tgt := _stance_pose(st)
 	var tw_t := float(st.get("twist", 0.0))
 	var a := 1.0 - exp(-delta * 9.0)
@@ -494,6 +515,13 @@ func _process_modification_with_delta(delta: float) -> void:
 	_spring(tgt, delta, om, zt)
 	_twist = lerpf(_twist, tw_t, a)
 	_follow = lerpf(_follow, float(st.get("follow", 1.0)), a)
+	# наклон корпуса и посадка головы стойки: в прицеле — корпус вперёд, щека на прикладе, глаз за целиком
+	var hd_t: Array = st.get("head", [])
+	var hd_on := hd_t.size() == 3 and _move == ""
+	_lean_f = lerpf(_lean_f, float(st.get("lean", 0.0)) if _move == "" else 0.0, a)
+	_hd_w = lerpf(_hd_w, 1.0 if hd_on else 0.0, a)
+	if hd_on:
+		_hd = _hd.lerp(Vector3(float(hd_t[0]), float(hd_t[1]), float(hd_t[2])), a)
 	var pose := _cur
 	var grip := _pt(w.grip)
 	# перезарядка: оружие ближе к груди и на боку; отдача: назад и ствол вверх (вокруг рукояти)
@@ -541,12 +569,22 @@ func _process_modification_with_delta(delta: float) -> void:
 		W.basis = W.basis.orthonormalized().slerp(pose.basis.orthonormalized(), _lock)
 		W.origin = keep - W.basis * ap
 	# разворот корпуса (левое плечо вперёд), чтобы левая рука доставала до цевья; отдача толкает плечи назад
-	var lean := deg_to_rad(float(rc.get("body", 0.0))) * rk
-	if absf(_twist * lift) > 0.5 or lean > 0.0005:
+	var lean := deg_to_rad(float(rc.get("body", 0.0))) * rk - deg_to_rad(_lean_f) * lift
+	if absf(_twist * lift) > 0.5 or absf(lean) > 0.0005:
 		for b in _sp:
 			var G := s.get_bone_global_pose(b)
 			G.basis = Basis(upv, -deg_to_rad(_twist * lift) * 0.5) * Basis(rgt, lean * 0.5) * G.basis
 			s.set_bone_global_pose(b, G)
+	# голова: смотрит по стволу (куда бы ни развернулись плечи), опущена и наклонена к прикладу; на время
+	# перезарядки — как в клипе (глаза на оружие не нужны)
+	var hw := _hd_w * lift * (1.0 - (smoothstep(0.0, 0.15, rl) * (1.0 - smoothstep(0.85, 1.0, rl)) if rl >= 0.0 else 0.0))
+	if hw > 0.003 and _neck >= 0 and _head >= 0:
+		var want := Basis(upv, -deg_to_rad(_hd.x)) * Basis(rgt, -deg_to_rad(_hd.y)) * Basis(fwd, deg_to_rad(_hd.z))
+		for it in [[_neck, 0.5], [_head, 1.0]]:
+			var Gh := s.get_bone_global_pose(int(it[0]))
+			var tgt_b := want * s.get_bone_global_rest(int(it[0])).basis
+			Gh.basis = Gh.basis.orthonormalized().slerp(tgt_b.orthonormalized(), float(it[1]) * hw)
+			s.set_bone_global_pose(int(it[0]), Gh)
 	# --- руки: цели кистей, локти — с учётом пределов суставов ---
 	var plan := _plan_for(st)
 	_shift = _shift.lerp(plan.t, a)
