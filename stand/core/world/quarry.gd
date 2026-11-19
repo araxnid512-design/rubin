@@ -40,53 +40,53 @@ const WATER_Y := -1.4
 
 const Q_BUILDINGS := [
 	# общежитие №1: два этажа, оштукатуренное; коридор вдоль, комнаты по обе стороны, лестница в торце
-	{"id": "dorm1", "n": "Общежитие рабочих", "kind": "dorm", "skin": "plaster", "int": "int_beige1", "hall0": "hall_dorm",
+	{"id": "dorm1", "n": "Общежитие рабочих", "kind": "dorm", "skin": "plaster", "roof": "gable", "roof_mat": "q_rust", "gable": "plaster", "rise": 0.42, "ov": 0.4, "chimney": false, "int": "int_beige1", "hall0": "hall_dorm",
 		"blocks": [{"c": Vector2(-60, -50), "L": 30.0, "W": 11.0, "axis": "x", "floors": 2, "stairs": [-1], "hall": [3.0, 6.0], "entr": [["s+", 3.0, 1.6]], "wide": 0.3}],
 		"types": {"*": [["room", 6], ["wc", 1], ["linen", 1]]}},
 	# общежитие №2: деревянный барак — комнаты у западной стены, коридор к посёлку
 	{"id": "dorm2", "n": "Общежитие №2", "kind": "dorm", "style": "wood", "skin": "planks", "int": "int_wood", "storey": 3.0, "te": 0.18,
-		"roof_mat": "rust", "gable": "planks", "rise": 0.5, "ov": 0.4, "shutters": false,
+		"roof_mat": "q_rust", "gable": "planks", "rise": 0.5, "ov": 0.4, "shutters": false,
 		"blocks": [{"c": Vector2(-76, 2), "L": 23.0, "W": 11.0, "axis": "z", "floors": 1, "layout": "hall", "row_side": -1, "row_d": 6.2,
 			"row": [["m_quarters", 5.6], ["m_quarters", 5.6], ["m_quarters", 5.6], ["wc", 5.6]], "hall_type": "m_hall",
 			"entr": [["s+", -4.0, 1.4, "porch"], ["e-", 1.5, 1.1, "plain"]], "win_w": 1.1, "win_h": 1.1, "sill": 1.0}]},
 	# столовая: обеденный зал, кухня, холодильная, кладовая
 	{"id": "canteen", "n": "Столовая", "kind": "canteen", "style": "wood", "skin": "planks_brown", "int": "int_beige", "storey": 3.3, "te": 0.2, "plinth_h": 0.4,
-		"roof_mat": "rust", "gable": "planks_brown", "rise": 0.5, "ov": 0.4, "shutters": false,
+		"roof_mat": "q_rust", "gable": "planks_brown", "rise": 0.5, "ov": 0.4, "shutters": false,
 		"blocks": [{"c": Vector2(-60, -24), "L": 24.0, "W": 13.0, "axis": "x", "floors": 1, "layout": "hall", "row_side": -1, "row_d": 4.8,
 			"row": [["kitchen", 9.0], ["cold", 5.0], ["pantry", 5.0], ["wc", 4.6]], "hall_type": "dining",
 			"entr": [["s+", 4.0, 1.6, "porch"], ["e+", 1.0, 1.1, "plain"]], "win_w": 1.4, "win_h": 1.2, "sill": 0.9}]},
 	# медпункт: палата с кушетками, процедурная, кабинет фельдшера
-	{"id": "med", "n": "Медпункт", "kind": "med", "skin": "plaster", "int": "int_blue", "storey": 3.0,
+	{"id": "med", "n": "Медпункт", "kind": "med", "skin": "plaster", "roof": "gable", "roof_mat": "q_rust", "gable": "plaster", "rise": 0.42, "ov": 0.4, "chimney": false, "int": "int_blue", "storey": 3.0,
 		"blocks": [{"c": Vector2(-27, -50), "L": 15.0, "W": 10.0, "axis": "x", "floors": 1, "layout": "hall", "row_side": -1, "row_d": 4.2,
 			"row": [["ward", 6.0], ["proc", 4.6], ["nurse", 4.0]], "hall_type": "hall_med",
 			"entr": [["s+", -2.5, 1.4]], "win_w": 1.2, "win_h": 1.2, "sill": 0.9}]},
 	# мастерская: большой цех с воротами, кладовая, техкомната, бытовка
 	{"id": "workshop", "n": "Мастерская", "kind": "workshop", "style": "wood", "skin": "planks", "int": "int_wood", "storey": 4.2, "te": 0.18,
-		"roof_mat": "rust", "gable": "planks", "rise": 0.45, "ov": 0.35, "shutters": false, "chimney": false,
+		"roof_mat": "q_rust", "gable": "planks", "rise": 0.45, "ov": 0.35, "shutters": false, "chimney": false,
 		"blocks": [{"c": Vector2(-31, -16), "L": 24.0, "W": 14.0, "axis": "x", "floors": 1, "layout": "hall", "row_side": -1, "row_d": 4.6,
 			"row": [["store", 7.6], ["tech", 7.6], ["staff", 8.4]], "hall_type": "workshop",
 			"entr": [["s+", -3.0, 3.4, "plain"], ["e+", 1.5, 1.1, "plain"]], "win_w": 1.2, "win_h": 0.8, "sill": 1.6}]},
 	# склад: широкие ворота, зал со стеллажами и проходами, кладовые у северной стены
 	{"id": "warehouse", "n": "Склад", "kind": "warehouse", "style": "wood", "skin": "planks", "int": "int_wood", "storey": 4.4, "te": 0.15,
-		"roof_mat": "rust", "gable": "planks", "rise": 0.4, "ov": 0.35, "shutters": false, "chimney": false,
+		"roof_mat": "q_rust", "gable": "planks", "rise": 0.4, "ov": 0.35, "shutters": false, "chimney": false,
 		"blocks": [{"c": Vector2(-44, 20), "L": 28.0, "W": 15.0, "axis": "x", "floors": 1, "layout": "hall", "row_side": -1, "row_d": 4.4,
 			"row": [["store", 9.0], ["store", 9.0], ["store", 9.4]], "hall_type": "warehouse",
 			"entr": [["s+", -5.0, 3.6, "plain"], ["s+", 8.0, 3.6, "plain"], ["e+", 2.0, 1.2, "plain"]], "win_w": 0.9, "win_h": 0.6, "sill": 2.2}]},
 	# контора карьера: кабинет начальника, диспетчерская (радиостанция), архив; коридор вдоль фасада
-	{"id": "office", "n": "Контора карьера", "kind": "office", "skin": "plaster", "int": "int_beige1", "storey": 3.2,
+	{"id": "office", "n": "Контора карьера", "kind": "office", "skin": "plaster", "roof": "gable", "roof_mat": "q_rust", "gable": "plaster", "rise": 0.42, "ov": 0.4, "chimney": false, "int": "int_beige1", "storey": 3.2,
 		"blocks": [{"c": Vector2(-62, 40), "L": 20.0, "W": 12.0, "axis": "x", "floors": 1, "layout": "hall", "row_side": -1, "row_d": 5.4,
 			"row": [["office", 7.0], ["m_radio", 6.4], ["archive", 6.2]], "hall_type": "m_hall",
 			"entr": [["s+", 3.0, 1.4, "porch"]], "win_w": 1.2, "win_h": 1.2, "sill": 0.9}]},
 	{"id": "shed1", "n": "Сарай", "kind": "shed", "style": "wood", "skin": "planks_brown", "int": "int_wood", "storey": 2.7, "te": 0.12,
-		"roof_mat": "rust", "gable": "planks_brown", "rise": 0.45, "ov": 0.3, "shutters": false, "chimney": false,
+		"roof_mat": "q_rust", "gable": "planks_brown", "rise": 0.45, "ov": 0.3, "shutters": false, "chimney": false,
 		"blocks": [{"c": Vector2(-20, 52), "L": 8.0, "W": 6.0, "axis": "x", "floors": 1, "layout": "hall", "row": [], "hall_type": "shed",
 			"entr": [["s-", 0.0, 1.6, "plain"]], "blind": ["s+", "e-"], "win_w": 0.7, "win_h": 0.5, "sill": 1.5}]},
 	{"id": "shed2", "n": "Сарай", "kind": "shed", "style": "wood", "skin": "planks", "int": "int_wood", "storey": 2.6, "te": 0.12,
-		"roof_mat": "roof_tin", "gable": "planks", "rise": 0.45, "ov": 0.3, "shutters": false, "chimney": false,
+		"roof_mat": "q_tin", "gable": "planks", "rise": 0.45, "ov": 0.3, "shutters": false, "chimney": false,
 		"blocks": [{"c": Vector2(-30, 58), "L": 7.0, "W": 5.0, "axis": "x", "floors": 1, "layout": "hall", "row": [], "hall_type": "shed",
 			"entr": [["s-", 0.0, 1.4, "plain"]], "blind": ["s+", "e+"], "win_w": 0.7, "win_h": 0.5, "sill": 1.5}]},
 	{"id": "garage", "n": "Гараж", "kind": "shed", "style": "box", "skin": "roof_tin", "int": "roof_tin", "storey": 3.2, "te": 0.08,
-		"roof_mat": "rust", "gate_mat": "gmetal",
+		"roof_mat": "q_rust", "gate_mat": "gmetal",
 		"blocks": [{"c": Vector2(-82, 32), "L": 12.0, "W": 8.0, "axis": "z", "floors": 1, "layout": "hall", "row": [], "hall_type": "garage",
 			"entr": [["s+", 0.0, 3.2, "gate"]], "blind": ["s-", "e+"]}]},
 ]
@@ -275,11 +275,23 @@ void fragment() {
 	vec3 r = texture(rock, UV / rock_scale).rgb;
 	vec3 r2 = texture(rock, UV / (rock_scale * 2.7) + vec2(0.37, 0.11)).rgb;
 	r = mix(r, r2, 0.4);
-	r = mix(vec3(lum(r)), r, 0.55) * vec3(1.0, 0.98, 0.95);
-	// слои породы по высоте (известняк, сланец) — полосами, чуть волнистыми
+	// скала уступов по видео-образцу: тёмная холодная порода с ясным рисунком — столбы и вертикальные трещины,
+	// слои по высоте, у верха каждого уступа — охристый выветренный край с осыпью
+	r = mix(vec3(lum(r)), r, 0.45) * vec3(0.66, 0.7, 0.78);
+	r = pow(r, vec3(1.25)) * 1.5;
+	float colv = texture(noise, vec2(UV.x * 0.16, wp.y * 0.012)).r;
+	r *= mix(0.72, 1.16, smoothstep(0.3, 0.7, colv));
+	float cr = texture(noise, vec2(UV.x * 0.5, wp.y * 0.035) + vec2(0.13, 0.57)).r;
+	float crack = 1.0 - smoothstep(0.0, 0.035, abs(cr - 0.5));
+	r *= mix(1.0, 0.42, crack);
 	float band = 0.5 + 0.5 * sin(wp.y * 2.3 + n1 * 3.0 + n2 * 1.5);
 	float band2 = 0.5 + 0.5 * sin(wp.y * 7.1 + n2 * 4.0);
-	r *= mix(0.74, 1.08, band) * mix(0.9, 1.05, band2);
+	r *= mix(0.7, 1.1, band) * mix(0.86, 1.06, band2);
+	float seam = 1.0 - smoothstep(0.0, 0.07, abs(fract(wp.y * 0.62 + n1 * 0.9) - 0.5));
+	r *= mix(1.0, 0.6, seam * 0.7);
+	float hh = fract(-wp.y / 4.5 + 0.02);
+	float top_w = (1.0 - smoothstep(0.0, 0.3, hh)) * smoothstep(0.25, 0.7, n2 * 0.6 + colv * 0.4 + 0.15);
+	r = mix(r, vec3(0.5, 0.36, 0.22) * (0.75 + 0.5 * n2), top_w * 0.75);
 	vec2 gu = wp.xz / gravel_scale;
 	vec3 g = texture(gravel, gu).rgb;
 	vec3 g2 = texture(gravel, wp.xz / (gravel_scale * 3.1) + vec2(0.53, 0.21)).rgb;
@@ -290,6 +302,11 @@ void fragment() {
 	du = mix(vec3(lum(du)), du, 0.3) * vec3(0.92, 0.9, 0.86);
 	vec3 fl = mix(g, du, smoothstep(0.64, 0.8, n1 * 0.75 + n2 * 0.25) * 0.5);
 	fl *= mix(0.86, 1.06, smoothstep(0.25, 0.75, n1));
+	// съезды (уклон) — накатанная песочная дорога; у подножия стенок — тёмная осыпь
+	float ramp = smoothstep(0.9993, 0.994, wn.y) * (1.0 - wall);
+	vec3 road_c = texture(dust, wp.xz / 3.2).rgb;
+	road_c = mix(vec3(lum(road_c)), road_c, 0.6) * vec3(1.08, 0.9, 0.7);
+	fl = mix(fl, road_c, ramp * 0.8);
 	vec3 c = mix(fl, r, wall);
 	float depth = clamp(-wp.y / 14.0, 0.0, 1.0);
 	c *= mix(1.0, 0.84, depth) * mix(0.93, 1.05, n2);
@@ -535,10 +552,12 @@ func _q_bake_mask() -> Image:
 			var n1 := _noise(p / 60.0)
 			var n2 := _noise(p / 17.0 + Vector2(0.37, 0.11))
 			var n3 := _noise(p / 5.5 + Vector2(0.71, 0.53))
-			var road := 1.0 - smoothstep(2.0, 3.6, road_dist(p) + (n3 - 0.5) * 1.1)
+			var road := 1.0 - smoothstep(2.4, 4.2, road_dist(p) + (n3 - 0.5) * 1.3)
 			# у бровки и вокруг техники — пыльная утоптанная площадка
 			var rim := 1.0 - smoothstep(1.0, 1.16, pit_st(p).x + (n2 - 0.5) * 0.06)
-			var vil := clear_w(p) * smoothstep(0.2, 0.55, n2 * 0.6 + n3 * 0.4 + 0.2)
+			# посёлок: утоптано у стен построек (дворы) и пятнами между ними; остальное — трава (по видео-образцу)
+			var yard := 1.0 - smoothstep(2.5, 7.0, bld_dist(p) + (n3 - 0.5) * 3.0)
+			var vil := clear_w(p) * maxf(yard * 0.8, smoothstep(0.52, 0.72, n1 * 0.5 + n2 * 0.5) * 0.55)
 			var path := maxf(road, maxf(rim * 0.85, vil * 0.75))
 			var gw := smoothstep(0.2, 0.5, n1 * 0.45 + n2 * 0.35 + n3 * 0.2) * 0.75 + 0.25
 			gw *= 1.0 - path

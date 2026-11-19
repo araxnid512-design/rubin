@@ -1377,7 +1377,7 @@ const GROUND_SETS := {
 		"path": "brown_mud_dry", "path_n": "brown_mud_dry", "path_scale": 2.0, "grass_mul": Vector3(0.8, 0.9, 0.62), "path_mul": Vector3(0.84, 0.8, 0.76)},
 	# карьер: пыльный сухой грунт посёлка, щебёночные дороги для тяжёлой техники, трава выгоревшая
 	"quarry": {"soil": "dry_ground_01", "soil_n": "dry_ground_01", "tint": Vector3(0.92, 0.88, 0.82), "wet": 0.2, "dry": 0.6,
-		"path": "stony_dirt_path", "path_n": "stony_dirt_path", "path_scale": 2.6, "grass_mul": Vector3(0.82, 0.88, 0.62), "path_mul": Vector3(0.92, 0.9, 0.86)},
+		"path": "stony_dirt_path", "path_n": "stony_dirt_path", "path_scale": 2.6, "grass_mul": Vector3(0.8, 0.86, 0.58), "path_mul": Vector3(1.16, 1.06, 0.92)},
 }
 
 
@@ -4854,9 +4854,13 @@ func _qr_test() -> void:
 		player.global_position = (snapf.call(gpos + away * 0.6) as Vector3) + Vector3.UP * 0.1
 		await get_tree().create_timer(0.35).timeout
 		var tgt := "нет" if _target == null else String(_target.type)
-		if _target != null and String(_target.type) == "ground":
-			do_action()
-			await get_tree().create_timer(0.2).timeout
+		# рядом могут лежать два минерала: герой берёт ближайший, потом следующий — пока не возьмёт нужный
+		for tk in 3:
+			if _target != null and String(_target.type) == "ground":
+				do_action()
+				await get_tree().create_timer(0.25).timeout
+			if inv.count(mid) > n0:
+				break
 		picked = inv.count(mid) > n0
 		if not picked:
 			print("[inv]   подбор: цель %s (%s), предмет в %s, герой %s, занято %d из %d" % [tgt, _target_name() if _target != null else "", str(gpos.snapped(Vector3.ONE * 0.1)), str(player.global_position.snapped(Vector3.ONE * 0.1)), inv.used(), inv.slot_count()])
@@ -4897,7 +4901,10 @@ func _qr_test() -> void:
 		nk[e.kind] = int(nk.get(e.kind, 0)) + 1
 		var gp: Vector3 = e.global_position
 		var sn: Vector3 = snapf.call(gp)
-		if Vector2(sn.x - gp.x, sn.z - gp.z).length() > 0.6 or absf(sn.y - gp.y) > 0.8:
+		# стоящий на своём месте — строго по карте; бегущий за героем идёт прямо и может зайти в полосу отступа
+		# у стены (карта проходимости ужата на радиус тела) — ему допуск шире, но в скале он всё равно не окажется
+		var lim := 1.2 if String(e.state) in ["chase", "attack"] else 0.6
+		if Vector2(sn.x - gp.x, sn.z - gp.z).length() > lim or absf(sn.y - gp.y) > 0.8:
 			stuck += 1
 			print("[inv]   вне карты проходимости: %s %s (ближайшая точка %s), состояние %s" % [e.kind, str(gp.snapped(Vector3.ONE * 0.1)), str(sn.snapped(Vector3.ONE * 0.1)), e.state])
 	var ni := int(nk.get("infected", 0))

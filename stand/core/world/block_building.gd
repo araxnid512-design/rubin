@@ -171,6 +171,9 @@ const MATS := {
 	"leather": ["worn_plaster_wall", 1.2, Color(0.42, 0.3, 0.22), 0.0, 0.7, {"sat": 0.3}],
 	"green": ["worn_plaster_wall", 1.0, Color(0.25, 0.42, 0.26), 0.0, 0.95, {"sat": 0.2}],
 	"rust": ["rusty_corrugated_iron", 1.4, Color(1.2, 1.15, 1.1), 0.2, 0.7, {"sat": 0.62}],
+	# карьер: старый профнастил — тёмно-бурая ржавчина с серыми потёками (по видео-образцу), не «черепица»
+	"q_rust": ["rusty_corrugated_iron", 1.6, Color(0.74, 0.6, 0.5), 0.55, 0.8, {"sat": 0.5, "streaks": 0.8}],
+	"q_tin": ["worn_corrugated_iron", 1.6, Color(0.62, 0.62, 0.6), 0.5, 0.65, {"metal": 0.2, "sat": 0.35, "rusty": 1.0, "streaks": 0.6}],
 	"canvas": ["worn_plaster_wall", 2.2, Color(0.46, 0.5, 0.33), 0.5, 0.96, {"sat": 0.25, "streaks": 0.6}],
 	"canvas_in": ["worn_plaster_wall", 2.2, Color(0.6, 0.62, 0.46), 0.3, 0.96, {"sat": 0.25}],
 	"armygreen": ["rusty_metal_02", 1.6, Color(0.5, 0.58, 0.42), 0.5, 0.6, {"metal": 0.3, "sat": 0.15, "streaks": 0.8}],
@@ -199,7 +202,7 @@ const MATS := {
 	"potato": ["dry_ground_01", 0.45, Color(1.35, 1.05, 0.72), 0.0, 1.0, {}],
 }
 ## какие материалы срезаются на этаже героя (стены и двери)
-const CUTTABLE := ["facade", "facade2", "plaster", "brick", "plinth", "trim", "int_blue", "int_green", "int_beige", "int_grey", "int_beige1", "int_grey1", "tile_wall", "door", "frame", "slab", "wood", "metal", "wmetal", "gmetal", "glass", "canvas", "canvas_in", "armygreen", "panel", "rust", "planks", "planks_blue", "planks_green", "planks_brown", "int_wood", "shutter", "wframe", "earth", "cellar_wall", "logs", "gapwood", "roof_tin"]
+const CUTTABLE := ["facade", "facade2", "plaster", "brick", "plinth", "trim", "int_blue", "int_green", "int_beige", "int_grey", "int_beige1", "int_grey1", "tile_wall", "door", "frame", "slab", "wood", "metal", "wmetal", "gmetal", "glass", "canvas", "canvas_in", "armygreen", "panel", "rust", "planks", "planks_blue", "planks_green", "planks_brown", "int_wood", "shutter", "wframe", "earth", "cellar_wall", "logs", "gapwood", "roof_tin", "q_rust", "q_tin"]
 
 static var mats := {}             ## общие материалы (make_materials)
 static var cut_mats := {}         ## их срезанные копии
@@ -1536,7 +1539,7 @@ func _roof(bi: int) -> void:
 	var top := int(bk.floors) * storey
 	var hl: float = bk.hl
 	var hw: float = bk.hw
-	if style == "tent" or style == "wood":
+	if style == "tent" or style == "wood" or String(def.get("roof", "")) == "gable":
 		_roof_gable(bk, rk, top)
 		return
 	if style == "cellar":
@@ -1586,6 +1589,8 @@ func _roof(bi: int) -> void:
 func _roof_gable(bk: Dictionary, rk: String, top: float) -> void:
 	var hl: float = bk.hl
 	var hw: float = bk.hw
+	# двускатная крыша «как у деревянного дома» — и у штукатурных построек с roof = gable (бараки карьера)
+	var woodlike := style == "wood" or String(def.get("roof", "")) == "gable"
 	var skin := String(def.get("skin", "canvas"))
 	var rmat := String(def.get("roof_mat", skin))
 	var gmat := String(def.get("gable", skin))
@@ -1598,14 +1603,14 @@ func _roof_gable(bk: Dictionary, rk: String, top: float) -> void:
 	for sv in [-1.0, 1.0]:
 		var c := _w(bk, 0, top + rr - (hw + ov) * 0.5 * tan(th), sv * (hw + ov) * 0.5)
 		var bas := Basis(ax, s_ax * sv * th)
-		_box(rk, rmat, _ws(bk, float(bk.L) + 0.5 + (0.3 if style == "wood" else 0.0), 0.05 if style != "wood" else 0.08, sl), Transform3D(bas, c))
+		_box(rk, rmat, _ws(bk, float(bk.L) + 0.5 + (0.3 if woodlike else 0.0), 0.05 if not woodlike else 0.08, sl), Transform3D(bas, c))
 		if def.get("cross", false):
 			var cc := _w(bk, 0, top + rr - hw * 0.5 * tan(th) + 0.05, sv * hw * 0.5)
 			_box(rk, "fabric", _ws(bk, 1.1, 0.02, 1.1), Transform3D(bas, cc))
 			_box(rk, "red", _ws(bk, 0.8, 0.03, 0.26), Transform3D(bas, cc))
 			_box(rk, "red", _ws(bk, 0.26, 0.03, 0.8), Transform3D(bas, cc))
 	_lb(rk, "wood", bk, -hl - 0.3, hl + 0.3, top + rr - 0.03, top + rr + 0.05, -0.04, 0.04)
-	if style == "wood":
+	if woodlike:
 		# фронтон — ровный треугольник (у палатки — ступенями под скатом, её ткань так и висит)
 		for e in [-1.0, 1.0]:
 			var u0: float = e * hl - (te if e > 0.0 else 0.0)
@@ -1635,8 +1640,8 @@ func _roof_gable(bk: Dictionary, rk: String, top: float) -> void:
 			for i in n:
 				var hv := hw * (1.0 - (i + 0.5) / n)
 				_lb(rk, gmat, bk, e * hl - (te if e > 0.0 else 0.0), e * hl + (te if e < 0.0 else 0.0), top + i * rr / n, top + (i + 1) * rr / n + 0.01, -hv, hv)
-	var house := style == "wood" and String(def.get("kind", "")) == "house"
-	if style == "wood" and def.get("chimney", true):
+	var house := woodlike and String(def.get("kind", "")) == "house"
+	if woodlike and def.get("chimney", true):
 		# печная труба над избой: модель Tripo (кирпич, жестяной колпак) или кирпичный столб
 		var cu := hl * 0.35
 		if house and ResourceLoader.exists("res://assets/world/kh_chimney.glb"):
