@@ -58,6 +58,10 @@ var _hd := Vector3.ZERO           ## посадка головы по стойк
 var _hd_w := 0.0
 var _neck := -1
 var _head := -1
+var fx: BCShotFx                  ## гильзы, вспышка и дымок выстрела (в мировых координатах)
+var fx_on := true                 ## false — без эффектов выстрела (далёкий или невидимый стрелок)
+var fx_flash := true              ## false — вспышку у ствола рисует сам владелец (герой в игре)
+const BRASS := Color(0.78, 0.6, 0.24)
 
 
 static func config() -> Dictionary:
@@ -239,6 +243,10 @@ func equip(id: String, in_hands := true) -> void:
 	get_skeleton().add_child(node)
 	_wscale = float(w.len_m) / float(w.model_len) * k
 	parts = BCWeaponParts.build(node, m, w.get("parts", {}))
+	if fx == null and String(w.get("mode", "")) != "melee":
+		fx = BCShotFx.new()
+		fx.name = "ShotFx"
+		get_skeleton().add_child(fx)
 	if not parts.has("mag"):
 		_make_props()
 	_move = ""
@@ -312,8 +320,58 @@ func swing(kind: String) -> float:
 
 func fire() -> void:
 	_recoil_t = 0.0
-	if wid != "" and w.get("fire", {}).get("pump", false):
+	var pump: bool = wid != "" and w.get("fire", {}).get("pump", false)
+	if pump:
 		_pump_t = -0.38                          # после выстрела (отдача ушла) левая рука передёргивает цевьё
+	# вспышка и дымок у ствола, гильза из окна (у помпового ружья гильза вылетает при передёргивании цевья)
+	if fx != null and fx_on and node != null and wid != "" and String(w.get("mode", "")) != "melee" and w.has("muzzle"):
+		var g := node.global_transform
+		var dir := -g.basis.z.normalized()
+		var mz := g * Vector3(w.muzzle[0], w.muzzle[1], w.muzzle[2])
+		# у пистолета вспышка и дымок меньше, у ружья и пулемёта — больше
+		var fk := 0.62 if String(w.get("mode", "")) == "pistol" else (1.25 if pump or float(w.get("len_m", 0.9)) > 1.1 else 1.0)
+		if fx_flash:
+			fx.flash(mz, dir, fk)
+		fx.puff(mz, dir, fk)
+		if not pump:
+			_eject()
+
+
+## окно выброса гильз в системе модели: port из описания оружия, иначе у рукоятки затвора, справа
+func _port() -> Vector3:
+	var p := Vector3.ZERO
+	if w.get("port") is Array:
+		p = Vector3(w.port[0], w.port[1], w.port[2])
+	elif w.get("bolt") is Array:
+		p = Vector3(w.bolt[0], w.bolt[1], w.bolt[2])
+	elif parts != null and parts.has("bolt"):
+		p = parts.grab_point("bolt")
+	else:
+		p = Vector3(w.grip[0], float(w.grip[1]) + 0.2, float(w.grip[2]) - 0.15)
+	p.x = maxf(p.x, 0.02 * _m2m())
+	return p
+
+
+## гильза: [длина, радиус, цвет] — case из описания оружия ([длина, радиус] м или [длина, радиус, [r, g, b]])
+func _case_spec() -> Array:
+	var c = w.get("case")
+	if c is Array and (c as Array).size() >= 2:
+		var col := BRASS
+		if (c as Array).size() > 2:
+			col = Color(c[2][0], c[2][1], c[2][2])
+		return [float(c[0]), float(c[1]), col]
+	if w.get("fire", {}).get("pump", false):
+		return [0.062, 0.0105, Color(0.62, 0.1, 0.08)]
+	if String(w.get("mode", "")) == "pistol":
+		return [0.02, 0.0052, BRASS]
+	return [0.039, 0.0056, BRASS]
+
+
+func _eject() -> void:
+	if fx == null or not fx_on or node == null:
+		return
+	var g := node.global_transform
+	fx.eject(g * _port(), g.basis.orthonormalized(), get_skeleton().global_position.y, _case_spec())
 
 
 ## магазин (патрон, короб) в левой руке при перезарядке и выброшенный старый магазин
@@ -536,10 +594,15 @@ func _process_modification_with_delta(delta: float) -> void:
 				_pump_t = -0.001
 	if rl >= 0.0:
 		var e := smoothstep(0.0, 0.18, rl) * (1.0 - smoothstep(0.82, 1.0, rl))
-		var roll := deg_to_rad(-32.0 if w.mode == "rifle" else -40.0) * e
-		var pitch := deg_to_rad(10.0 if w.mode == "rifle" else 28.0) * e
-		pose = pose * _about(grip, Basis(Vector3.BACK, roll) * Basis(Vector3.RIGHT, pitch))
-		pose.origin += (-fwd * (0.05 if w.mode == "rifle" else 0.14) + upv * (-0.02 if w.mode == "rifle" else -0.06)) * k * e
+		if w.stances.has("reload"):
+			# стойка перезарядки: оружие поднято в «рабочую зону» перед грудью стволом вверх-вперёд и повёрнуто
+			# магазином к левой руке — стрелок видит приёмник магазина
+			pose = pose.interpolate_with(_stance_pose(w.stances["reload"]), e)
+		else:
+			var roll := deg_to_rad(-32.0 if w.mode == "rifle" else -40.0) * e
+			var pitch := deg_to_rad(10.0 if w.mode == "rifle" else 28.0) * e
+			pose = pose * _about(grip, Basis(Vector3.BACK, roll) * Basis(Vector3.RIGHT, pitch))
+			pose.origin += (-fwd * (0.05 if w.mode == "rifle" else 0.14) + upv * (-0.02 if w.mode == "rifle" else -0.06)) * k * e
 	var rc: Dictionary = w.get("recoil", {})
 	var rk := 0.0
 	if not rc.is_empty() and _recoil_t < float(rc.time) * 4.0:
@@ -585,6 +648,21 @@ func _process_modification_with_delta(delta: float) -> void:
 			var tgt_b := want * s.get_bone_global_rest(int(it[0])).basis
 			Gh.basis = Gh.basis.orthonormalized().slerp(tgt_b.orthonormalized(), float(it[1]) * hw)
 			s.set_bone_global_pose(int(it[0]), Gh)
+	# перезарядка: пока левая рука меняет магазин, стрелок смотрит на приёмник магазина; к затвору взгляд
+	# возвращается вперёд
+	if rl >= 0.0 and _neck >= 0 and _head >= 0 and parts != null and parts.has("mag") and String(w.get("mode", "")) == "rifle":
+		var rw := smoothstep(0.04, 0.17, rl) * (1.0 - smoothstep(0.7, 0.84, rl)) * lift
+		if rw > 0.003:
+			var hp := s.get_bone_global_pose(_head).origin + upv * (0.09 * k)
+			var to := (_mw(W, parts.center.mag) - hp).normalized()
+			var yaw_l := clampf(rad_to_deg(atan2(to.dot(rgt), to.dot(fwd))), -38.0, 38.0) * 0.85
+			var pit_l := clampf(rad_to_deg(-asin(clampf(to.dot(upv), -1.0, 1.0))), -8.0, 42.0) * 0.85
+			var look := Basis(upv, -deg_to_rad(yaw_l)) * Basis(rgt, -deg_to_rad(pit_l))
+			for it in [[_neck, 0.5], [_head, 1.0]]:
+				var Gl := s.get_bone_global_pose(int(it[0]))
+				var tgt_l := look * s.get_bone_global_rest(int(it[0])).basis
+				Gl.basis = Gl.basis.orthonormalized().slerp(tgt_l.orthonormalized(), float(it[1]) * rw)
+				s.set_bone_global_pose(int(it[0]), Gl)
 	# --- руки: цели кистей, локти — с учётом пределов суставов ---
 	var plan := _plan_for(st)
 	_shift = _shift.lerp(plan.t, a)
@@ -620,6 +698,8 @@ func _process_modification_with_delta(delta: float) -> void:
 			if _pump_t < 0.6:
 				if _pump_t < 0.0 and _pump_t + delta >= 0.0:
 					sfx.emit("pump", W.origin)
+				if _pump_t < 0.2 and _pump_t + delta >= 0.2:
+					_eject()                 # цевьё отведено назад — стреляная гильза вылетает
 				_pump_t += delta
 			if rl < 0.0 and _pump() > 0.0:
 				gl[0] = (gl[0] as Vector3) + W.basis.z * (0.085 * k * _pump())
@@ -753,6 +833,7 @@ var reload_step := ""             ## что сейчас делает левая
 var parts: BCWeaponParts = null   ## подвижные части модели: магазин, затвор, крышка
 var _drop_node: Node3D = null     ## выброшенный магазин (лежит на земле до следующей перезарядки)
 var _drop_v := 0.0
+var _drop_y := 0.0                ## высота земли под стрелком в момент сброса магазина (мир)
 var _dropped := false
 var _rk_i := -1                   ## ключ перезарядки, пройденный последним (для звуков)
 var _landed := true
@@ -1527,6 +1608,11 @@ func _drop_mag(W: Transform3D, t: Transform3D) -> void:
 	_drop_node = parts.copy("mag", get_skeleton())
 	if _drop_node:
 		_drop_node.transform = Transform3D(W.basis.scaled(Vector3.ONE * _wscale), W.origin) * t
+		# дальше магазин живёт в мире: падает на землю и остаётся лежать, а не едет за персонажем
+		var gt := _drop_node.global_transform
+		_drop_node.top_level = true
+		_drop_node.global_transform = gt
+		_drop_y = get_skeleton().global_position.y
 	_drop_v = 0.0
 	_landed = false
 
@@ -1534,18 +1620,19 @@ func _drop_mag(W: Transform3D, t: Transform3D) -> void:
 func _drop_fall(delta: float) -> void:
 	if _drop_node == null or delta <= 0.0:
 		return
-	var h := _drop_node.transform.origin.dot(upv) / k
+	var T := _drop_node.global_transform
+	var h := T.origin.y - _drop_y
 	if h <= 0.03:
 		if not _landed:
 			_landed = true
-			sfx.emit("mag_drop", _drop_node.transform.origin)
+			sfx.emit("mag_drop", get_skeleton().global_transform.affine_inverse() * T.origin)
 		return
 	_drop_v += 9.8 * delta
-	var T := _drop_node.transform
-	T.origin -= upv * (minf(_drop_v * delta, h - 0.025) * k)
-	T.origin -= fwd * (0.3 * delta * k)
-	T.basis = Basis(rgt, 4.0 * delta) * T.basis
-	_drop_node.transform = T
+	var gb := get_skeleton().global_transform.basis.orthonormalized()
+	T.origin.y -= minf(_drop_v * delta, h - 0.025)
+	T.origin -= (gb * fwd) * (0.3 * delta)
+	T.basis = Basis((gb * rgt).normalized(), 4.0 * delta) * T.basis
+	_drop_node.global_transform = T
 
 
 ## части вне перезарядки: магазин на месте, затвор ходит при выстреле, цевьё дробовика — при передёргивании

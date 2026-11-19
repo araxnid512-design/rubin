@@ -2174,6 +2174,7 @@ func _player() -> void:
 	rig.hold.draw_rate = 2.2
 	rig.hold.move_rate = 1.3
 	rig.hold.reload_rate = 1.25
+	rig.hold.fx_flash = false          # вспышку у ствола героя рисует мир (_flash); гильзы и дымок — хват оружия
 	var blob := MeshInstance3D.new()
 	var pm := PlaneMesh.new()
 	pm.size = Vector2(1.1, 1.1)
@@ -12266,6 +12267,22 @@ func _run_test() -> void:
 		await get_tree().create_timer(0.5).timeout
 		await _snap("a3_inventory")
 		close_inventory()
+		# выстрелы в игре: из окна вылетают гильзы, у ствола дымок; гильзы падают и остаются лежать на земле
+		var it7 = _hand_item()
+		if it7 != null and ULItems.get_def(String(it7.id)).has("ammo") and rig.hold.fx != null:
+			var d7 := ULItems.get_def(String(it7.id))
+			it7.mag = maxi(int(it7.get("mag", 0)), 6)
+			var e7: int = rig.hold.fx.ejected
+			var p7: int = rig.hold.fx.puffed
+			for i7 in 4:
+				_shoot(it7, d7)
+				await get_tree().create_timer(0.11).timeout
+			await _snap("a7_fire")
+			await get_tree().create_timer(1.4).timeout
+			var cs7: Array = rig.hold.fx.cases_state()
+			_ok("выстрелы: гильзы вылетают из окна, падают и лежат; у ствола дымок", rig.hold.fx.ejected - e7 == 4 and rig.hold.fx.puffed - p7 == 4 and int(cs7[1]) >= 3,
+				"вылетело %d, дымков %d, видно %d, лежит %d" % [rig.hold.fx.ejected - e7, rig.hold.fx.puffed - p7, int(cs7[0]), int(cs7[1])])
+			await _snap("a8_cases")
 		print("[inv] итог: ошибок %d" % _fails)
 		get_tree().quit()
 		return

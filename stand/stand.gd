@@ -2019,6 +2019,82 @@ func _vidseq_test() -> void:
 			await get_tree().process_frame
 			t += get_process_delta_time()
 	paused = true                      # сами ведём последовательность: без повторов движения стенда
+	var seq := ""
+	var st_from := "aim"
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--as-seq="):
+			seq = a.substr(9)
+		if a.begins_with("--as-from="):
+			st_from = a.substr(10)
+	# крупные кадры: вид справа (плечи и оружие) и спереди-справа
+	var close := func(nm: String, v: String) -> void:
+		var was := Engine.time_scale
+		Engine.time_scale = 0.0
+		yaw = -PI * 0.5 if v in ["k", "w"] else (-0.55 if v == "q" else -PI * 0.5)
+		pitch = 0.03 if v == "k" else 0.08
+		dist = 1.55 if v == "k" else (1.6 if v == "q" else (2.6 if v == "w" else 3.3))
+		look_hands = false
+		look_h = 1.42 if v == "k" else (1.38 if v == "q" else (1.25 if v == "w" else 0.95))
+		# крупный вид справа: в кадре не только плечи, но и оружие с руками; w — шире, с дульным срезом и дымком
+		cam.h_offset = 0.36 if v == "k" else (0.75 if v == "w" else 0.0)
+		_camera()
+		await get_tree().process_frame
+		await _snap("%s/%s_%s.png" % [out, nm, v])
+		cam.h_offset = 0.0
+		Engine.time_scale = was
+	if seq == "fire":
+		# одиночный выстрел покадрово: отдача, затвор, гильза, дым
+		pick.call(pre + "_aim")
+		rig.set_motion(0.0, 0.0, 0.016)
+		await wait.call(1.6)
+		await close.call("f00_before", "k")
+		# время замедлено: кадр отрисовки здесь долгий, а выстрел длится две десятых секунды
+		Engine.time_scale = 0.1
+		_fire()
+		var pv := 0.0
+		var fi := 1
+		for tm in [0.012, 0.03, 0.05, 0.08, 0.12, 0.17, 0.24, 0.34, 0.5]:
+			await wait.call(float(tm) - pv)
+			pv = tm
+			await close.call("f%02d_%03d" % [fi, int(float(tm) * 1000.0)], "k")
+			if fi in [1, 3, 5, 7]:
+				await close.call("f%02d_%03d" % [fi, int(float(tm) * 1000.0)], "w")
+			fi += 1
+		Engine.time_scale = 1.0
+		await wait.call(0.6)
+		# очередь: три выстрела подряд, кадр на каждом — вид спереди-справа и общий
+		Engine.time_scale = 0.15
+		for bi in 3:
+			_fire()
+			await wait.call(0.03)
+			await close.call("b%d_shot" % bi, "q")
+			await close.call("b%d_shot" % bi, "w")
+			await wait.call(0.07)
+		Engine.time_scale = 1.0
+		var cs: Array = rig.hold.fx.cases_state() if rig.hold.fx != null else [0, 0]
+		print("[stand] vidseq fire %s: гильз вылетело %d, дымков %d, видно гильз %d" % [pre, rig.hold.fx.ejected if rig.hold.fx != null else 0, rig.hold.fx.puffed if rig.hold.fx != null else 0, int(cs[0])])
+		return
+	if seq == "reload":
+		pick.call(pre + ("_aim" if st_from == "aim" else "_walk"))
+		if st_from != "aim":
+			rig.hold.set_stance("ready")
+		rig.set_motion(0.0, 0.0, 0.016)
+		await wait.call(1.6)
+		rig.hold.set_stance("ready")           # как в игре: на время перезарядки оружие — в стойке «наготове»
+		# время замедлено и считается по ходу самой перезарядки: кадр отрисовки здесь долгий
+		Engine.time_scale = 0.25
+		var rlen := rig.hold.reload()
+		var ri := 0
+		for fr in [0.05, 0.12, 0.19, 0.24, 0.33, 0.43, 0.52, 0.62, 0.7, 0.76, 0.84, 0.89, 0.95]:
+			while rig.hold._reload_t >= 0.0 and rig.hold._reload_t / rig.hold._reload_len() < float(fr):
+				await get_tree().process_frame
+			await close.call("r%02d_%03d" % [ri, int(float(fr) * 100.0)], "s")
+			await close.call("r%02d_%03d" % [ri, int(float(fr) * 100.0)], "q")
+			print("[stand] reload %.2f: шаг «%s», магазин %s, ладони мимо: правая %.1f см" % [float(fr), rig.hold.reload_step, rig.hold.mag_state, rig.hold.err_r * 100.0])
+			ri += 1
+		Engine.time_scale = 1.0
+		print("[stand] vidseq reload %s: длительность %.2f с" % [pre, rlen])
+		return
 	pick.call(pre + "_rest")
 	rig.set_motion(0.0, 0.0, 0.016)
 	await wait.call(BCWeaponHold.REST_AFTER + 1.6)

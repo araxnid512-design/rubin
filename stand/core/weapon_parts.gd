@@ -145,6 +145,28 @@ static func build(holder: Node3D, root: Node3D, parts: Dictionary) -> BCWeaponPa
 			mt.roughness = 0.45
 			for ch in pv.get_children():
 				(ch as MeshInstance3D).material_override = mt
+		# За отошедшим затвором — тёмная «внутренность» ствольной коробки. Модель пустая внутри: без неё в вырезе
+		# видна дыра насквозь (светится пол). Тонкая тёмная пластина стоит на месте внутри коробки — сразу за
+		# вырезанной стенкой, со стороны середины оружия (у выреза на всю ширину — по середине).
+		if n == "bolt" and not pc.get("keep", false):
+			var sz: Vector3 = wp.size[n]
+			var c1: Vector3 = wp.center[n]
+			var side := absf(c1.x) > sz.x * 0.3                 # вырез с одного бока (затворная рама справа или слева)
+			var px := c1.x - signf(c1.x) * (sz.x * 0.5 + 0.004) if side else c1.x
+			var fill := MeshInstance3D.new()
+			var bm := BoxMesh.new()
+			bm.size = Vector3(0.006, sz.y * 0.9, sz.z * 0.96)
+			fill.mesh = bm
+			fill.position = Vector3(px, c1.y, c1.z)
+			var fmt := StandardMaterial3D.new()
+			fmt.albedo_color = Color(0.03, 0.03, 0.033)
+			fmt.metallic = 0.2
+			fmt.roughness = 0.9
+			fmt.cull_mode = BaseMaterial3D.CULL_DISABLED
+			fill.material_override = fmt
+			fill.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			fill.name = "Inside_" + n
+			holder.add_child(fill)
 	return wp
 
 
