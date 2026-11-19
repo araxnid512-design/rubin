@@ -1530,9 +1530,56 @@ func roll_containers(rng: RandomNumberGenerator) -> void:
 		quest_where["q_journal"] = best
 
 
+## Ресурсы на полу построек — каждое посещение по-новому. В каждой постройке (и в сараях, и в гараже) часть
+## свободных мест комнат занята находками по назначению комнаты: в жилых — еда, вода, бинты, патроны; на кухне
+## и в столовой — консервы; в цехе, гараже и сараях — запчасти, кабель, металл; в медпункте — медицина; в конторе —
+## электроника. Сколько — conf: floor_share (доля мест, от и до) и floor_max, не меньше одной в постройке; что —
+## conf: floor_loot (вид комнаты → [предмет, от, до, вес]; «*» — прочие комнаты). Места — готовые точки комнат
+## (ULBlock.spots): там нет мебели и туда можно подойти. Запись: [точка, предмет, сколько, постройка].
+func floor_loot(rng: RandomNumberGenerator) -> Array:
+	var out: Array = []
+	var c := conf()
+	var tables: Dictionary = c.get("floor_loot", {})
+	if tables.is_empty():
+		return out
+	var share: Array = c.get("floor_share", [0.3, 0.55])
+	var cap := int(c.get("floor_max", 8))
+	for b in blds:
+		var pts: Array = b.spots.duplicate()
+		if pts.is_empty():
+			continue
+		var n := mini(clampi(int(round(pts.size() * rng.randf_range(float(share[0]), float(share[1])))), 1, cap), pts.size())
+		for k in n:
+			var i := rng.randi() % pts.size()
+			var sp: Array = pts[i]
+			pts.remove_at(i)
+			var parts := String(sp[1]).split(":")
+			var tb: Array = tables.get(parts[1] if parts.size() > 1 else "*", tables.get("*", []))
+			if tb.is_empty():
+				continue
+			var sum := 0.0
+			for l in tb:
+				sum += float(l[3])
+			var r := rng.randf() * sum
+			var pick: Array = tb[0]
+			for l in tb:
+				r -= float(l[3])
+				if r <= 0.0:
+					pick = l
+					break
+			var a := rng.randf() * TAU
+			var p: Vector3 = (sp[0] as Vector3) + Vector3(cos(a), 0, sin(a)) * rng.randf_range(0.0, 0.3)
+			out.append([Vector3(p.x, p.y + 0.02, p.z), String(pick[0]), rng.randi_range(int(pick[1]), int(pick[2])), b.id])
+	return out
+
+
 ## хлам и минералы: в постройках — кучки хлама; у жил и куч руды — минералы на земле (вид предмета — по месту)
 func junk_points(rng: RandomNumberGenerator) -> Array:
 	var out := junk_in_buildings(rng)
+	# ресурсы на полу — своим генератором (от случайности посещения): расстановка врагов от них не сдвигается
+	var fr := RandomNumberGenerator.new()
+	fr.seed = hash([rng.seed, "floor"])
+	out.append_array(floor_loot(fr))
 	var mn: Array = conf().get("minerals", [10, 16])
 	var n := rng.randi_range(int(mn[0]), int(mn[1]))
 	for k in n:

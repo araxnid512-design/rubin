@@ -4854,6 +4854,75 @@ func _qr_test() -> void:
 			await _snap("qr_in_" + id)
 	_ok("во все основные постройки можно зайти: путь от въезда до зала каждой", bad.is_empty(), str(bad))
 	_ok("внутри крыша скрыта, видно помещения (герой «в постройке»): %s" % ", ".join(roof_ok), roof_ok.size() == need.size(), str(roof_ok))
+	# все постройки, включая сараи и гараж: путь от въезда внутрь каждой, внутри герой «в постройке»
+	var all_in := []
+	var all_bad := []
+	for b in san.blds:
+		var ip := Vector3.INF
+		for r in b.rooms:
+			if int(r.get("f", 0)) == 0:
+				var bk2: Dictionary = b.blocks[int(r.bi)]
+				ip = b._w(bk2, (float(r.u0) + float(r.u1)) * 0.5, 0.0, (float(r.v0) + float(r.v1)) * 0.5)
+				break
+		if ip == Vector3.INF and not b.spots.is_empty():
+			ip = b.spots[0][0]
+		var pth := NavigationServer3D.map_get_path(map, e0, snapf.call(ip), true) if ip != Vector3.INF else PackedVector3Array()
+		if pth.is_empty() or pth[pth.size() - 1].distance_to(ip) > 1.5:
+			all_bad.append(b.id)
+			continue
+		player.global_position = (snapf.call(ip) as Vector3) + Vector3.UP * 0.1
+		await get_tree().create_timer(0.3).timeout
+		if san.hero_b >= 0 and san.blds[san.hero_b] == b:
+			all_in.append(b.id)
+		else:
+			all_bad.append(b.id + " (не «в постройке»)")
+	_ok("во все постройки, включая сараи и гараж, можно зайти: %d из %d (%s)" % [all_in.size(), san.blds.size(), ", ".join(all_in)], all_bad.is_empty() and all_in.size() == san.blds.size(), str(all_bad))
+	# ресурсы на полу построек: в каждой постройке, разных видов, лежат на земле; другое посещение — другая раскладка
+	var fr0 := RandomNumberGenerator.new()
+	fr0.seed = hash([cs_seed, "floor"])
+	var fl: Array = (san as ULQuarry).floor_loot(fr0)
+	var fl_b := {}
+	var fl_k := {}
+	var fl_found := 0
+	for it in fl:
+		fl_b[String(it[3])] = int(fl_b.get(String(it[3]), 0)) + 1
+		fl_k[String(it[1])] = int(fl_k.get(String(it[1]), 0)) + 1
+		for g in ground:
+			if String(g.item.id) == String(it[1]) and (g.node as Node3D).global_position.distance_to(it[0]) < 2.6:
+				fl_found += 1
+				break
+	print("[inv]   на полу построек: %s; виды: %s" % [str(fl_b), str(fl_k)])
+	_ok("ресурсы на полу построек: %d находок, в каждой из %d построек, %d видов; на земле лежат %d" % [fl.size(), san.blds.size(), fl_k.size(), fl_found],
+		fl_b.size() == san.blds.size() and fl_k.size() >= 6 and fl_found >= fl.size() - 3)
+	var fr1 := RandomNumberGenerator.new()
+	fr1.seed = hash([cs_seed + 1, "floor"])
+	var fl2: Array = (san as ULQuarry).floor_loot(fr1)
+	var same := 0
+	for it in fl:
+		for it2 in fl2:
+			if (it[0] as Vector3).distance_to(it2[0]) < 0.05 and String(it[1]) == String(it2[1]):
+				same += 1
+				break
+	_ok("в другое посещение ресурсы лежат иначе: совпало %d из %d" % [same, fl.size()], same < fl.size() / 4)
+	# заражённые: в любой постройке могут оказаться, каждое посещение — по-разному (12 посещений подряд)
+	var seen_b := {}
+	var per_seed := []
+	for sd in 12:
+		var pr := RandomNumberGenerator.new()
+		pr.seed = 5000 + sd * 37
+		var plan: Array = zone.spawn_plan(pr, snapf)
+		var cnt := {}
+		for sp in plan:
+			if sp.size() > 2 and by_id.has(String(sp[2])):
+				cnt[String(sp[2])] = int(cnt.get(String(sp[2]), 0)) + 1
+				seen_b[String(sp[2])] = int(seen_b.get(String(sp[2]), 0)) + 1
+		per_seed.append(str(cnt))
+	var uniq := {}
+	for t in per_seed:
+		uniq[t] = true
+	print("[inv]   заражённые по постройкам за 12 посещений: %s" % str(seen_b))
+	_ok("заражённые бывают в каждой постройке (%d из %d), раскладка каждый раз другая (%d разных из 12)" % [seen_b.size(), san.blds.size(), uniq.size()],
+		seen_b.size() == san.blds.size() and uniq.size() >= 11)
 	# 14–16: обыск, минералы и хлам
 	var kinds := {}
 	for ct in san.containers:
