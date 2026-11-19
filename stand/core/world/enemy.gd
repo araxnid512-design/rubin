@@ -159,6 +159,8 @@ func setup(k: String, at: Vector3, seed_n: int) -> void:
 	rig.stand_clamp = not armed
 	rig.fx_cfg = def.get("fx", {})
 	rig.height = tall
+	rig.speed_k = float(def.get("stride_k", 1.0))    # рослый — шаг длиннее: темп клипов по росту, стопы не скользят
+	rig.alias = def.get("clips", {})                 # свои клипы вместо общих (главарь муров)
 	add_child(rig)
 	var path := String(def.model)
 	var own := ResourceLoader.exists(path)

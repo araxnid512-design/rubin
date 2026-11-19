@@ -103,6 +103,13 @@ func setup(target: Vector3, r: float, thr: float, fly: float, fuse: float) -> vo
 	_lamp.position = Vector3(0, 0.1, 0)
 	_body.add_child(_lamp)
 	_body.global_position = _hand_pos()
+	_body.visible = false                                 # появляется в ладони, когда кисть дошла до подсумка (arm)
+
+
+## граната взята из подсумка: видна в левой кисти
+func arm() -> void:
+	if phase == "aim":
+		_body.visible = true
 
 
 func _hand_pos() -> Vector3:
@@ -117,6 +124,8 @@ func _hand_pos() -> Vector3:
 func release() -> void:
 	if phase != "aim":
 		return
+	_body.visible = true
+	_body.global_position = _hand_pos()
 	phase = "fly"
 	_ft = 0.0
 	_p0 = _body.global_position
@@ -140,7 +149,7 @@ func _process(delta: float) -> void:
 	var prog := clampf(t / fuse_s, 0.0, 1.0)
 	match phase:
 		"aim":
-			if not hand.is_valid() or t > throw_s + 1.0:
+			if not hand.is_valid() or t > throw_s + 1.5:
 				cancel()
 				return
 			_mm.set_shader_parameter("fade", clampf(t / 0.15, 0.0, 1.0))

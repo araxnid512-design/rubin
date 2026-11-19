@@ -74,6 +74,11 @@ var _sp_gap := 0.0                  ## после любой особой ата
 var _met := false                   ## главарь уже встречал героя (вступление — один раз)
 var _say: Label3D
 var _say_t := 0.0
+var _fire_due := -1.0               ## клип выстрела идёт: через сколько секунд его метка — сам выстрел
+var _rec_chain := false             ## после клипа выстрела — клип возврата
+var _gr_step := 0                   ## граната: 0 — рука к подсумку, 1 — замах и бросок, 2 — проводка, 3 — возврат
+var _rk0 := 1.0                     ## отдача и вспышка оружия до прицельного выстрела (на нём — сильнее)
+var _fk0 := 1.0
 
 
 func setup(k: String, at: Vector3, seed_n: int) -> void:
@@ -94,6 +99,9 @@ func setup(k: String, at: Vector3, seed_n: int) -> void:
 	_body_now = "armed_idle"
 	_sp_cd = float(def.get("special", {}).get("cd", 10.0)) * 0.5
 	_gr_cd = 2.0
+	if rig.hold != null:
+		_rk0 = rig.hold.recoil_k
+		_fk0 = rig.hold.flash_k
 	if boss:
 		_make_bar()
 
@@ -162,6 +170,11 @@ func _stage_check() -> void:
 	state = "chase"
 	phase = "sp_stun"
 	_pt = 1.1
+	_fire_due = -1.0
+	_rec_chain = false
+	if rig.hold != null:
+		rig.hold.recoil_k = _rk0
+		rig.hold.flash_k = _fk0
 	if rig.has_clip("stagger"):
 		rig.play("stagger", 1.2)
 	if rig.hold != null:
@@ -287,9 +300,15 @@ func tick(delta: float, p: Vector3, can_see: bool, hero_alive: bool) -> void:
 		rig.hold.still = real < 0.2 and state != "chase"
 		# стоит — стойка с оружием (прицел / покой); идёт, бежит или сидит за укрытием — поза снята, тело ведут
 		# клипы шага и приседа (раньше стойка держалась и на ходу: ноги не шагали, мур «ехал»)
+		if _rec_chain and not rig.busy():
+			_rec_chain = false
+			if state == "chase" and rig.has_clip("boss_pistol_recover"):
+				rig.play("boss_pistol_recover")           # после выстрела — короткий возврат в прицел, без нового вскидывания
 		var want := ""
 		if real < 0.2 and crouch < 0.05:
 			want = "armed_idle"
+			if boss and rig.hold.stance == "aim" and rig.info.has("boss_pistol_aim"):
+				want = "boss_pistol_aim"
 			if rifle and rig.hold.stance == "aim" and rig.info.has("aim_idle"):
 				want = "aim_idle"
 			elif rifle and rig.hold.stance_now() == "rest" and rig.info.has("rest_idle"):
@@ -426,21 +445,23 @@ func _combat_inner(delta: float, p: Vector3, to: Vector3, dist: float, can_see: 
 			return 0.0
 		"fire":
 			_shot_t -= delta
+			if _fire_due >= 0.0:
+				# клип выстрела идёт: сам выстрел (попадание, вспышка, звук) — по его метке
+				_fire_due -= delta
+				if _fire_due <= 0.0:
+					_fire_due = -1.0
+					_shot(p, dist, can_see)
+				return 0.0
 			if _shot_t <= 0.0:
 				if mag <= 0:
 					_start_reload()
 					return 0.0
-				_fire(p, dist)
-				_burst -= 1
-				_shot_t = 1.0 / float(gun.get("rate", 8.0))
-				if _burst <= 0 or not can_see:
-					phase = "pause"
-					var ps: Array = gun.get("pause", [0.8, 1.4])
-					_pt = _rng.randf_range(float(ps[0]), float(ps[1])) * (float(def.rage.get("pause_k", 0.6)) if raging() else 1.0)
-					if mag <= 0:
-						_start_reload()
-					elif bool(gun.get("cover", false)) and _rng.randf() < 0.55:
-						_find_cover(p, dist)
+				if boss and rig.has_clip("boss_pistol_fire"):
+					var fd := rig.play("boss_pistol_fire")
+					_fire_due = maxf(fd * float(rig.info["boss_pistol_fire"].get("hit", 0.3)), 0.01)
+					_rec_chain = true
+					return 0.0
+				_shot(p, dist, can_see)
 			return 0.0
 		"pause":
 			# между очередями: в укрытие, вбок или ближе/дальше — к своей дистанции
@@ -461,7 +482,8 @@ func _combat_inner(delta: float, p: Vector3, to: Vector3, dist: float, can_see: 
 		_:
 			# move: подойти на дистанцию стрельбы / туда, где видел; дальше pursue_r от своего места не гонится
 			phase = "move"
-			rig.hold.set_stance("ready")
+			# главарь бежит: пистолет в правой руке у груди стволом вперёд, левая работает как при беге
+			rig.hold.set_stance("run" if boss and _spd > 1.8 and rig.hold.w.stances.has("run") else "ready")
 			if can_see and dist <= rng_g * (0.9 if not gun.has("pellets") else 0.75):
 				phase = "aim"
 				_pt = float(gun.get("aim_s", 0.3))
@@ -493,6 +515,21 @@ func _combat_inner(delta: float, p: Vector3, to: Vector3, dist: float, can_see: 
 			_move_dir = _nav_dir(tgt, delta)
 			_face_dir = _move_dir if not can_see else to
 			return float(def.run)
+
+
+## один выстрел очереди и что после него: следующий через 1/rate, очередь кончилась — пауза (укрытие, перезарядка)
+func _shot(p: Vector3, dist: float, can_see: bool) -> void:
+	_fire(p, dist)
+	_burst -= 1
+	_shot_t = 1.0 / float(gun.get("rate", 8.0))
+	if _burst <= 0 or not can_see:
+		phase = "pause"
+		var ps: Array = gun.get("pause", [0.8, 1.4])
+		_pt = _rng.randf_range(float(ps[0]), float(ps[1])) * (float(def.rage.get("pause_k", 0.6)) if raging() else 1.0)
+		if mag <= 0:
+			_start_reload()
+		elif bool(gun.get("cover", false)) and _rng.randf() < 0.55:
+			_find_cover(p, dist)
 
 
 ## между очередями: в укрытие, если нашлось; иначе — шаг вбок, держит свою дистанцию (keep); главарь отступает
@@ -659,19 +696,18 @@ func _kick_start(to: Vector3) -> void:
 	boss_event.emit("kick", stage)
 
 
-## граната: красный круг там, где стоял герой; замах throw_s (левая рука, оружие в правой) — бросок — взрыв
+## Граната: красный круг там, где стоял герой. Три клипа подряд: рука к подсумку (граната появляется в ладони) —
+## замах и бросок (граната уходит по метке клипа) — проводка и возврат к оружию. Пистолет — в правой, опущен.
 func _grenade_start(at: Vector3) -> void:
 	var gc: Dictionary = def.grenade
-	var thr := float(gc.get("throw_s", 0.6))
 	_line_off()
 	phase = "sp_gren"
-	_pt = thr
-	_gr_rec = 0.45
-	if rig.has_clip("throw_l"):
-		var inf: Dictionary = rig.info["throw_l"]
-		var hk := float(inf.get("hit", 0.56))
-		var dur := rig.play("throw_l", rig.clip_len("throw_l") * (hk if hk > 0.0 else 0.56) / thr)
-		_gr_rec = maxf(dur - thr, 0.2)
+	_gr_step = 0
+	var prep := rig.play("boss_grenade_prepare") if rig.has_clip("boss_grenade_prepare") else 0.3
+	var thr_hit := 0.3
+	if rig.has_clip("boss_grenade_throw"):
+		thr_hit = rig.clip_len("boss_grenade_throw") * float(rig.info["boss_grenade_throw"].get("hit", 0.7))
+	_pt = prep
 	if rig.hold != null:
 		rig.hold.set_stance("throw" if rig.hold.w.stances.has("throw") else "ready")
 	var d := at - global_position
@@ -681,12 +717,51 @@ func _grenade_start(at: Vector3) -> void:
 	nade = ULGrenade.new()
 	get_parent().add_child(nade)
 	nade.hand = _left_hand
-	nade.setup(Vector3(at.x, global_position.y, at.z), float(gc.get("r", 2.6)), thr, float(gc.get("fly_s", 0.8)), float(gc.get("fuse_s", 2.3)))
+	nade.setup(Vector3(at.x, global_position.y, at.z), float(gc.get("r", 2.6)), prep + thr_hit, float(gc.get("fly_s", 0.8)), float(gc.get("fuse_s", 2.4)))
 	nade.exploded.connect(func(p: Vector3, r: float):
 		blast.emit(p, r, float(gc.get("dmg_pct", 0.35)), float(gc.get("edge_k", 0.4)), float(gc.get("knock", 6.0))))
 	nade.landed.connect(func(_p: Vector3): boss_event.emit("land", stage))
 	tell(String(gc.get("n", "Граната")) + "!", 1.6, Color(1.0, 0.3, 0.2))
 	boss_event.emit("grenade", stage)
+
+
+## шаги броска гранаты (фазы sp_gren и sp_gren_rec)
+func _grenade_tick(can_see: bool) -> void:
+	_face_dir = _sp_dir
+	var has_nade := nade != null and is_instance_valid(nade)
+	match _gr_step:
+		0:
+			# рука дошла до подсумка — граната в ладони
+			if has_nade and _pt <= 0.15:
+				nade.arm()
+			if _pt <= 0.0:
+				_gr_step = 1
+				_pt = 0.3
+				if rig.has_clip("boss_grenade_throw"):
+					var dur := rig.play("boss_grenade_throw")
+					var hk := float(rig.info["boss_grenade_throw"].get("hit", 0.7))
+					_pt = dur * hk
+					_gr_rec = dur * (1.0 - hk)
+		1:
+			if _pt <= 0.0:
+				if has_nade:
+					nade.release()                 # граната уходит из кисти — дальше летит сама
+				phase = "sp_gren_rec"
+				_gr_step = 2
+				_pt = _gr_rec
+		2:
+			if _pt <= 0.0:
+				_gr_step = 3
+				_pt = rig.play("boss_grenade_recover") if rig.has_clip("boss_grenade_recover") else 0.3
+				if rig.hold != null:
+					rig.hold.set_stance("ready")
+		_:
+			if _pt <= 0.0:
+				_gr_cd = float(def.rage.get("gr_cd", 7.0)) if raging() else float(def.grenade.get("cd", 11.0))
+				_sp_gap = 1.0
+				phase = "aim" if can_see else "pause"
+				_pt = 0.3
+				rig.hold.set_stance("aim" if can_see else "ready")
 
 
 func _left_hand() -> Vector3:
@@ -745,6 +820,14 @@ func _special_tick(delta: float, p: Vector3, can_see: bool) -> float:
 				var mz := rig.hold.muzzle_world()
 				if not mz.is_empty():
 					from = mz[0]
+				# тяжёлый выстрел: отдача и вспышка сильнее обычных (возвращаются после восстановления)
+				_rk0 = rig.hold.recoil_k
+				_fk0 = rig.hold.flash_k
+				rig.hold.recoil_k = _rk0 * 1.5
+				rig.hold.flash_k = _fk0 * 1.4
+				if rig.has_clip("boss_pistol_fire"):
+					rig.play("boss_pistol_fire", 0.8)
+					_rec_chain = true
 				rig.hold.fire()
 				shots += 1
 				special_hit.emit(Vector3(global_position.x, from.y, global_position.z), _sp_dir, _sp_len, float(sp.get("width", 0.7)), float(sp.get("dmg_pct", 0.333)))
@@ -754,6 +837,8 @@ func _special_tick(delta: float, p: Vector3, can_see: bool) -> float:
 		"sp_rec":
 			_face_dir = _sp_dir
 			if _pt <= 0.0:
+				rig.hold.recoil_k = _rk0
+				rig.hold.flash_k = _fk0
 				_sp_cd = float(def.rage.get("sp_cd", 6.0)) if raging() else float(sp.get("cd", 10.0))
 				_sp_gap = 1.2
 				phase = "pause"
@@ -772,21 +857,8 @@ func _special_tick(delta: float, p: Vector3, can_see: bool) -> float:
 				_kick_cd = float(def.rage.get("kick_cd", 2.5)) if raging() else float(def.kick.get("cd", 3.5))
 				phase = "aim" if can_see else "pause"
 				_pt = 0.25
-		"sp_gren":
-			_face_dir = _sp_dir
-			if _pt <= 0.0:
-				if nade != null and is_instance_valid(nade):
-					nade.release()
-				phase = "sp_gren_rec"
-				_pt = _gr_rec
-		"sp_gren_rec":
-			_face_dir = _sp_dir
-			if _pt <= 0.0:
-				_gr_cd = float(def.rage.get("gr_cd", 7.0)) if raging() else float(def.grenade.get("cd", 11.0))
-				_sp_gap = 1.0
-				phase = "aim" if can_see else "pause"
-				_pt = 0.3
-				rig.hold.set_stance("aim" if can_see else "ready")
+		"sp_gren", "sp_gren_rec":
+			_grenade_tick(can_see)
 		"sp_stun":
 			# пошатнулся на смене фазы
 			if _pt <= 0.0:

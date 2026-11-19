@@ -56,6 +56,8 @@ var _ik_act := false            ## текущее разовое действи�
 var _ik_pose := true            ## текущая поза разрешает IK стоп
 var hands: BCHandIK
 var hold: BCWeaponHold          ## хват оружия: обе руки к оружию, пальцы на рукояти
+var speed_k := 1.0              ## длина шага против описанной в наборе клипов: у рослого персонажа (главарь 2,25 м) шаг длиннее — без поправки стопы скользят; задать до setup
+var alias := {}                 ## свои клипы вместо общих: {"run": "boss_pistol_run"} — задать до setup
 var ground: BCGroundClamp       ## лежащее тело — на полу (клипы с пометкой "ground")
 var probe: BCProbe              ## итоговая поза для проверок
 var pose_report := []           ## замеры кисти в построенных ударах
@@ -194,7 +196,8 @@ func clip_len(n: String) -> float:
 
 func _anim(n: String) -> AnimationNodeAnimation:
 	var a := AnimationNodeAnimation.new()
-	a.animation = "bc/" + (n if info.has(n) else "idle")
+	var an: String = String(alias.get(n, n)) if info.has(String(alias.get(n, n))) else n
+	a.animation = "bc/" + (an if info.has(an) else "idle")
 	# цикл шага → общая шкала: 1 с шкалы = 1 двойной шаг (фаза уже выровнена в BCAnimSet)
 	if info.has(n) and float(info[n].strides) > 0.0:
 		a.use_custom_timeline = true
@@ -221,7 +224,7 @@ func _build_tree() -> void:
 	var last := 0.0
 	for k in ["walk", "run", "sprint"]:
 		if info.has(k):
-			var sp: float = info[k].speed if info[k].speed > 0.1 else {"walk": 1.3, "run": 3.6, "sprint": 5.6}[k]
+			var sp: float = (info[k].speed if info[k].speed > 0.1 else {"walk": 1.3, "run": 3.6, "sprint": 5.6}[k]) * speed_k
 			# точки только по возрастанию скорости: клип, который медленнее предыдущего, не годится как «быстрее»
 			if sp <= last + 0.3:
 				continue
@@ -250,7 +253,7 @@ func _build_tree() -> void:
 	cr.sync = true
 	var csp := 1.0
 	if info.has("crouch_walk"):
-		csp = info.crouch_walk.speed if info.crouch_walk.speed > 0.1 else 1.0
+		csp = (info.crouch_walk.speed if info.crouch_walk.speed > 0.1 else 1.0) * speed_k
 		cr.add_blend_point(_anim("crouch_walk"), csp)
 	else:
 		cr.add_blend_point(_anim("crouch_idle" if info.has("crouch_idle") else "idle"), 0.0)
@@ -280,7 +283,7 @@ func _build_tree() -> void:
 			var da := AnimationNodeAnimation.new()
 			da.animation = "bc/" + String(pt[0])
 			ds.add_blend_point(da, pt[1])
-			_dir_sp[pt[0]] = float(info[pt[0]].speed) if float(info[pt[0]].speed) > 0.1 else 1.6
+			_dir_sp[pt[0]] = (float(info[pt[0]].speed) if float(info[pt[0]].speed) > 0.1 else 1.6) * speed_k
 	has_dir = _dir_sp.size() == 4
 	if not has_dir:
 		ds.add_blend_point(_anim("idle"), Vector2.ZERO)
@@ -454,6 +457,8 @@ func set_pose(n: String, delay := 0.0) -> void:
 
 ## разовый клип; возвращает длительность (0 — клипа нет)
 func play(n: String, rate := 1.0) -> float:
+	if alias.has(n) and info.has(String(alias[n])):
+		n = String(alias[n])
 	if tree == null or not info.has(n):
 		return 0.0
 	var other := _slot

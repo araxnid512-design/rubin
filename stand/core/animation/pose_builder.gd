@@ -410,15 +410,45 @@ func install(lib: AnimationLibrary, info: Dictionary) -> void:
 	var k0 := over(COMBAT, {"footR": {"free": 0.0, "air": [-0.2, 0.03, 0.02]}})
 	var kick_k := [[0.0, k0], [0.16, kl], [0.36, k1], [0.5, k2, "in"], [0.58, k2], [0.74, k1, "out"], [0.88, kl], [1.0, k0]]
 	_add("kick", clip(1.0, false, func(t): return at_keys(kick_k, t), 40.0), lib, info, 0.12, false, 0.54)
-	# Бросок левой рукой (граната главаря муров; правая держит оружие). Замах: кисть уходит за левое плечо,
-	# корпус разворачивается левым плечом назад. Бросок: корпус доворачивается, рука выпрямляется вперёд и
-	# чуть вверх, вес идёт на переднюю ногу. Потом рука опускается.
-	var th0 := over(ARMED, {"hip": {"yaw": 2.0}, "chest": {"yaw": -24.0, "lean": 0.0},
-		"handL": {"hang": 0.0, "pos": [-0.12, 0.3, -0.3], "F": [0.2, 1.0, 0.0], "P": [1.0, 0.0, 0.0]}})
-	var th1 := over(ARMED, {"hip": {"off": [0.05, -0.06, 0.0], "yaw": 22.0}, "chest": {"yaw": 18.0, "lean": 13.0},
-		"handL": {"hang": 0.0, "ext": 1.0, "dir": [1.0, 0.32, 0.0], "P": [0.0, -1.0, 0.0]}})
-	var throw_k := [[0.0, ARMED], [0.32, th0], [0.44, th0], [0.58, th1, "in"], [0.68, th1], [1.0, ARMED, "out"]]
-	_add("throw_l", clip(1.1, false, func(t): return at_keys(throw_k, t / 1.1), 40.0), lib, info, 0.12, false, 0.56)
+	# ---- Главарь муров с пистолетом: стойки и движения по видео-образцу (руку с оружием ведёт хват) ----
+	# Стрельба с двух рук: ноги чуть шире плеч, левая на полшага впереди, колени согнуты, корпус подан вперёд,
+	# голова опущена к прицелу.
+	var b_aim := over(ARMED, {"hip": {"off": [0.03, -0.075, 0.0], "yaw": 14.0, "lean": 6.0}, "chest": {"yaw": -6.0, "lean": 8.0}, "head": {"pitch": 5.0},
+		"footL": {"pos": [0.16, 0.05], "yaw": 2.0}, "footR": {"pos": [-0.16, -0.05], "yaw": 32.0, "heel": 0.01}})
+	_add("boss_pistol_aim", clip(8.0, true, _breath(b_aim), 4.0), lib, info, 0.2)
+	# Выстрел: спуск — и корпус с головой коротко отдают назад, таз подсаживается (кисти и пистолет подбрасывает
+	# отдача хвата). Момент выстрела — метка клипа (hit): по ней игра считает попадание, вспышку и звук.
+	var b_kick := over(b_aim, {"hip": {"off": [0.012, -0.084, 0.0], "lean": 3.0}, "chest": {"lean": 2.5, "yaw": -4.0}, "head": {"pitch": 1.0}})
+	_add("boss_pistol_fire", clip(0.16, false, func(t): return at_keys([[0.0, b_aim], [0.3, b_aim], [0.8, b_kick, "in"], [1.0, b_kick]], t / 0.16), 60.0), lib, info, 0.04, false, 0.3)
+	# Возврат после выстрела: корпус проходит чуть вперёд за линию прицела и успокаивается — без повторного вскидывания.
+	var b_over := over(b_aim, {"chest": {"lean": 9.5}, "hip": {"lean": 6.8}})
+	_add("boss_pistol_recover", clip(0.34, false, func(t): return at_keys([[0.0, b_kick], [0.45, b_over, "out"], [1.0, b_aim]], t / 0.34), 40.0), lib, info, 0.04)
+	# Граната левой рукой (пистолет в правой опущен). Подготовка: левая кисть — к подсумку на груди, взгляд вниз.
+	var g_ready := over(ARMED, {"hip": {"off": [0.0, -0.05, 0.0], "yaw": 6.0}, "chest": {"yaw": -8.0, "lean": 6.0}, "head": {"pitch": 10.0, "yaw": -6.0},
+		"handL": {"hang": 0.0, "pos": [0.17, -0.25, -0.04], "F": [0.1, -0.35, 0.93], "P": [-1.0, 0.0, 0.1]}})
+	_add("boss_grenade_prepare", clip(0.5, false, func(t): return at_keys([[0.0, ARMED], [0.7, g_ready, "out"], [1.0, g_ready]], t / 0.5), 40.0), lib, info, 0.12)
+	# Замах: рука с гранатой уходит назад и вверх за плечо, корпус разворачивается левым плечом назад, вес — на
+	# задней (левой) ноге, правая впереди. Бросок: корпус доворачивается, вес переходит на переднюю ногу, рука
+	# выпрямляется вперёд и вверх — граната уходит (метка hit). Проводка: рука падает вниз-вперёд, корпус в наклоне.
+	var g_wind := over(ARMED, {"hip": {"off": [-0.06, -0.07, 0.0], "yaw": -18.0, "lean": -3.0}, "chest": {"yaw": -34.0, "lean": -4.0}, "head": {"yaw": 22.0},
+		"footR": {"pos": [0.2, -0.02], "yaw": 6.0}, "footL": {"pos": [-0.2, 0.05], "yaw": -30.0},
+		"handL": {"hang": 0.0, "pos": [-0.44, 0.16, -0.36], "F": [-0.2, 0.9, -0.2], "P": [1.0, 0.1, 0.0]}})
+	var g_rel := over(ARMED, {"hip": {"off": [0.1, -0.1, 0.0], "yaw": 20.0, "lean": 10.0}, "chest": {"yaw": 26.0, "lean": 14.0}, "head": {"yaw": -8.0},
+		"footR": {"pos": [0.24, -0.02], "yaw": 4.0}, "footL": {"pos": [-0.2, 0.05], "yaw": -20.0, "heel": 0.07},
+		"handL": {"hang": 0.0, "ext": 1.0, "dir": [1.0, 0.42, 0.06], "P": [0.0, -1.0, 0.0]}})
+	var g_follow := over(g_rel, {"hip": {"off": [0.14, -0.13, 0.0], "lean": 14.0}, "chest": {"yaw": 34.0, "lean": 22.0},
+		"handL": {"hang": 0.0, "ext": 1.0, "dir": [0.8, -0.55, 0.3], "P": [0.0, -1.0, 0.0]}})
+	# шаг правой ногой вперёд на замахе — стопа переносится по воздуху, а не едет по земле
+	var g_step := over(g_ready, {"hip": {"off": [-0.03, -0.06, 0.0], "yaw": -6.0}, "chest": {"yaw": -22.0, "lean": 1.0}, "head": {"pitch": 2.0, "yaw": 12.0},
+		"footR": {"free": 1.0, "air": [0.08, 0.09, -0.02]}, "footL": {"pos": [-0.1, 0.04], "yaw": -16.0},
+		"handL": {"hang": 0.0, "pos": [-0.16, -0.04, -0.32], "F": [-0.3, 0.5, -0.2], "P": [0.6, 0.2, 0.7]}})
+	_add("boss_grenade_throw", clip(0.62, false, func(t): return at_keys([[0.0, g_ready], [0.2, g_step], [0.42, g_wind, "out"], [0.52, g_wind], [0.7, g_rel, "in"], [1.0, g_follow, "out"]], t / 0.62), 40.0), lib, info, 0.06, false, 0.7)
+	_add("boss_grenade_recover", clip(0.6, false, func(t): return at_keys([[0.0, g_follow], [0.3, g_follow], [1.0, ARMED, "out"]], t / 0.6), 40.0), lib, info, 0.08)
+	# остальные клипы главаря — те же движения набора под своими именами (стойка, бег, попадание, гибель)
+	for pr in [["boss_idle", "armed_idle"], ["boss_pistol_run", "run"], ["boss_hit", "stagger"], ["boss_death", "death"]]:
+		if lib.has_animation(pr[1]) and not lib.has_animation(pr[0]):
+			lib.add_animation(pr[0], lib.get_animation(pr[1]).duplicate())
+			info[pr[0]] = (info[pr[1]] as Dictionary).duplicate()
 	# попадание спереди: корпус и голова отброшены назад, шаг назад правой, возврат
 	var hit := over(NEUTRAL, {"hip": {"off": [-0.07, -0.04, 0.0], "lean": -7.0}, "chest": {"lean": -13.0, "yaw": 6.0}, "head": {"pitch": -12.0, "yaw": 8.0},
 		"footR": {"pos": [-0.16, -0.01], "yaw": 14.0},

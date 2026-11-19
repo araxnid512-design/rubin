@@ -9484,7 +9484,7 @@ func _lair_test() -> void:
 	lost_b += hp_c - hp
 	hp = HP_MAX
 	var per := lost_b / maxf(float(mur_hits - hits0), 1.0)
-	_ok("тяжёлый выстрел Desert Eagle — 12 %% здоровья (%.1f за попадание), не каждый попадает (%d из %d)" % [per, mur_hits - hits0, bos.shots - bs0], absf(per - HP_MAX * 0.12) < 0.6 and mur_hits - hits0 < bos.shots - bs0 and mur_hits - hits0 > 0)
+	_ok("тяжёлый выстрел Desert Eagle — 10 %% здоровья (%.1f за попадание), не каждый попадает (%d из %d)" % [per, mur_hits - hits0, bos.shots - bs0], absf(per - HP_MAX * 0.1) < 0.6 and mur_hits - hits0 < bos.shots - bs0 and mur_hits - hits0 > 0)
 	# подошёл вплотную — главарь не пятится, а бьёт ногой и отбрасывает
 	bos._kick_cd = 0.0
 	var close_p: Vector3 = bos.global_position + (player.global_position - bos.global_position).normalized() * 2.0
@@ -9559,9 +9559,9 @@ func _lair_test() -> void:
 		tsp3 += get_physics_process_delta_time()
 	await get_tree().create_timer(0.2).timeout
 	var got := hp_s2 - hp
-	_ok("стоял на полосе — попадание в 30 %% здоровья (%.1f)" % got, special_hits == hit1 + 1 and got >= HP_MAX * 0.3 - 0.5,
+	_ok("стоял на полосе — попадание в треть здоровья (%.1f)" % got, special_hits == hit1 + 1 and got >= HP_MAX * 0.333 - 0.5,
 		"фаза %s, прицельных %d, попаданий %d, промахов %d, до героя %.1f, видит %s, ждали %.1f с" % [bos.phase, bos.specials, special_hits, special_miss, bos.global_position.distance_to(player.global_position), str(bos.get_meta("sees", false)), tsp3])
-	_ok("перезарядка прицельного выстрела ~9 с", bos._sp_cd > 7.0 or bos.phase == "sp_rec")
+	_ok("перезарядка прицельного выстрела ~10 с", bos._sp_cd > 8.0 or bos.phase == "sp_rec")
 	# ---- 4. ключ и сундук ----
 	await _find_target_at(lr.chest_pos + Vector3(0, 0, 1.2) if lr.chest_yaw == 0.0 else lr.chest_pos - Vector3(0, 0, 1.2))
 	_ok("у сундука без ключа: «Закрыто. Требуется ключ главаря муров»", _target != null and String(_target.type) == "chest" and _action_label() == "Закрыто" and _target_name().contains("Требуется ключ главаря муров"), "%s / %s" % [_action_label(), _target_name()])
@@ -12480,6 +12480,157 @@ func _run_test() -> void:
 			print("[loco] %s: кадров %d, наибольшее отклонение тела от направления бега %.0f°, таз уходит вбок от капсулы %.2f…%.2f м, скорость %.1f м/с" % [e.def.n, n, face_dev, lat_min, lat_max, Vector3(e.velocity.x, 0, e.velocity.z).length()])
 		get_tree().quit()
 		return
+	if test == "bossdemo":
+		# Запись движений главаря из игры (запускать с --write-movie файл.avi --fixed-fps 30): бег, стрельба, граната —
+		# каждое игровым ракурсом и сбоку / крупно. Камера — своя (игровой угол и расстояние либо сбоку), герой неуязвим.
+		for e0 in enemies.duplicate():
+			e0.damage(1000000.0)
+		hp_lock = true
+		inv.primary = ULItems.make("ak74m")
+		inv.hand = "primary"
+		_apply_gear()
+		player.global_position = Vector3(15, 0.05, 44)
+		var bos := spawn_enemy("mur_boss", Vector3(15, 0, 10)) as ULMur
+		bos.rotation.y = 0.0
+		bos.def = bos.def.duplicate(true)
+		bos.def.see = 0.0                              # сам не замечает: каждую сцену запускает запись
+		bos.def.hear = 0.0
+		bos.def.hear_run = 0.0
+		bos.def.hear_walk = 0.0
+		bos.gun = bos.gun.duplicate(true)
+		var c2 := Camera3D.new()
+		add_child(c2)
+		c2.fov = 34.0
+		c2.current = true
+		var cl := CanvasLayer.new()
+		cl.layer = 50
+		add_child(cl)
+		var cap := Label.new()
+		cap.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
+		cap.offset_top = -64
+		cap.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		cap.add_theme_font_size_override("font_size", 26)
+		cap.add_theme_color_override("font_color", Color(1.0, 0.92, 0.7))
+		cap.add_theme_color_override("font_outline_color", Color(0, 0, 0))
+		cap.add_theme_constant_override("outline_size", 8)
+		cl.add_child(cap)
+		var st := {"mode": "game", "at": Vector3.ZERO, "side": Vector3(0, 0, 1)}     # словарь: лямбды видят изменения
+		var place_cam := func() -> void:
+			var t: Vector3 = bos.global_position + Vector3.UP * 1.1
+			st.at = (st.at as Vector3).lerp(t, 0.35) if st.at != Vector3.ZERO else t
+			var cam_at: Vector3 = st.at
+			var fwd := Vector3(sin(bos.rotation.y), 0, cos(bos.rotation.y))
+			var rgt := Vector3(fwd.z, 0, -fwd.x)
+			match String(st.mode):
+				"game":
+					c2.fov = 34.0
+					c2.global_position = cam_at + Vector3(sin(CAM_YAW) * cos(CAM_PITCH), sin(CAM_PITCH), cos(CAM_YAW) * cos(CAM_PITCH)) * 13.0
+					c2.look_at(cam_at, Vector3.UP)
+				"side":
+					c2.fov = 30.0
+					c2.global_position = cam_at + (st.side as Vector3) * 7.5 + Vector3.UP * 0.5
+					c2.look_at(cam_at + Vector3.UP * 0.05, Vector3.UP)
+				"hands":
+					c2.fov = 26.0
+					c2.global_position = cam_at + fwd * 2.7 - rgt * 2.4 + Vector3.UP * 0.8
+					c2.look_at(cam_at + fwd * 0.45 + Vector3.UP * 0.35, Vector3.UP)
+		var run_scene := func(sec: float, hud_on: bool) -> void:
+			_hud.visible = hud_on
+			var t := 0.0
+			while t < sec:
+				await get_tree().process_frame
+				t += get_process_delta_time()
+				place_cam.call()
+		var reset := func(at: Vector3, yaw: float) -> void:
+			bos.global_position = at
+			bos.rotation.y = yaw
+			bos.velocity = Vector3.ZERO
+			bos._spd = 0.0
+			bos.state = "idle"
+			bos.phase = ""
+			bos._sp_cd = 99.0
+			bos._kick_cd = 99.0
+			bos._gr_cd = 99.0
+			bos._sp_gap = 0.0
+			bos.mag = int(bos.gun.mag)
+			bos.rig.hold.set_stance("ready")
+			st.at = Vector3.ZERO
+		await get_tree().create_timer(0.6).timeout
+		# ---- сцена 1: бег ----
+		cap.text = "Сцена 1 — бег с пистолетом: игровой ракурс"
+		st.mode = "game"
+		reset.call(Vector3(26, 0, 6), 0.0)
+		player.global_position = Vector3(26, 0.05, 38)
+		bos._met = true
+		bos._notice(player.global_position)
+		bos.state = "chase"
+		bos.phase = "move"
+		await run_scene.call(2.6, false)
+		player.global_position = Vector3(2, 0.05, 34)        # цель ушла влево — разворот на бегу
+		bos._last = player.global_position
+		await run_scene.call(2.6, false)
+		player.global_position = Vector3(36, 0.05, 14)       # и вправо
+		bos._last = player.global_position
+		await run_scene.call(2.4, false)
+		cap.text = "Сцена 1 — бег с пистолетом: сбоку (видны ноги и шаг)"
+		st.mode = "side"
+		reset.call(Vector3(2, 0, 36), PI * 0.5)
+		st.side = Vector3(0, 0, 1)
+		player.global_position = Vector3(35, 0.05, 36)
+		bos._notice(player.global_position)
+		bos.state = "chase"
+		bos.phase = "move"
+		await run_scene.call(5.0, false)
+		# ---- сцена 2: стрельба ----
+		cap.text = "Сцена 2 — прицел и стрельба из Desert Eagle: игровой ракурс"
+		st.mode = "game"
+		reset.call(Vector3(28, 0, 30), 0.0)
+		player.global_position = Vector3(28, 0.05, 37.5)
+		bos.def.see = 13.0
+		bos.gun.burst = [3, 3]
+		bos._notice(player.global_position)
+		await run_scene.call(5.5, true)
+		cap.text = "Сцена 2 — хват двумя руками и отдача: крупно, замедленно"
+		st.mode = "hands"
+		st.at = Vector3.ZERO
+		Engine.time_scale = 0.45
+		await run_scene.call(3.4, false)
+		Engine.time_scale = 1.0
+		cap.text = "Сцена 2 — прицельный выстрел (красная полоса): игровой ракурс"
+		st.mode = "game"
+		st.at = Vector3.ZERO
+		bos._sp_cd = 0.0
+		await run_scene.call(4.2, true)
+		# ---- сцена 3: граната ----
+		cap.text = "Сцена 3 — граната левой рукой: сбоку, замедленно"
+		st.mode = "side"
+		st.side = Vector3(1, 0, 0)
+		st.at = Vector3.ZERO
+		bos.stage = 2
+		bos._sp_cd = 99.0
+		bos.gun.acc = 0.0
+		bos.gun.acc_far = 0.0
+		bos.phase = "pause"
+		bos._pt = 0.4
+		bos._gr_cd = 0.0
+		bos._sp_gap = 0.0
+		Engine.time_scale = 0.5
+		await run_scene.call(2.6, false)
+		Engine.time_scale = 1.0
+		await run_scene.call(1.6, false)
+		cap.text = "Сцена 3 — граната: игровой ракурс (круг, бросок, взрыв)"
+		st.mode = "game"
+		st.at = Vector3.ZERO
+		bos._gr_cd = 0.0
+		bos._sp_gap = 0.0
+		await run_scene.call(5.6, true)
+		cap.text = "Попадание и гибель"
+		bos.damage(40.0, player.global_position)
+		await run_scene.call(0.8, true)
+		bos.damage(1000000.0, player.global_position)
+		await run_scene.call(2.6, true)
+		get_tree().quit()
+		return
 	if test == "bossview":
 		# Главарь муров как босс: размер, вступление, тяжёлый выстрел, прицельный выстрел, удар ногой, фазы, подмога,
 		# граната, гибель. Снимки игровой камерой (как видит игрок), замеры — в журнал.
@@ -12532,6 +12683,46 @@ func _run_test() -> void:
 		var head_h: float = (rig.skel.global_transform * rig.skel.get_bone_global_pose(rig.skel.find_bone("Head")).origin).y - player.global_position.y
 		_ok("главарь крупнее героя: голова на %.2f м против %.2f м у героя; пистолет %.2f м (обычный — 0,27)" % [head_b, head_h, float(bos.rig.hold.w.len_m)], head_b > head_h * 1.18 and float(bos.rig.hold.w.len_m) > 0.38)
 		_ok("прочность %d, от пуль не дёргается (no_flinch), три фазы" % int(bos.def.hp), int(bos.def.hp) >= 2500 and bool(bos.def.get("no_flinch", false)) and (bos.def.phases as Array).size() == 2)
+		# --- скелет: кости, которыми управляют клипы и хват ---
+		var need := ["BoneRoot", "Hip", "Pelvis", "Waist", "Spine01", "Spine02", "NeckTwist01", "Head", "L_Clavicle", "R_Clavicle", "L_Upperarm", "R_Upperarm", "L_Forearm", "R_Forearm", "L_Hand", "R_Hand",
+			"L_Thigh", "R_Thigh", "L_Calf", "R_Calf", "L_Foot", "R_Foot", "L_ToeBase", "R_ToeBase"]
+		var miss: Array = []
+		for bn in need:
+			if bos.rig.skel.find_bone(bn) < 0:
+				miss.append(bn)
+		var fingers := 0
+		for bi in bos.rig.skel.get_bone_count():
+			var nm := bos.rig.skel.get_bone_name(bi)
+			if nm.contains("Thumb") or nm.contains("Index") or nm.contains("Mid") or nm.contains("Ring") or nm.contains("Pinky"):
+				fingers += 1
+		_ok("скелет главаря: костей %d, все нужные на месте, костей пальцев %d" % [bos.rig.skel.get_bone_count(), fingers], miss.is_empty() and fingers >= 20, "нет: %s" % str(miss))
+		var clips_need := ["boss_idle", "boss_pistol_run", "boss_pistol_aim", "boss_pistol_fire", "boss_pistol_recover", "boss_grenade_prepare", "boss_grenade_throw", "boss_grenade_recover", "boss_hit", "boss_death"]
+		var cl_miss: Array = []
+		for cn in clips_need:
+			if not bos.rig.has_clip(cn):
+				cl_miss.append(cn)
+		_ok("клипы главаря: %s" % ", ".join(clips_need), cl_miss.is_empty(), "нет: %s" % str(cl_miss))
+		# --- бег: герой далеко и не на виду у прицела — главарь бежит к нему с пистолетом у груди ---
+		player.global_position = Vector3(15, 0.05, 44)
+		bos.global_position = Vector3(15, 0, 12)
+		bos._notice(player.global_position)
+		bos._met = true
+		await wait_for.call(func(): return bos.state == "chase" and Vector3(bos.velocity.x, 0, bos.velocity.z).length() > 3.5, 5.0)
+		close.call(true)
+		await _snap("c0_run_a")
+		await get_tree().create_timer(0.18).timeout
+		close.call(true)
+		await _snap("c0_run_b")
+		close.call(false)
+		var sl: Array = await _foot_slide(bos, bos.rig.skel, 2.2)
+		_ok("бег: %.1f м/с, пистолет в правой руке у груди (стойка «%s», левая свободна), опорная стопа скользит %.2f м/с" % [float(sl[0]), bos.rig.hold.stance, float(sl[1])],
+			float(sl[0]) > 3.5 and bos.rig.hold.stance == "run" and not bos.rig.hold.two_hands and float(sl[1]) < 0.75)
+		player.global_position = hero_at
+		bos.global_position = Vector3(15, 0, 22)
+		bos.state = "idle"
+		bos.phase = ""
+		bos._met = false
+		await get_tree().create_timer(0.3).timeout
 		# --- вступление ---
 		await wait_for.call(func(): return bos.state == "alert" or bos.state == "chase", 4.0)
 		await get_tree().create_timer(0.4).timeout
@@ -12576,7 +12767,7 @@ func _run_test() -> void:
 		if hp < hp0:
 			lost += hp0 - hp
 		var per := lost / maxf(float(mur_hits - h0), 1.0)
-		_ok("тяжёлый выстрел: %.1f здоровья за попадание (12 %%), попал %d из %d; звук и пуля — свои" % [per, mur_hits - h0, bos.shots - s0], absf(per - HP_MAX * 0.12) < 0.6 and mur_hits - h0 >= 1 and snd._streams("shot_deagle").size() >= 2 and BULLETS.has("boss50"))
+		_ok("тяжёлый выстрел: %.1f здоровья за попадание (10 %%), попал %d из %d; звук и пуля — свои" % [per, mur_hits - h0, bos.shots - s0], absf(per - HP_MAX * 0.1) < 0.6 and mur_hits - h0 >= 1 and snd._streams("shot_deagle").size() >= 2 and BULLETS.has("boss50"))
 		# --- от пуль не дёргается ---
 		var hp_b := bos.hp
 		var flinched := false
@@ -12596,7 +12787,7 @@ func _run_test() -> void:
 		var sh0 := special_hits
 		await wait_for.call(func(): return bos.phase == "sp_rec", 3.0)
 		await get_tree().create_timer(0.25).timeout
-		_ok("прицельный выстрел по полосе: −%.0f здоровья (30 %%), отбрасывает" % (hp_s - hp), special_hits == sh0 + 1 and absf((hp_s - hp) - HP_MAX * 0.3) < 0.6)
+		_ok("прицельный выстрел по полосе: −%.0f здоровья (треть), отбрасывает" % (hp_s - hp), special_hits == sh0 + 1 and absf((hp_s - hp) - HP_MAX * 0.333) < 0.6)
 		bos._sp_cd = 99.0
 		# --- удар ногой ---
 		await wait_for.call(func(): return not bos.phase.begins_with("sp_"), 3.0)
@@ -12647,7 +12838,7 @@ func _run_test() -> void:
 		await _snap("b5_gren_mark")
 		var mark_at: Vector3 = bos.nade.at if bos.nade != null and is_instance_valid(bos.nade) else Vector3.INF
 		close.call(true)
-		await wait_for.call(func(): return bos._pt < float(bos.def.grenade.throw_s) * 0.45, 2.0)
+		await wait_for.call(func(): return bos._gr_step >= 1 and bos._pt < 0.2, 3.0)
 		await _snap("c5_windup")
 		await wait_for.call(func(): return bos.nade == null or not is_instance_valid(bos.nade) or bos.nade.phase == "fly", 2.0)
 		await get_tree().create_timer(0.04).timeout
