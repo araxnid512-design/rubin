@@ -12109,8 +12109,9 @@ func _run_test() -> void:
 		_cam_ready = false
 		await get_tree().create_timer(4.0).timeout
 		var vpg := get_viewport()
-		for sc in [0.62, 0.7, 0.85, 1.0]:
-			for lv in [0, 1, 2]:
+		var one := OS.get_cmdline_user_args().has("--as-one")      # один кадр: 100 %, мягкая резкость — для сравнения локаций
+		for sc in ([1.0] if one else [0.62, 0.7, 0.85, 1.0]):
+			for lv in ([1] if one else [0, 1, 2]):
 				vpg.scaling_3d_scale = sc
 				vpg.msaa_3d = Viewport.MSAA_2X if sc >= 0.85 else Viewport.MSAA_DISABLED   # как оставляет подстройка
 				_sharp_test = lv
