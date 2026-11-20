@@ -117,7 +117,7 @@ func _ready() -> void:
 			sc.lottery = [sc.lottery[1], sc.lottery[1]]
 			sc.ruber_chances = [0, 0, 1]                 # и два Рубера — всего 57
 			ULSanatorium._cfg = sc
-	if test == "gqview" or test == "mapbake" or test == "pmap" or test == "fldiag" or test == "shbake" or test == "shcheck":
+	if test == "gqview" or test == "mapbake" or test == "pmap" or test == "fldiag" or test == "shbake" or test == "shcheck" or test == "gbake" or test == "gcheck" or test == "gperf":
 		# сравнение чёткости (gqview), запекание карты локации (mapbake), проверка карты (pmap): место — --as-place=
 		ULSettings.arena = false
 		for a in OS.get_cmdline_user_args():
@@ -1458,6 +1458,42 @@ func ground_for(id: String, size: float, cuttable := false) -> ShaderMaterial:
 
 
 var ground_size := SIZE              ## сторона квадрата земли локации, м (по нему ложатся запечённые тени)
+var ground_mats: Array[ShaderMaterial] = []   ## материалы земли локации (у каждого в meta — подробный шейдер и вырез)
+var ground_fast := false             ## сейчас земля рисуется готовой картинкой (ULGroundBake), а не смешивается на лету
+var _ground_drop := false            ## подстройка под частоту кадров перевела землю на быструю
+var _ground_tex: Texture2D = null     ## раскладка слоёв быстрой земли
+var _ground_tint: Texture2D = null    ## её общий тон
+
+
+## есть ли для этой локации запечённая земля
+func ground_fast_ok() -> bool:
+	return not arena and ULGroundBake.exists(place)
+
+
+## какую землю хотят настройки: быструю (true) или подробную; --as-ground=fast|full — для проверок и снимков
+func ground_want_fast() -> bool:
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--as-ground="):
+			return a.substr(12) == "fast"
+	return not bool(ULSettings.q().get("ground", true))
+
+
+## переключить землю: fast — готовая картинка (если она есть), иначе подробный шейдер
+func _ground_apply(fast: bool) -> void:
+	fast = fast and ground_fast_ok()
+	ground_fast = fast
+	if fast and _ground_tex == null:
+		_ground_tex = load(ULGroundBake.path_w(place))
+		_ground_tint = load(ULGroundBake.path_t(place))
+	for sm in ground_mats:
+		if fast:
+			# текстуры слоёв и масштаб тропы — те же параметры материала, что у подробного шейдера
+			sm.shader = ULGroundBake.shader(bool(sm.get_meta("cut", false)))
+			sm.set_shader_parameter("wmap", _ground_tex)
+			sm.set_shader_parameter("tint", _ground_tint)
+			sm.set_shader_parameter("tone_k", ULGroundBake.TONE_MAX)
+		else:
+			sm.shader = sm.get_meta("full")
 var _static_geo := {}                ## запекание теней: что стояло на локации до случайной расстановки посещения
 
 
@@ -1471,6 +1507,9 @@ func ground_material(size: float, soil: String, soil_n: String, soil_tint: Vecto
 	ground_size = size
 	_sun_shadow_apply()                 # временная локация строит землю позже _ready: картинку теней растянуть по её размеру
 	sm.shader = sh
+	sm.set_meta("full", sh)
+	sm.set_meta("cut", cuttable)
+	ground_mats.append(sm)
 	# земля — после построек, людей и предметов: там, где её закрывает пол или стена, точка отбрасывается по
 	# глубине до шейдера (иначе дорогая земля считалась бы и под полом каждого дома)
 	sm.render_priority = 1
@@ -1487,6 +1526,8 @@ func ground_material(size: float, soil: String, soil_n: String, soil_tint: Vecto
 	sm.set_shader_parameter("soil_tint", soil_tint)
 	sm.set_shader_parameter("wet", wet)
 	sm.set_shader_parameter("dry_amount", dry)
+	if ground_want_fast() or _ground_drop:
+		_ground_apply(true)             # остальные параметры (шум, карта, вырез) копятся в материале и для подробного шейдера
 	return sm
 
 
@@ -2452,6 +2493,8 @@ func _process(delta: float) -> void:
 			adapt += " · без сглаживания"
 		if _shadow_pref and sun and not sun.shadow_enabled:
 			adapt += " · без теней"
+		if _ground_drop and ground_fast:
+			adapt += " · земля быстрая"
 		info.text = "%s · %d кадров/с · разрешение %d %%%s%s" % [_where(), Engine.get_frames_per_second(), int(round(get_viewport().scaling_3d_scale * 100.0)), adapt, _perf_text]
 	_fps_tick(delta)
 	_auto_res(delta)
@@ -4878,7 +4921,7 @@ func _shadow_mask_image(px: int) -> Image:
 
 ## Снимок локации строго сверху: своё окно отрисовки (без интерфейса), камера без перспективы над серединой
 ## поля; span — сколько метров в кадре по стороне; верх снимка — «вверх» на экране в игре (−z).
-func _top_image(px: int, span: float) -> Image:
+func _top_image(px: int, span: float, center := Vector2.ZERO, frames := 8) -> Image:
 	# дальность прорисовки рассчитана на игровую камеру; на общем снимке видно всё
 	for n in get_tree().root.find_children("*", "GeometryInstance3D", true, false):
 		(n as GeometryInstance3D).visibility_range_end = 0.0
@@ -4899,14 +4942,93 @@ func _top_image(px: int, span: float) -> Image:
 	tc.near = 1.0
 	tc.far = 260.0
 	sv.add_child(tc)
-	tc.look_at_from_position(Vector3(0, 120, 0), Vector3.ZERO, Vector3(0, 0, -1))
+	tc.look_at_from_position(Vector3(center.x, 120, center.y), Vector3(center.x, 0, center.y), Vector3(0, 0, -1))
 	tc.current = true
-	for i in 8:
+	for i in frames:
 		await get_tree().process_frame
 	await RenderingServer.frame_post_draw
 	var img := sv.get_texture().get_image()
 	sv.queue_free()
 	return img
+
+
+const GROUND_WHITE := """shader_type spatial;
+render_mode cull_disabled;
+// белая матовая поверхность на месте земли: на снимке остаётся один только свет (для запекания земли)
+void fragment() { ALBEDO = vec3(1.0); ROUGHNESS = 1.0; SPECULAR = 0.0; }
+"""
+
+
+## Запекание земли (ULGroundBake), снимки поля строго сверху; всё, кроме земли, скрыто:
+##   wgt — раскладка слоёв (плитками tiles × tiles по px точек): подробный шейдер вместо цвета выдаёт веса слоёв;
+##   lit — земля как в игре, но без теней, дымки и цветокоррекции (один снимок lpx точек);
+##   white — то же поле с белой матовой землёй: один только свет;
+##   fast0 — быстрая земля без поправки тона (снимается, когда раскладка уже лежит в проекте — второй запуск).
+## По ним tools/ground_post.py делает раскладку и тон. Сцена после этого для игры не годится.
+func _ground_bake(dir: String, px: int, tiles: int, lpx: int) -> void:
+	player.visible = false
+	for e in enemies:
+		e.visible = false
+	enemies.clear()
+	targets.clear()
+	_ground_apply(false)
+	var grounds: Array[GeometryInstance3D] = []
+	var own := {}
+	for n in get_tree().root.find_children("*", "GeometryInstance3D", true, false):
+		var gi := n as GeometryInstance3D
+		if gi.material_override is ShaderMaterial and ground_mats.has(gi.material_override):
+			grounds.append(gi)
+			own[gi] = gi.material_override
+		else:
+			gi.visible = false
+	sun.shadow_enabled = false
+	RenderingServer.global_shader_parameter_set(&"sun_shadow_k", 0.0)
+	world_env.tonemap_mode = Environment.TONE_MAPPER_LINEAR
+	world_env.tonemap_exposure = 0.5                     # свет в сумме больше единицы — без запаса снимок «выгорит»
+	world_env.adjustment_enabled = false
+	print("[ground] сеток земли %d, квадрат %.0f м, раскладка %d×%d плиток по %d точек, тон %d точек" % [grounds.size(), ground_size, tiles, tiles, px, lpx])
+	# раскладка: тот же шейдер, но наружу — веса слоёв (трава, подстилка, тропа), без света
+	for g in grounds:
+		var src: ShaderMaterial = own[g]
+		var code: String = (src.get_meta("full") as Shader).code
+		var wcode := code.replace("shader_type spatial;\n", "shader_type spatial;\nrender_mode unshaded;\n").replace("\tALBEDO = c * bright * m.a * 0.92;", "\tALBEDO = vec3(b.x, b.y, b.w);")
+		if wcode.length() == code.length() or not wcode.contains("vec3(b.x, b.y, b.w)"):
+			push_error("шейдер земли изменился: веса слоёв снять не удалось")
+		var wsh := Shader.new()
+		wsh.code = wcode
+		var wm := src.duplicate() as ShaderMaterial
+		wm.shader = wsh
+		g.material_override = wm
+	for ty in tiles:
+		for tx in tiles:
+			var ts := ground_size / float(tiles)
+			var c := Vector2((float(tx) + 0.5) * ts - ground_size * 0.5, (float(ty) + 0.5) * ts - ground_size * 0.5)
+			(await _top_image(px, ts, c, 3)).save_png("%s/ground_%s_wgt_%d_%d.png" % [dir, place, tx, ty])
+	for g in grounds:
+		g.material_override = own[g]
+	(await _top_image(lpx, ground_size, Vector2.ZERO, 3)).save_png("%s/ground_%s_lit.png" % [dir, place])
+	var whs := Shader.new()
+	whs.code = GROUND_WHITE
+	var whm := ShaderMaterial.new()
+	whm.shader = whs
+	for g in grounds:
+		g.material_override = whm
+	(await _top_image(lpx, ground_size, Vector2.ZERO, 3)).save_png("%s/ground_%s_white.png" % [dir, place])
+	if ResourceLoader.exists(ULGroundBake.path_w(place)):
+		for g in grounds:
+			var sm: ShaderMaterial = own[g]
+			g.material_override = sm
+			sm.shader = ULGroundBake.shader(bool(sm.get_meta("cut", false)))
+			sm.set_shader_parameter("wmap", load(ULGroundBake.path_w(place)))
+			sm.set_shader_parameter("tint", ULGroundBake.white())
+			sm.set_shader_parameter("tone_k", 1.0)
+		(await _top_image(lpx, ground_size, Vector2.ZERO, 3)).save_png("%s/ground_%s_fast0.png" % [dir, place])
+		if ULGroundBake.exists(place):
+			# сверка готового: быстрая земля с тоном — должна совпасть со снимком lit
+			for g in grounds:
+				(own[g] as ShaderMaterial).set_shader_parameter("tint", load(ULGroundBake.path_t(place)))
+				(own[g] as ShaderMaterial).set_shader_parameter("tone_k", ULGroundBake.TONE_MAX)
+			(await _top_image(lpx, ground_size, Vector2.ZERO, 3)).save_png("%s/ground_%s_fast.png" % [dir, place])
 
 
 func _pano(shots: Array, px: Vector2i) -> void:
@@ -8910,6 +9032,17 @@ func _inv_test() -> void:
 	var a3 := adapt_step(a2, 25.0, true)
 	_ok("и только потом разрешение: крупный шаг (80 → 74 %)", is_equal_approx(float(a3.scale), 0.74))
 	_ok("35 кадров/с без сглаживания и теней: мелкий шаг вниз (80 → 77 %)", is_equal_approx(float(adapt_step(a2, 35.0, true).scale), 0.77))
+	# быстрая земля (запечённая) — после теней и до разрешения; обратно — после разрешения и до теней
+	var g0 := {"scale": 0.8, "msaa": false, "shadows": false, "cap": 0.8, "can_msaa": true, "can_shadows": true, "ground": true, "can_ground": true, "has_fast": true}
+	var g1 := adapt_step(g0, 25.0, true)
+	_ok("есть запечённая земля: после теней подстройка переходит на быструю землю, разрешение — как было", not bool(g1.ground) and is_equal_approx(float(g1.scale), 0.8))
+	_ok("и только следующим шагом — разрешение (80 → 74 %)", is_equal_approx(float(adapt_step(g1, 25.0, true).scale), 0.74))
+	var g2 := adapt_step({"scale": 0.8, "msaa": false, "shadows": false, "cap": 0.8, "can_msaa": true, "can_shadows": true, "ground": false, "can_ground": true, "has_fast": true}, 60.0, true)
+	_ok("60 кадров/с при полном разрешении: первой возвращается подробная земля, тени — ещё нет", bool(g2.ground) and not bool(g2.shadows))
+	var g3 := adapt_step({"scale": 0.8, "msaa": false, "shadows": false, "cap": 0.8, "can_msaa": true, "can_shadows": true, "ground": false, "can_ground": false, "has_fast": true}, 60.0, true)
+	_ok("на «Низкой» (быстрая земля выбрана настройками) подстройка подробную не включает — возвращает тени", not bool(g3.ground) and bool(g3.shadows))
+	var g4 := adapt_step({"scale": 0.8, "msaa": false, "shadows": false, "cap": 0.8, "can_msaa": true, "can_shadows": true, "ground": true, "can_ground": true, "has_fast": false}, 25.0, true)
+	_ok("нет запечённой земли (полигон): после теней сразу разрешение", bool(g4.ground) and is_equal_approx(float(g4.scale), 0.74))
 	_ok("45 кадров/с: ничего не трогается", adapt_step(a1, 45.0, true) == a1)
 	var r1 := adapt_step(a3, 60.0, true)
 	_ok("60 кадров/с: сначала возвращается разрешение (74 → 78 %), тени ещё выключены", is_equal_approx(float(r1.scale), 0.78) and not bool(r1.shadows))
@@ -10575,6 +10708,8 @@ func open_settings() -> void:
 			sun.shadow_enabled = _shadow_pref
 		_res_fails = 0
 		_res_hold = 0.0
+		_ground_drop = false
+		_ground_apply(ground_want_fast())
 		_sharp_apply()
 		_sun_shadow_apply()
 		_cam_apply(), [
@@ -10631,7 +10766,7 @@ func _auto_res(delta: float) -> void:
 	var nx := adapt_step(st, fps, _res_hold <= 0.0)
 	if nx == st:
 		return
-	var down: bool = float(nx.scale) < float(st.scale) or (not bool(nx.msaa) and bool(st.msaa)) or (not bool(nx.shadows) and bool(st.shadows))
+	var down: bool = float(nx.scale) < float(st.scale) or (not bool(nx.msaa) and bool(st.msaa)) or (not bool(nx.shadows) and bool(st.shadows)) or (not bool(nx.ground) and bool(st.ground))
 	if down:
 		_res_hold = minf(60.0, 6.0 * pow(2.0, float(_res_fails)))
 		if _res_raised_t >= 0.0 and Time.get_ticks_msec() * 0.001 - _res_raised_t < 20.0:
@@ -10644,6 +10779,9 @@ func _auto_res(delta: float) -> void:
 	vp.msaa_3d = (Viewport.MSAA_4X if ms >= 4 else Viewport.MSAA_2X) if bool(nx.msaa) else Viewport.MSAA_DISABLED
 	if sun:
 		sun.shadow_enabled = bool(nx.shadows)
+	if bool(nx.ground) == ground_fast:
+		_ground_drop = not bool(nx.ground)
+		_ground_apply(_ground_drop or ground_want_fast())
 	_sharp_apply()                                     # сила резкости — по новой доле разрешения
 	_sun_shadow_apply()                                # тени сняты — на землю ложатся запечённые; вернулись — снимаются
 
@@ -10660,10 +10798,11 @@ func adapt_state() -> Dictionary:
 	var vp := get_viewport()
 	return {"scale": snappedf(vp.scaling_3d_scale, 0.001), "msaa": vp.msaa_3d != Viewport.MSAA_DISABLED,
 		"shadows": sun != null and sun.shadow_enabled, "cap": float(ULSettings.q().scale),
-		"can_msaa": int(ULSettings.q().msaa) > 0, "can_shadows": _shadow_pref}
+		"can_msaa": int(ULSettings.q().msaa) > 0, "can_shadows": _shadow_pref,
+		"ground": not ground_fast, "can_ground": not ground_want_fast(), "has_fast": ground_fast_ok()}
 
 
-## следующий шаг подстройки (отдельно — чтобы проверять): вниз — MSAA, тени, разрешение; вверх — наоборот
+## следующий шаг подстройки (отдельно — чтобы проверять): вниз — MSAA, тени, быстрая земля, разрешение; вверх — наоборот
 func adapt_step(st: Dictionary, fps: float, may_raise: bool) -> Dictionary:
 	var nx := st.duplicate()
 	if fps < 40.0:
@@ -10671,12 +10810,16 @@ func adapt_step(st: Dictionary, fps: float, may_raise: bool) -> Dictionary:
 			nx.msaa = false
 		elif bool(st.shadows):
 			nx.shadows = false
+		elif bool(st.get("ground", false)) and bool(st.get("has_fast", false)):
+			nx.ground = false                          # земля — готовой картинкой (ULGroundBake): на вид почти то же
 		else:
 			nx.scale = res_step(float(st.scale), fps, float(st.cap), may_raise)
 		return nx
 	if fps > 52.0 and may_raise:
 		if float(st.scale) < float(st.cap) - 0.001:
 			nx.scale = res_step(float(st.scale), fps, float(st.cap), may_raise)
+		elif bool(st.get("can_ground", false)) and not bool(st.get("ground", true)):
+			nx.ground = true
 		elif bool(st.can_shadows) and not bool(st.shadows):
 			nx.shadows = true
 		elif bool(st.can_msaa) and not bool(st.msaa):
@@ -10707,6 +10850,18 @@ func _prewarm() -> void:
 		add_child(n)
 		n.global_position = at
 		tmp.append(n)
+	if ground_fast_ok() and not ground_mats.is_empty():
+		# второй шейдер земли (тот, что сейчас не в деле): подстройка или настройки переключат без заминки
+		var gq := MeshInstance3D.new()
+		var gqm := QuadMesh.new()
+		gqm.size = Vector2(0.02, 0.02)
+		gq.mesh = gqm
+		var gsm := ground_mats[0].duplicate() as ShaderMaterial
+		gsm.shader = ground_mats[0].get_meta("full") if ground_fast else ULGroundBake.shader(bool(ground_mats[0].get_meta("cut", false)))
+		gq.material_override = gsm
+		add_child(gq)
+		gq.global_position = at
+		tmp.append(gq)
 	var lb := Label3D.new()
 	lb.text = "−0123456789"
 	lb.font_size = 56
@@ -12520,6 +12675,150 @@ func _run_test() -> void:
 		await get_tree().create_timer(1.5).timeout
 		(await _shadow_mask_image(spx)).save_png("%s/shadow_%s_raw.png" % [out, place])
 		print("[shadow] %s: %d×%d точек на %.0f м" % [place, spx, spx, ground_size])
+		get_tree().quit()
+		return
+	if test == "gcheck":
+		# запечённая («быстрая») земля локации (--as-place=…): картинки есть, включается и выключается без следа,
+		# в условиях игры (без теней солнца, как на «Низкой») сверху выглядит как подробная — яркость, рисунок,
+		# резкость вблизи. Всё, кроме земли, на время проверки скрыто.
+		var tk0 := Time.get_ticks_msec()
+		while temp() and not cs_ready and Time.get_ticks_msec() - tk0 < 30000:
+			await get_tree().process_frame
+		await get_tree().create_timer(1.0).timeout
+		_ok("%s: запечённая земля есть (раскладка слоёв и тон лежат в проекте)" % place, ULGroundBake.exists(place))
+		if not ULGroundBake.exists(place):
+			print("[inv] итог: ошибок %d" % _fails)
+			get_tree().quit()
+			return
+		player.visible = false
+		for e in enemies:
+			e.visible = false
+		enemies.clear()
+		targets.clear()
+		var gmesh := 0
+		for n in get_tree().root.find_children("*", "GeometryInstance3D", true, false):
+			var gi := n as GeometryInstance3D
+			if gi.material_override is ShaderMaterial and ground_mats.has(gi.material_override):
+				gmesh += 1
+			else:
+				gi.visible = false
+		sun.shadow_enabled = false
+		_sun_shadow_apply()
+		var spot := Vector2(player.global_position.x, player.global_position.z)
+		_ground_apply(false)
+		var f0: Image = await _top_image(512, ground_size)
+		var z0: Image = await _top_image(1024, 24.0, spot)
+		_ground_apply(true)
+		_ok("быстрая земля включилась (сеток земли %d)" % gmesh, ground_fast and gmesh >= 1)
+		var f1: Image = await _top_image(512, ground_size)
+		var z1: Image = await _top_image(1024, 24.0, spot)
+		_ground_apply(false)
+		var f2: Image = await _top_image(512, ground_size)
+		if out != "":
+			DirAccess.make_dir_recursive_absolute(out)
+			f0.save_png("%s/gcheck_%s_full.png" % [out, place])
+			f1.save_png("%s/gcheck_%s_fast.png" % [out, place])
+			z0.save_png("%s/gcheck_%s_zoom_full.png" % [out, place])
+			z1.save_png("%s/gcheck_%s_zoom_fast.png" % [out, place])
+		for im in [f0, f1, f2]:
+			(im as Image).convert(Image.FORMAT_L8)
+			(im as Image).resize(128, 128, Image.INTERPOLATE_LANCZOS)
+		var back := 0.0
+		var s0 := 0.0
+		var s1 := 0.0
+		var simg := {}
+		for mode in ["как есть", "зеркало по x", "зеркало по z"]:
+			var qa := 0.0
+			var qb := 0.0
+			var qaa := 0.0
+			var qbb := 0.0
+			var qab := 0.0
+			for y in 128:
+				for x in 128:
+					var a := f0.get_pixel(x, y).r
+					var b := f1.get_pixel(127 - x if mode == "зеркало по x" else x, 127 - y if mode == "зеркало по z" else y).r
+					qa += a
+					qb += b
+					qaa += a * a
+					qbb += b * b
+					qab += a * b
+					if mode == "как есть":
+						back += absf(a - f2.get_pixel(x, y).r)
+			var qn := 128.0 * 128.0
+			simg[mode] = snappedf((qab - qa * qb / qn) / sqrt(maxf((qaa - qa * qa / qn) * (qbb - qb * qb / qn), 1e-9)), 0.01)
+			if mode == "как есть":
+				s0 = qa / qn
+				s1 = qb / qn
+		_ok("после возврата подробной земли кадр прежний (расхождение %.4f)" % (back / 16384.0), back / 16384.0 < 0.004)
+		print("[gcheck] %s: яркость быстрая/подробная %.4f" % [place, s1 / maxf(s0, 0.0001)])
+		_ok("яркость быстрой земли — как у подробной: %.3f от неё" % (s1 / maxf(s0, 0.0001)), absf(s1 / maxf(s0, 0.0001) - 1.0) < 0.035)
+		_ok("рисунок тот же и не перевёрнут: сходство %s" % str(simg), float(simg["как есть"]) > 0.85 and float(simg["как есть"]) > float(simg["зеркало по x"]) + 0.15 and float(simg["как есть"]) > float(simg["зеркало по z"]) + 0.15)
+		# резкость вблизи: средний перепад светлоты между соседними точками (24 м на 1024 точки — как на экране)
+		z0.convert(Image.FORMAT_L8)
+		z1.convert(Image.FORMAT_L8)
+		var e0 := 0.0
+		var e1 := 0.0
+		for y in range(0, 1024, 2):
+			for x in range(0, 1023, 2):
+				e0 += absf(z0.get_pixel(x, y).r - z0.get_pixel(x + 1, y).r)
+				e1 += absf(z1.get_pixel(x, y).r - z1.get_pixel(x + 1, y).r)
+		_ok("вблизи быстрая земля не мыльная: резкость %.2f от подробной" % (e1 / maxf(e0, 0.0001)), e1 / maxf(e0, 0.0001) > 0.8 and e1 / maxf(e0, 0.0001) < 1.35)
+		print("[inv] итог: ошибок %d" % _fails)
+		get_tree().quit()
+		return
+	if test == "gperf":
+		# цена земли: время кадра с подробной и с быстрой землёй в одном и том же месте (--as-place=…, --as-at=x,z);
+		# здесь — программная отрисовка без видеочипа, на телефоне соотношение будет другим
+		var tp0 := Time.get_ticks_msec()
+		while temp() and not cs_ready and Time.get_ticks_msec() - tp0 < 30000:
+			await get_tree().process_frame
+		for a in OS.get_cmdline_user_args():
+			if a.begins_with("--as-at="):
+				var pxz := a.substr(8).split(",")
+				player.global_position = NavigationServer3D.map_get_closest_point(get_world_3d().navigation_map, Vector3(float(pxz[0]), 0, float(pxz[1]))) + Vector3.UP * 0.1
+		player.velocity = Vector3.ZERO
+		for e in enemies:
+			e.visible = false
+		enemies.clear()
+		targets.clear()
+		await get_tree().create_timer(3.0).timeout
+		get_viewport().scaling_3d_scale = 1.0
+		Engine.max_fps = 0
+		var res := {}
+		for rep in 3:
+			for fastm in [false, true]:
+				_ground_apply(fastm)
+				for i in 12:
+					await get_tree().process_frame
+				var t0 := Time.get_ticks_usec()
+				for i in 40:
+					await get_tree().process_frame
+				var ms := float(Time.get_ticks_usec() - t0) / 40000.0
+				var key := "быстрая" if fastm else "подробная"
+				res[key] = minf(float(res.get(key, 1e9)), ms)
+		print("[gperf] %s: кадр с подробной землёй %.1f мс, с быстрой %.1f мс (быстрая применилась: %s)" % [place, float(res["подробная"]), float(res["быстрая"]), str(ground_fast)])
+		get_tree().quit()
+		return
+	if test == "gbake":
+		# запекание земли (ULGroundBake): --as-place=…, --as-px=4096 (точек на плитку раскладки), --as-tiles=2,
+		# --as-lpx=4096 (снимки для тона); снимки обрабатывает tools/ground_post.py — два запуска: раскладка, потом тон
+		var tg0 := Time.get_ticks_msec()
+		while temp() and not cs_ready and Time.get_ticks_msec() - tg0 < 30000:
+			await get_tree().process_frame
+		DirAccess.make_dir_recursive_absolute(out)
+		var gpx := 4096
+		var gtl := 2
+		var glp := 4096
+		for a in OS.get_cmdline_user_args():
+			if a.begins_with("--as-px="):
+				gpx = int(a.substr(8))
+			if a.begins_with("--as-tiles="):
+				gtl = int(a.substr(11))
+			if a.begins_with("--as-lpx="):
+				glp = int(a.substr(9))
+		await get_tree().create_timer(1.5).timeout
+		await _ground_bake(out, gpx, gtl, glp)
+		print("[ground] %s: готово" % place)
 		get_tree().quit()
 		return
 	if test == "shcheck":

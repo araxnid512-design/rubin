@@ -8,21 +8,24 @@ const PATH := "user://settings.json"
 ## Пресеты графики (одни на все локации, базу и стенды). scale — разрешение 3D (доля ширины и высоты экрана;
 ## подстройка под частоту кадров не опускает его ниже SCALE_MIN), msaa — сглаживание краёв, grass — густота травы,
 ## range — дальность травы и мелочей, м, shadows — тени солнца (0 — нет, 1 — карта 1024, 2 — 2048, 3 — 4096 и мягче),
-## aniso — анизотропная фильтрация земли (чётче под углом).
+## aniso — анизотропная фильтрация земли (чётче под углом), ground — подробная земля (false — быстрая, запечённая:
+## ULGroundBake).
 const GFX := [
-	{"n": "Низкая", "scale": 0.7, "msaa": 0, "grass": 0.3, "range": 16.0, "shadows": 0, "aniso": false},
-	{"n": "Средняя", "scale": 0.85, "msaa": 2, "grass": 0.6, "range": 24.0, "shadows": 1, "aniso": false},
-	{"n": "Высокая", "scale": 1.0, "msaa": 2, "grass": 0.85, "range": 30.0, "shadows": 2, "aniso": true},
-	{"n": "Ультра", "scale": 1.0, "msaa": 4, "grass": 1.0, "range": 40.0, "shadows": 3, "aniso": true},
+	{"n": "Низкая", "scale": 0.7, "msaa": 0, "grass": 0.3, "range": 16.0, "shadows": 0, "aniso": false, "ground": false},
+	{"n": "Средняя", "scale": 0.85, "msaa": 2, "grass": 0.6, "range": 24.0, "shadows": 1, "aniso": false, "ground": true},
+	{"n": "Высокая", "scale": 1.0, "msaa": 2, "grass": 0.85, "range": 30.0, "shadows": 2, "aniso": true, "ground": true},
+	{"n": "Ультра", "scale": 1.0, "msaa": 4, "grass": 1.0, "range": 40.0, "shadows": 3, "aniso": true, "ground": true},
 ]
 ## Свои настройки поверх пресета (−1 / 0 — как в пресете): разрешение 3D, %, тени, трава; auto — подстройка
 ## под частоту кадров (сначала сглаживание, потом тени, разрешение — последним)
 const RES_OPTS := [0, 60, 70, 80, 90, 100]
 const SHADOW_OPTS := [-1, 0, 2, 3]
 const GRASS_OPTS := [-1.0, 0.3, 0.6, 1.0]
+const GROUND_OPTS := [-1, 1, 0]            ## земля: как в качестве / подробная / быстрая (запечённая)
 static var res_pct := 0
 static var shadows_o := -1
 static var grass_o := -1.0
+static var ground_o := -1
 static var auto_fps := true
 static var sharp := 1                      ## резкость картинки (ULSharpen): 0 — выкл, 1 — мягкая, 2 — сильная
 ## Камера: угол наклона (от земли) и поворот вокруг героя. «С наклоном» — как в DoZ Survival, «По диагонали» —
@@ -66,6 +69,7 @@ static func load_cfg() -> void:
 			res_pct = int(d.get("res", 0)) if RES_OPTS.has(int(d.get("res", 0))) else 0
 			shadows_o = int(d.get("shadows", -1)) if SHADOW_OPTS.has(int(d.get("shadows", -1))) else -1
 			grass_o = float(d.get("grass", -1.0))
+			ground_o = int(d.get("ground", -1)) if GROUND_OPTS.has(int(d.get("ground", -1))) else -1
 			auto_fps = bool(d.get("auto", true))
 			sharp = clampi(int(d.get("sharp", 1)), 0, 2)
 			volume = clampf(float(d.get("volume", 0.8)), 0.0, 1.0)
@@ -75,7 +79,7 @@ static func load_cfg() -> void:
 static func save_cfg() -> void:
 	var f := FileAccess.open(PATH, FileAccess.WRITE)
 	if f:
-		f.store_string(JSON.stringify({"gfx": gfx, "volume": volume, "cam": cam, "res": res_pct, "shadows": shadows_o, "grass": grass_o, "auto": auto_fps, "sharp": sharp}))
+		f.store_string(JSON.stringify({"gfx": gfx, "volume": volume, "cam": cam, "res": res_pct, "shadows": shadows_o, "grass": grass_o, "ground": ground_o, "auto": auto_fps, "sharp": sharp}))
 
 
 ## действующие настройки графики: пресет и свои поправки поверх
@@ -87,6 +91,8 @@ static func q() -> Dictionary:
 		d.shadows = shadows_o
 	if grass_o > 0.0:
 		d.grass = grass_o
+	if ground_o >= 0:
+		d.ground = ground_o == 1
 	return d
 
 
@@ -204,9 +210,10 @@ static func panel(parent: Node, changed: Callable, extra: Array = []) -> Control
 	choice.call("Разрешение 3D", ["Как в качестве", "60 %", "70 %", "80 %", "90 %", "100 %"], func() -> int: return RES_OPTS.find(res_pct), func(j: int) -> void: res_pct = int(RES_OPTS[j]))
 	choice.call("Тени", ["Как в качестве", "Выкл", "Хорошие", "Лучшие"], func() -> int: return SHADOW_OPTS.find(shadows_o), func(j: int) -> void: shadows_o = int(SHADOW_OPTS[j]))
 	choice.call("Трава", ["Как в качестве", "Мало", "Средне", "Много"], func() -> int: return maxi(0, GRASS_OPTS.find(grass_o)), func(j: int) -> void: grass_o = float(GRASS_OPTS[j]))
+	choice.call("Земля", ["Как в качестве", "Подробная", "Быстрая"], func() -> int: return GROUND_OPTS.find(ground_o), func(j: int) -> void: ground_o = int(GROUND_OPTS[j]))
 	choice.call("Резкость", ["Выкл", "Мягкая", "Сильная"], func() -> int: return sharp, func(j: int) -> void: sharp = j)
 	choice.call("Подстройка FPS", ["Вкл", "Выкл"], func() -> int: return 0 if auto_fps else 1, func(j: int) -> void: auto_fps = j == 0)
-	vb.add_child(lab.call("Подстройка держит плавность: при нехватке FPS сначала снимает сглаживание, потом тени и только потом понижает разрешение (не ниже 62 %). Трава и тени меняются при следующем входе на локацию.", 13, Color(0.62, 0.68, 0.76)))
+	vb.add_child(lab.call("Подстройка держит плавность: при нехватке FPS сначала снимает сглаживание, потом тени, затем переходит на быструю землю и только потом понижает разрешение (не ниже 62 %). Трава и тени меняются при следующем входе на локацию.", 13, Color(0.62, 0.68, 0.76)))
 	# камера: сверху / с наклоном / по диагонали
 	vb.add_child(lab.call("Камера", 18, Color(1.0, 0.86, 0.5)))
 	var crow := HBoxContainer.new()
