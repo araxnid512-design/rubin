@@ -263,6 +263,7 @@ void vertex() {
 }
 float lum(vec3 c) { return dot(c, vec3(0.3, 0.59, 0.11)); }
 float dith(vec2 fc) { return fract(52.9829189 * fract(dot(fc, vec2(0.06711056, 0.00583715)))); }
+//#SUN_SHADOW
 void fragment() {
 	if (hole.z > 0.0 && wp.y > hole_y && -VERTEX.z < hole.w) {
 		vec2 d = (SCREEN_UV - hole.xy) * vec2(VIEWPORT_SIZE.x / VIEWPORT_SIZE.y, 1.0);
@@ -312,6 +313,7 @@ void fragment() {
 	c *= mix(1.0, 0.84, depth) * mix(0.93, 1.05, n2);
 	c *= mix(vec3(1.0), vec3(0.95, 0.97, 1.02), depth);
 	ALBEDO = c;
+	ALBEDO *= sun_shade(wp.xz);
 	ROUGHNESS = mix(0.95, 0.86, wall);
 	vec3 nf = texture(gravel_n, gu).rgb;
 	NORMAL_MAP = mix(nf, texture(rock_n, UV / rock_scale).rgb, wall);
@@ -323,7 +325,7 @@ void fragment() {
 func _pit_material() -> ShaderMaterial:
 	var sm := ShaderMaterial.new()
 	var sh := Shader.new()
-	sh.code = PIT_SHADER if not bool(ULSettings.q().aniso) else PIT_SHADER.replace("filter_linear_mipmap,", "filter_linear_mipmap_anisotropic,")
+	sh.code = ULSunShadow.with(PIT_SHADER if not bool(ULSettings.q().aniso) else PIT_SHADER.replace("filter_linear_mipmap,", "filter_linear_mipmap_anisotropic,"))
 	sm.shader = sh
 	sm.set_shader_parameter("rock", load(TEX + "quarry_wall_c.jpg"))
 	sm.set_shader_parameter("rock_n", load(TEX + "quarry_wall_n.jpg"))

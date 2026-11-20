@@ -11,6 +11,7 @@ render_mode blend_mix, depth_draw_never, cull_back;
 uniform sampler2D noise : filter_linear, repeat_enable;
 varying vec3 wp;
 void vertex() { wp = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz; }
+//#SUN_SHADOW
 void fragment() {
 	vec2 c = UV - 0.5;
 	float n = texture(noise, wp.xz / 2.3).r;
@@ -24,6 +25,7 @@ void fragment() {
 	vec3 water = mix(vec3(0.2, 0.18, 0.15), vec3(0.1, 0.105, 0.1), smoothstep(0.2, 0.7, 1.0 - r));
 	// сверху под углом камеры в луже отражается пасмурное небо: серо-голубой отсвет, по ряби — светлее
 	ALBEDO = mix(water, vec3(0.3, 0.32, 0.33), 0.2 + (r1 - r2) * 0.3);
+	ALBEDO *= sun_shade(wp.xz);
 	// блик солнца — пятнами по ряби, а не на всю лужу (иначе под камерой сверху лужа белеет целиком)
 	ROUGHNESS = 0.3 + (r1 - 0.5) * 0.2;
 	SPECULAR = 0.28;
@@ -38,7 +40,7 @@ static func puddles(parent: Node3D, ok: Callable, size: float, seed_n: int, coun
 	rng.seed = seed_n
 	var mat := ShaderMaterial.new()
 	var sh := Shader.new()
-	sh.code = PUDDLE_SHADER
+	sh.code = ULSunShadow.with(PUDDLE_SHADER)
 	mat.shader = sh
 	mat.set_shader_parameter("noise", noise)
 	var quad := PlaneMesh.new()
@@ -92,6 +94,7 @@ float track(float x, float wob, float n2) {
 	float d = min(abs(x - 0.8 - wob), abs(x + 0.8 - wob));
 	return 1.0 - smoothstep(0.1, 0.26 + n2 * 0.1, d);
 }
+//#SUN_SHADOW
 void fragment() {
 	float x = UV.x * half_w;
 	float n = texture(noise, wp.xz / 7.0).r;
@@ -110,6 +113,7 @@ void fragment() {
 	ALBEDO = mix(m, vec3(0.12, 0.125, 0.12), water * 0.75);
 	// дно колеи темнее к середине, по краю — выдавленный валик светлее
 	ALBEDO *= mix(1.0, 0.82, t) * mix(1.0, 1.08, rim * (1.0 - t));
+	ALBEDO *= sun_shade(wp.xz);
 	ROUGHNESS = mix(mix(0.92, 0.72, wet), 0.14, water);
 	SPECULAR = mix(0.3, 0.38, water);
 	ALPHA = clamp(a * mix(0.55, 0.8, wet), 0.0, 1.0);
@@ -167,7 +171,7 @@ static func ruts(parent: Node3D, roads: Array, noise: Texture2D, mud: String, ha
 	var mesh := st.commit()
 	var mat := ShaderMaterial.new()
 	var sh := Shader.new()
-	sh.code = RUT_SHADER
+	sh.code = ULSunShadow.with(RUT_SHADER)
 	mat.shader = sh
 	mat.set_shader_parameter("noise", noise)
 	mat.set_shader_parameter("mud", load(TEX + mud + "_c.jpg"))
@@ -189,6 +193,7 @@ uniform sampler2D tex : source_color, filter_linear_mipmap, repeat_enable;
 uniform sampler2D noise : filter_linear, repeat_enable;
 varying vec3 wp;
 void vertex() { wp = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz; }
+//#SUN_SHADOW
 void fragment() {
 	vec2 c = UV - 0.5;
 	float n = texture(noise, wp.xz / 1.7).r;
@@ -198,6 +203,7 @@ void fragment() {
 	a *= smoothstep(0.18, 0.4, dot(g, vec3(0.33)) + (1.0 - r) * 0.3);
 	if (a < 0.02) { discard; }
 	ALBEDO = g * vec3(0.42, 0.4, 0.36);
+	ALBEDO *= sun_shade(wp.xz);
 	ROUGHNESS = 0.92;
 	ALPHA = a * 0.85;
 }"""
@@ -209,7 +215,7 @@ static func patches(parent: Node3D, spots: Array, tex: String, noise: Texture2D)
 		return
 	var mat := ShaderMaterial.new()
 	var sh := Shader.new()
-	sh.code = PATCH_SHADER
+	sh.code = ULSunShadow.with(PATCH_SHADER)
 	mat.shader = sh
 	mat.set_shader_parameter("tex", load(TEX + tex + "_c.jpg"))
 	mat.set_shader_parameter("noise", noise)

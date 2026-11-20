@@ -63,3 +63,18 @@ textures/default_filters/anisotropic_filtering_level=2
 lights_and_shadows/directional_shadow/size=2048
 lights_and_shadows/directional_shadow/size.mobile=1024
 lights_and_shadows/directional_shadow/soft_shadow_filter_quality=1
+
+[shader_globals]
+
+sun_shadow_tex={
+"type": "sampler2D",
+"value": ""
+}
+sun_shadow_k={
+"type": "float",
+"value": 0.0
+}
+sun_shadow_size={
+"type": "float",
+"value": 100.0
+}

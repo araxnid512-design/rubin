@@ -664,6 +664,7 @@ uniform float moss = 0.5;
 uniform float crumble = 0.6;
 varying vec3 wpos;
 void vertex() { wpos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz; }
+//#SUN_SHADOW
 void fragment() {
 	float e = min(UV.y, 1.0 - UV.y) * UV2.x;              // до края, м
 	float n = texture(noise, wpos.xz / 4.0).r;
@@ -676,6 +677,7 @@ void fragment() {
 	c = mix(c, vec3(0.2, 0.26, 0.12) * (0.8 + n2 * 0.4), m * 0.7);
 	c *= mix(0.78, 1.05, texture(noise, wpos.xz / 21.0).r);
 	ALBEDO = c;
+	ALBEDO *= sun_shade(wpos.xz);
 	NORMAL_MAP = texture(tex_n, wpos.xz / scale).rgb;
 	ROUGHNESS = 0.9;
 }"""
@@ -687,7 +689,7 @@ func _pave_mat(kind: String) -> ShaderMaterial:
 		return _pave_mats[kind]
 	var sm := ShaderMaterial.new()
 	var sh := Shader.new()
-	sh.code = PAVE_SHADER
+	sh.code = ULSunShadow.with(PAVE_SHADER)
 	sm.shader = sh
 	sm.set_shader_parameter("noise", _noise_tex)
 	if kind == "asphalt":

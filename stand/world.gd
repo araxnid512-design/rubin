@@ -117,7 +117,7 @@ func _ready() -> void:
 			sc.lottery = [sc.lottery[1], sc.lottery[1]]
 			sc.ruber_chances = [0, 0, 1]                 # и два Рубера — всего 57
 			ULSanatorium._cfg = sc
-	if test == "gqview" or test == "mapbake" or test == "pmap" or test == "fldiag":
+	if test == "gqview" or test == "mapbake" or test == "pmap" or test == "fldiag" or test == "shbake" or test == "shcheck":
 		# сравнение чёткости (gqview), запекание карты локации (mapbake), проверка карты (pmap): место — --as-place=
 		ULSettings.arena = false
 		for a in OS.get_cmdline_user_args():
@@ -231,6 +231,7 @@ func _ready() -> void:
 	_load_profile()
 	inv = ULInventory.new()
 	_ui()
+	_sun_shadow_apply()
 	if ResourceLoader.exists(MODELS + "ul_crate.glb"):
 		_crate_scene = load(MODELS + "ul_crate.glb")
 	_load()
@@ -467,6 +468,11 @@ func _cowshed_enter() -> void:
 			cs_seed = int(a.substr(10))
 	var rng := RandomNumberGenerator.new()
 	rng.seed = cs_seed
+	if test == "shbake" or test == "shcheck":
+		# запекание теней: запомнить, что стояло до случайной расстановки этого посещения (останки, хлам,
+		# находки, враги) — их тень в общую картинку не попадает
+		for n in get_tree().root.find_children("*", "GeometryInstance3D", true, false):
+			_static_geo[n.get_instance_id()] = true
 	zone.place_cows(rng)
 	if place == "lair":
 		lair_inst = ULCase.new_instance()
@@ -1170,6 +1176,7 @@ vec3 hmix(vec3 a, vec3 b, float t) {
 	float wb = max(hb - top, 0.0);
 	return (a * wa + b * wb) / max(wa + wb, 0.0001);
 }
+//#SUN_SHADOW
 void fragment() {
 	vec2 p = wp.xz;
 #ifdef CUT
@@ -1235,6 +1242,7 @@ void fragment() {
 	vec3 c = g * b.x + f * b.y + so * b.z + pa * b.w;
 	float bright = mix(0.88, 1.07, n1) * mix(0.95, 1.04, n2);
 	ALBEDO = c * bright * m.a * 0.92;
+	ALBEDO *= sun_shade(wp.xz);
 	vec3 nm = vec3(0.5, 0.5, 1.0) * b.y * 0.5;
 	if (b.z + b.y > 0.01) { nm += textureGrad(soil_n, p / 3.6, dx / 3.6, dy / 3.6).rgb * (b.z + b.y * 0.5); }
 	if (b.w > 0.01) { nm += textureGrad(path_n, p / path_scale, dx / path_scale, dy / path_scale).rgb * b.w; }
@@ -1449,13 +1457,19 @@ func ground_for(id: String, size: float, cuttable := false) -> ShaderMaterial:
 	return sm
 
 
+var ground_size := SIZE              ## сторона квадрата земли локации, м (по нему ложатся запечённые тени)
+var _static_geo := {}                ## запекание теней: что стояло на локации до случайной расстановки посещения
+
+
 func ground_material(size: float, soil: String, soil_n: String, soil_tint: Vector3, wet: float, dry: float, path := "stony_dirt_path", path_n := "stony_dirt_path", cuttable := false) -> ShaderMaterial:
 	var sm := ShaderMaterial.new()
 	var sh := Shader.new()
 	var code: String = GROUND_SHADER if not bool(ULSettings.q().aniso) else GROUND_SHADER.replace("filter_linear_mipmap,", "filter_linear_mipmap_anisotropic,")
 	if cuttable:
 		code = code.replace("shader_type spatial;\n", "shader_type spatial;\n#define CUT\n")
-	sh.code = code
+	sh.code = ULSunShadow.with(code)
+	ground_size = size
+	_sun_shadow_apply()                 # временная локация строит землю позже _ready: картинку теней растянуть по её размеру
 	sm.shader = sh
 	# земля — после построек, людей и предметов: там, где её закрывает пол или стена, точка отбрасывается по
 	# глубине до шейдера (иначе дорогая земля считалась бы и под полом каждого дома)
@@ -4799,6 +4813,69 @@ func _foot_slide(body: CharacterBody3D, sk: Skeleton3D, sec: float) -> Array:
 ## Обзорные снимки отдельной камерой в своё окно отрисовки: без кнопок интерфейса, без ограничения дальности
 ## прорисовки (она рассчитана на игровую камеру). shots — [имя, где камера, куда смотрит, угол обзора (0 — без
 ## перспективы, отвесно вниз)]. Дымка остаётся (для вида «как в игре»), кроме снимка без перспективы.
+## запечённые тени солнца на земле — когда настоящие тени выключены (качество, подстройка): см. ULSunShadow
+func _sun_shadow_apply() -> void:
+	# --as-nobake — снимки «как было» для сравнения
+	# на базе настоящие тени мягче (shadow_opacity 0,7 против 0,78, рассеянного света больше) — и запечённые тоже
+	ULSunShadow.apply("" if arena else place, ground_size, sun != null and not sun.shadow_enabled and not OS.get_cmdline_user_args().has("--as-nobake"), 1.0 if temp() else SHADOW_HOME_K)
+
+
+const SHADOW_HOME_K := 0.72         ## сила запечённой тени на базе (во временных кластерах — 1)
+const SHADOW_CATCH := """shader_type spatial;
+render_mode ambient_light_disabled, specular_disabled, cull_disabled;
+// поверхность-«приёмник» для запекания теней: белая там, куда светит солнце, чёрная в тени
+void fragment() { ALBEDO = vec3(1.0); ROUGHNESS = 1.0; }
+void light() { DIFFUSE_LIGHT += vec3(ATTENUATION); }
+"""
+
+
+## Снимок теней солнца на земле — вид строго сверху на квадрат земли локации: белое — свет, чёрное — тень.
+## Всё, что рисуется «земляными» шейдерами (в них есть sun_shade), становится белым приёмником; остальное,
+## что отбрасывает тень в игре, остаётся невидимым и только бросает тень; прочее (трава, пятна, туман, герой,
+## враги, находки) скрывается. Сцена после этого для игры не годится — только в конце проверки.
+func _shadow_mask_image(px: int) -> Image:
+	player.visible = false
+	for e in enemies:
+		e.visible = false
+	enemies.clear()
+	targets.clear()
+	for nb in npcs:
+		if nb is Node3D:
+			(nb as Node3D).visible = false           # жители дома ходят — их тень не запекается
+	for g in ground:
+		(g.node as Node3D).visible = false
+	var sh := Shader.new()
+	sh.code = SHADOW_CATCH
+	var cm := ShaderMaterial.new()
+	cm.shader = sh
+	var recv := 0
+	var cast := 0
+	var visit := 0
+	for n in get_tree().root.find_children("*", "GeometryInstance3D", true, false):
+		var gi := n as GeometryInstance3D
+		var mat: Material = gi.material_override
+		if mat == null and gi is MeshInstance3D and (gi as MeshInstance3D).mesh != null and (gi as MeshInstance3D).mesh.get_surface_count() > 0:
+			mat = (gi as MeshInstance3D).mesh.surface_get_material(0)
+		if mat is ShaderMaterial and (mat as ShaderMaterial).shader != null and (mat as ShaderMaterial).shader.code.contains("sun_shade("):
+			gi.material_override = cm                    # тень отбрасывает как в игре: уступы карьера — да, ровная земля — нет
+			recv += 1
+		elif gi.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_OFF:
+			gi.visible = false
+		elif not _static_geo.is_empty() and not _static_geo.has(gi.get_instance_id()):
+			gi.visible = false                           # расставлено случайно в это посещение
+			visit += 1
+		else:
+			gi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY
+			cast += 1
+	sun.shadow_enabled = true
+	sun.shadow_blur = 1.6
+	world_env.tonemap_mode = Environment.TONE_MAPPER_LINEAR
+	world_env.tonemap_exposure = 1.0
+	world_env.adjustment_enabled = false
+	print("[shadow] приёмников %d, отбрасывают тень %d, случайных предметов посещения скрыто %d, квадрат земли %.0f м" % [recv, cast, visit, ground_size])
+	return await _top_image(px, ground_size)
+
+
 ## Снимок локации строго сверху: своё окно отрисовки (без интерфейса), камера без перспективы над серединой
 ## поля; span — сколько метров в кадре по стороне; верх снимка — «вверх» на экране в игре (−z).
 func _top_image(px: int, span: float) -> Image:
@@ -10499,6 +10576,7 @@ func open_settings() -> void:
 		_res_fails = 0
 		_res_hold = 0.0
 		_sharp_apply()
+		_sun_shadow_apply()
 		_cam_apply(), [
 		["Главное меню", func() -> void:
 			if lvl:
@@ -10567,6 +10645,7 @@ func _auto_res(delta: float) -> void:
 	if sun:
 		sun.shadow_enabled = bool(nx.shadows)
 	_sharp_apply()                                     # сила резкости — по новой доле разрешения
+	_sun_shadow_apply()                                # тени сняты — на землю ложатся запечённые; вернулись — снимаются
 
 
 var _res_fails := 0
@@ -12425,6 +12504,156 @@ func _run_test() -> void:
 		return
 	if test == "pmap":
 		await _pmap_test()
+		get_tree().quit()
+		return
+	if test == "shbake":
+		# запекание теней солнца на земле (ULSunShadow): --as-place=…, --as-gfx=3, --as-px=2048; снимок
+		# shadow_<место>_raw.png обрабатывает tools/shadow_post.py → assets/world/tex/shadow_<место>.png
+		var ts0 := Time.get_ticks_msec()
+		while temp() and not cs_ready and Time.get_ticks_msec() - ts0 < 30000:
+			await get_tree().process_frame
+		DirAccess.make_dir_recursive_absolute(out)
+		var spx := 2048
+		for a in OS.get_cmdline_user_args():
+			if a.begins_with("--as-px="):
+				spx = int(a.substr(8))
+		await get_tree().create_timer(1.5).timeout
+		(await _shadow_mask_image(spx)).save_png("%s/shadow_%s_raw.png" % [out, place])
+		print("[shadow] %s: %d×%d точек на %.0f м" % [place, spx, spx, ground_size])
+		get_tree().quit()
+		return
+	if test == "shcheck":
+		# запечённые тени локации (--as-place=…): картинка есть, включаются только когда настоящие тени сняты,
+		# совпадают со свежим расчётом (не устарели и не перевёрнуты), доля тени разумная
+		var tc0 := Time.get_ticks_msec()
+		while temp() and not cs_ready and Time.get_ticks_msec() - tc0 < 30000:
+			await get_tree().process_frame
+		await get_tree().create_timer(1.0).timeout
+		_ok("%s: запечённые тени есть (картинка лежит в проекте)" % place, ULSunShadow.exists(place))
+		if not ULSunShadow.exists(place):
+			print("[inv] итог: ошибок %d" % _fails)
+			get_tree().quit()
+			return
+		# как игра сама настроила тени при входе (до любых повторных вызовов из проверки)
+		_ok("картинка теней растянута по земле локации сразу после входа: %.0f м при земле %.0f м" % [ULSunShadow.size, ground_size], is_equal_approx(ULSunShadow.size, ground_size))
+		sun.shadow_enabled = true
+		_sun_shadow_apply()
+		var on_on := ULSunShadow.on
+		sun.shadow_enabled = false
+		_sun_shadow_apply()
+		var on_off := ULSunShadow.on
+		_ok("тени солнца сняты — на земле запечённые; тени солнца включены — запечённые сняты (двойной тени нет)", on_off and not on_on)
+		var baked: Image = (load(ULSunShadow.path(place)) as Texture2D).get_image()
+		if baked.is_compressed():
+			baked.decompress()
+		baked.convert(Image.FORMAT_L8)
+		baked.resize(64, 64, Image.INTERPOLATE_LANCZOS)
+		# в самой игре: кадр сверху с запечёнными тенями и без них — темнеет именно там, где тень на картинке
+		for g in ground:
+			(g.node as Node3D).visible = false
+		var g_on: Image = await _top_image(512, ground_size)
+		RenderingServer.global_shader_parameter_set(&"sun_shadow_k", 0.0)
+		var g_off: Image = await _top_image(512, ground_size)
+		if OS.get_cmdline_user_args().has("--as-shcal") and out != "":
+			# подбор силы тени: кадры с частичной силой (для сравнения с настоящими тенями вне игры)
+			DirAccess.make_dir_recursive_absolute(out)
+			for kq in [0.25, 0.5, 0.75]:
+				RenderingServer.global_shader_parameter_set(&"sun_shadow_k", kq)
+				(await _top_image(512, ground_size)).save_png("%s/shcheck_%s_k%d.png" % [out, place, int(kq * 100.0)])
+		# и с настоящими тенями солнца (как на «Средней» и выше) — запечённая тень должна темнить землю так же
+		sun.shadow_enabled = true
+		sun.directional_shadow_mode = DirectionalLight3D.SHADOW_ORTHOGONAL
+		sun.shadow_opacity = 0.78 if temp() else 0.7
+		sun.shadow_bias = 0.06
+		sun.shadow_normal_bias = 1.2
+		_sun_shadow_apply()
+		var g_live: Image = await _top_image(512, ground_size)
+		sun.shadow_enabled = false
+		_sun_shadow_apply()
+		if out != "":
+			DirAccess.make_dir_recursive_absolute(out)
+			g_on.save_png("%s/shcheck_%s_on.png" % [out, place])
+			g_off.save_png("%s/shcheck_%s_off.png" % [out, place])
+			g_live.save_png("%s/shcheck_%s_live.png" % [out, place])
+		g_on.convert(Image.FORMAT_L8)
+		g_off.convert(Image.FORMAT_L8)
+		g_live.convert(Image.FORMAT_L8)
+		g_on.resize(64, 64, Image.INTERPOLATE_LANCZOS)
+		g_off.resize(64, 64, Image.INTERPOLATE_LANCZOS)
+		g_live.resize(64, 64, Image.INTERPOLATE_LANCZOS)
+		# сила тени: там, где картинка даёт полную тень и видна земля, — во сколько раз земля в тени темнее
+		# освещённой. С настоящими тенями весь кадр ярче (движок считает свет солнца отдельным проходом), поэтому
+		# у них тень сравнивается с освещённой землёй того же кадра
+		var k_on := 0.0
+		var k_live := 0.0
+		var k_n := 0
+		var l_live := 0.0
+		var l_n := 0
+		for y in 64:
+			for x in 64:
+				var o := g_off.get_pixel(x, y).r
+				var bk := baked.get_pixel(x, y).r
+				if bk < 0.08 and o > 0.12 and o - g_on.get_pixel(x, y).r > 0.03:
+					k_on += g_on.get_pixel(x, y).r / o
+					k_live += g_live.get_pixel(x, y).r / o
+					k_n += 1
+				elif bk > 0.97 and o > 0.12:
+					l_live += g_live.get_pixel(x, y).r / o
+					l_n += 1
+		if k_n > 0 and l_n > 0:
+			k_on /= float(k_n)
+			k_live = k_live / float(k_n) / (l_live / float(l_n))
+		_ok("запечённая тень темнит землю как настоящая: земля в тени — %.2f от освещённой против %.2f у настоящих теней (по %d местам)" % [k_on, k_live, k_n], k_n >= 3 and absf(k_on - k_live) < 0.12)
+		var gsim := {}
+		var gdrop := 0.0
+		for mode in ["как есть", "зеркало по x", "зеркало по z"]:
+			var ga := 0.0
+			var gb := 0.0
+			var gaa := 0.0
+			var gbb := 0.0
+			var gab := 0.0
+			for y in 64:
+				for x in 64:
+					var a := maxf(g_off.get_pixel(x, y).r - g_on.get_pixel(x, y).r, 0.0)
+					var b := 1.0 - baked.get_pixel(63 - x if mode == "зеркало по x" else x, 63 - y if mode == "зеркало по z" else y).r
+					ga += a
+					gb += b
+					gaa += a * a
+					gbb += b * b
+					gab += a * b
+			var gn := 64.0 * 64.0
+			gsim[mode] = snappedf((gab - ga * gb / gn) / sqrt(maxf((gaa - ga * ga / gn) * (gbb - gb * gb / gn), 1e-9)), 0.01)
+			if mode == "как есть":
+				gdrop = ga / gn
+		# сходство неполное и так: под крышами тень на картинке есть, а сверху видна крыша, а не земля
+		_ok("в игре земля темнеет там же, где тень на картинке: сходство %s, среднее затемнение %.4f" % [str(gsim), gdrop], float(gsim["как есть"]) > 0.25 and float(gsim["как есть"]) > float(gsim["зеркало по x"]) + 0.1 and float(gsim["как есть"]) > float(gsim["зеркало по z"]) + 0.1 and gdrop > 0.0004)
+		var live: Image = await _shadow_mask_image(512)
+		live.convert(Image.FORMAT_L8)
+		live.resize(64, 64, Image.INTERPOLATE_LANCZOS)
+		var simv := {}
+		var dark := 0.0
+		for mode in ["как есть", "зеркало по x", "зеркало по z"]:
+			var sa := 0.0
+			var sb := 0.0
+			var saa := 0.0
+			var sbb := 0.0
+			var sab := 0.0
+			for y in 64:
+				for x in 64:
+					var a := live.get_pixel(x, y).r
+					var b := baked.get_pixel(63 - x if mode == "зеркало по x" else x, 63 - y if mode == "зеркало по z" else y).r
+					sa += a
+					sb += b
+					saa += a * a
+					sbb += b * b
+					sab += a * b
+			var nn := 64.0 * 64.0
+			simv[mode] = snappedf((sab - sa * sb / nn) / sqrt(maxf((saa - sa * sa / nn) * (sbb - sb * sb / nn), 1e-9)), 0.01)
+			if mode == "как есть":
+				dark = 1.0 - sb / nn
+		_ok("запечённые тени совпадают со свежим расчётом и не перевёрнуты: сходство %s" % str(simv), float(simv["как есть"]) > 0.7 and float(simv["как есть"]) > float(simv["зеркало по x"]) + 0.1 and float(simv["как есть"]) > float(simv["зеркало по z"]) + 0.1)
+		_ok("в тени %.0f %% земли — не пусто и не всё сплошь" % (dark * 100.0), dark > 0.01 and dark < 0.6)
+		print("[inv] итог: ошибок %d" % _fails)
 		get_tree().quit()
 		return
 	if test == "fldiag":
