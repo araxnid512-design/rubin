@@ -270,44 +270,81 @@ void fragment() {
 		float r = length(d) / hole.z;
 		if (r < 1.0 && dith(FRAGCOORD.xy) > smoothstep(0.62, 1.0, r)) { discard; }
 	}
+	// производные координат — до ветвлений: внутри них выборки идут с явным мип-уровнем
+	vec2 uvx = dFdx(UV);
+	vec2 uvy = dFdy(UV);
+	vec2 px = dFdx(wp.xz);
+	vec2 py = dFdy(wp.xz);
 	float n1 = texture(noise, wp.xz / 37.0).r;
 	float n2 = texture(noise, wp.xz / 9.0 + vec2(0.31, 0.77)).r;
 	float wall = 1.0 - smoothstep(0.5, 0.78, wn.y);
-	vec3 r = texture(rock, UV / rock_scale).rgb;
-	vec3 r2 = texture(rock, UV / (rock_scale * 2.7) + vec2(0.37, 0.11)).rgb;
-	r = mix(r, r2, 0.4);
-	// скала уступов по видео-образцу: тёмная холодная порода с ясным рисунком — столбы и вертикальные трещины,
-	// слои по высоте, у верха каждого уступа — охристый выветренный край с осыпью
-	r = mix(vec3(lum(r)), r, 0.45) * vec3(0.66, 0.7, 0.78);
-	r = pow(r, vec3(1.25)) * 1.5;
-	float colv = texture(noise, vec2(UV.x * 0.16, wp.y * 0.012)).r;
-	r *= mix(0.72, 1.16, smoothstep(0.3, 0.7, colv));
-	float cr = texture(noise, vec2(UV.x * 0.5, wp.y * 0.035) + vec2(0.13, 0.57)).r;
-	float crack = 1.0 - smoothstep(0.0, 0.035, abs(cr - 0.5));
-	r *= mix(1.0, 0.42, crack);
-	float band = 0.5 + 0.5 * sin(wp.y * 2.3 + n1 * 3.0 + n2 * 1.5);
-	float band2 = 0.5 + 0.5 * sin(wp.y * 7.1 + n2 * 4.0);
-	r *= mix(0.7, 1.1, band) * mix(0.86, 1.06, band2);
-	float seam = 1.0 - smoothstep(0.0, 0.07, abs(fract(wp.y * 0.62 + n1 * 0.9) - 0.5));
-	r *= mix(1.0, 0.6, seam * 0.7);
-	float hh = fract(-wp.y / 4.5 + 0.02);
-	float top_w = (1.0 - smoothstep(0.0, 0.3, hh)) * smoothstep(0.25, 0.7, n2 * 0.6 + colv * 0.4 + 0.15);
-	r = mix(r, vec3(0.5, 0.36, 0.22) * (0.75 + 0.5 * n2), top_w * 0.75);
-	vec2 gu = wp.xz / gravel_scale;
-	vec3 g = texture(gravel, gu).rgb;
-	vec3 g2 = texture(gravel, wp.xz / (gravel_scale * 3.1) + vec2(0.53, 0.21)).rgb;
-	vec3 g3 = texture(gravel, wp.xz / (gravel_scale * 8.3) + vec2(0.17, 0.71)).rgb;
-	g = mix(mix(g, g2, 0.45 + 0.3 * (n2 - 0.5)), g3, 0.3);
-	g = mix(vec3(lum(g)), g, 0.55) * vec3(0.94, 0.91, 0.86) * 0.95;
-	vec3 du = texture(dust, wp.xz / 4.5).rgb;
-	du = mix(vec3(lum(du)), du, 0.3) * vec3(0.92, 0.9, 0.86);
-	vec3 fl = mix(g, du, smoothstep(0.64, 0.8, n1 * 0.75 + n2 * 0.25) * 0.5);
-	fl *= mix(0.86, 1.06, smoothstep(0.25, 0.75, n1));
-	// съезды (уклон) — накатанная песочная дорога; у подножия стенок — тёмная осыпь
-	float ramp = smoothstep(0.9993, 0.994, wn.y) * (1.0 - wall);
-	vec3 road_c = texture(dust, wp.xz / 3.2).rgb;
-	road_c = mix(vec3(lum(road_c)), road_c, 0.6) * vec3(1.08, 0.9, 0.7);
-	fl = mix(fl, road_c, ramp * 0.8);
+	// Скала читается только на стенках, щебень и пыль — только на полках и съездах (раньше на каждой точке
+	// читались все 13 текстур; выработка занимает почти весь экран, и на дне карьера это была половина кадра)
+	vec3 r = vec3(0.0);
+	vec3 nr = vec3(0.5, 0.5, 1.0);
+	if (wall > 0.002) {
+		float rs = rock_scale;
+		float rs2 = rock_scale * 2.7;
+		r = textureGrad(rock, UV / rs, uvx / rs, uvy / rs).rgb;
+#ifndef PIT_LOW
+		vec3 r2 = textureGrad(rock, UV / rs2 + vec2(0.37, 0.11), uvx / rs2, uvy / rs2).rgb;
+		r = mix(r, r2, 0.4);
+#endif
+		// скала уступов по видео-образцу: тёмная холодная порода с ясным рисунком — столбы и вертикальные трещины,
+		// слои по высоте, у верха каждого уступа — охристый выветренный край с осыпью
+		r = mix(vec3(lum(r)), r, 0.45) * vec3(0.66, 0.7, 0.78);
+		r = pow(r, vec3(1.25)) * 1.5;
+		float colv = texture(noise, vec2(UV.x * 0.16, wp.y * 0.012)).r;
+		r *= mix(0.72, 1.16, smoothstep(0.3, 0.7, colv));
+		float cr = texture(noise, vec2(UV.x * 0.5, wp.y * 0.035) + vec2(0.13, 0.57)).r;
+		float crack = 1.0 - smoothstep(0.0, 0.035, abs(cr - 0.5));
+		r *= mix(1.0, 0.42, crack);
+		float band = 0.5 + 0.5 * sin(wp.y * 2.3 + n1 * 3.0 + n2 * 1.5);
+		float band2 = 0.5 + 0.5 * sin(wp.y * 7.1 + n2 * 4.0);
+		r *= mix(0.7, 1.1, band) * mix(0.86, 1.06, band2);
+		float seam = 1.0 - smoothstep(0.0, 0.07, abs(fract(wp.y * 0.62 + n1 * 0.9) - 0.5));
+		r *= mix(1.0, 0.6, seam * 0.7);
+		float hh = fract(-wp.y / 4.5 + 0.02);
+		float top_w = (1.0 - smoothstep(0.0, 0.3, hh)) * smoothstep(0.25, 0.7, n2 * 0.6 + colv * 0.4 + 0.15);
+		r = mix(r, vec3(0.5, 0.36, 0.22) * (0.75 + 0.5 * n2), top_w * 0.75);
+#ifndef PIT_LOW_N
+		nr = textureGrad(rock_n, UV / rs, uvx / rs, uvy / rs).rgb;
+#endif
+	}
+	vec3 fl = vec3(0.0);
+	vec3 nf = vec3(0.5, 0.5, 1.0);
+	if (wall < 0.998) {
+		float gs = gravel_scale;
+		float gs2 = gravel_scale * 3.1;
+		float gs3 = gravel_scale * 8.3;
+		vec3 g = textureGrad(gravel, wp.xz / gs, px / gs, py / gs).rgb;
+		vec3 g2 = textureGrad(gravel, wp.xz / gs2 + vec2(0.53, 0.21), px / gs2, py / gs2).rgb;
+#ifndef PIT_LOW
+		vec3 g3 = textureGrad(gravel, wp.xz / gs3 + vec2(0.17, 0.71), px / gs3, py / gs3).rgb;
+		g = mix(mix(g, g2, 0.45 + 0.3 * (n2 - 0.5)), g3, 0.3);
+#else
+		g = mix(g, g2, 0.45 + 0.3 * (n2 - 0.5));
+#endif
+		g = mix(vec3(lum(g)), g, 0.55) * vec3(0.94, 0.91, 0.86) * 0.95;
+		fl = g;
+		float dw = smoothstep(0.64, 0.8, n1 * 0.75 + n2 * 0.25) * 0.5;
+		if (dw > 0.001) {
+			vec3 du = textureGrad(dust, wp.xz / 4.5, px / 4.5, py / 4.5).rgb;
+			du = mix(vec3(lum(du)), du, 0.3) * vec3(0.92, 0.9, 0.86);
+			fl = mix(g, du, dw);
+		}
+		fl *= mix(0.86, 1.06, smoothstep(0.25, 0.75, n1));
+		// съезды (уклон) — накатанная песочная дорога; у подножия стенок — тёмная осыпь
+		float ramp = smoothstep(0.9993, 0.994, wn.y) * (1.0 - wall);
+		if (ramp > 0.002) {
+			vec3 road_c = textureGrad(dust, wp.xz / 3.2, px / 3.2, py / 3.2).rgb;
+			road_c = mix(vec3(lum(road_c)), road_c, 0.6) * vec3(1.08, 0.9, 0.7);
+			fl = mix(fl, road_c, ramp * 0.8);
+		}
+#ifndef PIT_LOW_N
+		nf = textureGrad(gravel_n, wp.xz / gs, px / gs, py / gs).rgb;
+#endif
+	}
 	vec3 c = mix(fl, r, wall);
 	float depth = clamp(-wp.y / 14.0, 0.0, 1.0);
 	c *= mix(1.0, 0.84, depth) * mix(0.93, 1.05, n2);
@@ -315,8 +352,7 @@ void fragment() {
 	ALBEDO = c;
 	ALBEDO *= sun_shade(wp.xz);
 	ROUGHNESS = mix(0.95, 0.86, wall);
-	vec3 nf = texture(gravel_n, gu).rgb;
-	NORMAL_MAP = mix(nf, texture(rock_n, UV / rock_scale).rgb, wall);
+	NORMAL_MAP = mix(nf, nr, wall);
 	NORMAL_MAP_DEPTH = 1.3;
 }
 """
@@ -325,8 +361,17 @@ void fragment() {
 func _pit_material() -> ShaderMaterial:
 	var sm := ShaderMaterial.new()
 	var sh := Shader.new()
-	sh.code = ULSunShadow.with(PIT_SHADER if not bool(ULSettings.q().aniso) else PIT_SHADER.replace("filter_linear_mipmap,", "filter_linear_mipmap_anisotropic,"))
+	var code: String = PIT_SHADER if not bool(ULSettings.q().aniso) else PIT_SHADER.replace("filter_linear_mipmap,", "filter_linear_mipmap_anisotropic,")
+	sh.code = ULSunShadow.with(code)
 	sm.shader = sh
+	# облегчённый вариант — вместе с быстрой землёй (ULGroundBake; «Низкая», настройка «Земля», подстройка):
+	# без второй выборки скалы, третьей щебня и карт неровностей (у быстрой земли их тоже нет) — 4 чтения вместо 7
+	# на точку; на дне выработки кадр короче на пятую часть (замер gperf)
+	var shl := Shader.new()
+	shl.code = ULSunShadow.with(code.replace("shader_type spatial;\n", "shader_type spatial;\n#define PIT_LOW\n#define PIT_LOW_N\n"))
+	sm.set_meta("full", sh)
+	sm.set_meta("fast", shl)
+	w.ground_alt.append(sm)
 	sm.set_shader_parameter("rock", load(TEX + "quarry_wall_c.jpg"))
 	sm.set_shader_parameter("rock_n", load(TEX + "quarry_wall_n.jpg"))
 	sm.set_shader_parameter("gravel", load(TEX + "rocks_ground_02_c.jpg"))

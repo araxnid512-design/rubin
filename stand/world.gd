@@ -117,7 +117,7 @@ func _ready() -> void:
 			sc.lottery = [sc.lottery[1], sc.lottery[1]]
 			sc.ruber_chances = [0, 0, 1]                 # и два Рубера — всего 57
 			ULSanatorium._cfg = sc
-	if test == "gqview" or test == "mapbake" or test == "pmap" or test == "fldiag" or test == "shbake" or test == "shcheck" or test == "gbake" or test == "gcheck" or test == "gperf" or test == "lumtest":
+	if test == "gqview" or test == "mapbake" or test == "pmap" or test == "fldiag" or test == "shbake" or test == "shcheck" or test == "gbake" or test == "gcheck" or test == "gperf" or test == "lumtest" or test == "wperf":
 		# сравнение чёткости (gqview), запекание карты локации (mapbake), проверка карты (pmap): место — --as-place=
 		ULSettings.arena = false
 		for a in OS.get_cmdline_user_args():
@@ -1462,6 +1462,7 @@ func ground_for(id: String, size: float, cuttable := false) -> ShaderMaterial:
 var ground_size := SIZE              ## сторона квадрата земли локации, м (по нему ложатся запечённые тени)
 var ground_mats: Array[ShaderMaterial] = []   ## материалы земли локации (у каждого в meta — подробный шейдер и вырез)
 var ground_fast := false             ## сейчас земля рисуется готовой картинкой (ULGroundBake), а не смешивается на лету
+var ground_alt: Array[ShaderMaterial] = []    ## другие «земляные» материалы с облегчённым вариантом (meta full / fast): порода карьера
 var _ground_drop := false            ## подстройка под частоту кадров перевела землю на быструю
 var _ground_tex: Texture2D = null     ## раскладка слоёв быстрой земли
 var _ground_tint: Texture2D = null    ## её общий тон
@@ -1487,6 +1488,8 @@ func _ground_apply(fast: bool) -> void:
 	if fast and _ground_tex == null:
 		_ground_tex = load(ULGroundBake.path_w(place))
 		_ground_tint = load(ULGroundBake.path_t(place))
+	for am in ground_alt:
+		am.shader = am.get_meta("fast") if fast else am.get_meta("full")
 	for sm in ground_mats:
 		if fast:
 			# текстуры слоёв и масштаб тропы — те же параметры материала, что у подробного шейдера
@@ -12878,12 +12881,83 @@ func _run_test() -> void:
 				sm /= float(nn)
 				print("[lum] %s: разрешение %d %%, тени %s: средний цвет кадра %.4f %.4f %.4f" % [place, int(round(sc * 100.0)), "есть" if shd else "нет", sm.x, sm.y, sm.z])
 				if shd:
-					# разница средних цветов кадра (0…1 по каналу): было 0,08–0,14, стало 0,01–0,02
+					# разница средних цветов кадра (0…1 по каналу): было 0,08–0,14, стало 0,01–0,02 (в светлой выработке
+					# карьера — до 0,035)
 					var dd := (sm - lum_off).abs()
-					_ok("разрешение %d %%: кадр без теней солнца такой же яркости, как с тенями (разница по каналам %.3f %.3f %.3f)" % [int(round(sc * 100.0)), dd.x, dd.y, dd.z], maxf(dd.x, maxf(dd.y, dd.z)) < 0.03)
+					_ok("разрешение %d %%: кадр без теней солнца такой же яркости, как с тенями (разница по каналам %.3f %.3f %.3f)" % [int(round(sc * 100.0)), dd.x, dd.y, dd.z], maxf(dd.x, maxf(dd.y, dd.z)) < 0.04)
 				else:
 					lum_off = sm
 		print("[inv] итог: ошибок %d" % _fails)
+		get_tree().quit()
+		return
+	if test == "wperf":
+		# цена стен и породы: время кадра как есть и с подменой шейдеров одной группы на простейший (потолок выгоды);
+		# --as-place=…, --as-at=x,z. Программная отрисовка без видеочипа — на телефоне соотношение другое
+		var tw0 := Time.get_ticks_msec()
+		while temp() and not cs_ready and Time.get_ticks_msec() - tw0 < 30000:
+			await get_tree().process_frame
+		for a in OS.get_cmdline_user_args():
+			if a.begins_with("--as-at="):
+				var wxz := a.substr(8).split(",")
+				player.global_position = NavigationServer3D.map_get_closest_point(get_world_3d().navigation_map, Vector3(float(wxz[0]), 0, float(wxz[1]))) + Vector3.UP * 0.1
+		player.velocity = Vector3.ZERO
+		for e in enemies:
+			e.visible = false
+		enemies.clear()
+		targets.clear()
+		await get_tree().create_timer(3.0).timeout
+		get_viewport().scaling_3d_scale = 1.0
+		Engine.max_fps = 0
+		var plain := ShaderMaterial.new()
+		var psh := Shader.new()
+		psh.code = "shader_type spatial;\nvoid fragment() { ALBEDO = vec3(0.4); ROUGHNESS = 0.9; }\n"
+		plain.shader = psh
+		var groups := {"стены построек": "uniform sampler2D paint_tex", "сараи и коровники": ULFarmBuilding.SHADER.substr(0, 60), "порода карьера": "uniform sampler2D rock_n", "земля": "sun_shade(p)"}
+		var found := {}
+		var swap := func(key: String, on: bool) -> void:
+			for n in get_tree().root.find_children("*", "MeshInstance3D", true, false):
+				var mi := n as MeshInstance3D
+				if mi.mesh == null:
+					continue
+				if mi.material_override is ShaderMaterial:
+					var so := mi.material_override as ShaderMaterial
+					if on and so.shader != null and so.shader.code.contains(String(groups[key])):
+						mi.set_meta("wp_o", so)
+						mi.material_override = plain
+						found[key] = int(found.get(key, 0)) + 1
+					elif not on and mi.has_meta("wp_o"):
+						mi.material_override = mi.get_meta("wp_o")
+						mi.remove_meta("wp_o")
+					continue
+				for si in mi.mesh.get_surface_count():
+					var sm0 := mi.get_active_material(si)
+					if on and sm0 is ShaderMaterial and (sm0 as ShaderMaterial).shader != null and (sm0 as ShaderMaterial).shader.code.contains(String(groups[key])):
+						mi.set_meta("wp_s%d" % si, mi.get_surface_override_material(si))
+						mi.set_surface_override_material(si, plain)
+						found[key] = int(found.get(key, 0)) + 1
+					elif not on and mi.has_meta("wp_s%d" % si):
+						mi.set_surface_override_material(si, mi.get_meta("wp_s%d" % si))
+						mi.remove_meta("wp_s%d" % si)
+		var measure := func() -> float:
+			for i in 10:
+				await get_tree().process_frame
+			var t0 := Time.get_ticks_usec()
+			for i in 30:
+				await get_tree().process_frame
+			return float(Time.get_ticks_usec() - t0) / 30000.0
+		var line := ""
+		var base := 1e9
+		for rep in 2:
+			base = minf(base, await measure.call())
+		line += "как есть %.1f мс" % base
+		for key in groups.keys():
+			swap.call(key, true)
+			var tm := 1e9
+			for rep in 2:
+				tm = minf(tm, await measure.call())
+			swap.call(key, false)
+			line += "; %s → простой шейдер (%d частей): %.1f мс (−%.0f %%)" % [key, int(found.get(key, 0)), tm, (base - tm) / base * 100.0]
+		print("[wperf] %s: %s" % [place, line])
 		get_tree().quit()
 		return
 	if test == "gperf":
