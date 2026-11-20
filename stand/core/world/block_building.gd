@@ -218,11 +218,12 @@ const MATS := {
 	"potato": ["dry_ground_01", 0.45, Color(1.35, 1.05, 0.72), 0.0, 1.0, {}],
 }
 ## какие материалы срезаются на этаже героя (стены и двери)
-const CUTTABLE := ["facade", "facade2", "plaster", "brick", "plinth", "trim", "int_blue", "int_green", "int_beige", "int_grey", "int_beige1", "int_grey1", "tile_wall", "door", "frame", "slab", "wood", "metal", "wmetal", "gmetal", "glass", "canvas", "canvas_in", "armygreen", "panel", "rust", "planks", "planks_blue", "planks_green", "planks_brown", "int_wood", "shutter", "wframe", "earth", "cellar_wall", "logs", "gapwood", "roof_tin", "q_rust", "q_tin"]
+const CUTTABLE := ["facade", "facade2", "plaster", "brick", "plinth", "trim", "int_blue", "int_green", "int_beige", "int_grey", "int_beige1", "int_grey1", "tile_wall", "door", "frame", "slab", "wood", "metal", "wmetal", "gmetal", "glass", "canvas", "canvas_in", "armygreen", "panel", "rust", "planks", "planks_blue", "planks_green", "planks_brown", "int_wood", "shutter", "wframe", "earth", "cellar_wall", "logs", "gapwood", "roof_tin", "q_rust", "q_tin", "glass_lit"]
 
 static var mats := {}             ## общие материалы (make_materials)
 static var cut_mats := {}         ## их срезанные копии
 static var cam_dir := Vector3(0, 0, 1)
+static var lit_windows := 0.0     ## доля целых окон, в которых горит свет (карьер — 0,3; выбор по месту окна, без случайности сборки)
 
 var def: Dictionary
 var id := ""
@@ -309,6 +310,15 @@ static func make_materials(noise: Texture2D) -> void:
 	g.metallic = 0.6
 	g.roughness = 0.12
 	mats["glass"] = g
+	# окно, в котором горит свет: тёплое стекло светится само (источников света нет)
+	var gl := StandardMaterial3D.new()
+	gl.albedo_color = Color(0.3, 0.21, 0.1)
+	gl.roughness = 0.3
+	gl.emission_enabled = true
+	gl.emission = Color(1.0, 0.68, 0.32)
+	gl.emission_energy_multiplier = 1.5
+	mats["glass_lit"] = gl
+	cut_mats["glass_lit"] = gl
 	var gc := StandardMaterial3D.new()
 	gc.albedo_color = Color(0.05, 0.06, 0.065)
 	gc.metallic = 0.6
@@ -1038,6 +1048,14 @@ func _wall_col(bk: Dictionary, along_u: bool, a: float, b: float, ya: float, yb:
 
 
 ## окно: рама, переплёт, стекло (или его осколки, или доски), отлив
+## целое стекло: тёмное или с горящим светом (доля lit_windows; выбор по месту окна — случайность сборки не тратится)
+func _glass(key: String, a: float, y0: float) -> String:
+	if lit_windows <= 0.0:
+		return "glass"
+	var hv := absi(hash([id, key, snappedf(a, 0.01), snappedf(y0, 0.01)])) % 1000
+	return "glass_lit" if float(hv) / 1000.0 < lit_windows else "glass"
+
+
 func _window(bk: Dictionary, key: String, along_u: bool, a: float, b: float, y0: float, y1: float, outer: float, sgn: float) -> void:
 	if style == "wood":
 		_window_wood(bk, key, along_u, a, b, y0, y1, outer, sgn)
@@ -1067,7 +1085,7 @@ func _window(bk: Dictionary, key: String, along_u: bool, a: float, b: float, y0:
 		_wall_piece(bk, key, "glass", along_u, a + t, b - t, y0 + t, y0 + (y1 - y0) * _rng.randf_range(0.15, 0.4), fd - sgn * 0.035, fd - sgn * 0.045)
 		_wall_piece(bk, key.replace("/x", "/o").trim_suffix("f").trim_suffix("b"), "glass", along_u, a + t, b - t, y0 + t, y1 - t, fd - sgn * 0.25, fd - sgn * 0.26)
 	else:
-		_wall_piece(bk, key, "glass", along_u, a + t, b - t, y0 + t, y1 - t, fd - sgn * 0.035, fd - sgn * 0.045)
+		_wall_piece(bk, key, _glass(key, a, y0), along_u, a + t, b - t, y0 + t, y1 - t, fd - sgn * 0.035, fd - sgn * 0.045)
 
 
 ## окно деревенского дома: белая рама с переплётом крестом, резной наличник, распахнутые ставни, подоконник;
@@ -1095,7 +1113,7 @@ func _window_wood(bk: Dictionary, key: String, along_u: bool, a: float, b: float
 		if r < 0.25:
 			_wall_piece(bk, key.replace("/x", "/o").trim_suffix("f").trim_suffix("b"), "glass", along_u, a + t, b - t, y0 + t, y1 - t, fd - sgn * 0.25, fd - sgn * 0.26)
 		else:
-			_wall_piece(bk, key, "glass", along_u, a + t, b - t, y0 + t, y1 - t, fd - sgn * 0.02, fd - sgn * 0.03)
+			_wall_piece(bk, key, _glass(key, a, y0), along_u, a + t, b - t, y0 + t, y1 - t, fd - sgn * 0.02, fd - sgn * 0.03)
 		return
 	# наличник и подоконник
 	_wall_piece(bk, key, "wframe", along_u, a - 0.1, b + 0.1, y1, y1 + 0.16, outer + sgn * 0.05, outer - sgn * 0.01)
@@ -1125,7 +1143,7 @@ func _window_wood(bk: Dictionary, key: String, along_u: bool, a: float, b: float
 	elif r < 0.25:
 		_wall_piece(bk, key.replace("/x", "/o").trim_suffix("f").trim_suffix("b"), "glass", along_u, a + t, b - t, y0 + t, y1 - t, fd - sgn * 0.25, fd - sgn * 0.26)
 	else:
-		_wall_piece(bk, key, "glass", along_u, a + t, b - t, y0 + t, y1 - t, fd - sgn * 0.02, fd - sgn * 0.03)
+		_wall_piece(bk, key, _glass(key, a, y0), along_u, a + t, b - t, y0 + t, y1 - t, fd - sgn * 0.02, fd - sgn * 0.03)
 
 
 ## вход: двустворчатая дверь, наличник, козырёк на кронштейнах, две ступени

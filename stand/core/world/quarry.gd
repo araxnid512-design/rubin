@@ -141,7 +141,7 @@ func spawn_limit() -> float:
 
 
 static func q_sig() -> int:
-	return hash(str(Q_BUILDINGS) + "|" + str(ULBlock.GEN_V) + "|q1")
+	return hash(str(Q_BUILDINGS) + "|" + str(ULBlock.GEN_V) + "|q2")
 
 
 # ---------------- рельеф ----------------
@@ -723,7 +723,7 @@ func _q_forest(rng: RandomNumberGenerator) -> void:
 ## Осыпь у подножия стенок и россыпь камней на полках: валуны (одной сеткой), крупные — со столкновением.
 ## Не на съездах и не у самого края полки.
 func _q_scree(rng: RandomNumberGenerator) -> void:
-	var rock: ArrayMesh = w._rock_mesh(53)
+	var rock: ArrayMesh = _rock_angular(53)
 	var xs: Array[Transform3D] = []
 	for k in 420:
 		var th := rng.randf_range(-PI, PI)
@@ -754,10 +754,359 @@ func _q_scree(rng: RandomNumberGenerator) -> void:
 		rm.set_instance_transform(i, xs[i])
 	var rmi := MultiMeshInstance3D.new()
 	rmi.multimesh = rm
-	var rmat := ULHouse._mat(TEX + "quarry_wall", 1.6)
-	rmat.albedo_color = Color(0.86, 0.84, 0.82)
-	rmi.material_override = rmat
+	rmi.material_override = _rock_mat()
 	add_child(rmi)
+
+
+var _rmat: StandardMaterial3D = null
+
+
+## материал обломков породы — та же скала, что у стенок выработки
+func _rock_mat() -> StandardMaterial3D:
+	if _rmat == null:
+		_rmat = ULHouse._mat(TEX + "quarry_wall", 1.6)
+		_rmat.albedo_color = Color(0.74, 0.74, 0.76)
+	return _rmat
+
+
+## Угловатый обломок скалы: грубый многогранник (6 × 4 граней), вершины сдвинуты шумом, грани плоские —
+## на свету каждая своим тоном (прежние «камни» осыпи были гладкими шарами)
+func _rock_angular(seed_n: int) -> ArrayMesh:
+	var sp := SphereMesh.new()
+	sp.radius = 0.5
+	sp.height = 1.0
+	sp.radial_segments = 6
+	sp.rings = 4
+	var fn := FastNoiseLite.new()
+	fn.seed = seed_n
+	fn.frequency = 1.1
+	var arr := sp.get_mesh_arrays()
+	var vs: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+	var moved := {}
+	for i in vs.size():
+		var v := vs[i]
+		var key := Vector3i(roundi(v.x * 1000.0), roundi(v.y * 1000.0), roundi(v.z * 1000.0))
+		if not moved.has(key):
+			var k := 1.0 + 0.42 * fn.get_noise_3dv(v * 2.3) + 0.2 * fn.get_noise_3dv(v * 6.0)
+			var nv := v * k
+			nv.y = maxf(nv.y * 0.7, -0.14)
+			moved[key] = nv
+		vs[i] = moved[key]
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	st.set_smooth_group(0xFFFFFFFF)                   # плоские грани
+	var uv: PackedVector2Array = arr[Mesh.ARRAY_TEX_UV]
+	for i in arr[Mesh.ARRAY_INDEX]:
+		st.set_uv(uv[i] * Vector2(2.0, 1.0))
+		st.add_vertex(vs[i])
+	st.generate_normals()
+	st.generate_tangents()
+	return st.commit()
+
+
+# ---------------- подробности по видео-образцу ----------------
+
+## Подробности по видео-образцу (21.11): рваная кромка уступов, кристаллы у жил, столбы с проводами, мелочи у
+## построек. У всего своя случайность — расстановка остального (и тайников) не сдвигается.
+func _q_detail(g: Node3D) -> void:
+	_q_brow_rocks(g)
+	_q_crystals(g)
+	_q_power_lines(g)
+	_q_clutter()
+
+
+## Рваная стенка уступов: глыбы торчат из верхней половины каждой стенки (ниже бровки) — ровная тёмная полоса
+## стенки разбивается выступами и сколами. Выше головы героя и не выше бровки — без столкновений.
+func _q_brow_rocks(g: Node3D) -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 8807
+	var xs: Array[Transform3D] = []
+	for wl in WALLS:
+		var s0: float = wl[0]
+		var s1: float = wl[1]
+		var top := terrace(s0 + 0.004)
+		var bot := terrace(s1 - 0.004)
+		for k in 280:
+			var th := rng.randf_range(-PI, PI)
+			if on_ramp(pit_point(s0 + 0.01, th)) or on_ramp(pit_point(s1 - 0.01, th)) or ramp_h(s0 - 0.01, th) > bot + 0.3:
+				continue
+			# доля высоты стенки от бровки вниз: глыбы сидят в самой стенке (верх — ниже бровки), гуще под бровкой
+			var f := 0.1 + pow(rng.randf(), 1.6) * 0.45
+			var sz := rng.randf_range(0.6, 1.5)
+			var q := pit_point(lerpf(s0, s1, f) + 0.006, th)
+			var y := minf(lerpf(top, bot, f), top - sz * 0.45)
+			var out := (q - PIT_C).normalized()
+			var basis := Basis.from_euler(Vector3(rng.randf_range(-0.6, 0.6), rng.randf() * TAU, rng.randf_range(-0.6, 0.6)))
+			xs.append(Transform3D(basis.scaled(Vector3(sz, sz * rng.randf_range(0.7, 1.1), sz * rng.randf_range(0.7, 1.0))), Vector3(q.x + out.x * 0.25, y, q.y + out.y * 0.25)))
+	var mm := MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_3D
+	mm.mesh = _rock_angular(91)
+	mm.instance_count = xs.size()
+	for i in xs.size():
+		mm.set_instance_transform(i, xs[i])
+	var mi := MultiMeshInstance3D.new()
+	mi.name = "BrowRocks"
+	mi.multimesh = mm
+	var bm := _rock_mat().duplicate() as StandardMaterial3D
+	bm.albedo_color = Color(0.5, 0.52, 0.56)            # в тон тёмной породы стенки
+	mi.material_override = bm
+	g.add_child(mi)
+
+
+const CRYSTAL_TINTS := [[Color(0.42, 0.78, 1.0), Color(0.16, 0.48, 1.0)], [Color(0.38, 0.95, 0.86), Color(0.1, 0.6, 0.55)],
+	[Color(0.72, 0.52, 1.0), Color(0.42, 0.2, 0.95)]]
+
+
+## Друза кристаллов: шестигранные столбики с заострёнными концами, растут из одной точки веером (ось — вверх
+## и наружу, по +z); грани плоские
+static func crystal_mesh(seed_n: int) -> ArrayMesh:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = seed_n
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	st.set_smooth_group(0xFFFFFFFF)
+	var n := rng.randi_range(6, 9)
+	for c in n:
+		var main := c == 0
+		var r := rng.randf_range(0.16, 0.22) if main else rng.randf_range(0.06, 0.15)
+		var length := rng.randf_range(1.3, 1.7) if main else rng.randf_range(0.45, 1.1)
+		var tilt := rng.randf_range(0.0, 0.25) if main else rng.randf_range(0.25, 0.85)
+		var az := rng.randf() * TAU
+		var dir := Vector3(sin(tilt) * cos(az), cos(tilt), sin(tilt) * sin(az) + 0.35).normalized()
+		var base := Vector3(rng.randf_range(-0.22, 0.22), -0.15, rng.randf_range(-0.22, 0.22))
+		var side := dir.cross(Vector3.RIGHT if absf(dir.x) < 0.9 else Vector3.FORWARD).normalized()
+		var side2 := dir.cross(side).normalized()
+		var ring0: Array[Vector3] = []
+		var ring1: Array[Vector3] = []
+		var tip := base + dir * length
+		for k in 6:
+			var a := TAU * float(k) / 6.0 + rng.randf_range(-0.12, 0.12)
+			var o := (side * cos(a) + side2 * sin(a)) * r
+			ring0.append(base + o)
+			ring1.append(base + dir * length * 0.78 + o * 0.92)
+		for k in 6:
+			var k2 := (k + 1) % 6
+			for v in [ring0[k], ring1[k], ring1[k2], ring0[k], ring1[k2], ring0[k2]]:
+				st.set_uv(Vector2(float(k) / 6.0, 0.0))
+				st.add_vertex(v)
+			for v in [ring1[k], tip, ring1[k2]]:
+				st.set_uv(Vector2(float(k) / 6.0, 1.0))
+				st.add_vertex(v)
+	st.generate_normals()
+	return st.commit()
+
+
+## Кристаллы у минеральных жил: три друзы растут из подножия ближней стенки (крупная по пояс и две поменьше), у каждой жилы
+## свой цвет — голубой, бирюзовый, фиолетовый; светятся изнутри (самосвечение, источников света нет)
+func _q_crystals(g: Node3D) -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 5531
+	var mats: Array[StandardMaterial3D] = []
+	for t in CRYSTAL_TINTS:
+		var m := StandardMaterial3D.new()
+		m.albedo_color = t[0]
+		m.roughness = 0.16
+		m.metallic = 0.15
+		m.emission_enabled = true
+		m.emission = t[1]
+		m.emission_energy_multiplier = 0.75
+		mats.append(m)
+	var meshes: Array[ArrayMesh] = []
+	for k in 4:
+		meshes.append(crystal_mesh(4100 + k))
+	var vi := 0
+	for dp in Q_DEPOSITS:
+		if String(dp[4]) != "vein":
+			continue
+		var sv := float(dp[1])
+		var th := float(dp[2])
+		# ближняя стенка снаружи от жилы — её подножие
+		var foot := 1.0
+		for wl in WALLS:
+			if float(wl[1]) > sv and float(wl[1]) < foot:
+				foot = float(wl[1])
+		if foot >= 1.0:
+			foot = 1.0
+		for j in 3:
+			var big := j == 0
+			var dth := (0.045 + rng.randf_range(0.0, 0.03)) * (1.0 if j != 1 else -1.0) * (1.8 if j == 2 else 1.0)
+			var q := pit_point(foot + 0.006, th + dth)
+			if on_ramp(q):
+				continue
+			var y := terrace(foot - 0.01)
+			var inward := (PIT_C - q).normalized()
+			var yaw := atan2(inward.x, inward.y)
+			var sc := rng.randf_range(2.1, 2.6) if big else rng.randf_range(1.1, 1.6)
+			var mi := MeshInstance3D.new()
+			mi.mesh = meshes[(vi * 2 + j) % meshes.size()]
+			mi.material_override = mats[vi % mats.size()]
+			mi.transform = Transform3D(Basis(Vector3.UP, yaw).scaled(Vector3.ONE * sc), Vector3(q.x, y, q.y))
+			g.add_child(mi)
+			_cyl_col(Vector3(q.x + inward.x * 0.3 * sc, y, q.y + inward.y * 0.3 * sc), 0.45 * sc, 1.3 * sc)
+		vi += 1
+
+
+## Столбы с проводами вдоль въезда, западной петли посёлка и южной бровки: деревянный столб 6,5 м с траверсой и
+## изоляторами, между столбами — два провода с провисом. Всё одной сеткой (один вызов отрисовки).
+func _q_power_lines(g: Node3D) -> void:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var wst := SurfaceTool.new()
+	wst.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var n_poles := 0
+	for ri in [0, 1, 3]:
+		var road: Array = Q_ROADS[ri]
+		var pts: Array[Vector3] = []
+		var acc := 6.0
+		for i in road.size() - 1:
+			var a: Vector2 = road[i]
+			var b: Vector2 = road[i + 1]
+			var d := a.distance_to(b)
+			var dirv := (b - a) / maxf(d, 0.001)
+			var side := Vector2(-dirv.y, dirv.x) * 3.6
+			var t := acc
+			while t < d:
+				var q := a + dirv * t + side
+				t += 17.0
+				if bld_dist(q) < 2.5 or pit_st(q).x < 1.07 or absf(q.x) > HX - 3.0 or absf(q.y) > HZ - 3.0 or road_dist(q) < 2.6:
+					pts.append(Vector3.INF)              # разрыв линии: здесь столб не встаёт
+					continue
+				if _near_thing(q, 2.5):
+					pts.append(Vector3.INF)
+					continue
+				pts.append(Vector3(q.x, height(q), q.y))
+			acc = t - d
+		var prev := Vector3.INF
+		var prev_side := Vector3.ZERO
+		for i in pts.size():
+			var p := pts[i]
+			if p == Vector3.INF:
+				prev = Vector3.INF
+				continue
+			var nxt := pts[i + 1] if i + 1 < pts.size() and pts[i + 1] != Vector3.INF else Vector3.INF
+			var along := (nxt - p) if nxt != Vector3.INF else ((p - prev) if prev != Vector3.INF else Vector3.RIGHT)
+			along.y = 0.0
+			along = along.normalized()
+			var arm := Vector3(-along.z, 0, along.x)
+			_pole(st, p, arm)
+			_cyl_col(p, 0.16, 6.5)
+			n_poles += 1
+			if prev != Vector3.INF:
+				for sgn in [-1.0, 1.0]:
+					var a3: Vector3 = prev + prev_side * 0.62 * sgn + Vector3.UP * 6.28
+					var b3: Vector3 = p + arm * 0.62 * sgn + Vector3.UP * 6.28
+					_wire(wst, a3, b3, 0.55)
+			prev = p
+			prev_side = arm
+	var wood := StandardMaterial3D.new()
+	wood.albedo_color = Color(0.3, 0.23, 0.17)
+	wood.roughness = 0.95
+	var mi := MeshInstance3D.new()
+	mi.name = "PowerPoles"
+	st.generate_normals()
+	mi.mesh = st.commit()
+	mi.material_override = wood
+	g.add_child(mi)
+	var wire := StandardMaterial3D.new()
+	wire.albedo_color = Color(0.08, 0.08, 0.08)
+	wire.roughness = 0.6
+	wire.cull_mode = BaseMaterial3D.CULL_DISABLED
+	var wi := MeshInstance3D.new()
+	wi.name = "PowerWires"
+	wst.generate_normals()
+	wi.mesh = wst.commit()
+	wi.material_override = wire
+	wi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	g.add_child(wi)
+	print("[quarry] столбов с проводами: %d" % n_poles)
+
+
+## рядом ли с точкой предмет из списка расстановки (техника, хлам, жилы)
+func _near_thing(q: Vector2, r: float) -> bool:
+	for lst in [Q_THINGS, Q_MACHINES]:
+		for t in lst:
+			var at := _at_spec(t[1])
+			if Vector2(at.x, at.z).distance_to(q) < r + float(t[3]) * 0.5:
+				return true
+	return false
+
+
+## столб: восьмигранный ствол с сужением, траверса, три изолятора
+func _pole(st: SurfaceTool, p: Vector3, arm: Vector3) -> void:
+	_prism(st, p, p + Vector3.UP * 6.5, 0.13, 0.1, 8)
+	var c := p + Vector3.UP * 6.15
+	_prism(st, c - arm * 0.8, c + arm * 0.8, 0.055, 0.055, 4)
+	for k: float in [-0.62, 0.0, 0.62]:
+		var ip: Vector3 = c + arm * k + (Vector3.UP * 0.05 if k != 0.0 else Vector3.UP * 0.28)
+		_prism(st, ip, ip + Vector3.UP * 0.14, 0.035, 0.03, 6)
+
+
+## труба (призма) от a до b, радиусы ra и rb, n граней
+static func _prism(st: SurfaceTool, a: Vector3, b: Vector3, ra: float, rb: float, n: int) -> void:
+	var dir := (b - a).normalized()
+	var s1 := dir.cross(Vector3.RIGHT if absf(dir.x) < 0.9 else Vector3.FORWARD).normalized()
+	var s2 := dir.cross(s1).normalized()
+	for k in n:
+		var a0 := TAU * float(k) / float(n)
+		var a1 := TAU * float(k + 1) / float(n)
+		var o0 := s1 * cos(a0) + s2 * sin(a0)
+		var o1 := s1 * cos(a1) + s2 * sin(a1)
+		for v in [a + o0 * ra, b + o0 * rb, b + o1 * rb, a + o0 * ra, b + o1 * rb, a + o1 * ra]:
+			st.add_vertex(v)
+
+
+## провод с провисом: 8 звеньев по цепной линии (приближённо — парабола), лента 3 см
+static func _wire(st: SurfaceTool, a: Vector3, b: Vector3, sag: float) -> void:
+	var n := 8
+	var side := (b - a).cross(Vector3.UP).normalized() * 0.015
+	for i in n:
+		var t0 := float(i) / float(n)
+		var t1 := float(i + 1) / float(n)
+		var p0 := a.lerp(b, t0) - Vector3.UP * sag * 4.0 * t0 * (1.0 - t0)
+		var p1 := a.lerp(b, t1) - Vector3.UP * sag * 4.0 * t1 * (1.0 - t1)
+		for v in [p0 - side, p1 - side, p1 + side, p0 - side, p1 + side, p0 + side]:
+			st.add_vertex(v)
+		for v in [p0 + Vector3.UP * 0.015, p1 + Vector3.UP * 0.015, p1 - Vector3.UP * 0.015, p0 + Vector3.UP * 0.015, p1 - Vector3.UP * 0.015, p0 - Vector3.UP * 0.015]:
+			st.add_vertex(v)
+
+
+const Q_CLUTTER := [["ph_barrel", 0.9], ["ph_barrel", 0.9], ["ul_crate", 1.1], ["qr_pallets", 1.2], ["kh_sacks", 1.3], ["cv_jerrycans", 0.95]]
+
+
+## Мелочи у построек: бочки, ящики, поддоны, мешки, канистры — по 2–3 у каждой постройки, у стены (не у дверей и
+## не на дороге), со столкновением
+func _q_clutter() -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 6619
+	var n := 0
+	for b in blds:
+		var bb: ULBlock = b
+		var want := rng.randi_range(2, 3)
+		var tries := 0
+		while want > 0 and tries < 40:
+			tries += 1
+			var blk: Dictionary = bb.def.blocks[rng.randi() % bb.def.blocks.size()]
+			var c: Vector2 = blk.c
+			var hl := float(blk.L) * 0.5
+			var hw := float(blk.W) * 0.5
+			var along_x := String(blk.axis) == "x"
+			var u := rng.randf_range(-hl + 1.2, hl - 1.2)
+			var sd := 1.0 if rng.randf() < 0.5 else -1.0
+			var off := hw + rng.randf_range(0.9, 1.5)
+			var q := c + (Vector2(u, off * sd) if along_x else Vector2(off * sd, u))
+			if road_dist(q) < 2.6 or pit_st(q).x < 1.06 or _near_thing(q, 1.6) or bld_dist(q) < 0.6:
+				continue
+			var near_door := false
+			for dd in bb.doors:
+				if Vector2(dd.center.x, dd.center.z).distance_to(q) < 3.0:
+					near_door = true
+			if near_door:
+				continue
+			var it: Array = Q_CLUTTER[rng.randi() % Q_CLUTTER.size()]
+			if _qm(String(it[0]), Vector3(q.x, 0, q.y), rng.randf() * TAU, float(it[1]), true) != Vector3.ZERO:
+				want -= 1
+				n += 1
+	print("[quarry] мелочей у построек: %d" % n)
 
 
 # ---------------- сборка ----------------
@@ -787,6 +1136,7 @@ func build(world: Node3D) -> void:
 		else:
 			push_warning("карьер: кэш построек устарел — пересоберите --as-test=qrbake")
 	var made := {}
+	ULBlock.lit_windows = 0.3                     # в посёлке карьера горит часть окон (как в видео-образце)
 	for d in Q_BUILDINGS:
 		var b := ULBlock.new()
 		add_child(b)
@@ -810,6 +1160,7 @@ func build(world: Node3D) -> void:
 		if b.id == "workshop":
 			_q_workshop(b)
 		_place_models(b)
+	ULBlock.lit_windows = 0.0
 	if cache != null:
 		rng.state = cache.rng_state
 		_dist = cache.dist
@@ -828,6 +1179,7 @@ func build(world: Node3D) -> void:
 		return bld_dist(q) > 2.0 and pit_st(q).x > 1.04 and ((q - POND_C) / POND_R).length() > 1.15, 0.0, Color(0.78, 0.76, 0.72))
 	_q_scree(rng)
 	_q_props(props, rng)
+	_q_detail(props)
 	_flush(props)
 	_c_forest_props(7373, 8, 5)
 	_c_vegetation()
