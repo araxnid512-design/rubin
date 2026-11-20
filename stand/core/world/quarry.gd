@@ -786,7 +786,6 @@ func build(world: Node3D) -> void:
 	_c_vegetation()
 	_q_spots(rng)
 	_light_pool()
-	_q_glows()
 	add_child(body)
 	if w.test == "qrbake":
 		var cr := ULBlockCache.new()
@@ -799,91 +798,22 @@ func build(world: Node3D) -> void:
 	print("[quarry] карьер собран: %d мс, построек %d, столкновений %d, треугольников земли %d, тайников в помещениях %d, вне — %d" % [Time.get_ticks_msec() - t0, blds.size(), body.get_child_count(), tris.size() / 3, _count_cont(), extra.size()])
 
 
-# ---------------- свет у входов и у жил ----------------
+# ---------------- свет у жил, высота земли ----------------
 
-const GLOW_SHADER := """shader_type spatial;
-render_mode unshaded, blend_add, depth_draw_never, cull_disabled, shadows_disabled;
-// пятно света на земле: у входа — от двери (UV.y = 0) наружу, у жилы — кругом; цвет и сила — в цвете экземпляра
-varying vec4 tint;
-void vertex() { tint = COLOR; }
-void fragment() {
-	vec2 p = tint.a > 0.5 ? vec2((UV.x - 0.5) * 2.0, UV.y) : (UV - 0.5) * 2.0;
-	float a = 1.0 - smoothstep(0.05, 1.0, length(p));
-	ALBEDO = tint.rgb * a * a;
-}
-"""
+## высота земли в точке — для пятен света у входов (общая часть — ULSanatorium._door_glows)
+func ground_y(p: Vector2) -> float:
+	return height(p)
 
 
-## Свет у входов и свечение минеральных жил — как в образце: из дверей на землю ложится тёплое пятно, над
-## дверью горит лампа; у жил — холодный голубой отсвет. Источников света нет (на телефоне каждый — заметная цена):
-## пятна — один MultiMesh с прибавляющим смешением, лампы — коробочки со светящимся материалом.
-func _q_glows() -> void:
-	var xs: Array = []          # [Transform3D, Color]
-	var lamps: Array[Transform3D] = []
-	for dd in doors:
-		var d := dd as ULDoor
-		if not d.has_meta("ext") or d.floor_i != 0:
-			continue
-		var n: Vector3 = d.global_transform.basis.z.normalized() if d.is_inside_tree() else d.basis.z.normalized()
-		var c := d.center
-		if bld_dist(Vector2(c.x + n.x * 1.3, c.z + n.z * 1.3)) < bld_dist(Vector2(c.x - n.x * 1.3, c.z - n.z * 1.3)):
-			n = -n
-		var along := Vector3(-n.z, 0, n.x)
-		var wd := maxf(d.width * 2.8, 3.8)
-		var y := height(Vector2(c.x + n.x * 1.5, c.z + n.z * 1.5)) + 0.04
-		# плоскость: x — вдоль стены, z — наружу; UV.y = 0 у двери
-		xs.append([Transform3D(Basis(along * wd, Vector3.UP, n * 5.6), Vector3(c.x, y, c.z) + n * 2.9), Color(1.0, 0.62, 0.26, 1.0) * Color(0.62, 0.62, 0.62, 1.0)])
-		lamps.append(Transform3D(Basis(along, Vector3.UP, n), Vector3(c.x, c.y + 2.42, c.z) + n * 0.2))
+## голубой отсвет у минеральных жил — к пятнам света у входов
+func extra_glows() -> Array:
+	var out: Array = []
 	for dp in deposits:
 		if String(dp.kind) != "vein":
 			continue
 		var p: Vector3 = dp.pos
-		var y2 := height(Vector2(p.x, p.z)) + 0.05
-		xs.append([Transform3D(Basis(Vector3(7.5, 0, 0), Vector3.UP, Vector3(0, 0, 7.5)), Vector3(p.x, y2, p.z)), Color(0.2, 0.5, 1.0, 0.0) * Color(0.5, 0.5, 0.5, 1.0)])
-	print("[quarry] пятна света: %d (у входов %d, у жил %d)" % [xs.size(), lamps.size(), xs.size() - lamps.size()])
-	if not xs.is_empty():
-		var qm := QuadMesh.new()
-		qm.size = Vector2(1, 1)
-		qm.orientation = PlaneMesh.FACE_Y
-		var sh := Shader.new()
-		sh.code = GLOW_SHADER
-		var gm := ShaderMaterial.new()
-		gm.shader = sh
-		gm.render_priority = 3
-		qm.material = gm
-		var mm := MultiMesh.new()
-		mm.transform_format = MultiMesh.TRANSFORM_3D
-		mm.use_colors = true
-		mm.mesh = qm
-		mm.instance_count = xs.size()
-		for i in xs.size():
-			mm.set_instance_transform(i, xs[i][0])
-			mm.set_instance_color(i, xs[i][1])
-		var mi := MultiMeshInstance3D.new()
-		mi.name = "Glows"
-		mi.multimesh = mm
-		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		add_child(mi)
-	if not lamps.is_empty():
-		var bm := BoxMesh.new()
-		bm.size = Vector3(0.34, 0.14, 0.2)
-		var lm := StandardMaterial3D.new()
-		lm.albedo_color = Color(1.0, 0.9, 0.7)
-		lm.emission_enabled = true
-		lm.emission = Color(1.0, 0.74, 0.4)
-		lm.emission_energy_multiplier = 2.6
-		bm.material = lm
-		var mm2 := MultiMesh.new()
-		mm2.transform_format = MultiMesh.TRANSFORM_3D
-		mm2.mesh = bm
-		mm2.instance_count = lamps.size()
-		for i in lamps.size():
-			mm2.set_instance_transform(i, lamps[i])
-		var mi2 := MultiMeshInstance3D.new()
-		mi2.name = "DoorLamps"
-		mi2.multimesh = mm2
-		mi2.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		add_child(mi2)
+		out.append([Transform3D(Basis(Vector3(7.5, 0, 0), Vector3.UP, Vector3(0, 0, 7.5)), Vector3(p.x, height(Vector2(p.x, p.z)) + 0.05, p.z)), Color(0.2, 0.5, 1.0, 0.0) * Color(0.5, 0.5, 0.5, 1.0)])
+	return out
 
 
 # ---------------- предметы и техника ----------------
@@ -1380,56 +1310,9 @@ func roll_containers(rng: RandomNumberGenerator) -> void:
 		quest_where["q_journal"] = best
 
 
-## Ресурсы на полу построек — каждое посещение по-новому. В каждой постройке (и в сараях, и в гараже) часть
-## свободных мест комнат занята находками по назначению комнаты: в жилых — еда, вода, бинты, патроны; на кухне
-## и в столовой — консервы; в цехе, гараже и сараях — запчасти, кабель, металл; в медпункте — медицина; в конторе —
-## электроника. Сколько — conf: floor_share (доля мест, от и до) и floor_max, не меньше одной в постройке; что —
-## conf: floor_loot (вид комнаты → [предмет, от, до, вес]; «*» — прочие комнаты). Места — готовые точки комнат
-## (ULBlock.spots): там нет мебели и туда можно подойти. Запись: [точка, предмет, сколько, постройка].
-func floor_loot(rng: RandomNumberGenerator) -> Array:
-	var out: Array = []
-	var c := conf()
-	var tables: Dictionary = c.get("floor_loot", {})
-	if tables.is_empty():
-		return out
-	var share: Array = c.get("floor_share", [0.3, 0.55])
-	var cap := int(c.get("floor_max", 8))
-	for b in blds:
-		var pts: Array = b.spots.duplicate()
-		if pts.is_empty():
-			continue
-		var n := mini(clampi(int(round(pts.size() * rng.randf_range(float(share[0]), float(share[1])))), 1, cap), pts.size())
-		for k in n:
-			var i := rng.randi() % pts.size()
-			var sp: Array = pts[i]
-			pts.remove_at(i)
-			var parts := String(sp[1]).split(":")
-			var tb: Array = tables.get(parts[1] if parts.size() > 1 else "*", tables.get("*", []))
-			if tb.is_empty():
-				continue
-			var sum := 0.0
-			for l in tb:
-				sum += float(l[3])
-			var r := rng.randf() * sum
-			var pick: Array = tb[0]
-			for l in tb:
-				r -= float(l[3])
-				if r <= 0.0:
-					pick = l
-					break
-			var a := rng.randf() * TAU
-			var p: Vector3 = (sp[0] as Vector3) + Vector3(cos(a), 0, sin(a)) * rng.randf_range(0.0, 0.3)
-			out.append([Vector3(p.x, p.y + 0.02, p.z), String(pick[0]), rng.randi_range(int(pick[1]), int(pick[2])), b.id])
-	return out
-
-
 ## хлам и минералы: в постройках — кучки хлама; у жил и куч руды — минералы на земле (вид предмета — по месту)
 func junk_points(rng: RandomNumberGenerator) -> Array:
 	var out := junk_in_buildings(rng)
-	# ресурсы на полу — своим генератором (от случайности посещения): расстановка врагов от них не сдвигается
-	var fr := RandomNumberGenerator.new()
-	fr.seed = hash([rng.seed, "floor"])
-	out.append_array(floor_loot(fr))
 	var mn: Array = conf().get("minerals", [10, 16])
 	var n := rng.randi_range(int(mn[0]), int(mn[1]))
 	for k in n:

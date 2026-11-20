@@ -130,7 +130,9 @@ void fragment() {
 	if (rusty > 0.0) {
 		// ржавчина на жести: пятна и полосы, вытянутые вдоль ската
 		float rp = texture(noise, vec2(wpos.x * 0.35, wpos.z * 0.35) + vec2(wpos.y * 0.9, 0.0)).r;
-		float rs = texture(noise, vec2((wpos.x - wpos.z) * 0.9, (wpos.x + wpos.z) * 0.08)).r;
+		// потёки: на листовой кровле — вдоль ската (по волне листа), на прочем — как раньше, наискось
+		vec2 rq = (sheet && top) ? vec2(uv.x * scale * 0.9, uv.y * scale * 0.08) : vec2((wpos.x - wpos.z) * 0.9, (wpos.x + wpos.z) * 0.08);
+		float rs = texture(noise, rq).r;
 		float r = smoothstep(0.55, 0.78, rp * 0.6 + rs * 0.4);
 		// на листовой кровле ржавчина бурая и ложится на тон листа, а не рыжими пятнами по светлой жести
 		c = sheet ? mix(c, c * vec3(0.74, 0.5, 0.36), r * rusty) : mix(c, c * vec3(0.95, 0.55, 0.32) + vec3(0.06, 0.02, 0.0), r * rusty);
@@ -182,7 +184,9 @@ const MATS := {
 	"blanket": ["worn_plaster_wall", 1.0, Color(0.55, 0.42, 0.36), 0.0, 1.0, {"sat": 0.2}],
 	"leather": ["worn_plaster_wall", 1.2, Color(0.42, 0.3, 0.22), 0.0, 0.7, {"sat": 0.3}],
 	"green": ["worn_plaster_wall", 1.0, Color(0.25, 0.42, 0.26), 0.0, 0.95, {"sat": 0.2}],
-	"rust": ["rusty_corrugated_iron", 1.4, Color(1.2, 1.15, 1.1), 0.2, 0.7, {"sat": 0.62}],
+	# ржавое железо (кровля хутора и логова, контейнеры, мелкие детали): на скатах — листы профнастила, как в карьере;
+	# прежняя текстура сплошной ржавчины вблизи выглядела размытыми полосами
+	"rust": ["worn_corrugated_iron", 2.0, Color(0.64, 0.43, 0.33), 0.3, 0.78, {"sat": 0.6, "rusty": 0.7, "sheet": true}],
 	# карьер: старый профнастил — тёмно-бурая ржавчина с серыми потёками (по видео-образцу), не «черепица»
 	"q_rust": ["worn_corrugated_iron", 2.2, Color(0.6, 0.53, 0.47), 0.5, 0.78, {"sat": 0.5, "rusty": 0.85, "sheet": true}],
 	"q_tin": ["worn_corrugated_iron", 2.2, Color(0.62, 0.62, 0.6), 0.5, 0.65, {"metal": 0.2, "sat": 0.35, "rusty": 0.5, "sheet": true}],
@@ -203,7 +207,7 @@ const MATS := {
 	"wframe": ["old_planks_02", 2.0, Color(1.25, 1.24, 1.2), 0.3, 0.85, {"sat": 0.12}],
 	"floorboard": ["old_planks_02", 2.0, Color(0.8, 0.68, 0.55), 0.3, 0.85, {}],
 	"int_wood": ["wood_planks_grey", 1.5, Color(1.35, 1.22, 1.06), 0.25, 0.9, {"sat": 0.6}],
-	"roof_tin": ["worn_corrugated_iron", 1.6, Color(0.82, 0.82, 0.8), 0.3, 0.6, {"metal": 0.3, "sat": 0.4, "rusty": 0.85}],
+	"roof_tin": ["worn_corrugated_iron", 1.6, Color(0.82, 0.82, 0.8), 0.3, 0.6, {"metal": 0.3, "sat": 0.4, "rusty": 0.85, "sheet": true}],
 	# сруб: бревно (окорённое, серое от времени) и тёмная щель на месте выпавшей доски обшивки
 	"logs": ["weathered_brown_planks", 1.1, Color(0.95, 0.86, 0.74), 0.7, 0.95, {"sat": 0.55}],
 	"gapwood": ["old_planks_02", 1.0, Color(0.16, 0.13, 0.11), 0.0, 1.0, {}],

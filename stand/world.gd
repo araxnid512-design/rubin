@@ -117,7 +117,7 @@ func _ready() -> void:
 			sc.lottery = [sc.lottery[1], sc.lottery[1]]
 			sc.ruber_chances = [0, 0, 1]                 # и два Рубера — всего 57
 			ULSanatorium._cfg = sc
-	if test == "gqview" or test == "mapbake" or test == "pmap":
+	if test == "gqview" or test == "mapbake" or test == "pmap" or test == "fldiag":
 		# сравнение чёткости (gqview), запекание карты локации (mapbake), проверка карты (pmap): место — --as-place=
 		ULSettings.arena = false
 		for a in OS.get_cmdline_user_args():
@@ -533,6 +533,10 @@ func _ground_reachable(snap: Callable) -> void:
 ## Хлам в постройках временного кластера: в каждой постройке — 2–4 кучки, каждый вход заново (по случайности
 ## посещения). Кучка — один «Хлам»; подобранные складываются в одну стопку. Новые локации с постройками зовут то же.
 func _spawn_junk(rng: RandomNumberGenerator) -> void:
+	# ресурсы на полу построек — своим генератором (от случайности посещения): расстановка хлама и врагов
+	# от них не сдвигается
+	var fr := RandomNumberGenerator.new()
+	fr.seed = hash([rng.seed, "floor"])
 	if san != null:
 		for p in san.junk_points(rng):
 			# точка — хлам; [точка, предмет, сколько] — своя находка (минералы у жил и куч руды в карьере)
@@ -540,6 +544,8 @@ func _spawn_junk(rng: RandomNumberGenerator) -> void:
 				_spawn_ground(ULItems.make(String(p[1]), int(p[2])), p[0], rng.randf() * TAU)
 			else:
 				_spawn_ground(ULItems.make("junk"), p, rng.randf() * TAU)
+		for p in san.floor_loot(fr):
+			_spawn_ground(ULItems.make(String(p[1]), int(p[2])), p[0], fr.randf() * TAU)
 		return
 	if cowshed == null:
 		return
@@ -547,6 +553,36 @@ func _spawn_junk(rng: RandomNumberGenerator) -> void:
 		for k in rng.randi_range(2, 4):
 			var p := cowshed.barn_point(i, rng)
 			_spawn_ground(ULItems.make("junk"), p, rng.randf() * TAU)
+	for p in barn_floor_loot(fr):
+		_spawn_ground(ULItems.make(String(p[1]), int(p[2])), p[0], fr.randf() * TAU)
+
+
+## Ресурсы на полу коровников (у коровника свои постройки, не ULBlock): в каждом — несколько находок по таблице
+## floor_loot.barn, сколько — floor_per_barn (data/cowshed.json). Запись: [точка, предмет, сколько, № постройки].
+func barn_floor_loot(rng: RandomNumberGenerator) -> Array:
+	var out: Array = []
+	if cowshed == null:
+		return out
+	var c := ULCowshed.cfg()
+	var tb: Array = (c.get("floor_loot", {}) as Dictionary).get("barn", [])
+	if tb.is_empty():
+		return out
+	var per: Array = c.get("floor_per_barn", [1, 3])
+	var sum := 0.0
+	for l in tb:
+		sum += float(l[3])
+	for i in cowshed.barns.size():
+		for k in rng.randi_range(int(per[0]), int(per[1])):
+			var r := rng.randf() * sum
+			var pick: Array = tb[0]
+			for l in tb:
+				r -= float(l[3])
+				if r <= 0.0:
+					pick = l
+					break
+			var p := cowshed.barn_point(i, rng)
+			out.append([p + Vector3.UP * 0.02, String(pick[0]), rng.randi_range(int(pick[1]), int(pick[2])), i])
+	return out
 
 
 ## сколько секунд осталось до перезагрузки кластера
@@ -12389,6 +12425,87 @@ func _run_test() -> void:
 		return
 	if test == "pmap":
 		await _pmap_test()
+		get_tree().quit()
+		return
+	if test == "fldiag":
+		# ресурсы на полу и свет у входов на локации (--as-place=): справка по постройкам (виды комнат, места,
+		# наружные двери) и проверки — находки в каждой постройке, предметы настоящие, лежат на земле, в другое
+		# посещение — иначе; у наружных дверей — пятна света
+		var td0 := Time.get_ticks_msec()
+		while temp() and not cs_ready and Time.get_ticks_msec() - td0 < 30000:
+			await get_tree().process_frame
+		await get_tree().create_timer(0.5).timeout
+		var fl: Array = []
+		var fl2: Array = []
+		var need_b := 0
+		var fr0 := RandomNumberGenerator.new()
+		fr0.seed = hash([cs_seed, "floor"])
+		var fr1 := RandomNumberGenerator.new()
+		fr1.seed = hash([cs_seed + 1, "floor"])
+		var ext_n := 0
+		if san != null:
+			var all_t := {}
+			for b in san.blds:
+				var by_t := {}
+				for sp in b.spots:
+					var pr := String(sp[1]).split(":")
+					var tp := pr[1] if pr.size() > 1 else "?"
+					by_t[tp] = int(by_t.get(tp, 0)) + 1
+					all_t[tp] = int(all_t.get(tp, 0)) + 1
+				var ext := 0
+				for dd in b.doors:
+					var d2 := dd as ULDoor
+					if d2.has_meta("ext") and d2.floor_i == 0 and absf(d2.center.y - san.ground_y(Vector2(d2.center.x, d2.center.z))) <= 0.9:
+						ext += 1
+				if not b.spots.is_empty():
+					need_b += 1
+				print("[fl] %s «%s»: мест %d %s, хлам-точек %d, наружных дверей у земли %d" % [b.id, b.title, b.spots.size(), str(by_t), b.junk.size(), ext])
+			print("[fl] всего по видам комнат: %s" % str(all_t))
+			# все наружные двери локации у земли (и те, что не числятся за постройкой: будки над погребами)
+			for dd in san.doors:
+				var d3 := dd as ULDoor
+				if d3.has_meta("ext") and d3.floor_i == 0 and absf(d3.center.y - san.ground_y(Vector2(d3.center.x, d3.center.z))) <= 0.9:
+					ext_n += 1
+			var miss_t := []
+			for tp in all_t:
+				if not (san.conf().get("floor_loot", {}) as Dictionary).has(tp):
+					miss_t.append(tp)
+			print("[fl] виды комнат без своей таблицы (берётся общая «*»): %s" % str(miss_t))
+			fl = san.floor_loot(fr0)
+			fl2 = san.floor_loot(fr1)
+		elif cowshed != null:
+			need_b = cowshed.barns.size()
+			fl = barn_floor_loot(fr0)
+			fl2 = barn_floor_loot(fr1)
+		var fb := {}
+		var fk := {}
+		var found := 0
+		var bad_id := []
+		for it in fl:
+			fb[str(it[3])] = int(fb.get(str(it[3]), 0)) + 1
+			fk[String(it[1])] = int(fk.get(String(it[1]), 0)) + 1
+			if ULItems.get_def(String(it[1])).is_empty():
+				bad_id.append(String(it[1]))
+			for g in ground:
+				if String(g.item.id) == String(it[1]) and (g.node as Node3D).global_position.distance_to(it[0]) < 2.6:
+					found += 1
+					break
+		print("[fl] на полу: по постройкам %s; виды %s" % [str(fb), str(fk)])
+		_ok("%s: ресурсы на полу — %d находок в %d постройках из %d, %d видов, все предметы настоящие" % [place, fl.size(), fb.size(), need_b, fk.size()], fb.size() == need_b and fl.size() >= need_b and fk.size() >= 4 and bad_id.is_empty(), str(bad_id))
+		_ok("находки лежат на земле там, где задумано: %d из %d" % [found, fl.size()], found >= fl.size() - 2)
+		var same := 0
+		for it in fl:
+			for it2 in fl2:
+				if (it[0] as Vector3).distance_to(it2[0]) < 0.05 and String(it[1]) == String(it2[1]):
+					same += 1
+					break
+		_ok("в другое посещение ресурсы лежат иначе: совпало %d из %d" % [same, fl.size()], same <= maxi(fl.size() / 3, 2))
+		if san != null:
+			var gl := san.get_node_or_null("Glows") as MultiMeshInstance3D
+			var gn := gl.multimesh.instance_count if gl != null else 0
+			var want_g: int = ext_n + (san.extra_glows() as Array).size()
+			_ok("свет у входов: пятен %d — по одному у каждой наружной двери у земли (%d) и свои у локации (%d)" % [gn, ext_n, want_g - ext_n], gn == want_g and (ext_n == 0 or san.get_node_or_null("DoorLamps") != null))
+		print("[inv] итог: ошибок %d" % _fails)
 		get_tree().quit()
 		return
 	if test == "gqview":

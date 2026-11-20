@@ -19,6 +19,7 @@ uniform sampler2D noise : filter_linear, repeat_enable;
 uniform bool has_normal = false;
 uniform bool has_second = false;
 uniform bool swap_xz = false;
+uniform bool sheet = false;           // кровля: листы профнастила — у каждого свой тон, по нахлёсту тёмная линия
 uniform float scale = 1.5;
 uniform vec4 tint : source_color = vec4(1.0);
 uniform vec4 tint2 : source_color = vec4(1.0);
@@ -44,6 +45,15 @@ void fragment() {
 	uv /= scale;
 	vec3 c = texture(albedo_tex, uv).rgb;
 	c = mix(vec3(dot(c, vec3(0.3, 0.59, 0.11))), c, sat) * tint.rgb;
+	if (sheet && an.y > 0.6) {
+		// листы 1,05 × 2,4 м со сдвигом через ряд (как на кровле построек ULBlock)
+		vec2 cell = uv * scale / vec2(1.05, 2.4);
+		cell.y += 0.5 * step(0.5, fract(floor(cell.x) * 0.5));
+		c *= mix(0.8, 1.12, texture(noise, (floor(cell) + 0.5) / 37.0).r);
+		vec2 f = fract(cell);
+		float seam = min(min(f.x, 1.0 - f.x) * 1.05, min(f.y, 1.0 - f.y) * 2.4);
+		c *= mix(0.72, 1.0, smoothstep(0.0, 0.04, seam));
+	}
 	float n = texture(noise, wpos.xz / 5.0 + vec2(wpos.y * 0.11, -wpos.y * 0.07)).r;
 	if (has_second) {
 		// второй материал пятнами (ржавчина по серому профнастилу, грязь и навоз по бетонному полу): цвет
@@ -124,6 +134,7 @@ static func make_materials(noise: Texture2D) -> Dictionary:
 			m.set_shader_parameter("second_bias", 0.06)
 			m.set_shader_parameter("metal", 0.05)
 			m.set_shader_parameter("rough", 0.86)
+			m.set_shader_parameter("sheet", true)
 		elif k == "floor":
 			# бетонный пол в навозе и соломенной трухе
 			m.set_shader_parameter("albedo2", load(T + "brown_mud_02_c.jpg"))
