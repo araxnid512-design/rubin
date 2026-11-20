@@ -117,7 +117,7 @@ func _ready() -> void:
 			sc.lottery = [sc.lottery[1], sc.lottery[1]]
 			sc.ruber_chances = [0, 0, 1]                 # и два Рубера — всего 57
 			ULSanatorium._cfg = sc
-	if test == "gqview" or test == "mapbake" or test == "pmap" or test == "fldiag" or test == "shbake" or test == "shcheck" or test == "gbake" or test == "gcheck" or test == "gperf":
+	if test == "gqview" or test == "mapbake" or test == "pmap" or test == "fldiag" or test == "shbake" or test == "shcheck" or test == "gbake" or test == "gcheck" or test == "gperf" or test == "lumtest":
 		# сравнение чёткости (gqview), запекание карты локации (mapbake), проверка карты (pmap): место — --as-place=
 		ULSettings.arena = false
 		for a in OS.get_cmdline_user_args():
@@ -1090,6 +1090,8 @@ func _env() -> void:
 			# ярче — и светлая штукатурка с бетоном «выгорают» в белое)
 			sun.light_color = Color(1.0, 0.9, 0.76)
 			e.fog_light_color = Color(0.64, 0.63, 0.57)
+	_sun_e0 = sun.light_energy
+	_sun_c0 = sun.light_color
 	# тени солнца — на всех локациях (и на базе) по настройкам графики: одна карта теней на 34 м (камера видит
 	# ~25 м; с двумя каскадами всё, что отбрасывает тень, рисовалось в карту теней дважды); на «Ультра» — мягче
 	if ULSettings.shadows() >= 1 and not arena:
@@ -4858,12 +4860,36 @@ func _foot_slide(body: CharacterBody3D, sk: Skeleton3D, sec: float) -> Array:
 ## перспективы, отвесно вниз)]. Дымка остаётся (для вида «как в игре»), кроме снимка без перспективы.
 ## запечённые тени солнца на земле — когда настоящие тени выключены (качество, подстройка): см. ULSunShadow
 func _sun_shadow_apply() -> void:
+	_sun_light_apply()
 	# --as-nobake — снимки «как было» для сравнения
 	# на базе настоящие тени мягче (shadow_opacity 0,7 против 0,78, рассеянного света больше) — и запечённые тоже
 	ULSunShadow.apply("" if arena else place, ground_size, sun != null and not sun.shadow_enabled and not OS.get_cmdline_user_args().has("--as-nobake"), 1.0 if temp() else SHADOW_HOME_K)
 
 
 const SHADOW_HOME_K := 0.72         ## сила запечённой тени на базе (во временных кластерах — 1)
+## Солнце без теней. В рендерере телефона (Compatibility) солнце с тенями рисуется отдельным проходом и
+## прибавляется к кадру уже в sRGB — кадр выходит в 1,5–1,8 раза ярче, чем то же солнце без теней (там свет
+## складывается честно). Вся игра настроена по виду с тенями, поэтому без теней (на «Низкой» и когда подстройка
+## их сняла) солнце сильнее и чуть холоднее — подобрано по кадрам (проверка lumtest --as-lumfit): разница с
+## кадром «с тенями» в среднем 1–3 % яркости вместо 30–40 %.
+const SUN_NOSHADOW_K := 1.9
+const SUN_NOSHADOW_K_HOME := 2.2
+const SUN_NOSHADOW_TINT := Color(0.95, 1.02, 1.05)
+var _sun_e0 := 0.0                   ## сила и цвет солнца по настройке локации (с тенями)
+var _sun_c0 := Color.WHITE
+
+
+func _sun_light_apply() -> void:
+	if sun == null or _sun_e0 <= 0.0:
+		return
+	if sun.shadow_enabled:
+		sun.light_energy = _sun_e0
+		sun.light_color = _sun_c0
+	else:
+		sun.light_energy = _sun_e0 * (SUN_NOSHADOW_K if temp() else SUN_NOSHADOW_K_HOME)
+		sun.light_color = _sun_c0 * SUN_NOSHADOW_TINT
+
+
 const SHADOW_CATCH := """shader_type spatial;
 render_mode ambient_light_disabled, specular_disabled, cull_disabled;
 // поверхность-«приёмник» для запекания теней: белая там, куда светит солнце, чёрная в тени
@@ -12763,6 +12789,100 @@ func _run_test() -> void:
 				e0 += absf(z0.get_pixel(x, y).r - z0.get_pixel(x + 1, y).r)
 				e1 += absf(z1.get_pixel(x, y).r - z1.get_pixel(x + 1, y).r)
 		_ok("вблизи быстрая земля не мыльная: резкость %.2f от подробной" % (e1 / maxf(e0, 0.0001)), e1 / maxf(e0, 0.0001) > 0.8 and e1 / maxf(e0, 0.0001) < 1.35)
+		print("[inv] итог: ошибок %d" % _fails)
+		get_tree().quit()
+		return
+	if test == "lumtest":
+		# яркость кадра с тенями солнца и без них (--as-place=…, --as-at=x,z): тот же кадр при разном разрешении 3D;
+		# снимки lum_<доля>_<тени>.png и средняя яркость по кадру — в журнал
+		var tl0 := Time.get_ticks_msec()
+		while temp() and not cs_ready and Time.get_ticks_msec() - tl0 < 30000:
+			await get_tree().process_frame
+		for a in OS.get_cmdline_user_args():
+			if a.begins_with("--as-at="):
+				var lxz := a.substr(8).split(",")
+				player.global_position = NavigationServer3D.map_get_closest_point(get_world_3d().navigation_map, Vector3(float(lxz[0]), 0, float(lxz[1]))) + Vector3.UP * 0.1
+		player.velocity = Vector3.ZERO
+		for e in enemies:
+			e.visible = false
+		enemies.clear()
+		targets.clear()
+		_hud.visible = false
+		await get_tree().create_timer(4.0).timeout
+		DirAccess.make_dir_recursive_absolute(out)
+		var vpl := get_viewport()
+		var lum_off := Vector3.ONE
+		if OS.get_cmdline_user_args().has("--as-lumfit"):
+			# подбор: кадр с тенями — образец; без теней — солнце и рассеянный свет с множителями (снимки lumfit_*.png)
+			var e0: float = _sun_e0
+			var a0: float = world_env.ambient_light_energy
+			var x0: float = world_env.tonemap_exposure
+			sun.shadow_enabled = true
+			_sun_shadow_apply()
+			for i in 8:
+				await get_tree().process_frame
+			await RenderingServer.frame_post_draw
+			vpl.get_texture().get_image().save_png("%s/lumfit_ref.png" % out)
+			sun.shadow_enabled = false
+			_sun_shadow_apply()
+			var gks := [1.0, 1.6, 2.0, 2.3, 2.6, 2.9, 3.3]
+			var gkx := [1.0, 1.15]
+			var gsat := [1.0]
+			for a in OS.get_cmdline_user_args():
+				if a.begins_with("--as-lumks="):
+					gks = Array(a.substr(11).split(",")).map(func(v: String) -> float: return float(v))
+				if a.begins_with("--as-lumkx="):
+					gkx = Array(a.substr(11).split(",")).map(func(v: String) -> float: return float(v))
+				if a.begins_with("--as-lumsat="):
+					gsat = Array(a.substr(12).split(",")).map(func(v: String) -> float: return float(v))
+			var gcol := ["1:1:1"]
+			for a in OS.get_cmdline_user_args():
+				if a.begins_with("--as-lumcol="):
+					gcol = Array(a.substr(12).split(","))
+			var sat0: float = world_env.adjustment_saturation
+			var c0: Color = _sun_c0
+			for ks in gks:
+				for kx in gkx:
+					for ksat in gsat:
+						for ci in gcol.size():
+							var cm: PackedStringArray = String(gcol[ci]).split(":")
+							sun.light_color = Color(c0.r * float(cm[0]), c0.g * float(cm[1]), c0.b * float(cm[2]))
+							sun.light_energy = e0 * float(ks)
+							world_env.tonemap_exposure = x0 * float(kx)
+							world_env.adjustment_saturation = sat0 * float(ksat)
+							for i in 4:
+								await get_tree().process_frame
+							await RenderingServer.frame_post_draw
+							vpl.get_texture().get_image().save_png("%s/lumfit_s%d_x%d_t%d_c%d.png" % [out, int(round(float(ks) * 100.0)), int(round(float(kx) * 100.0)), int(round(float(ksat) * 100.0)), ci])
+			sun.light_color = c0
+			print("[lum] %s: подбор снят (солнце %.2f, рассеянный %.2f, выдержка %.2f)" % [place, e0, a0, x0])
+			get_tree().quit()
+			return
+		for sc in [1.0, 0.85, 0.7]:
+			for shd in [false, true]:
+				vpl.scaling_3d_scale = sc
+				sun.shadow_enabled = shd
+				_sun_shadow_apply()
+				for i in 6:
+					await get_tree().process_frame
+				await RenderingServer.frame_post_draw
+				var im := vpl.get_texture().get_image()
+				im.save_png("%s/lum_%d_%d.png" % [out, int(round(sc * 100.0)), int(shd)])
+				var sm := Vector3.ZERO
+				var nn := 0
+				for y in range(0, im.get_height(), 8):
+					for x in range(0, im.get_width(), 8):
+						var c := im.get_pixel(x, y)
+						sm += Vector3(c.r, c.g, c.b)
+						nn += 1
+				sm /= float(nn)
+				print("[lum] %s: разрешение %d %%, тени %s: средний цвет кадра %.4f %.4f %.4f" % [place, int(round(sc * 100.0)), "есть" if shd else "нет", sm.x, sm.y, sm.z])
+				if shd:
+					# разница средних цветов кадра (0…1 по каналу): было 0,08–0,14, стало 0,01–0,02
+					var dd := (sm - lum_off).abs()
+					_ok("разрешение %d %%: кадр без теней солнца такой же яркости, как с тенями (разница по каналам %.3f %.3f %.3f)" % [int(round(sc * 100.0)), dd.x, dd.y, dd.z], maxf(dd.x, maxf(dd.y, dd.z)) < 0.03)
+				else:
+					lum_off = sm
 		print("[inv] итог: ошибок %d" % _fails)
 		get_tree().quit()
 		return

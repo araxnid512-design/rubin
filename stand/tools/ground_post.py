@@ -32,7 +32,7 @@ Image.MAX_IMAGE_PIXELS = None
 HERE = os.path.dirname(os.path.abspath(__file__))
 TEX = os.path.join(HERE, "..", "assets", "world", "tex")
 EXPOSURE = 0.5                 # world_env.tonemap_exposure в _ground_bake
-TONE_MAX = 4.0                 # наибольший хранимый тон (ULGroundBake.TONE_MAX) — менять вместе
+TONE_MAX = 2.0                 # наибольший хранимый тон (ULGroundBake.TONE_MAX) — менять вместе; шаг записи — 0,8 % яркости
 
 IMPORT = """[remap]
 
@@ -142,8 +142,9 @@ def tone(src, place, size):
     fast[bad] = np.nanmean(fast.reshape(-1, 3), axis=0)
     mean = full[~bad].mean(0)
     t = srgb(blur(full, 1.2)) / np.maximum(srgb(blur(fast, 1.2)), 1e-3)
-    # тон хранится уменьшенным вчетверо (0…4 → 0…1): шейдер умножает на TONE_MAX. Больше четырёх тон бывает
-    # только в синем канале травы, где синего почти нет, — там он срезается без вреда
+    # тон хранится вдвое уменьшенным (0…2 → 0…1): шейдер умножает на TONE_MAX. Больше двух тон бывает только в
+    # синем канале травы (около 1 % точек), где синего почти нет, — там он срезается без вреда; зато шаг записи
+    # 0,8 % яркости (при уменьшении вчетверо был 1,6 %, и мелкая подгонка яркости тонула в округлении)
     mb = save((np.clip(t / TONE_MAX, 0.0, 1.0) * 255.0 + 0.5).astype(np.uint8), "ground_%s_t.png" % place)
     warn = "" if (wmax < 0.97 and lmax < 0.985) else "  ВНИМАНИЕ: снимок на пределе яркости — цвет может быть срезан"
     print("ground_%s_t.png: %dx%d, %.2f МБ; средний цвет земли %s, тон в среднем %s, срезано (тон > %.0f): красный и зелёный %.2f %%, синий %.2f %% точек%s" % (

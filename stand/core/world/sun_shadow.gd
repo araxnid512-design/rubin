@@ -23,8 +23,9 @@ vec3 sun_shade(vec2 xz) {
 	}
 	float s = texture(sun_shadow_tex, xz / sun_shadow_size + 0.5).r;
 	// цвет полной тени подобран по кадрам сверху: земля в запечённой тени темнее освещённой во столько же раз,
-	// во сколько в настоящей тени солнца (проверка shcheck сравнивает)
-	return mix(vec3(1.0), mix(vec3(0.6, 0.64, 0.72), vec3(1.0), s), sun_shadow_k);
+	// во сколько в настоящей тени солнца (проверка shcheck сравнивает); подобран уже с усиленным солнцем
+	// «без теней» (world.gd, SUN_NOSHADOW_K)
+	return mix(vec3(1.0), mix(vec3(0.5, 0.54, 0.62), vec3(1.0), s), sun_shadow_k);
 }
 """
 const DIR := "res://assets/world/tex/"

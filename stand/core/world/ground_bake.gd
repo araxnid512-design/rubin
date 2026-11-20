@@ -19,7 +19,7 @@ extends RefCounted
 ## переводит движок уже после шейдера — поэтому все множители здесь и в ground_post.py считаются в sRGB.
 
 const DIR := "res://assets/world/tex/"
-const TONE_MAX := 4.0                      ## наибольший хранимый тон (то же число — в tools/ground_post.py)
+const TONE_MAX := 2.0                      ## наибольший хранимый тон (то же число — в tools/ground_post.py)
 
 const FAST_SHADER := """shader_type spatial;
 //#CUT
@@ -29,7 +29,7 @@ uniform sampler2D grass : source_color, filter_linear_mipmap, repeat_enable;
 uniform sampler2D forest : source_color, filter_linear_mipmap, repeat_enable;
 uniform sampler2D soil : source_color, filter_linear_mipmap, repeat_enable;
 uniform sampler2D path : source_color, filter_linear_mipmap, repeat_enable;
-uniform float tone_k = 4.0;              // тон хранится уменьшенным вчетверо (TONE_MAX)
+uniform float tone_k = 2.0;              // тон хранится вдвое уменьшенным (TONE_MAX)
 uniform float world_size = 100.0;
 uniform float path_scale = 2.6;
 uniform float micro_k = 0.4;
