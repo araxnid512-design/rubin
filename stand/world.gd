@@ -5037,7 +5037,7 @@ func _qr_test() -> void:
 	print("[inv] карьер готов через %.1f с от запуска игры" % (sn_ready_ms / 1000.0))
 	var rt_q: Dictionary = ULBase.shop().routes.get("quarry", {})
 	_ok("карьер: поле %d × %d м, вход на юго-западе у КПП, %d минут, маршрут %d споранов, опасность «%s»" % [int(size_m), int(size_z), int(c.minutes), int(rt_q.get("price", {}).get("spore", 0)), String(rt_q.get("danger", ""))],
-		size_m == 180.0 and size_z == 140.0 and place == "quarry" and ULQuarry.Q_ENTRY.x < -40.0 and ULQuarry.Q_ENTRY.z > 50.0 and int(c.minutes) == 15 and int(rt_q.get("price", {}).get("spore", 0)) == 25 and absf(_cs_end - cs_start - 900.0) < 1.0)
+		size_m == 180.0 and size_z == 140.0 and place == "quarry" and ULQuarry.Q_ENTRY.x < -40.0 and ULQuarry.Q_ENTRY.z > 50.0 and int(c.minutes) == 15 and int(rt_q.get("price", {}).get("spore", 0)) == 38 and absf(_cs_end - cs_start - 900.0) < 1.0)
 	# 3: глубина и уступы
 	var hc := ULQuarry.height(ULQuarry.PIT_C)
 	var levels := {}
@@ -9678,7 +9678,7 @@ func _lair_test() -> void:
 		by_id[b.id] = b
 	var rt_l: Dictionary = ULBase.shop().routes.lair
 	_ok("логово: поле %d×%d м, вход с юга, %d минут, маршрут %d споранов, опасность «%s»" % [int(size_m), int(size_m), int(c.minutes), int(rt_l.price.spore), String(rt_l.danger)],
-		size_m == 200.0 and place == "lair" and ULLair.L_ENTRY.z > 85.0 and int(c.minutes) == 20 and int(rt_l.price.spore) == 50 and String(rt_l.danger) == "2 уровень" and absf(_cs_end - cs_start - 1200.0) < 1.0)
+		size_m == 200.0 and place == "lair" and ULLair.L_ENTRY.z > 85.0 and int(c.minutes) == 20 and int(rt_l.price.spore) == 75 and String(rt_l.danger) == "2 уровень" and absf(_cs_end - cs_start - 1200.0) < 1.0)
 	var need := ["hq", "barracks", "warehouse", "workshop", "mess", "quarters", "shed_nw", "shed_ne", "shed_e", "container", "tent", "hut"]
 	_ok("постройки по карте: штаб, казарма, склад, мастерская, столовая, жилой блок, сараи, гараж, контейнер, палатка, будка", need.all(func(x): return by_id.has(x)), str(by_id.keys()))
 	var cpos := func(id: String) -> Vector2:
