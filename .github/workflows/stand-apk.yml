@@ -1,6 +1,7 @@
 # «Стикс: Человеческий улей»: сборка APK. Официальный Godot 4.6.3 упаковывает игру (export-pack, текстуры
 # ETC2/ASTC), Gradle собирает Android-приложение с официальной библиотекой Godot 4.6.3 (Maven Central). Готовый
-# APK — в ветке stand-apk (файл Stiks.apk; больше 95 МБ — частями Stiks.apk.part-NN) и в артефактах сборки.
+# APK — в выпуске «stiks» (прямая ссылка: releases/download/stiks/Stiks.apk), в ветке stand-apk (файл Stiks.apk;
+# больше 95 МБ — частями Stiks.apk.part-NN) и в артефактах сборки.
 # Запуск: изменить stand/tools/apk_build.txt в рабочей ветке (или вручную).
 name: 'Стикс: Человеческий улей — APK'
 
@@ -57,6 +58,20 @@ jobs:
         with:
           name: Stiks-apk
           path: Stiks.apk
+
+      # прямая ссылка для телефона (без входа в GitHub, одним файлом):
+      # https://github.com/<репозиторий>/releases/download/stiks/Stiks.apk — каждая сборка заменяет файл
+      - name: APK в выпуск «stiks»
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          R="${{ github.repository }}"
+          BN=$(grep -o 'Сборка [0-9]*' stand/tools/apk_build.txt | head -1)
+          if ! gh release view stiks --repo "$R" > /dev/null 2>&1; then
+            gh release create stiks --repo "$R" --target "${GITHUB_SHA}" --title "Стикс: Человеческий улей — APK" --notes "APK для телефона."
+          fi
+          gh release upload stiks Stiks.apk --repo "$R" --clobber
+          gh release edit stiks --repo "$R" --title "Стикс: Человеческий улей — ${BN} (${GITHUB_SHA::8})" --notes-file stand/tools/apk_build.txt
 
       - name: APK в ветку stand-apk
         run: |
