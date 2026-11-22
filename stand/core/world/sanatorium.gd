@@ -116,6 +116,7 @@ var half := 75.0
 var body: StaticBody3D
 var blds: Array[ULBlock] = []
 var barns: Array = []              ## для общего кода кластеров: по зданию {node, id, n}
+var counts := {}                   ## итог перезагрузки (ULReload): пустыши, лоторейщики, руберы; пусто — по data
 var cows: Array[Vector3] = []      ## (у коровника — останки коров; здесь не бывает)
 var fence_mid: Array[Vector3] = []
 var fence_pts: Array[Vector3] = []
@@ -1389,8 +1390,8 @@ var _yard_tags: Array[String] = []
 ## не в стене, не в мебели, на том же этаже), не ближе safe_r к воротам и не вплотную к другому врагу.
 func spawn_plan(rng: RandomNumberGenerator, snap: Callable) -> Array:
 	var c := conf()
-	var np := rng.randi_range(int(c.pustysh[0]), int(c.pustysh[1]))
-	var nl := rng.randi_range(int(c.lottery[0]), int(c.lottery[1]))
+	var np := int(counts.pustysh) if counts.has("pustysh") else rng.randi_range(int(c.pustysh[0]), int(c.pustysh[1]))
+	var nl := int(counts.lottery) if counts.has("lottery") else rng.randi_range(int(c.lottery[0]), int(c.lottery[1]))
 	var out: Array = []
 	var taken: Array[Vector3] = []
 	var safe_r := float(c.get("safe_r", 25.0))
@@ -1564,7 +1565,7 @@ static func ruber_count(rng: RandomNumberGenerator, ch: Array) -> int:
 ## коридоре, не в тесной комнате, не у стены. Далеко от ворот (ruber_safe_r) и не рядом друг с другом.
 func _plan_rubers(rng: RandomNumberGenerator, snap: Callable, pools: Dictionary, taken: Array[Vector3], out: Array) -> void:
 	var c := conf()
-	var n := ruber_count(rng, c.get("ruber_chances", [1, 0, 0]))
+	var n := int(counts.ruber) if counts.has("ruber") else ruber_count(rng, c.get("ruber_chances", [1, 0, 0]))
 	if n <= 0:
 		return
 	_extra_pools(pools)

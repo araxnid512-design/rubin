@@ -117,7 +117,7 @@ func _ready() -> void:
 			sc.lottery = [sc.lottery[1], sc.lottery[1]]
 			sc.ruber_chances = [0, 0, 1]                 # и два Рубера — всего 57
 			ULSanatorium._cfg = sc
-	if test == "gqview" or test == "mapbake" or test == "pmap" or test == "fldiag" or test == "shbake" or test == "shcheck" or test == "gbake" or test == "gcheck" or test == "gperf" or test == "lumtest" or test == "wperf" or test == "evo":
+	if test == "gqview" or test == "mapbake" or test == "pmap" or test == "fldiag" or test == "shbake" or test == "shcheck" or test == "gbake" or test == "gcheck" or test == "gperf" or test == "lumtest" or test == "wperf" or test == "evo" or test == "reload":
 		# сравнение чёткости (gqview), запекание карты локации (mapbake), проверка карты (pmap): место — --as-place=
 		ULSettings.arena = false
 		for a in OS.get_cmdline_user_args():
@@ -328,6 +328,7 @@ var cowshed: ULCowshed
 var size_m := SIZE
 var size_z := SIZE                      ## поле по z (у карьера 140 м при 180 м по x); выход — за край по своей стороне
 var cs_seed := 0                  ## случайность этого посещения (останки коров, враги)
+var reload_info := {}             ## итог перезагрузки кластера на этой локации (ULReload): люди, пустыши, лоторейщики, руберы
 var cs_plan: Array = []           ## кто и где появился в этот раз
 var _cs_end := 0.0                ## когда кластер перезагрузится (unix-время, с)
 var cs_start := 0.0               ## когда начато посещение
@@ -489,6 +490,20 @@ func _cowshed_enter() -> void:
 			break
 	var snap := func(p: Vector3) -> Vector3:
 		return NavigationServer3D.map_get_closest_point(map, p)
+	# кто сейчас на локации — итог перезагрузки кластера (ULReload): по маршруту — тот, что был виден в компьютере
+	# базы; без маршрута (тест уровня) — свой розыгрыш. В проверках локаций — прежние промежутки из data
+	reload_info = {}
+	if ULReload.has_place(place) and (test == "" or test == "reload"):
+		if test == "" and not lvl and ULBase.route_state(place) != "":
+			reload_info = ULBase.reload_of(place)
+		else:
+			var rr := RandomNumberGenerator.new()
+			for kk in 400:
+				rr.seed = hash([cs_seed, "reload", kk])
+				reload_info = ULReload.roll(place, rr)
+				if test != "reload" or int(reload_info.ruber) > 0:
+					break                           # проверка: розыгрыш, где есть и рубер — его тоже надо поставить
+		zone.counts = reload_info
 	cs_plan = zone.spawn_plan(rng, snap)
 	if place == "quarry":
 		_ground_reachable(snap)
@@ -6461,6 +6476,97 @@ func _wait_drawn() -> void:
 ## «Опасный коровник» (--as-test=cs; --as-out=папка — снимки): размер, коровники и останки коров, сколько врагов
 ## и где, разные посещения, враги видят и бьют, таймер 10:00, уход за край с добычей, перезагрузка кластера с
 ## потерей того, что при себе (вещи базы целы), маршрут после посещения закрыт и покупается снова.
+## Перезагрузка кластера (ULReload): на базе — розыгрыш (люди → пустыши → лоторейщики → руберы) сходится,
+## разный от раза к разу, обновление маршрутов разыгрывает заново, купленный маршрут сохраняет своё, карточка
+## в компьютере показывает точные числа; на локации (--as-place=…) — ровно столько врагов каждого вида
+func _reload_test() -> void:
+	if temp():
+		var t0 := Time.get_ticks_msec()
+		while not cs_ready and Time.get_ticks_msec() - t0 < 20000:
+			await get_tree().process_frame
+		var cnt := {"infected": 0, "lottery": 0, "ruber": 0}
+		for e in enemies:
+			cnt[e.kind] = int(cnt.get(e.kind, 0)) + 1
+		print("[reload] %s: %s → на локации %s" % [place, ULReload.story(reload_info), str(cnt)])
+		_ok("%s: на локации ровно по итогу перезагрузки — пустышей %d, лоторейщиков %d, руберов %d" % [place, int(reload_info.pustysh), int(reload_info.lottery), int(reload_info.ruber)],
+			cs_ready and int(cnt.infected) == int(reload_info.pustysh) and int(cnt.lottery) == int(reload_info.lottery) and int(cnt.ruber) == int(reload_info.ruber), str(cnt))
+		var far := true
+		for e in enemies:
+			if e.kind == "ruber" and e.global_position.distance_to(zone_entry()) < 40.0:
+				far = false
+		_ok("руберы далеко от входа", far and int(reload_info.ruber) > 0)
+		_test_done()
+		return
+	await get_tree().create_timer(0.3).timeout
+	var R := ULReload
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 777
+	for id in ["cowshed", "sanatorium", "convoy", "khutor", "quarry"]:
+		var pc: Dictionary = R.cfg().places[id]
+		var ok := true
+		var combos := {}
+		var lo := {"pustysh": 999, "lottery": 999, "ruber": 999, "people": 999}
+		var hi := {"pustysh": 0, "lottery": 0, "ruber": 0, "people": 0}
+		var with_r := 0
+		for k in 2000:
+			var c := R.roll(id, rng)
+			var n := int(c.people)
+			ok = ok and n >= int(pc.people[0]) and n <= int(pc.people[1])
+			ok = ok and int(c.infected) == roundi(n * 0.7)
+			ok = ok and int(c.pustysh) + int(c.lottery) + int(c.ruber) == int(c.infected)
+			ok = ok and int(c.lottery) + int(c.ruber) == int(c.eaten) and int(c.ruber) == int(c.killed)
+			ok = ok and int(c.eaten) + int(c.killed) + int(c.hid) == n - int(c.infected)
+			ok = ok and int(c.ruber) <= int(pc.ruber_max) and int(c.pustysh) >= 0 and int(c.lottery) >= 0
+			combos["%d/%d/%d" % [int(c.pustysh), int(c.lottery), int(c.ruber)]] = true
+			for key in lo:
+				lo[key] = mini(int(lo[key]), int(c[key]))
+				hi[key] = maxi(int(hi[key]), int(c[key]))
+			if int(c.ruber) > 0:
+				with_r += 1
+		print("[reload] %s: людей %d–%d, пустышей %d–%d, лоторейщиков %d–%d, руберов %d–%d (есть рубер в %.0f %% перезагрузок), разных итогов %d" % [id, lo.people, hi.people, lo.pustysh, hi.pustysh, lo.lottery, hi.lottery, lo.ruber, hi.ruber, with_r / 20.0, combos.size()])
+		_ok("%s: 70 %% людей — сразу пустыши, съеденные → лоторейщики, убитые лоторейщиками → руберы, остальные спрятались; всё сходится (2000 перезагрузок)" % id, ok)
+		_ok("%s: каждая перезагрузка — своя картина (%d разных итогов)" % [id, combos.size()], combos.size() > 60 and int(hi.lottery) > int(lo.lottery) + 3)
+	var st := R.story({"people": 52, "infected": 36, "eaten": 7, "killed": 1, "hid": 8, "pustysh": 29, "lottery": 6, "ruber": 1})
+	_ok("описание: «Перенесло 52 человека: 36 сразу заражены; 7 съедены пустышами…; 1 убит лотерейщиком…; 8 спрятались»", st.begins_with("Перенесло 52 человека: 36 сразу заражены; 7 съедены") and st.contains("1 убит лотерейщиком — тот стал рубером") and st.contains("8 спрятались"), st)
+	var st1 := R.story({"people": 21, "infected": 15, "eaten": 1, "killed": 0, "hid": 5, "pustysh": 14, "lottery": 1, "ruber": 0})
+	_ok("в единственном числе: «21 человека», «1 съеден пустышом»", st1.begins_with("Перенесло 21 человека: 15 сразу заражены; 1 съеден пустышом — тот отъелся в лотерейщика; 5 спрятались"), st1)
+	# компьютер базы: обновление маршрутов разыгрывает заново; купленный маршрут — как был
+	ULBase.reload_seed = 4321
+	ULBase.data.erase("routes_next")
+	ULBase.data.reload = {}
+	var now := int(Time.get_unix_time_from_system())
+	ULBase.routes_tick(now)
+	var have := true
+	for id in ["cowshed", "sanatorium", "convoy", "khutor", "quarry"]:
+		have = have and (ULBase.data.reload as Dictionary).has(id)
+	_ok("при первом обновлении маршрутов разыграно для всех пяти кластеров (логово муров — нет)", have and not (ULBase.data.reload as Dictionary).has("lair"))
+	var cw0: Dictionary = ULBase.reload_of("cowshed").duplicate()
+	var sn0: Dictionary = ULBase.reload_of("sanatorium").duplicate()
+	_ok("пока маршруты не обновились — итог тот же", ULBase.reload_of("cowshed") == cw0)
+	ULBase.set_route("sanatorium", "bought")
+	var changed := 0
+	for i in 6:
+		var nxt := int(ULBase.data.routes_next)
+		ULBase.routes_tick(nxt + 1)
+		if ULBase.reload_of("cowshed") != cw0:
+			changed += 1
+		cw0 = ULBase.reload_of("cowshed").duplicate()
+	_ok("каждое обновление маршрутов — новая картина в коровнике (%d из 6 раз другая)" % changed, changed >= 5)
+	_ok("у купленного маршрута (санаторий) картина не меняется до посещения", ULBase.reload_of("sanatorium") == sn0)
+	ULBase.set_route("sanatorium", "")
+	# карточка маршрута: точные числа
+	ULBase.data.offers = ["cowshed", "sanatorium", "convoy"]
+	ULBase.data.routes_next = int(Time.get_unix_time_from_system()) + ULBase.refresh_period()
+	var rc := ULBase.reload_of("cowshed")
+	open_terminal()
+	await get_tree().process_frame
+	var card: Node = _term_ui.find_child("route_cowshed", true, false)
+	_ok("карточка коровника в компьютере: «Пустыши %d», «Лоторейщики %d», «Руберы %d» — без «случайно»" % [int(rc.pustysh), int(rc.lottery), int(rc.ruber)],
+		card != null and _find_label(card, "Пустыши %d" % int(rc.pustysh)) != null and _find_label(card, "Лоторейщики %d" % int(rc.lottery)) != null and _find_label(card, "Руберы %d" % int(rc.ruber)) != null and not str(card.find_children("*", "Label", true, false).map(func(l): return l.text)).contains("случайно"))
+	await _snap("pc_routes_reload")
+	_test_done()
+
+
 func _test_done() -> void:
 	print("[inv] итог: ошибок %d" % _fails)
 	get_tree().quit()
@@ -13190,6 +13296,9 @@ func _run_test() -> void:
 		return
 	if test == "evo":
 		await _evo_test()
+		return
+	if test == "reload":
+		await _reload_test()
 		return
 	if test == "gifts":
 		await _gifts_test()

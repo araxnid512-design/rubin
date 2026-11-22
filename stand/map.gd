@@ -301,6 +301,10 @@ func select(id: String) -> void:
 		var r: Dictionary = ULBase.shop().get("routes", {}).get(id, {})
 		p_d.text = String(r.get("d", p_d.text))
 		p_x.text = "Опасность: %s\nВремя пребывания: %d минут · маршрут на одно посещение" % [String(r.get("danger", "высокая")).to_lower(), int(r.get("minutes", 10))]
+		var rl := ULBase.reload_of(id)
+		if not rl.is_empty():
+			p_x.text += "\nПосле перезагрузки: пустышей %d, лоторейщиков %d, руберов %d" % [int(rl.pustysh), int(rl.lottery), int(rl.ruber)]
+			p_d.text += "\n" + ULReload.story(rl)
 	tw.tween_method(_panel_x, panel.offset_left, 12.0, 0.25).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 	note.text = "«Войти» — зайти на локацию"
 

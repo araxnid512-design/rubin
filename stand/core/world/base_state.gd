@@ -30,6 +30,9 @@ static func load_state(force := false) -> void:
 			data[k] = {}
 	if not (data.get("offers") is Array):
 		data["offers"] = []
+	# что сейчас на каждой локации после перезагрузки кластера (ULReload): разыгрывается при обновлении маршрутов
+	if not (data.get("reload") is Dictionary):
+		data["reload"] = {}
 	# какие локации компьютер уже знает: новая (пришла с обновлением игры) сразу попадает в набор
 	if not (data.get("seen") is Array):
 		data["seen"] = (data.offers as Array).duplicate() if not (data.offers as Array).is_empty() else route_pool()
@@ -275,6 +278,7 @@ static func routes_tick(now := -1) -> int:
 		# первый запуск, или часы устройства отведены назад больше чем на период
 		nxt = now + per
 		data.offers = _roll_offers()
+		_reroll_all()
 		dirty = true
 	elif now >= nxt:
 		# сброс: новый набор локаций (купленные и не пройденные маршруты остаются — см. routes_listed)
@@ -282,6 +286,7 @@ static func routes_tick(now := -1) -> int:
 		data.offers = _roll_offers(data.offers)
 		data.refreshes = int(data.get("refreshes", 0)) + 1
 		data.done = []                          # пройденные снова доступны (если попали в новый набор)
+		_reroll_all()                           # кластеры перезагрузились: на каждой локации — новые люди и твари
 		dirty = true
 	var fixed := _fix_offers(data.offers)
 	if fixed != data.offers:
@@ -309,6 +314,40 @@ static func routes_tick(now := -1) -> int:
 
 ## посещение, прерванное закрытием игры (маршрут «active», а герой не на локации), считается законченным:
 ## маршрут закрыт. Вызывается с карты мира и из главного меню.
+## Что сейчас на локации после перезагрузки (ULReload.roll): нет записи — разыгрывается сразу
+static func reload_of(id: String) -> Dictionary:
+	load_state()
+	if not ULReload.has_place(id):
+		return {}
+	var r = data.reload.get(id)
+	if not (r is Dictionary) or not r.has("pustysh"):
+		r = ULReload.roll(id, _reload_rng())
+		data.reload[id] = r
+		save_state()
+	return r
+
+
+static var reload_seed := 0               ## проверки: своя случайность розыгрыша (0 — случайная)
+static var _rr: RandomNumberGenerator
+
+
+static func _reload_rng() -> RandomNumberGenerator:
+	if _rr == null:
+		_rr = RandomNumberGenerator.new()
+		if reload_seed != 0:
+			_rr.seed = reload_seed
+		else:
+			_rr.randomize()
+	return _rr
+
+
+## перезагрузка всех кластеров: новый розыгрыш везде, кроме купленных и идущих маршрутов (там — как было)
+static func _reroll_all() -> void:
+	for id in route_pool():
+		if ULReload.has_place(String(id)) and route_state(String(id)) == "":
+			data.reload[String(id)] = ULReload.roll(String(id), _reload_rng())
+
+
 static func close_interrupted() -> void:
 	load_state()
 	for id in data.routes.keys():

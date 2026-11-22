@@ -683,6 +683,11 @@ func _route_card(id: String, d: Dictionary, compact := false, dense := false) ->
 	if d.has("icon"):
 		(th.get_child(0) as Control).custom_minimum_size = Vector2.ONE * (20 if dense else 28) * K
 	th.add_child(_lbl(String(d.n), 15 if dense else (17 if compact else 19), Color(0.97, 0.97, 0.94), true))
+	if dense and ULReload.has_place(id):
+		# плотная карточка: сколько людей перенесла перезагрузка — рядом с названием (числа тварей — ниже)
+		var pl := _lbl("· людей %d" % int(ULBase.reload_of(id).get("people", 0)), 11, Color(0.75, 0.78, 0.8))
+		pl.name = "People"
+		th.add_child(pl)
 	if d.has("danger") and String(d.kind) == "Вражеский стаб":
 		# вражеский стаб: красная плашка опасности (как на макете)
 		var dg := _lbl("⚠ Опасность: " + String(d.danger), 10 if dense else 12, Color(1.0, 0.82, 0.78), true)
@@ -700,13 +705,21 @@ func _route_card(id: String, d: Dictionary, compact := false, dense := false) ->
 	var stats := [["st_size", "Размер: %d × %d м" % [size, size_z]], ["st_time", "Время на локации: %d мин" % int(d.get("minutes", 10))]]
 	if dense:
 		stats = [["st_size", "%d × %d м" % [size, size_z]], ["st_time", "%d мин" % int(d.get("minutes", 10))]]
-	if cs.has("pustysh"):
+	var rl := ULBase.reload_of(id)
+	if not rl.is_empty():
+		# после перезагрузки кластера (ULReload): сколько людей перенесло и кем они стали — до следующего обновления
+		if not dense:
+			stats.append(["st_skull", "Перенесло людей: %d" % int(rl.people)])          # плотная карточка — две строки, как была
+		stats.append(["st_skull", ("Пустыши %d" if dense else "Пустыши: %d") % int(rl.pustysh)])
+		stats.append(["st_claw", ("Лоторейщики %d" if dense else "Лоторейщики: %d") % int(rl.lottery)])
+		stats.append(["st_claw", ("Руберы %d" if dense else "Руберы: %d") % int(rl.ruber)])
+	elif cs.has("pustysh"):
 		stats.append(["st_skull", ("Пустыши %d–%d" if dense else "Пустыши: %d – %d (случайно)") % [int(cs.pustysh[0]), int(cs.pustysh[1])]])
 		stats.append(["st_claw", ("Лоторейщики %d–%d" if dense else "Лоторейщики: %d – %d (случайно)") % [int(cs.lottery[0]), int(cs.lottery[1])]])
 	if cs.has("murs"):
 		stats.append(["st_skull", ("Муры %d–%d" if dense else "Муры (люди): %d – %d (бойцы)") % [int(cs.murs[0]), int(cs.murs[1])]])
 		stats.append(["st_claw", "Патрули, снайперы" if dense else "Патрули и снайперы: есть"])
-	if cs.has("ruber_chances"):
+	if cs.has("ruber_chances") and rl.is_empty():
 		var rmax := (cs.ruber_chances as Array).size() - 1
 		stats.append(["st_skull", ("Руберы 0–%d" if dense else "Руберы: 0 – %d (%s)") % ([rmax] if dense else [rmax, "шанс" if rmax == 1 else "случайно"])])
 	if not ULBase.has_map(id):
@@ -725,6 +738,10 @@ func _route_card(id: String, d: Dictionary, compact := false, dense := false) ->
 		grid.add_child(sh)
 		sh.add_child(_ico(String(s[0]), 13 if compact else 16))
 		sh.add_child(_lbl(String(s[1]), 10 if compact else 12, C_TEXT))
+	if not rl.is_empty() and not dense:
+		var stl := _lbl(ULReload.story(rl), 10 if compact else 11, Color(1.0, 0.82, 0.55), false, true)
+		stl.name = "ReloadStory"
+		tv.add_child(stl)
 	var mv := VBoxContainer.new()
 	mv.add_theme_constant_override("separation", 2)
 	h.add_child(mv)

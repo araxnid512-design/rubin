@@ -91,6 +91,7 @@ var half := 75.0
 var body: StaticBody3D
 var barns: Array = []              ## постройки: {b (ULFarmBuilding), node, roof, front, half, xf, xi, id, n}
 var cows: Array[Vector3] = []
+var counts := {}                   ## итог перезагрузки (ULReload): сколько пустышей, лоторейщиков, руберов; пусто — по data
 var fence_mid: Array[Vector3] = []
 var fence_pts: Array[Vector3] = []
 var wood_pts: Array[Vector3] = []
@@ -1005,8 +1006,8 @@ func _dirty(m: Node3D, key: String, col := Color(0, 0, 0, 0)) -> void:
 ## safe_r к входу и не вплотную к другому врагу. Возвращает [[вид, точка], …].
 func spawn_plan(rng: RandomNumberGenerator, snap: Callable) -> Array:
 	var c := cfg()
-	var np := rng.randi_range(int(c.pustysh[0]), int(c.pustysh[1]))
-	var nl := rng.randi_range(int(c.lottery[0]), int(c.lottery[1]))
+	var np := int(counts.pustysh) if counts.has("pustysh") else rng.randi_range(int(c.pustysh[0]), int(c.pustysh[1]))
+	var nl := int(counts.lottery) if counts.has("lottery") else rng.randi_range(int(c.lottery[0]), int(c.lottery[1]))
 	var kinds: Array = []
 	for i in np:
 		kinds.append("infected")
@@ -1053,4 +1054,55 @@ func spawn_plan(rng: RandomNumberGenerator, snap: Callable) -> Array:
 			break
 		if not placed:
 			push_warning("коровник: для врага не нашлось места")
+	_plan_rubers(rng, snap, taken, out, int(counts.get("ruber", 0)))
 	return out
+
+
+## Руберы (если лоторейщики убили людей — ULReload): во дворах между постройками (DANGER) и в поле, не в
+## постройке, далеко от входа (ruber_safe_r) и друг от друга; вокруг точки свободно на метр (восемь проб на карте
+## проходимости) — большому телу хватает места, камень есть где вырвать
+func _plan_rubers(rng: RandomNumberGenerator, snap: Callable, taken: Array[Vector3], out: Array, n: int) -> void:
+	var safe_r := float(cfg().get("ruber_safe_r", 45.0))
+	var mine: Array[Vector3] = []
+	for i in n:
+		var placed := false
+		for attempt in 160:
+			var p: Vector3
+			if rng.randf() < 0.6:
+				var dz: Array = DANGER[rng.randi() % DANGER.size()]
+				var a := rng.randf() * TAU
+				p = (dz[0] as Vector3) + Vector3(cos(a) * (dz[1] as Vector2).x, 0, sin(a) * (dz[1] as Vector2).y) * sqrt(rng.randf())
+			else:
+				p = Vector3(rng.randf_range(-62.0, 62.0), 0, rng.randf_range(-62.0, 40.0))
+			if p.distance_to(ENTRY) < safe_r or in_barn(p, 2.0) >= 0:
+				continue
+			var q: Vector3 = snap.call(p)
+			if Vector2(q.x - p.x, q.z - p.z).length() > 0.3:
+				continue
+			var open := true
+			for k in 8:
+				var o := q + Vector3(cos(k * TAU / 8.0), 0, sin(k * TAU / 8.0)) * 1.0
+				var oq: Vector3 = snap.call(o)
+				if Vector2(oq.x - o.x, oq.z - o.z).length() > 0.25:
+					open = false
+					break
+			if not open:
+				continue
+			var near := false
+			for t in taken:
+				if t.distance_to(q) < 2.5:
+					near = true
+					break
+			for t in mine:
+				if t.distance_to(q) < 25.0:
+					near = true
+					break
+			if near:
+				continue
+			mine.append(q)
+			taken.append(q)
+			out.append(["ruber", Vector3(q.x, 0, q.z)])
+			placed = true
+			break
+		if not placed:
+			push_warning("коровник: для Рубера не нашлось места")
