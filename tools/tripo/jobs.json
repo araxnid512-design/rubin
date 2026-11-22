@@ -1,6 +1,51 @@
 {
- "stop": true,
- "jobs": [],
+ "stop": false,
+ "jobs": [
+  {
+   "id": "q_zombie_hd",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "ul_zombie_hd",
+    "--image",
+    "tools/tripo/refs/zombie.png",
+    "--faces",
+    "10000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--rig",
+    "biped",
+    "--prompt",
+    "gaunt infected zombie man, torn dirty clothes, pale grey cracked skin, dark veins, sunken eyes, hunched, bare forearms, full body, game character"
+   ],
+   "timeout": 3600
+  },
+  {
+   "id": "q_lottery_hd",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "ul_lottery_hd",
+    "--image",
+    "tools/tripo/refs/lottery.png",
+    "--faces",
+    "10000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--rig",
+    "biped",
+    "--prompt",
+    "mutated infected creature, lean muscular body, elongated clawed fingers, torn skin with exposed sinew, ragged clothes remnants, full body, game character"
+   ],
+   "timeout": 3600
+  }
+ ],
  "archived": [
   "bs_hero",
   "bs_hero_suit",
