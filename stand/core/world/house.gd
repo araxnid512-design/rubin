@@ -191,6 +191,14 @@ func _bunker_shell(noise: Texture2D) -> Node3D:
 	var body := StaticBody3D.new()
 	body.name = "BunkerBody"
 	add_child(body)
+	# столкновения по наружной грани бетона (раньше стены держали только внутренние стены дома — бетон снаружи
+	# толще на 0,23 м, и герой «входил» в него): три глухие стены, фасад по обе стороны проёма, пилоны портала
+	_box_col(body, Vector3(W + B_T * 2.0, B_WALL_H, B_T), Vector3(0, B_WALL_H * 0.5, -hd - B_T * 0.5 + 0.11))
+	_box_col(body, Vector3(B_T, B_WALL_H, D + B_T * 2.0), Vector3(-hw - B_T * 0.5 + 0.11, B_WALL_H * 0.5, 0))
+	_box_col(body, Vector3(B_T, B_WALL_H, D + B_T * 2.0), Vector3(hw + B_T * 0.5 - 0.11, B_WALL_H * 0.5, 0))
+	for sx in [-1.0, 1.0]:
+		_box_col(body, Vector3(fw, B_WALL_H, B_T), Vector3(sx * (dw * 0.5 + fw * 0.5), B_WALL_H * 0.5, hd + B_T * 0.5 - 0.11))
+		_box_col(body, Vector3(0.4, 2.55, 0.9), Vector3(sx * (dw * 0.5 + 0.2), 1.275, hd + 0.5))
 	var bags: Array[Transform3D] = []
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 77

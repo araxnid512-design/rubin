@@ -26,8 +26,7 @@
   "gunsmith": {
    "n": "Оружейник",
    "price": {
-    "pea": 30,
-    "spore": 50
+    "pea": 2
    },
    "pic": "res://assets/ui/pc_gunsmith.jpg",
    "icon": "ammo",

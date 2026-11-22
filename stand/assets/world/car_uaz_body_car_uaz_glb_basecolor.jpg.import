@@ -2,21 +2,21 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://xc7f8abl1oao"
-path.s3tc="res://.godot/imported/car_uaz_car_uaz_glb_normal.png-301bbf37f50487ece05492efa6679b1c.s3tc.ctex"
-path.etc2="res://.godot/imported/car_uaz_car_uaz_glb_normal.png-301bbf37f50487ece05492efa6679b1c.etc2.ctex"
+uid="uid://b4i81bhaak7ae"
+path.s3tc="res://.godot/imported/car_uaz_body_car_uaz_glb_basecolor.jpg-4ad67a642aed3429ac127e219aba39e8.s3tc.ctex"
+path.etc2="res://.godot/imported/car_uaz_body_car_uaz_glb_basecolor.jpg-4ad67a642aed3429ac127e219aba39e8.etc2.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 generator_parameters={
-"md5": "0fb972df14d9f0d4c81fe9b498ffc685"
+"md5": "cf366d9921e98e5999a58df0b6f4028f"
 }
 
 [deps]
 
-source_file="res://assets/world/car_uaz_car_uaz_glb_normal.png"
-dest_files=["res://.godot/imported/car_uaz_car_uaz_glb_normal.png-301bbf37f50487ece05492efa6679b1c.s3tc.ctex", "res://.godot/imported/car_uaz_car_uaz_glb_normal.png-301bbf37f50487ece05492efa6679b1c.etc2.ctex"]
+source_file="res://assets/world/car_uaz_body_car_uaz_glb_basecolor.jpg"
+dest_files=["res://.godot/imported/car_uaz_body_car_uaz_glb_basecolor.jpg-4ad67a642aed3429ac127e219aba39e8.s3tc.ctex", "res://.godot/imported/car_uaz_body_car_uaz_glb_basecolor.jpg-4ad67a642aed3429ac127e219aba39e8.etc2.ctex"]
 
 [params]
 

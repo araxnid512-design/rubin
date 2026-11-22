@@ -140,7 +140,7 @@ func _ready() -> void:
 			sc.lottery = [sc.lottery[1], sc.lottery[1]]
 			sc.ruber_chances = [0, 0, 1]                 # и два Рубера — всего 57
 			ULSanatorium._cfg = sc
-	if test == "gqview" or test == "mapbake" or test == "pmap" or test == "fldiag" or test == "shbake" or test == "shcheck" or test == "gbake" or test == "gcheck" or test == "gperf" or test == "lumtest" or test == "wperf" or test == "evo" or test == "reload" or test == "look" or test == "traces" or test == "car":
+	if test == "gqview" or test == "mapbake" or test == "pmap" or test == "fldiag" or test == "shbake" or test == "shcheck" or test == "gbake" or test == "gcheck" or test == "gperf" or test == "lumtest" or test == "wperf" or test == "evo" or test == "reload" or test == "look" or test == "traces" or test == "car" or test == "colaudit":
 		# сравнение чёткости (gqview), запекание карты локации (mapbake), проверка карты (pmap): место — --as-place=
 		ULSettings.arena = false
 		for a in OS.get_cmdline_user_args():
@@ -2068,6 +2068,14 @@ func _base_props() -> void:
 			(gi as GeometryInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 			(gi as GeometryInstance3D).lod_bias = 0.35
 		var bb := _aabb(n)
+		# не в бетоне бункера: бетон выступает за линию стен на 0,34 м — вещь отодвигается от него наружу
+		var sh := Rect2(HOUSE_AT.x - hw - 0.38, HOUSE_AT.z - hd - 0.38, (hw + 0.38) * 2.0, (hd + 0.38) * 2.0)
+		var br := Rect2(bb.position.x, bb.position.z, bb.size.x, bb.size.z)
+		if sh.intersects(br):
+			var push := [Vector2(sh.end.x - br.position.x, 0), Vector2(sh.position.x - br.end.x, 0), Vector2(0, sh.end.y - br.position.y), Vector2(0, sh.position.y - br.end.y)]
+			push.sort_custom(func(a, b): return (a as Vector2).length() < (b as Vector2).length())
+			n.position += Vector3(push[0].x, 0, push[0].y)
+			bb = _aabb(n)
 		var cs := CollisionShape3D.new()
 		var bs := BoxShape3D.new()
 		bs.size = Vector3(maxf(bb.size.x * 0.9, 0.3), maxf(bb.size.y, 0.6), maxf(bb.size.z * 0.9, 0.3))
@@ -9410,8 +9418,8 @@ func _kh_test() -> void:
 	get_tree().quit()
 
 
-## Базовый компьютер (--as-test=pc; с --as-out=папка — ещё снимки экрана): пять ресурсов, оружейник за 30 гороха
-## и 50 споранов, отказ при нехватке, однократная установка, маршрут за 10 споранов, таймер новых маршрутов,
+## Базовый компьютер (--as-test=pc; с --as-out=папка — ещё снимки экрана): пять ресурсов, оружейник за 2 горошины
+## (стартовые 50 споранов меняются на них), отказ при нехватке, однократная установка, маршрут за 10 споранов, таймер новых маршрутов,
 ## обмен по всей цепочке в обе стороны, окно «Купить/Продать», защита от двойного нажатия, сохранение и загрузка.
 func _pc_test() -> void:
 	var E := ULEconomy
@@ -9469,24 +9477,25 @@ func _pc_test() -> void:
 		await get_tree().create_timer(0.3).timeout
 		await _snap("pc_main")
 	# --- оружейник ---
-	inv.wallet.pea = 10
+	inv.wallet.pea = 1
 	inv.changed.emit()
 	pc.ask_upgrade("gunsmith")
-	_ok("не хватает гороха: предупреждение и недостача (20 горошин), ничего не списано", pc.dialog_text().contains("20 горошин") and int(inv.wallet.pea) == 10 and int(inv.wallet.spore) == 130 and not ULBase.installed("gunsmith"), pc.dialog_text().replace("\n", " / "))
+	_ok("не хватает гороха: предупреждение и недостача (1 горошина), ничего не списано", pc.dialog_text().contains("1 горошин") and int(inv.wallet.pea) == 1 and int(inv.wallet.spore) == 130 and not ULBase.installed("gunsmith"), pc.dialog_text().replace("\n", " / "))
 	if out != "":
 		await _snap("pc_nomoney")
 	pc.dialog_close()
 	var r0 := ULBase.buy_upgrade(inv, "gunsmith")
-	_ok("покупка без ресурсов отклонена логикой (не только окном)", not r0.ok and r0.err == "money" and int((r0.miss as Dictionary).get("pea", 0)) == 20)
+	_ok("покупка без ресурсов отклонена логикой (не только окном)", not r0.ok and r0.err == "money" and int((r0.miss as Dictionary).get("pea", 0)) == 1)
 	inv.wallet.pea = 42
+	inv.wallet.spore = 80
 	inv.changed.emit()
 	pc.ask_upgrade("gunsmith")
-	_ok("хватает: окно подтверждения с ценой (30 горошин, 50 споранов)", pc.dialog_text().contains("30 горошин") and pc.dialog_text().contains("50 споранов"))
+	_ok("хватает: окно подтверждения с ценой 2 горошины (стартовые 50 споранов меняются на них в «Обмене»)", pc.dialog_text().contains("2 горошины") and not pc.dialog_text().contains("споран"))
 	if out != "":
 		await _snap("pc_confirm")
 	pc.dialog_confirm()
 	pc.dialog_confirm()                     # второе нажатие — окна уже нет
-	_ok("оружейник куплен один раз: горох 42 → 12, спораны 130 → 80", int(inv.wallet.pea) == 12 and int(inv.wallet.spore) == 80, str(inv.wallet))
+	_ok("оружейник куплен один раз: горох 42 → 40, спораны не тронуты", int(inv.wallet.pea) == 40 and int(inv.wallet.spore) == 80, str(inv.wallet))
 	_ok("оружейник установлен и встал за прилавок оружейной", ULBase.installed("gunsmith") and ULBase.has_staff("gunsmith") and npc_by_role("оружейник") != null and npcs.size() == 2 and npc_by_role("оружейник").global_position.distance_to(house.to_global(ARMORY_NPC)) < 0.3)
 	_ok("после покупки в кладовой появилась вся оружейная (прилавок, шкафы, оружие)", _armory_root != null and _armory_root.get_child_count() > 10)
 	var gb := pc.find_child("up_gunsmith", true, false).find_child("buy", true, false) as Button
@@ -14062,6 +14071,8 @@ func _run_test() -> void:
 		return
 	if test == "garage":
 		await _garage_test()
+	if test == "colaudit":
+		await _colaudit_test()
 		return
 	if test == "setshot":
 		# снимок окна настроек (строка о разрешении экрана и подстройке)
@@ -17290,6 +17301,7 @@ func _garage_test() -> void:
 	_ok("9. каждая деталь на 1 уровень за горох 3 + 5 + 6 + 4 + 7 = %d" % paid, paid == 25 and ULCar.PARTS.all(func(k): return ULGarageOps.lvl(cd, k) == 1))
 	_ok("10. характеристики выросли: прочность 1250, 70 км/ч, багажник 40 ячеек", is_equal_approx(float(st.hp_max), 1250.0) and is_equal_approx(float(st.hp), 1250.0) and int(st.kmh) == 70 and int(st.cells) == 40 and (cd.trunk as Array).size() == 40)
 	_ok("11. вид машины изменился: колёса крупнее (кузов выше), бампер, листы на кузове, ящик на задней двери", car._wheels[0].r > r0 + 0.005 and car.parts_n.get_child_count() > nodes0 + 4 and car.body.position.y > 0.005, "колесо %.3f → %.3f м, деталей %d → %d" % [r0, float(car._wheels[0].r), nodes0, car.parts_n.get_child_count()])
+	inv.wallet["pea"] = 500
 	for k in ULCar.PARTS:
 		for i in 2:
 			ui._do_upgrade(k)
@@ -17401,22 +17413,29 @@ func _garage_test() -> void:
 	_ok("27. газ — машина сама съезжает с платформы и выезжает из гаража; ворота открылись перед ней", out_d.z > ULGarage.D * 0.5 + 1.0 and float(mo.gate) > 0.9, "z %.1f, ворота %.2f" % [out_d.z, float(mo.gate)])
 	await _snap("gar_drive_out")
 	await _car_stop()
-	await _car_hold(["c_rev"], 6.0, func() -> void: pass)
+	var mrv := {"gate": 1.0, "log": ""}
+	await _car_hold(["c_rev"], 6.0, func() -> void:
+		var lz := garage.to_local(car.global_position).z
+		if lz < 12.0:
+			mrv.gate = minf(float(mrv.gate), garage.gate_open)
+		if lz < 9.0 and String(mrv.log).length() < 400:
+			mrv.log += "z%.1f v%.1f g%.2f; " % [lz, car.speed, garage.gate_open])
 	await _car_stop()
 	var back_d := garage.to_local(car.global_position)
-	_ok("28. «Назад» — задом обратно в гараж, на платформу", absf(back_d.x) < 1.0 and back_d.z < ULGarage.D * 0.5 - 1.5, "x %.1f, z %.1f" % [back_d.x, back_d.z])
+	_ok("28. «Назад» — задом обратно в гараж (ворота открылись перед ней), на платформу", absf(back_d.x) < 1.0 and back_d.z < ULGarage.D * 0.5 - 1.5, "x %.1f, z %.1f · %s" % [back_d.x, back_d.z, String(mrv.log)])
 	# огонь турели
 	await _car_hold(["c_gas"], 3.0)
 	await _car_stop()
-	var z := spawn_enemy("infected", car.global_position + car.fwd() * 11.0)
+	var z := spawn_enemy("infected", car.global_position + car.fwd() * 14.0)
 	z.state = "idle"
 	z.set_active(false)
 	var zhp: float = z.hp
+	var hits0 := hits
 	_hud_press("c_tur")
 	var am0 := int(cd.turrets.rifle.ammo)
 	await _car_hold(["c_fire"], 2.0)
 	await get_tree().create_timer(0.6).timeout
-	_ok("29. «Турель» → «Огонь»: турель наводится на заражённого и стреляет, боезапас тратится, враг ранен или убит", tur_shots > 0 and int(cd.turrets.rifle.ammo) < am0 and (not z.alive() or z.hp < zhp), "выстрелов %d, боезапас %d → %d" % [tur_shots, am0, int(cd.turrets.rifle.ammo)])
+	_ok("29. «Турель» → «Огонь»: турель наводится на заражённого и стреляет, боезапас тратится, враг ранен или убит", tur_shots > 0 and int(cd.turrets.rifle.ammo) < am0 and (not z.alive() or z.hp < zhp), "выстрелов %d, боезапас %d → %d, попаданий %d, цель %s, до врага %.1f м, hp %.0f → %.0f" % [tur_shots, am0, int(cd.turrets.rifle.ammo), hits - hits0, str(_tur_t == z), z.global_position.distance_to(car.global_position), zhp, z.hp])
 	await _snap("gar_turret_fire")
 	_hud_press("c_exit")
 	# сохранение
@@ -17427,4 +17446,69 @@ func _garage_test() -> void:
 	var cd2 := ULBase.car_data()
 	_ok("30. после сохранения и загрузки: гараж 1/3, детали 3/3, турели (автоматная на крыше, пулемётная в гараже), боезапас, бак, шкаф",
 		ULBase.garage_level() == 1 and ULCar.PARTS.all(func(k): return ULGarageOps.lvl(cd2, k) == 3) and String(cd2.turret) == "rifle" and (cd2.turrets as Dictionary).has("mg") and int(cd2.turrets.rifle.ammo) == int(cd.turrets.rifle.ammo) and is_equal_approx(float(cd2.fuel), float(cd.fuel)) and ULBase.cabinet().any(func(x): return x != null and String(x.id) == "bandage"))
+	_test_done()
+
+
+## Проверка столкновений (--as-test=colaudit [--as-place=…]): у каждой модели-предмета выше колена (мебель, техника,
+## останки коров, сено, хлам, оборудование) есть столкновение — герой через неё не проходит. Пробная коробка —
+## половина площади предмета на высоте 0,15–0,95 м над его низом; персонажи, машина и деревья — не в счёт.
+func _colaudit_test() -> void:
+	var t0 := Time.get_ticks_msec()
+	while temp() and not cs_ready and Time.get_ticks_msec() - t0 < 40000:
+		await get_tree().process_frame
+	if place == "home":
+		ULBase.memory_only = true
+		ULBase.load_state(true)
+		ULBase.data.garage.level = 1
+		ULBase.data.storage.level = 6
+		ULBase.data.upgrades["gunsmith"] = 1
+		ULBase.data.staff["gunsmith"] = true
+		ULBase._garage_norm()
+		ULBase.load_state()
+		_garage_build()
+		_storage()
+		_armory()
+	await get_tree().create_timer(1.5).timeout
+	var space := get_world_3d().direct_space_state
+	var miss := {}
+	var where := {}
+	var total := 0
+	for n in find_children("*", "Node3D", true, false):
+		var n3 := n as Node3D
+		if not n3.scene_file_path.ends_with(".glb") or not n3.is_visible_in_tree() or n3.get_viewport() != get_viewport():
+			continue
+		var skip := false
+		var cur: Node = n3
+		while cur != null and cur != self:
+			if cur is CharacterBody3D:
+				skip = true
+				break
+			cur = cur.get_parent()
+		var nm := n3.scene_file_path.get_file().get_basename()
+		if skip or nm.contains("tree") or nm.contains("pine") or nm.contains("birch") or nm.contains("spruce") or nm.contains("bush") or not n3.find_children("*", "Skeleton3D", true, false).is_empty():
+			continue
+		var bb := _aabb(n3)
+		if bb.size.y < 0.45 or maxf(bb.size.x, bb.size.z) < 0.5 or maxf(bb.size.x, bb.size.z) > 25.0 or bb.position.y > 1.2:
+			continue
+		total += 1
+		var q := PhysicsShapeQueryParameters3D.new()
+		var bs := BoxShape3D.new()
+		bs.size = Vector3(maxf(bb.size.x * 0.5, 0.1), clampf(bb.size.y - 0.2, 0.2, 0.8), maxf(bb.size.z * 0.5, 0.1))
+		q.shape = bs
+		q.transform = Transform3D(Basis(), Vector3(bb.get_center().x, bb.position.y + 0.15 + bs.size.y * 0.5, bb.get_center().z))
+		q.collision_mask = 1 | 2 | 8
+		var ok := false
+		for h in space.intersect_shape(q, 8):
+			if not (h.collider is CharacterBody3D):
+				ok = true
+				break
+		if not ok:
+			miss[nm] = int(miss.get(nm, 0)) + 1
+			if not where.has(nm):
+				where[nm] = "(%.0f, %.0f)" % [bb.get_center().x, bb.get_center().z]
+	var lines := []
+	for k in miss:
+		lines.append("%s ×%d %s" % [k, int(miss[k]), String(where[k])])
+	print("[colaudit] %s: предметов %d, без столкновения %d: %s" % [place, total, lines.size(), ", ".join(lines)])
+	_ok("%s: у всех %d предметов выше колена есть столкновение" % [place, total], miss.is_empty(), ", ".join(lines))
 	_test_done()
