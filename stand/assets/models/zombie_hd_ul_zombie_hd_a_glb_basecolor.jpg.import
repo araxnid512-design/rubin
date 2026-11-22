@@ -2,26 +2,26 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://yf1flbq5ptfk"
-path.bptc="res://.godot/imported/zombie_ul_zombie_a_glb_basecolor.jpg-2a369323a61241d6bfb592254b484916.bptc.ctex"
-path.astc="res://.godot/imported/zombie_ul_zombie_a_glb_basecolor.jpg-2a369323a61241d6bfb592254b484916.astc.ctex"
+uid="uid://ravoj0g523d4"
+path.s3tc="res://.godot/imported/zombie_hd_ul_zombie_hd_a_glb_basecolor.jpg-47c549b640073ce57f034bf50d3d4022.s3tc.ctex"
+path.etc2="res://.godot/imported/zombie_hd_ul_zombie_hd_a_glb_basecolor.jpg-47c549b640073ce57f034bf50d3d4022.etc2.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 generator_parameters={
-"md5": "7f759a5d333defde4e13fa90d9410487"
+"md5": "97f5568a8922a3907b52e14e3d36b3b4"
 }
 
 [deps]
 
-source_file="res://assets/models/zombie_ul_zombie_a_glb_basecolor.jpg"
-dest_files=["res://.godot/imported/zombie_ul_zombie_a_glb_basecolor.jpg-2a369323a61241d6bfb592254b484916.bptc.ctex", "res://.godot/imported/zombie_ul_zombie_a_glb_basecolor.jpg-2a369323a61241d6bfb592254b484916.astc.ctex"]
+source_file="res://assets/models/zombie_hd_ul_zombie_hd_a_glb_basecolor.jpg"
+dest_files=["res://.godot/imported/zombie_hd_ul_zombie_hd_a_glb_basecolor.jpg-47c549b640073ce57f034bf50d3d4022.s3tc.ctex", "res://.godot/imported/zombie_hd_ul_zombie_hd_a_glb_basecolor.jpg-47c549b640073ce57f034bf50d3d4022.etc2.ctex"]
 
 [params]
 
 compress/mode=2
-compress/high_quality=true
+compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0

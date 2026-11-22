@@ -192,10 +192,33 @@ func setup(k: String, at: Vector3, seed_n: int) -> void:
 					var mt := src.duplicate() as StandardMaterial3D
 					mt.albedo_color = Color(0.62, 0.74, 0.6)
 					m.set_surface_override_material(si, mt)
+	_rim(rig.model)
 	rotation.y = _rng.randf() * TAU
 	_t = _rng.randf_range(1.0, 4.0)
 	_growl = _rng.randf_range(3.0, 9.0)
 	loot = roll_loot(k, seed_n)
+
+
+## Подсветка контура: края фигуры чуть светлее (со стороны камеры сверху враг отделяется от земли и пола).
+## Материал модели общий у всех врагов этого вида — меняется один раз; на «Низкой» графике — без подсветки.
+static var rim_k := 0.35
+
+
+static func _rim(model: Node) -> void:
+	if model == null or rim_k <= 0.0 or ULSettings.gfx < 1:
+		return
+	for mi in model.find_children("*", "MeshInstance3D", true, false):
+		var m := mi as MeshInstance3D
+		if m.mesh == null:
+			continue
+		for si in m.mesh.get_surface_count():
+			var mt := m.get_active_material(si) as BaseMaterial3D
+			if mt == null or mt.has_meta("rim"):
+				continue
+			mt.set_meta("rim", true)
+			mt.rim_enabled = true
+			mt.rim = rim_k
+			mt.rim_tint = 0.35
 
 
 ## добыча в теле: определяется сразу, у каждого своя (по зерну). Четыре ячейки, как у маленького хранилища.

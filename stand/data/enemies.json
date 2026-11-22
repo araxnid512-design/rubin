@@ -8,7 +8,7 @@
    "breath": 0.014
   },
   "pic": "enemy_infected",
-  "model": "res://assets/models/zombie.glb",
+  "model": "res://assets/models/zombie_hd.glb",
   "wind_t": 0.3,
   "snap_t": 0.14,
   "strike_d": 1.1,
@@ -186,7 +186,7 @@
    }
   },
   "pic": "enemy_lottery",
-  "model": "res://assets/models/lottery.glb",
+  "model": "res://assets/models/lottery_hd.glb",
   "wind_t": 0.22,
   "snap_t": 0.11,
   "strike_d": 1.5,

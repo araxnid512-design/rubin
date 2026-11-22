@@ -2,21 +2,21 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://dv77xsnk3xj6v"
-path.s3tc="res://.godot/imported/lottery_ul_lottery_a_glb_rm.jpg-7b303236a95122b7bb20f83c580b9253.s3tc.ctex"
-path.etc2="res://.godot/imported/lottery_ul_lottery_a_glb_rm.jpg-7b303236a95122b7bb20f83c580b9253.etc2.ctex"
+uid="uid://ckclxdrpmrs3b"
+path.s3tc="res://.godot/imported/lottery_hd_ul_lottery_hd_a_glb_basecolor.jpg-00465309f0f4afc0833a22aacb636432.s3tc.ctex"
+path.etc2="res://.godot/imported/lottery_hd_ul_lottery_hd_a_glb_basecolor.jpg-00465309f0f4afc0833a22aacb636432.etc2.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 generator_parameters={
-"md5": "dbbf7d8dcfb056d9105cfc18ca48a777"
+"md5": "ce96c27f07944c831d622060b5e783fe"
 }
 
 [deps]
 
-source_file="res://assets/models/lottery_ul_lottery_a_glb_rm.jpg"
-dest_files=["res://.godot/imported/lottery_ul_lottery_a_glb_rm.jpg-7b303236a95122b7bb20f83c580b9253.s3tc.ctex", "res://.godot/imported/lottery_ul_lottery_a_glb_rm.jpg-7b303236a95122b7bb20f83c580b9253.etc2.ctex"]
+source_file="res://assets/models/lottery_hd_ul_lottery_hd_a_glb_basecolor.jpg"
+dest_files=["res://.godot/imported/lottery_hd_ul_lottery_hd_a_glb_basecolor.jpg-00465309f0f4afc0833a22aacb636432.s3tc.ctex", "res://.godot/imported/lottery_hd_ul_lottery_hd_a_glb_basecolor.jpg-00465309f0f4afc0833a22aacb636432.etc2.ctex"]
 
 [params]
 

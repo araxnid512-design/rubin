@@ -11,12 +11,25 @@ static var _src_cache := {}
 static var _ref_cache := {}       ## набор клипов → исходная поза скелета, с которого они сняты: {кость: поворот}
 
 
-## исходная поза скелета-образца набора (модель с тем же именем, что и набор: anim/hero → models/hero.glb)
+## исходная поза скелета-образца набора (модель с тем же именем, что и набор: anim/hero → models/hero.glb).
+## Если модели-образца в игре уже нет (её заменила новая), поза берётся из записи rest.json в папке набора
+## (её делает tools/anim_rest_dump.gd из старой модели).
 static func _ref_rest(set_dir: String) -> Dictionary:
 	if _ref_cache.has(set_dir):
 		return _ref_cache[set_dir]
 	var out := {}
-	var path := "res://assets/models/%s.glb" % set_dir.get_file()
+	var js := set_dir.path_join("rest.json")
+	if FileAccess.file_exists(js):
+		out = rest_from_json(FileAccess.get_file_as_string(js))
+	else:
+		out = rest_of("res://assets/models/%s.glb" % set_dir.get_file())
+	_ref_cache[set_dir] = out
+	return out
+
+
+## исходная поза скелета модели: {кость: поворот}, "__dirs": {кость: [дальний ребёнок, направление]}, "__hip": высота таза
+static func rest_of(path: String) -> Dictionary:
+	var out := {}
 	if ResourceLoader.exists(path):
 		var inst: Node = (load(path) as PackedScene).instantiate()
 		var found := inst.find_children("*", "Skeleton3D", true, false)
@@ -39,7 +52,39 @@ static func _ref_rest(set_dir: String) -> Dictionary:
 			var hip := sk.find_bone("Hip")
 			out["__hip"] = sk.get_bone_global_rest(hip).origin.y if hip >= 0 else 0.0
 		inst.free()
-	_ref_cache[set_dir] = out
+	return out
+
+
+static func rest_to_json(r: Dictionary) -> String:
+	var bones := {}
+	var dirs := {}
+	for k in r:
+		if r[k] is Quaternion:
+			var q: Quaternion = r[k]
+			bones[k] = [q.x, q.y, q.z, q.w]
+	var rd: Dictionary = r.get("__dirs", {})
+	for k in rd:
+		var v: Vector3 = rd[k][1]
+		dirs[k] = [rd[k][0], v.x, v.y, v.z]
+	return JSON.stringify({"bones": bones, "dirs": dirs, "hip": r.get("__hip", 0.0)}, "\t")
+
+
+static func rest_from_json(text: String) -> Dictionary:
+	var d = JSON.parse_string(text)
+	var out := {}
+	if not d is Dictionary:
+		return out
+	var bones: Dictionary = d.get("bones", {})
+	for k in bones:
+		var a: Array = bones[k]
+		out[k] = Quaternion(float(a[0]), float(a[1]), float(a[2]), float(a[3]))
+	var dirs := {}
+	var dd: Dictionary = d.get("dirs", {})
+	for k in dd:
+		var a: Array = dd[k]
+		dirs[k] = [String(a[0]), Vector3(float(a[1]), float(a[2]), float(a[3]))]
+	out["__dirs"] = dirs
+	out["__hip"] = float(d.get("hip", 0.0))
 	return out
 
 

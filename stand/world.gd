@@ -87,6 +87,8 @@ func _ready() -> void:
 			ULSettings.gfx = clampi(int(a.substr(9)), 0, ULSettings.GFX.size() - 1)    # уровень графики для проверок и снимков
 		if a.begins_with("--as-sharp="):
 			_sharp_test = clampi(int(a.substr(11)), 0, 2)                              # резкость для снимков
+		if a == "--as-light=0":
+			ULBlock.light_on = false                                                    # без запечённого света интерьеров
 		if a == "--as-release=1":
 			ULSettings.dev_force = true                                                 # проверка: как собранная игра
 		if a.begins_with("--as-rain="):
@@ -6781,6 +6783,24 @@ func _look_test() -> void:
 		if a.begins_with("--as-at="):
 			var xz := a.substr(8).split(",")
 			at = Vector3(float(xz[0]), 0.05, float(xz[1]))
+	if "--as-in=1" in OS.get_cmdline_user_args() and san != null and not san.blds.is_empty():
+		# внутри: самая большая комната первого этажа первого корпуса с окнами
+		var best = null
+		var bb: ULBlock = null
+		for b in san.blds:
+			for r in (b as ULBlock).rooms:
+				if int(r.f) == 0 and String(r.type) != "cor" and String(r.type) != "stair" and int(r.get("side", 0)) != 0:
+					var area := (float(r.u1) - float(r.u0)) * (float(r.v1) - float(r.v0))
+					if best == null or area > float(best.area):
+						best = {"r": r, "area": area}
+						bb = b
+			if best != null:
+				break
+		var r = best.r
+		var bk: Dictionary = bb.blocks[int(r.bi)]
+		at = bb._w(bk, (float(r.u0) + float(r.u1)) * 0.5, 0.05, (float(r.v0) + float(r.v1)) * 0.5)
+		await get_tree().create_timer(1.5).timeout
+		print("[look] свет этажей у корпуса: %d" % bb.light_floors)
 	player.global_position = at
 	_cam_ready = false
 	var e := spawn_enemy("infected", at + Vector3(2.5, 0, -1.5))
@@ -6952,7 +6972,8 @@ func _evo_test() -> void:
 				for k in 6:
 					await get_tree().process_frame
 				await _snap("evo_feed")
-				print("[evo] поза едока: %s вес %.2f действие «%s» активен %s дерево %s подробно %s" % [fe.rig._pose, fe.rig._pose_w, fe.rig._action, str(fe.active), str(fe.rig.tree.active), str(fe.rig._detail)])
+				if is_instance_valid(fe):
+					print("[evo] поза едока: %s вес %.2f" % [fe.rig._pose, fe.rig._pose_w])
 				player.global_position = hp0
 	_ok("едок сел у тела и ел (поза «infected_feed» есть у пустыша, время трапезы шло)", posed and chewed and clip_ok)
 	var ne: ULEnemy = null
@@ -16009,6 +16030,8 @@ func _run_test() -> void:
 				zkind = a.substr(10)
 			if a.begins_with("--as-clips="):
 				zclips = Array(a.substr(11).split(","))
+			if a.begins_with("--as-model="):
+				ULEnemy.KINDS[zkind].model = a.substr(11)                  # другая модель вида (сравнение)
 		var z := spawn_enemy(zkind, Vector3(18.0, 0.0, 27.5))
 		z.def = z.def.duplicate()
 		z.def.see = 0.0

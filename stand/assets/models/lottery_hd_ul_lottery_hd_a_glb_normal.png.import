@@ -2,21 +2,21 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://bcyetcadky8oe"
-path.s3tc="res://.godot/imported/zombie_ul_zombie_a_glb_rm.png-bfe2dfee955d118d4688b89c93ebcbaa.s3tc.ctex"
-path.etc2="res://.godot/imported/zombie_ul_zombie_a_glb_rm.png-bfe2dfee955d118d4688b89c93ebcbaa.etc2.ctex"
+uid="uid://dvl05x5gpw5i2"
+path.s3tc="res://.godot/imported/lottery_hd_ul_lottery_hd_a_glb_normal.png-b2ee8b6eb7f9209a4eb9f7d25a9c0d0a.s3tc.ctex"
+path.etc2="res://.godot/imported/lottery_hd_ul_lottery_hd_a_glb_normal.png-b2ee8b6eb7f9209a4eb9f7d25a9c0d0a.etc2.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 generator_parameters={
-"md5": "65f2b20af84129f5fecac379e582b919"
+"md5": "d46296efa515bfc4e7244ec043b07835"
 }
 
 [deps]
 
-source_file="res://assets/models/zombie_ul_zombie_a_glb_rm.png"
-dest_files=["res://.godot/imported/zombie_ul_zombie_a_glb_rm.png-bfe2dfee955d118d4688b89c93ebcbaa.s3tc.ctex", "res://.godot/imported/zombie_ul_zombie_a_glb_rm.png-bfe2dfee955d118d4688b89c93ebcbaa.etc2.ctex"]
+source_file="res://assets/models/lottery_hd_ul_lottery_hd_a_glb_normal.png"
+dest_files=["res://.godot/imported/lottery_hd_ul_lottery_hd_a_glb_normal.png-b2ee8b6eb7f9209a4eb9f7d25a9c0d0a.s3tc.ctex", "res://.godot/imported/lottery_hd_ul_lottery_hd_a_glb_normal.png-b2ee8b6eb7f9209a4eb9f7d25a9c0d0a.etc2.ctex"]
 
 [params]
 

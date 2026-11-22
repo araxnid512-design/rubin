@@ -522,6 +522,7 @@ func build(d: Dictionary, rng: RandomNumberGenerator, cache := {}) -> void:
 	if not cache.is_empty():
 		_from_cache(cache)
 		set_state(-1)
+		bake_light()
 		return
 	var rmin := Vector2(1e9, 1e9)
 	var rmax := Vector2(-1e9, -1e9)
@@ -555,6 +556,7 @@ func build(d: Dictionary, rng: RandomNumberGenerator, cache := {}) -> void:
 	_flush()
 	print("[blk] %s собран заново: %d мс" % [id, (Time.get_ticks_usec() - t0) / 1000])
 	set_state(-1)
+	bake_light()
 
 
 ## План блока: где лестничные клетки и вестибюль, как ряды комнат делятся (по окнам), где окна и двери наружу.
@@ -2818,6 +2820,194 @@ func _blocks_door(rr: Rect2, bi: int, f: int) -> bool:
 # ---------------- видимость ----------------
 
 ## −1 — герой снаружи (видны фасады и крыши); k — герой внутри на этаже k
+# ---------------- запечённый свет интерьеров ----------------
+## Свет внутри считается один раз по плану корпуса (в фоне, при входе на локацию) и рисуется двумя плоскостями на
+## каждый этаж блока — поверх пола: умножением (в глубине комнаты, вдали от окон, и в комнатах без окон — темнее,
+## у окон — как есть) и сложением (тёплые пятна света от окон на полу). Окна — по ячейкам ряда (как их ставит
+## сборка: у наружной стены, по шагу PITCH), лампы — по их местам. На «Низкой» графике — без пятен (одно умножение).
+## Видны только на этаже героя (группа «b/n» — покрытие пола этажа). Палатки и кунги — без запечённого света.
+const LIGHT_TX := 3.0                  ## точек картинки на метр
+const LIGHT_MUL := """shader_type spatial;
+render_mode unshaded, blend_mul, depth_draw_never, cull_disabled, fog_disabled;
+uniform sampler2D lt : filter_linear, repeat_disable;
+void fragment() { ALBEDO = vec3(texture(lt, UV).r); }
+"""
+const LIGHT_ADD := """shader_type spatial;
+render_mode unshaded, blend_add, depth_draw_never, cull_disabled, fog_disabled;
+uniform sampler2D lt : filter_linear, repeat_disable;
+uniform vec3 warm = vec3(1.0, 0.86, 0.62);
+uniform float k = 0.45;
+void fragment() { ALBEDO = warm * (texture(lt, UV).g * k); }
+"""
+static var light_on := true
+static var light_pools := true
+static var _lsh_mul: Shader
+static var _lsh_add: Shader
+var light_floors := 0                  ## проверки: сколько этажей получили свет
+var _light_job := -1
+var _light_res: Array = []             ## [bi, f, Image] — готовые картинки (из фона)
+
+
+func bake_light() -> void:
+	if not light_on or style in ["tent", "box"] or rooms.is_empty():
+		return
+	# снимок данных для фона: блоки (границы, ячейки окон), комнаты, лампы — в местных координатах блока
+	var plan: Array = []
+	for bi in blocks.size():
+		var bk: Dictionary = blocks[bi]
+		for f in int(bk.floors):
+			var rs: Array = []
+			for r in rooms:
+				if int(r.get("bi", -1)) == bi and int(r.get("f", -1)) == f:
+					rs.append([float(r.u0), float(r.u1), float(r.v0), float(r.v1), String(r.type)])
+			if rs.is_empty():
+				continue
+			var lp: Array = []
+			for l in lamps:
+				if l.size() > 2 and int(l[1]) == bi and int(l[2]) == f:
+					lp.append(_local(bk, l[0]))
+			var cc: Array = []
+			for c in bk.get("cells", []):
+				cc.append((float(c[0]) + float(c[1])) * 0.5)
+			plan.append([bi, f, float(bk.iu0), float(bk.iu1), float(bk.iv0), float(bk.iv1), rs, lp, cc])
+	var cellar := style == "cellar"
+	# фон пишет только в свой ящик (не в корпус: корпус могут удалить раньше, чем фон закончит)
+	var box: Array = []
+	_light_res = box
+	_light_job = WorkerThreadPool.add_task(func() -> void:
+		for p in plan:
+			box.append([p[0], p[1], ULBlock._light_image(p, cellar)]))
+	set_process(true)
+
+
+func _exit_tree() -> void:
+	if _light_job >= 0:
+		WorkerThreadPool.wait_for_task_completion(_light_job)   # корпус убирают — фон доделывает и отпускает
+		_light_job = -1
+
+
+## картинка света этажа блока: R — множитель (0,45…1), G — сила пятна от окна (0…1)
+static func _light_image(p: Array, cellar: bool) -> Image:
+	var iu0: float = p[2]
+	var iu1: float = p[3]
+	var iv0: float = p[4]
+	var iv1: float = p[5]
+	var w := maxi(4, int((iu1 - iu0) * LIGHT_TX))
+	var h := maxi(4, int((iv1 - iv0) * LIGHT_TX))
+	var img := Image.create(w, h, false, Image.FORMAT_RGB8)
+	var rs: Array = p[6]
+	var lp: Array = p[7]
+	var cc: Array = p[8]
+	for y in h:
+		var v := iv0 + (y + 0.5) / LIGHT_TX
+		for x in w:
+			var u := iu0 + (x + 0.5) / LIGHT_TX
+			var L := 0.86
+			var pool := 0.0
+			for r in rs:
+				if u < float(r[0]) or u > float(r[1]) or v < float(r[2]) or v > float(r[3]):
+					continue
+				if String(r[4]) == "cor" or String(r[4]) == "stair":
+					L = 0.88
+					break
+				# наружные стены комнаты (там окна): у наружной стены светло, в глубине — темнее
+				var amb := 0.0
+				var near_win := 0.0
+				if not cellar:
+					var ext: Array = []
+					if absf(float(r[2]) - iv0) < 0.35:
+						ext.append(["v", iv0])
+					if absf(float(r[3]) - iv1) < 0.35:
+						ext.append(["v", iv1])
+					if absf(float(r[0]) - iu0) < 0.35:
+						ext.append(["u", iu0])
+					if absf(float(r[1]) - iu1) < 0.35:
+						ext.append(["u", iu1])
+					for e in ext:
+						var d := absf((v if String(e[0]) == "v" else u) - float(e[1]))
+						amb = maxf(amb, exp(-d / 2.6))
+						# окна вдоль стены: по ячейкам (длинные стороны) или посередине торца
+						if String(e[0]) == "v":
+							for cu in cc:
+								if float(cu) > float(r[0]) - 0.2 and float(cu) < float(r[1]) + 0.2:
+									var du := u - float(cu)
+									near_win = maxf(near_win, exp(-(du * du) / 0.8) * exp(-d / 1.8))
+						else:
+							var dv := v - (float(r[2]) + float(r[3])) * 0.5
+							near_win = maxf(near_win, exp(-(dv * dv) / 0.8) * exp(-d / 1.8))
+				L = 0.8 + 0.2 * amb
+				pool = near_win
+				break
+			for l in lp:
+				var dl := Vector2(u, v).distance_to(l)
+				L = maxf(L, 0.75 + 0.25 * exp(-dl / 2.4))
+			img.set_pixel(x, y, Color(clampf(L, 0.0, 1.0), clampf(pool, 0.0, 1.0), 0.0))
+	return img
+
+
+func _process(_delta: float) -> void:
+	if _light_job < 0 or not WorkerThreadPool.is_task_completed(_light_job):
+		return
+	WorkerThreadPool.wait_for_task_completion(_light_job)
+	_light_job = -1
+	set_process(false)
+	if _lsh_mul == null:
+		_lsh_mul = Shader.new()
+		_lsh_mul.code = LIGHT_MUL
+		_lsh_add = Shader.new()
+		_lsh_add.code = LIGHT_ADD
+	for it in _light_res:
+		var bi: int = it[0]
+		var f: int = it[1]
+		var img: Image = it[2]
+		var bk: Dictionary = blocks[bi]
+		var tex := ImageTexture.create_from_image(img)
+		var y := f * storey + 0.045
+		var mesh := _light_quad(bk, y)
+		var mm := ShaderMaterial.new()
+		mm.shader = _lsh_mul
+		mm.set_shader_parameter("lt", tex)
+		var mi := MeshInstance3D.new()
+		mi.name = "LightMul"
+		mi.mesh = mesh
+		mi.material_override = mm
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		mi.layers = 2
+		_group("b%d/n%d" % [bi, f]).add_child(mi)
+		if light_pools:
+			var am := ShaderMaterial.new()
+			am.shader = _lsh_add
+			am.set_shader_parameter("lt", tex)
+			var ai := MeshInstance3D.new()
+			ai.name = "LightAdd"
+			ai.mesh = mesh
+			ai.material_override = am
+			ai.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			ai.layers = 2
+			_group("b%d/n%d" % [bi, f]).add_child(ai)
+		light_floors += 1
+	_light_res = []
+
+
+## прямоугольник пола блока на высоте y (мир), развёртка: x — по u, y — по v
+func _light_quad(bk: Dictionary, y: float) -> ArrayMesh:
+	var u0: float = bk.iu0
+	var u1: float = bk.iu1
+	var v0: float = bk.iv0
+	var v1: float = bk.iv1
+	var a := _w(bk, u0, y, v0)
+	var b := _w(bk, u1, y, v0)
+	var c := _w(bk, u1, y, v1)
+	var d := _w(bk, u0, y, v1)
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for q in [[a, Vector2(0, 0)], [b, Vector2(1, 0)], [c, Vector2(1, 1)], [a, Vector2(0, 0)], [c, Vector2(1, 1)], [d, Vector2(0, 1)]]:
+		st.set_normal(Vector3.UP)
+		st.set_uv(q[1])
+		st.add_vertex((q[0] as Vector3) - global_position if is_inside_tree() else q[0])
+	return st.commit()
+
+
 func set_state(k: int) -> void:
 	if k == state:
 		return
