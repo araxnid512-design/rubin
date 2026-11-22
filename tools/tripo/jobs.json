@@ -1,5 +1,5 @@
 {
- "stop": false,
+ "stop": true,
  "jobs": [
   {
    "id": "g67_tr2_rifle",
