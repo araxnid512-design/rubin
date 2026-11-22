@@ -78,3 +78,19 @@ sun_shadow_size={
 "type": "float",
 "value": 100.0
 }
+cloud_tex={
+"type": "sampler2D",
+"value": ""
+}
+cloud_k={
+"type": "float",
+"value": 0.0
+}
+wind={
+"type": "vec4",
+"value": Vector4(0.8, 0.6, 0, 0)
+}
+wet_k={
+"type": "float",
+"value": 0.0
+}

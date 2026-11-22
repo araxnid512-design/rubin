@@ -16,6 +16,7 @@ uniform float sway = 0.05;
 // вырез земли над погребом (хутор): там, где земля скрыта, трава тоже не рисуется
 uniform vec4 cut_rect = vec4(0.0);
 uniform float cut_on = 0.0;
+//#WIND
 varying float cell;
 varying vec3 tint;
 varying vec2 wxz;
@@ -24,9 +25,12 @@ void vertex() {
 	tint = COLOR.rgb;
 	vec3 wpos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 	wxz = wpos.xz;
-	float w = sin(TIME * 1.6 + wpos.x * 0.45 + wpos.z * 0.31) + 0.4 * sin(TIME * 2.9 + wpos.z * 0.8);
-	VERTEX.x += w * sway * (1.0 - UV.y);
-	VERTEX.z += w * sway * 0.6 * (1.0 - UV.y);
+	// ветер: общий порыв (волна по полю) по направлению ветра + мелкая дрожь; верх пучка, низ стоит
+	float top = 1.0 - UV.y;
+	float g = wind_gust(wpos.xz);
+	vec3 off = vec3(wind.x, 0.0, wind.y) * g * 2.2 + vec3(0.6, 0.0, 0.4) * wind_flutter(wpos.xz) * 0.35;
+	float s2 = max(dot(MODEL_MATRIX[0].xyz, MODEL_MATRIX[0].xyz), 0.0001);
+	VERTEX += (vec4(off * sway * top, 0.0) * MODEL_MATRIX).xyz / s2;
 }
 void fragment() {
 	vec4 c = texture(tex, vec2(UV.x * 0.5 + cell * 0.5, UV.y));
@@ -65,7 +69,7 @@ static func clump_mesh(kind: String) -> ArrayMesh:
 	var mesh := st.commit()
 	var mat := ShaderMaterial.new()
 	var sh := Shader.new()
-	sh.code = SHADER
+	sh.code = SHADER.replace("//#WIND", ULSunShadow.WIND)
 	mat.shader = sh
 	mat.set_shader_parameter("tex", load(TEX + "veg_%s.png" % kind))
 	mat.set_shader_parameter("sway", 0.03 if kind == "nettle" else 0.05)

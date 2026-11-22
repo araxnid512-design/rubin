@@ -51,7 +51,7 @@ func _on_tap(id: String) -> void:
 		"mp":
 			_multiplayer()
 		"set":
-			ULSettings.panel(self, func() -> void: ULSettings.apply(get_viewport()), [["Лаборатория", _lab]])
+			ULSettings.panel(self, func() -> void: ULSettings.apply(get_viewport()), [["Лаборатория", _lab]] if ULSettings.dev() else [])
 		"quit":
 			get_tree().quit()
 

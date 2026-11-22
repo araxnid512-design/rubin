@@ -136,11 +136,15 @@ static func take(arr: Array, i: int):
 
 
 ## оружие или рюкзак из ячейки — в свой слот; что было в слоте — на его место
-func equip_from(arr: Array, i: int) -> bool:
+func equip_from(arr: Array, i: int, to := "") -> bool:
 	var it = arr[i]
 	if it == null:
 		return false
-	match ULItems.slot_of(it):
+	# слот назван (мачете — в слот основного): только если предмет туда подходит
+	var sl := to if to != "" and ULItems.fits(it, to) else ULItems.slot_of(it)
+	if to != "" and sl != to:
+		return false
+	match sl:
 		"pistol":
 			arr[i] = pistol
 			pistol = it

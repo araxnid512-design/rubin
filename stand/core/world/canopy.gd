@@ -18,6 +18,19 @@ uniform float rough = 0.85;
 uniform float metal = 0.0;
 uniform float alpha_cut = 0.0;
 uniform float fade = 0.0;
+uniform float base_y = 0.0;         // где у дерева земля (мировая высота)
+uniform float tree_h = 6.0;         // высота дерева, м
+//#WIND
+void vertex() {
+	// крона клонится по ветру: ствол у земли стоит, верх качается сильнее (квадратично по высоте)
+	vec3 wpos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
+	float hk = clamp((wpos.y - base_y) / max(tree_h, 1.0), 0.0, 1.2);
+	hk *= hk;
+	vec3 off = vec3(wind.x, 0.0, wind.y) * wind_gust(wpos.xz) * 0.32 * hk;
+	off += vec3(0.5, 0.0, 0.4) * wind_flutter(wpos.xz) * 0.035 * hk;
+	float s2 = max(dot(MODEL_MATRIX[0].xyz, MODEL_MATRIX[0].xyz), 0.0001);
+	VERTEX += (vec4(off, 0.0) * MODEL_MATRIX).xyz / s2;
+}
 void fragment() {
 	vec4 c = texture(albedo_tex, UV) * albedo_col;
 	if (alpha_cut > 0.0 && c.a < alpha_cut) { discard; }
@@ -47,7 +60,7 @@ var _moving: Array = []           ## деревья, у которых сейч�
 func add_model(node: Node3D, h: float) -> void:
 	if _shader == null:
 		_shader = Shader.new()
-		_shader.code = SHADER
+		_shader.code = SHADER.replace("//#WIND", ULSunShadow.WIND)
 	var mats: Array = []
 	for m in node.find_children("*", "MeshInstance3D", true, false):
 		var mi := m as MeshInstance3D
@@ -58,6 +71,8 @@ func add_model(node: Node3D, h: float) -> void:
 			var sm := _fade_mat(src)
 			if sm == null:
 				continue
+			sm.set_shader_parameter("base_y", node.global_position.y)
+			sm.set_shader_parameter("tree_h", h)
 			mi.set_surface_override_material(s, sm)
 			mats.append(sm)
 	var bb := AABB()

@@ -69,8 +69,8 @@ void fragment() {
 	c *= texture(tint, uv).rgb * tone_k;
 	ALBEDO = c * sun_shade(p);
 	// блик и отсвет неба уже в тоне (сняты видом сверху) — второй раз не считаются
-	ROUGHNESS = 1.0;
-	SPECULAR = 0.0;
+	ROUGHNESS = wet_rough(1.0);
+	SPECULAR = wet_spec(0.0);
 }
 """
 

@@ -570,7 +570,10 @@ func _update_card() -> void:
 			acts.append(["В хранилище", _act_slot_to_cont.bind(slot)])
 	elif _sel_src == "cont":
 		acts.append(["Взять", _act_take])
-		if slot_k in ["pistol", "primary"]:
+		if k == "melee":
+			acts.append(["В слот пистолета", _act_equip_to.bind("pistol")])
+			acts.append(["В слот основного", _act_equip_to.bind("primary")])
+		elif slot_k in ["pistol", "primary"]:
 			acts.append(["Экипировать", _act_equip])
 		if int(it.get("n", 1)) > 1:
 			acts.append(["Разделить", _act_split])
@@ -580,7 +583,11 @@ func _update_card() -> void:
 				_pick_safe = true
 				refresh()])
 	else:
-		if slot_k in ["pistol", "primary"]:
+		if k == "melee":
+			# мачете — в любой из двух слотов оружия
+			acts.append(["В слот пистолета", _act_equip_to.bind("pistol")])
+			acts.append(["В слот основного", _act_equip_to.bind("primary")])
+		elif slot_k in ["pistol", "primary"]:
 			acts.append(["Экипировать", _act_equip])
 		if slot_k == "pack":
 			acts.append(["Надеть", _act_equip])
@@ -641,6 +648,17 @@ func _act_equip() -> void:
 		return
 	if sl in ["pistol", "primary"] and inv.hand == "":
 		inv.hand = sl
+	_done()
+
+
+## положить в названный слот (мачете — в слот пистолета или основного); что было в слоте — на место предмета
+func _act_equip_to(slot: String) -> void:
+	var arr := _arr(_sel_src)
+	if not inv.equip_from(arr, _sel_i, slot):
+		say("Нельзя")
+		return
+	if inv.hand == "":
+		inv.hand = slot
 	_done()
 
 

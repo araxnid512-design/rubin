@@ -680,7 +680,7 @@ void fragment() {
 	ALBEDO = c;
 	ALBEDO *= sun_shade(wpos.xz);
 	NORMAL_MAP = texture(tex_n, wpos.xz / scale).rgb;
-	ROUGHNESS = 0.9;
+	ROUGHNESS = wet_rough(0.9);
 }"""
 var _pave_mats := {}
 

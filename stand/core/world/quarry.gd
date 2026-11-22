@@ -351,7 +351,7 @@ void fragment() {
 	c *= mix(vec3(1.0), vec3(0.95, 0.97, 1.02), depth);
 	ALBEDO = c;
 	ALBEDO *= sun_shade(wp.xz);
-	ROUGHNESS = mix(0.95, 0.86, wall);
+	ROUGHNESS = wet_rough(mix(0.95, 0.86, wall));
 	NORMAL_MAP = mix(nf, nr, wall);
 	NORMAL_MAP_DEPTH = 1.3;
 }

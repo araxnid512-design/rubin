@@ -53,6 +53,13 @@ static var stand_who := "hero"             ## кого показывает ст
 static var stand_hero := ""                ## внешность героя на стенде (ULHeroes); пусто — выбранная игроком
 static var stand_back := "res://world.tscn"   ## куда ведёт «Назад» со стенда
 static var gfx := 1
+static var dev_force := false               ## проверки: вести себя как собранная игра (без отладочных кнопок) — false
+
+
+## Отладочное (строка состояния с кадрами/с, «Враг +», «Тест FPS», «Убрать ящик», «3D», «Лаборатория») — только
+## при запуске из редактора Godot (и в проверках); в собранной игре — одиночной и в мультиплеере — их нет
+static func dev() -> bool:
+	return OS.has_feature("editor") and not dev_force
 static var cam := 1
 static var volume := 0.8
 static var _loaded := false

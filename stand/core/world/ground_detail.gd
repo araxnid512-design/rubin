@@ -114,8 +114,8 @@ void fragment() {
 	// дно колеи темнее к середине, по краю — выдавленный валик светлее
 	ALBEDO *= mix(1.0, 0.82, t) * mix(1.0, 1.08, rim * (1.0 - t));
 	ALBEDO *= sun_shade(wp.xz);
-	ROUGHNESS = mix(mix(0.92, 0.72, wet), 0.14, water);
-	SPECULAR = mix(0.3, 0.38, water);
+	ROUGHNESS = wet_rough(mix(mix(0.92, 0.72, wet), 0.14, water));
+	SPECULAR = wet_spec(mix(0.3, 0.38, water));
 	ALPHA = clamp(a * mix(0.55, 0.8, wet), 0.0, 1.0);
 }"""
 
@@ -204,7 +204,7 @@ void fragment() {
 	if (a < 0.02) { discard; }
 	ALBEDO = g * vec3(0.42, 0.4, 0.36);
 	ALBEDO *= sun_shade(wp.xz);
-	ROUGHNESS = 0.92;
+	ROUGHNESS = wet_rough(0.92);
 	ALPHA = a * 0.85;
 }"""
 

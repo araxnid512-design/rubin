@@ -87,6 +87,12 @@ func _ready() -> void:
 			ULSettings.gfx = clampi(int(a.substr(9)), 0, ULSettings.GFX.size() - 1)    # уровень графики для проверок и снимков
 		if a.begins_with("--as-sharp="):
 			_sharp_test = clampi(int(a.substr(11)), 0, 2)                              # резкость для снимков
+		if a == "--as-release=1":
+			ULSettings.dev_force = true                                                 # проверка: как собранная игра
+		if a.begins_with("--as-rain="):
+			_wx_test = 1 + clampi(int(a.substr(10)), 0, 1)                             # погода в проверке: 1 сухо, 2 дождь
+		if a.begins_with("--as-grade="):
+			_grade_test = int(a.substr(11)) > 0                                         # цветокоррекция в проверке
 		if a.begins_with("--as-cam="):
 			ULSettings.load_cfg()
 			ULSettings.cam = clampi(int(a.substr(9)), 0, ULSettings.CAMS.size() - 1)   # угол камеры для снимков
@@ -117,7 +123,7 @@ func _ready() -> void:
 			sc.lottery = [sc.lottery[1], sc.lottery[1]]
 			sc.ruber_chances = [0, 0, 1]                 # и два Рубера — всего 57
 			ULSanatorium._cfg = sc
-	if test == "gqview" or test == "mapbake" or test == "pmap" or test == "fldiag" or test == "shbake" or test == "shcheck" or test == "gbake" or test == "gcheck" or test == "gperf" or test == "lumtest" or test == "wperf" or test == "evo" or test == "reload":
+	if test == "gqview" or test == "mapbake" or test == "pmap" or test == "fldiag" or test == "shbake" or test == "shcheck" or test == "gbake" or test == "gcheck" or test == "gperf" or test == "lumtest" or test == "wperf" or test == "evo" or test == "reload" or test == "look":
 		# сравнение чёткости (gqview), запекание карты локации (mapbake), проверка карты (pmap): место — --as-place=
 		ULSettings.arena = false
 		for a in OS.get_cmdline_user_args():
@@ -230,6 +236,7 @@ func _ready() -> void:
 			_enemies_setup()
 	_load_profile()
 	inv = ULInventory.new()
+	_weather_setup()
 	_ui()
 	_sun_shadow_apply()
 	if ResourceLoader.exists(MODELS + "ul_crate.glb"):
@@ -645,6 +652,7 @@ func _evo_tick(delta: float) -> void:
 	if st != _evo_stage:
 		var was := _evo_stage
 		_evo_stage = st
+		_grade_apply()
 		if was > 0 and st == 2:
 			say("Заражённые проголодались: едят тела и перерождаются")
 		elif was > 0 and st == 3:
@@ -1446,8 +1454,8 @@ void fragment() {
 	NORMAL_MAP = nm;
 	NORMAL_MAP_DEPTH = 1.1;
 	float puddle = b.z * wet * smoothstep(0.55, 0.72, n3 * 0.6 + n2 * 0.4);
-	ROUGHNESS = mix(0.95, 0.42, puddle);
-	SPECULAR = mix(0.3, 0.6, puddle);
+	ROUGHNESS = wet_rough(mix(0.95, 0.42, puddle));
+	SPECULAR = wet_spec(mix(0.3, 0.6, puddle));
 }
 """
 
@@ -2167,12 +2175,18 @@ const SPRUCE_SHADER := """shader_type spatial;
 render_mode cull_disabled;
 // еловые лапы: вырез по альфе, обе стороны освещены одинаково, концы чуть качаются
 uniform sampler2D tex : source_color, filter_linear_mipmap;
+//#WIND
 varying vec3 wn;
 varying float fade_v;
 void vertex() {
 	vec3 wpos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
-	float w = sin(TIME * 1.1 + wpos.x * 0.4 + wpos.z * 0.3) + 0.5 * sin(TIME * 2.3 + wpos.z * 0.8);
-	VERTEX.y += w * 0.035 * (1.0 - UV.y);
+	// концы лап качаются: дрожь + общий порыв ветра (выше над землёй — сильнее)
+	float tip = 1.0 - UV.y;
+	float hk = clamp(wpos.y / 8.0, 0.2, 1.0);
+	VERTEX.y += wind_flutter(wpos.xz) * 0.03 * tip;
+	vec3 off = vec3(wind.x, 0.0, wind.y) * wind_gust(wpos.xz) * 0.09 * hk * tip;
+	float s2 = max(dot(MODEL_MATRIX[0].xyz, MODEL_MATRIX[0].xyz), 0.0001);
+	VERTEX += (vec4(off, 0.0) * MODEL_MATRIX).xyz / s2;
 	wn = normalize((MODEL_MATRIX * vec4(NORMAL, 0.0)).xyz);
 	fade_v = INSTANCE_CUSTOM.r;          // ель закрывает героя — растворяется точками (ULCanopy)
 }
@@ -2264,7 +2278,7 @@ func _spruce_mesh(h: float, seed_n: int) -> ArrayMesh:
 			st.add_vertex(v[k])
 	var sm := ShaderMaterial.new()
 	var sh := Shader.new()
-	sh.code = SPRUCE_SHADER
+	sh.code = SPRUCE_SHADER.replace("//#WIND", ULSunShadow.WIND)
 	sm.shader = sh
 	sm.set_shader_parameter("tex", load(TEX + "spruce_bough.png"))
 	st.set_material(sm)
@@ -2560,6 +2574,14 @@ func _input_vec() -> Vector2:
 
 
 func _process(delta: float) -> void:
+	if world_env != null:
+		_grade_tick(delta)
+	if weather != null and player != null:
+		var bodies: Array = []
+		for e in enemies:
+			if not e.alive() and e.dead_t > 4.0:
+				bodies.append(e.body_pos())
+		weather.tick(delta, player.global_position, bodies, snd)
 	_blobs_tick()
 	var iv := _input_vec()
 	# «вверх» на джойстике — от камеры вперёд (на север)
@@ -3626,6 +3648,116 @@ func _sharp_apply() -> void:
 		add_child(_sharp)
 	var lv := ULSettings.sharp if test == "" else maxi(_sharp_test, 0)
 	_sharp.set_level(lv, get_viewport().scaling_3d_scale)
+	if _grade_cur.is_empty() or not grade_on():
+		_grade_apply(true)
+	else:
+		_grade_vig(_grade_cur)                  # смена разрешения или графики: таблица та же, виньетка — по уровню
+
+
+# ---------------- цветокоррекция и настроение (ULGrade, data/grade.json) ----------------
+## Таблица цветов локации (+ дождь, + стадия голода) — в Environment; виньетка и зерно — слой ULSharpen (на
+## «Низкой» графике их нет). Смена настроения (дождь, голод) — плавно за 3 с: таблица считается в фоне.
+## В проверках цветокоррекция выключена (сравнения яркости), если не задано --as-grade=1.
+var _grade_test := false
+var weather_rain := false            ## дождь в это посещение (см. погоду)
+var weather: ULWeather
+var _wx_test := 0                    ## проверки: 0 — погоды нет, 1 — сухо, 2 — дождь (--as-rain=0/1)
+
+
+## Погода посещения (ULWeather, data/weather.json): ветер, облака, дождь, пыль, мухи. В дождь — гуще дымка,
+## слабее солнце, мокрая земля, холоднее цвета. В проверках погоды нет (сравнения яркости), если не задано --as-rain=.
+func _weather_setup() -> void:
+	weather = ULWeather.new()
+	weather.name = "Weather"
+	add_child(weather)
+	var rng := RandomNumberGenerator.new()
+	rng.randomize()
+	var en := (test == "" or _wx_test > 0) and not arena
+	weather.setup(place, rng, en, -1 if test == "" else _wx_test - 1, ULSettings.gfx)
+	weather_rain = weather.rain
+	if weather_rain:
+		sun.light_energy *= 0.93
+		_sun_e0 = sun.light_energy
+		world_env.tonemap_exposure *= 1.08       # пасмурно, но не темнее: мокрая земля и так темнее сухой
+		world_env.fog_density = minf(world_env.fog_density * 1.6, 1.0)
+		world_env.fog_depth_begin *= 0.75
+		world_env.fog_light_color = world_env.fog_light_color.lerp(Color(0.55, 0.59, 0.63), 0.6)
+		world_env.ambient_light_energy *= 1.05
+var _grade_from := {}
+var _grade_to := {}
+var _grade_cur := {}
+var _grade_t := 1.0
+var _grade_job := -1
+var _grade_img: Array[Image] = []
+var _grade_step := 0.0
+
+
+func grade_on() -> bool:
+	return test == "" or _grade_test
+
+
+func grade_target() -> Dictionary:
+	return ULGrade.look("arena" if arena else place, weather_rain, evo_stage())
+
+
+func _grade_apply(instant := false) -> void:
+	if world_env == null:
+		return
+	if not grade_on():
+		world_env.adjustment_color_correction = null
+		if _sharp:
+			_sharp.set_look(0.0, 0.0)
+		return
+	var to := grade_target()
+	if instant or _grade_cur.is_empty():
+		_grade_from = to
+		_grade_to = to
+		_grade_t = 1.0
+		_grade_set(to, true)
+	elif to != _grade_to:
+		_grade_from = _grade_cur
+		_grade_to = to
+		_grade_t = 0.0
+		_grade_step = 0.0
+
+
+func _grade_tick(delta: float) -> void:
+	if _grade_job >= 0 and WorkerThreadPool.is_task_completed(_grade_job):
+		WorkerThreadPool.wait_for_task_completion(_grade_job)
+		_grade_job = -1
+		var t := ImageTexture3D.new()
+		t.create(Image.FORMAT_RGB8, ULGrade.N, ULGrade.N, ULGrade.N, false, _grade_img)
+		world_env.adjustment_color_correction = t
+	if _grade_t >= 1.0:
+		return
+	_grade_t = minf(1.0, _grade_t + delta / 3.0)
+	_grade_step -= delta
+	if (_grade_step <= 0.0 or _grade_t >= 1.0) and _grade_job < 0:
+		_grade_step = 0.45
+		_grade_set(ULGrade.lerp_look(_grade_from, _grade_to, _grade_t), false)
+	elif _grade_t >= 1.0:
+		_grade_t = 0.999                         # последний шаг — когда освободится фоновая задача
+
+
+func _grade_set(l: Dictionary, now: bool) -> void:
+	_grade_cur = l
+	world_env.adjustment_enabled = true
+	if now:
+		world_env.adjustment_color_correction = ULGrade.lut(l)
+	else:
+		var lk := l.duplicate(true)
+		_grade_job = WorkerThreadPool.add_task(func() -> void:
+			var imgs: Array[Image] = ULGrade.lut_images(lk)
+			_grade_img = imgs)
+	_grade_vig(l)
+
+
+func _grade_vig(l: Dictionary) -> void:
+	var on := ULSettings.gfx >= 1
+	var vt: Array = l.get("vig_tint", [1.0, 1.0, 1.0])
+	var vs := get_viewport().get_visible_rect().size
+	if _sharp:
+		_sharp.set_look(float(l.get("vig", 0.0)) if on else 0.0, float(l.get("grain", 0.0)) if on else 0.0, Color(float(vt[0]), float(vt[1]), float(vt[2])), vs.x / maxf(vs.y, 1.0))
 
 
 func _ui() -> void:
@@ -3643,6 +3775,7 @@ func _ui() -> void:
 	info.add_theme_color_override("font_color", Color(1.0, 0.82, 0.4))
 	info.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
 	info.add_theme_constant_override("outline_size", 6)
+	info.visible = ULSettings.dev()                 # строка «место · кадры/с · разрешение» — только в редакторе
 	_hud.add_child(info)
 	# кнопки проверки — мелкие, сверху справа
 	var bar := HBoxContainer.new()
@@ -3667,7 +3800,7 @@ func _ui() -> void:
 		bar.add_child(_btn("Здоровье", func():
 			hp = HP_MAX
 			_menu_bar.visible = false, 110))
-	elif not temp():
+	elif not temp() and ULSettings.dev():
 		bar.add_child(_btn("Враг +", func():
 			var f := Vector3(sin(player.rotation.y), 0, cos(player.rotation.y))
 			spawn_enemy("infected", player.global_position + f * 9.0)
@@ -3678,10 +3811,11 @@ func _ui() -> void:
 			_save()
 			get_tree().change_scene_to_file("res://map.tscn"), 90))
 	bar.add_child(_btn("Настройки", open_settings, 120))
-	bar.add_child(_btn("Тест FPS", fps_test, 110))
-	if not arena and not temp():
+	if ULSettings.dev():
+		bar.add_child(_btn("Тест FPS", fps_test, 110))
+	if not arena and not temp() and ULSettings.dev():
 		bar.add_child(_btn("Убрать ящик", remove_crate, 130))
-	if not temp():
+	if not temp() and ULSettings.dev():
 		bar.add_child(_btn("3D", func():
 			_save()
 			ULSettings.stand_back = "res://world.tscn"
@@ -5998,7 +6132,7 @@ func _dl_test() -> void:
 	player.global_position = dl.global_position + Vector3(0, 0.05, 1.1)
 	await get_tree().create_timer(0.4).timeout
 	open_talk(dl)
-	_ok("1. разговор с барахольщиком: кнопки «Торговать» и «Продать хлам (7)»", _talk_trade.visible and _talk_sell.visible and _talk_sell.text == "Продать хлам (7)")
+	_ok("1. разговор с барахольщиком: только кнопка «Торговать» (продажа — в окне торговли)", _talk_trade.visible and not _talk_sell.visible)
 	_talk_trade.pressed.emit()
 	await get_tree().process_frame
 	var d := _dealer_ui
@@ -6564,6 +6698,81 @@ func _reload_test() -> void:
 	_ok("карточка коровника в компьютере: «Пустыши %d», «Лоторейщики %d», «Руберы %d» — без «случайно»" % [int(rc.pustysh), int(rc.lottery), int(rc.ruber)],
 		card != null and _find_label(card, "Пустыши %d" % int(rc.pustysh)) != null and _find_label(card, "Лоторейщики %d" % int(rc.lottery)) != null and _find_label(card, "Руберы %d" % int(rc.ruber)) != null and not str(card.find_children("*", "Label", true, false).map(func(l): return l.text)).contains("случайно"))
 	await _snap("pc_routes_reload")
+	_test_done()
+
+
+## Собранная игра (--as-release=1): без отладочных надписей и кнопок; барахольщик — только «Торговать»;
+## на старте 50 споранов; мачете — в слот пистолета и в слот основного оружия
+func _ux_test() -> void:
+	await get_tree().create_timer(0.5).timeout
+	var names: Array = _menu_bar.get_children().map(func(b): return (b as Button).text if b is Button else "")
+	_ok("как в собранной игре: строки «место · кадры/с · разрешение» нет", ULSettings.dev_force and not info.visible)
+	_ok("в меню нет «Враг +», «Тест FPS», «Убрать ящик», «3D»; «Справочник» и «Настройки» есть", not names.has("Враг +") and not names.has("Тест FPS") and not names.has("Убрать ящик") and not names.has("3D") and names.has("Справочник") and names.has("Настройки"), str(names))
+	var dl := npc_by_role("барахольщик")
+	inv.add(ULItems.make("junk", 3))
+	open_talk(dl)
+	_ok("у барахольщика — только «Торговать» и «Закрыть», продажи в окошке нет", _talk_trade.visible and not _talk_sell.visible)
+	_talk_ui.visible = false
+	_ok("на старте одиночной игры — 50 споранов (data/base_shop.json)", int((ULBase.shop().get("start_wallet", {}) as Dictionary).get("spore", 0)) == 50)
+	inv.pistol = null
+	inv.primary = null
+	inv.hand = ""
+	inv.pockets.fill(null)
+	inv.pockets[0] = ULItems.make("machete")
+	inv.pockets[1] = ULItems.make("machete")
+	_ok("мачете подходит и в слот пистолета, и в слот основного; автомат в слот пистолета — нет", ULItems.fits(inv.pockets[0], "pistol") and ULItems.fits(inv.pockets[0], "primary") and not ULItems.fits(ULItems.make("ak74m"), "pistol"))
+	var ok1 := inv.equip_from(inv.pockets, 0, "primary")
+	_ok("мачете положено в слот основного оружия", ok1 and inv.primary != null and String(inv.primary.id) == "machete" and inv.pockets[0] == null)
+	var ok2 := inv.equip_from(inv.pockets, 1, "pistol")
+	_ok("второе мачете — в слот пистолета", ok2 and inv.pistol != null and String(inv.pistol.id) == "machete")
+	inv.hand = "primary"
+	_apply_gear()
+	await get_tree().create_timer(0.8).timeout
+	_ok("мачете из слота основного — в руках (хват мачете)", _hand_weapon() == String(ULItems.get_def("machete").weapon) and rig.hold.wid == _hand_weapon(), rig.hold.wid)
+	open_inventory()
+	await get_tree().process_frame
+	inv_ui._sel_src = "pockets"
+	inv.pockets[2] = ULItems.make("machete")
+	inv_ui._sel_i = 2
+	inv_ui.refresh()
+	await get_tree().process_frame
+	_ok("в окне инвентаря у мачете — кнопки «В слот пистолета» и «В слот основного»", _find_button(inv_ui, "В слот пистолета") != null and _find_button(inv_ui, "В слот основного") != null)
+	close_inventory()
+	_test_done()
+
+
+## Снимки «как выглядит» (--as-place=…, --as-grade=1, --as-rain=0/1, --as-at=x,z): общий вид у входа, тело с
+## мухами рядом с героем; печатает средний цвет кадра (сравнение до/после цветокоррекции)
+func _look_test() -> void:
+	var t0 := Time.get_ticks_msec()
+	while temp() and not cs_ready and Time.get_ticks_msec() - t0 < 20000:
+		await get_tree().process_frame
+	hp_lock = true
+	hero_unseen = true
+	var at := zone_entry() + Vector3(0, 0.05, -14.0) if temp() else player.global_position
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--as-at="):
+			var xz := a.substr(8).split(",")
+			at = Vector3(float(xz[0]), 0.05, float(xz[1]))
+	player.global_position = at
+	_cam_ready = false
+	var e := spawn_enemy("infected", at + Vector3(2.5, 0, -1.5))
+	await get_tree().create_timer(0.5).timeout
+	e.damage(9999.0)
+	e.dead_t = 5.0
+	await get_tree().create_timer(2.5).timeout
+	var tag := "%s_g%d_r%d" % [place, int(grade_on()), int(weather_rain)]
+	await _snap("look_" + tag)
+	await RenderingServer.frame_post_draw
+	var img := get_viewport().get_texture().get_image()
+	img.resize(64, 36)
+	var m := Vector3.ZERO
+	for y in 36:
+		for x in 64:
+			var c := img.get_pixel(x, y)
+			m += Vector3(c.r, c.g, c.b)
+	m /= 64.0 * 36.0
+	print("[look] %s: средний цвет %.3f %.3f %.3f · мух %d · дождь %s" % [tag, m.x, m.y, m.z, weather.flies_shown, str(weather_rain)])
 	_test_done()
 
 
@@ -12075,7 +12284,7 @@ func open_talk(n: Node3D) -> void:
 	_talk_text.text = line % hero_name if line.contains("%s") else line
 	_talk_npc = n
 	_talk_trade.visible = String(n.get_meta("role")) in ["торговец", "оружейник", "барахольщик"]
-	_talk_sell.visible = String(n.get_meta("role")) == "барахольщик"
+	_talk_sell.visible = false                      # хлам продаётся только в окне торговли («Торговать»)
 	_talk_sell.text = "Продать хлам (%d)" % inv.count("junk")
 	_talk_ui.visible = true
 	_joy_id = -1
@@ -13299,6 +13508,12 @@ func _run_test() -> void:
 		return
 	if test == "reload":
 		await _reload_test()
+		return
+	if test == "ux":
+		await _ux_test()
+		return
+	if test == "look":
+		await _look_test()
 		return
 	if test == "gifts":
 		await _gifts_test()

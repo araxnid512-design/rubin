@@ -14,7 +14,7 @@ const ITEMS := {
 	# fix — сколько споранов стоит полный ремонт у оружейника (частичный — по доле износа)
 	"tt": {"n": "Пистолет ТТ", "kind": "pistol", "weapon": "pistol", "ammo": "a762x25", "mag": 8, "dmg": 22, "rate": 3.0, "range": 8, "dur": 300, "fix": 6, "d": "7,62×25 ТТ, магазин на 8 патронов."},
 	"beretta": {"n": "Beretta 92FS", "kind": "pistol", "weapon": "beretta", "ammo": "a9x19", "mag": 15, "dmg": 18, "rate": 3.5, "range": 8, "dur": 400, "fix": 8, "d": "9×19, магазин на 15 патронов."},
-	"machete": {"n": "Мачете", "kind": "melee", "weapon": "melee", "dmg": 40, "rate": 1.0, "dur": 400, "fix": 4, "d": "Клинок 40 см. Носится в слоте пистолета."},
+	"machete": {"n": "Мачете", "kind": "melee", "weapon": "melee", "dmg": 40, "rate": 1.0, "dur": 400, "fix": 4, "d": "Клинок 40 см. Носится в слоте пистолета или основного оружия."},
 	"ak74m": {"n": "АК-74М", "kind": "primary", "weapon": "rifle", "ammo": "a545", "mag": 30, "dmg": 26, "rate": 9.0, "auto": true, "range": 11, "dur": 1000, "fix": 18, "d": "Автомат, 5,45×39, магазин на 30 патронов."},
 	"mp5": {"n": "MP5", "kind": "primary", "weapon": "mp5", "ammo": "a9x19", "mag": 30, "dmg": 16, "rate": 11.0, "auto": true, "range": 9, "dur": 800, "fix": 12, "d": "Пистолет-пулемёт, 9×19, магазин на 30 патронов."},
 	"fnfal": {"n": "FN FAL", "kind": "primary", "weapon": "fnfal", "ammo": "a762x51", "mag": 20, "dmg": 42, "rate": 3.0, "range": 13, "dur": 700, "fix": 24, "d": "Винтовка, 7,62×51, магазин на 20 патронов."},
@@ -125,6 +125,15 @@ static func slot_of(it) -> String:
 		"pack":
 			return "pack"
 	return ""
+
+
+## можно ли положить предмет в слот снаряжения: мачете (холодное) — и в слот пистолета, и в слот основного
+static func fits(it, slot: String) -> bool:
+	if it == null:
+		return false
+	if kind(it) == "melee":
+		return slot in ["pistol", "primary"]
+	return slot_of(it) == slot
 
 
 static func title(it) -> String:
