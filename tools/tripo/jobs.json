@@ -388,6 +388,42 @@
     "red rolling metal tool chest with drawers, realistic, single object, game asset"
    ],
    "timeout": 1800
+  },
+  {
+   "id": "g65c_bp_2",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "bp_2",
+    "--faces",
+    "6000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "a single isolated car part only, no vehicle, no wheels, no body: black steel front bumper beam with a tubular bull bar guard welded on top of it, realistic, game asset"
+   ],
+   "timeout": 1800
+  },
+  {
+   "id": "g65c_bp_3",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "bp_3",
+    "--faces",
+    "6000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "a single isolated car part only, no vehicle, no wheels, no body: heavy black steel winch bumper with an electric winch drum in the middle and a tall tubular bull bar frame, realistic, game asset"
+   ],
+   "timeout": 1800
   }
  ],
  "archived": [
