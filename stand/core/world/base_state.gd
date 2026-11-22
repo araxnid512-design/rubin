@@ -63,12 +63,20 @@ static func _car_norm() -> void:
 	if not (data.get("car") is Dictionary):
 		data["car"] = {}
 	var cd: Dictionary = data.car
-	var hmax := ULCar.c("hp", 600.0)
+	# улучшения (ULCar.lvl): колёса, багажник, броня, бак
+	if not (cd.get("up") is Dictionary):
+		cd["up"] = {}
+	for k in ["wheels", "trunk", "armor", "tank"]:
+		cd.up[k] = clampi(int(cd.up.get(k, 0)), 0, ULCar.max_lvl(k))
+	var hmax := float(ULCar.lvl("armor", int(cd.up.armor)).get("hp", ULCar.c("hp", 600.0)))
 	cd["hp"] = clampf(float(cd.get("hp", hmax)), 0.0, hmax)
+	var fc: Dictionary = ULCar.cfg().get("fuel", {})
+	var tmax := float(ULCar.lvl("tank", int(cd.up.tank)).get("tank", fc.get("tank", 30)))
+	cd["fuel"] = clampf(float(cd.get("fuel", fc.get("start", 15))), 0.0, tmax)
 	var tr = cd.get("trunk")
 	if not (tr is Array):
 		tr = []
-	tr.resize(int(ULCar.c("trunk_cells", 30.0)))
+	tr.resize(maxi(ULCar.trunk_cells(int(cd.up.trunk)), tr.size()))
 	for i in tr.size():
 		if tr[i] != null and not (tr[i] is Dictionary):
 			tr[i] = null

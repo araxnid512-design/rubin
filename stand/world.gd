@@ -63,6 +63,7 @@ var car: ULCar = null              ## УАЗ героя на временной 
 var car_in := false                ## герой за рулём
 const CAR_HIDE := ["fire", "reload", "swap"]   ## кнопки, которых за рулём нет
 var _trunk_open := false
+var _car_ui: ULCarUI = null
 var _car_snd: AudioStreamPlayer3D = null
 var _pl_layers := Vector2i(1, 1)   ## слои столкновений героя до посадки (в машине — без столкновений)
 var _steps := {}
@@ -265,6 +266,8 @@ func _ready() -> void:
 		if ULSettings.bench and (test == "" or test == "lvlbench"):
 			_bench_run.call_deferred()
 	_apply_gear()
+	if place == "home" and not arena and not lvl and (test == "" or test == "carmod"):
+		_car_spawn_home.call_deferred()                 # свой УАЗ стоит и на базе — по ней тоже можно ездить
 	if place == "home" and not arena and ULSettings.arrival_note != "" and test == "" and not lvl:
 		var note := ULSettings.arrival_note
 		ULSettings.arrival_note = ""
@@ -3337,6 +3340,11 @@ func _find_target() -> void:
 		if dk < bd:
 			bd = dk
 			best = {"type": "car_trunk"}
+		if place == "home":
+			var hd := Vector2(car.hood_pos().x - p.x, car.hood_pos().z - p.z).length() - 0.4
+			if hd < bd:
+				bd = hd
+				best = {"type": "car_mod"}
 	if _terminal != null:
 		var dt := _terminal.global_position.distance_to(p) - 0.2
 		if dt < bd:
@@ -3456,7 +3464,11 @@ func _target_pos() -> Vector3:
 	if _target == null:
 		return Vector3.ZERO
 	if String(_target.type).begins_with("car_") and car != null:
-		return car.trunk_pos() + Vector3.UP * 1.3 if _target.type == "car_trunk" else car.global_position + Vector3.UP * (car.size.y + 0.3)
+		if _target.type == "car_trunk":
+			return car.trunk_pos() + Vector3.UP * 1.3
+		if _target.type == "car_mod":
+			return car.hood_pos() + Vector3.UP * 1.6
+		return car.global_position + Vector3.UP * (car.size.y + 0.3)
 	if _target.type == "box":
 		var ctp: Dictionary = san.containers[int(_target.i)]
 		return (ctp.pos as Vector3) + Vector3.UP * ((ctp.size as Vector3).y + 0.2)
@@ -3478,6 +3490,8 @@ func _target_name() -> String:
 		return ""
 	if _target.type == "car_trunk":
 		return "багажник УАЗа"
+	if _target.type == "car_mod":
+		return "УАЗ: улучшения, бензин, ремонт"
 	if String(_target.type).begins_with("car_"):
 		return "УАЗ" + (" (сломан — ремонт в гараже базы)" if car != null and car.broken() else "")
 	if _target.type == "crate":
@@ -3506,6 +3520,8 @@ func _action_label() -> String:
 		return "Выйти"
 	if _target.type == "car_trunk":
 		return "Багажник"
+	if _target.type == "car_mod":
+		return "Улучшить"
 	if _target.type == "crate":
 		return "Открыть"
 	if _target.type == "box":
@@ -3533,6 +3549,9 @@ func do_action() -> void:
 		return
 	if _target.type == "car_trunk":
 		open_trunk()
+		return
+	if _target.type == "car_mod":
+		open_car_ui()
 		return
 	if _target.type == "crate":
 		open_inventory(_target.c.get_meta("items"), "Ящик", false, "crate")
@@ -4043,7 +4062,7 @@ func _draw_hud() -> void:
 		var ck := clampf(car.hp / car.hp_max, 0.0, 1.0)
 		_hud.draw_rect(Rect2(cx, 84, cw, 12), Color(0, 0, 0, 0.6))
 		_hud.draw_rect(Rect2(cx + 1, 85, (cw - 2) * ck, 10), Color(0.85, 0.3, 0.2) if ck < 0.3 else Color(0.85, 0.75, 0.35))
-		_hud_text(Vector2(vs.x * 0.5, 112), "УАЗ %d / %d · %d км/ч" % [int(round(car.hp)), int(round(car.hp_max)), int(round(absf(car.speed) * 3.6))] + ("  — сломан" if car.broken() else ""), 15, Color(1.0, 0.92, 0.7))
+		_hud_text(Vector2(vs.x * 0.5, 112), "УАЗ %d / %d · %d км/ч · бензин %.1f л" % [int(round(car.hp)), int(round(car.hp_max)), int(round(absf(car.speed) * 3.6)), car.fuel] + ("  — сломан" if car.broken() else ("  — нет бензина" if car.no_fuel() else "")), 15, Color(1.0, 0.92, 0.7))
 	# джойстик
 	var jc := _joy_o if _joy_id >= 0 else Vector2(160, vs.y - 160)
 	_hud.draw_circle(jc, 92, Color(1, 1, 1, 0.07))
@@ -4102,7 +4121,7 @@ func _draw_hud() -> void:
 						_hud_icon(_art("use"), c, r * 2.0, ic)
 					"crate", "box", "chest", "car_trunk":
 						_hud_icon(_tex("res://assets/icons/crate.png"), c, r * 1.5, ic)
-					"car_door", "car_exit":
+					"car_door", "car_exit", "car_mod":
 						_hud_icon(_art("use"), c, r * 2.0, ic)
 					"safe":
 						_hud_icon(_tex("res://assets/icons/safe.png"), c, r * 1.5, ic)
@@ -12128,7 +12147,7 @@ var _name_edit: LineEdit
 
 
 func _modal() -> bool:
-	return (inv_ui != null and inv_ui.visible) or (_name_ui != null and _name_ui.visible) or (_char_ui != null and is_instance_valid(_char_ui)) or (_talk_ui != null and _talk_ui.visible) or (_set_ui != null and is_instance_valid(_set_ui)) or (_book_ui != null and is_instance_valid(_book_ui)) or (_shop_ui != null and is_instance_valid(_shop_ui)) or (_term_ui != null and is_instance_valid(_term_ui)) or (_dealer_ui != null and is_instance_valid(_dealer_ui)) or _dead_t > 0.0 or (_map_ui != null and is_instance_valid(_map_ui))
+	return (_car_ui != null and is_instance_valid(_car_ui)) or (inv_ui != null and inv_ui.visible) or (_name_ui != null and _name_ui.visible) or (_char_ui != null and is_instance_valid(_char_ui)) or (_talk_ui != null and _talk_ui.visible) or (_set_ui != null and is_instance_valid(_set_ui)) or (_book_ui != null and is_instance_valid(_book_ui)) or (_shop_ui != null and is_instance_valid(_shop_ui)) or (_term_ui != null and is_instance_valid(_term_ui)) or (_dealer_ui != null and is_instance_valid(_dealer_ui)) or _dead_t > 0.0 or (_map_ui != null and is_instance_valid(_map_ui))
 
 
 func _load_profile() -> void:
@@ -13928,6 +13947,9 @@ func _run_test() -> void:
 		return
 	if test == "car":
 		await _car_test()
+		return
+	if test == "carmod":
+		await _carmod_test()
 		return
 	if test == "setshot":
 		# снимок окна настроек (строка о разрешении экрана и подстройке)
@@ -16412,22 +16434,38 @@ func _run_test() -> void:
 
 ## Поставить машину у входа на временную локацию: сбоку от тропы, мордой внутрь, на свободное место
 func _car_spawn() -> void:
-	if not temp() or arena or car != null:
+	if not (temp() or place == "home") or arena or car != null:
 		return
 	var cd := ULBase.car_data()
 	car = ULCar.new()
 	car.hp = float(cd.hp)
+	car.fuel = float(cd.fuel)
 	add_child(car)
 	car.setup()
-	var e := zone_entry()
-	var yaw := zone_entry_yaw() if place in ["cowshed", "sanatorium"] else atan2(-e.x, -e.z)
+	car.apply_up(cd.up)
+	car.hp = float(cd.hp)
+	var home := place == "home"
+	var e := player.global_position if home else zone_entry()
+	var yaw := 0.0
+	if home:
+		yaw = player.rotation.y + PI * 0.5
+	else:
+		yaw = zone_entry_yaw() if place in ["cowshed", "sanatorium"] else atan2(-e.x, -e.z)
 	var fw := Vector3(sin(yaw), 0, cos(yaw))
 	var rt := Vector3(-fw.z, 0, fw.x)
 	var map := get_world_3d().navigation_map
 	var picked := false
-	for off in [rt * 4.5 + fw * 3.0, -rt * 4.5 + fw * 3.0, rt * 6.5 + fw * 6.0, -rt * 6.5 + fw * 6.0, fw * 9.0, rt * 9.0, -rt * 9.0, rt * 5.0 + fw * 12.0, -rt * 5.0 + fw * 12.0]:
+	var offs := [rt * 4.5 + fw * 3.0, -rt * 4.5 + fw * 3.0, rt * 6.5 + fw * 6.0, -rt * 6.5 + fw * 6.0, fw * 9.0, rt * 9.0, -rt * 9.0, rt * 5.0 + fw * 12.0, -rt * 5.0 + fw * 12.0]
+	if home:
+		offs = []
+		for rr in [7.0, 10.0, 13.0, 16.0]:
+			for k in 12:
+				offs.append(Vector3(sin(k * TAU / 12.0), 0, cos(k * TAU / 12.0)) * rr)
+	for off in offs:
 		var want: Vector3 = e + off
 		var at := NavigationServer3D.map_get_closest_point(map, want)
+		if NavigationServer3D.map_get_iteration_id(map) == 0:
+			at = Vector3(want.x, e.y - 0.05, want.z)        # карта проходимости ещё не готова — по месту героя
 		if Vector2(at.x - want.x, at.z - want.z).length() > 1.5:
 			continue
 		car.global_position = at + Vector3.UP * 0.1
@@ -16448,6 +16486,16 @@ func _car_spawn() -> void:
 	_car_snd.volume_db = -9.0
 	_car_snd.unit_size = 6.0
 	car.add_child(_car_snd)
+
+
+## база: подождать карту проходимости и поставить машину рядом с героем на свободное место
+func _car_spawn_home() -> void:
+	var map := get_world_3d().navigation_map
+	for i in 90:
+		await get_tree().physics_frame
+		if NavigationServer3D.map_get_iteration_id(map) > 0:
+			break
+	_car_spawn()
 
 
 ## место под машину свободно (ничего, кроме земли, в коробке кузова, приподнятой над землёй)
@@ -16510,13 +16558,13 @@ func _car_ram(delta: float) -> void:
 		away = away.normalized() if away.length() > 0.01 else car.fwd()
 		if e.kind == "ruber":
 			# Рубер — как стена: машина встаёт и мнётся
-			car.damage(ULCar.c("ruber_car_dmg", 40.0))
+			car.damage(ULCar.c("ruber_car_dmg", 40.0) * (0.5 + 0.5 * car.ram_k))
 			car.speed = 0.0
 			e.damage(sp * sp * 0.6, car.global_position)
 			snd.play("block", e.global_position + Vector3.UP, -2.0)
 		else:
 			e.damage(sp * sp * ULCar.c("ram_dmg_k", 2.4), car.global_position)
-			car.damage(ULCar.c("ram_car_dmg", 2.0))
+			car.damage(ULCar.c("ram_car_dmg", 2.0) * car.ram_k)
 			if e.alive():
 				e.global_position += away * 0.8                # выжил — отброшен в сторону
 			snd.play("body_fall", e.global_position + Vector3.UP * 0.5, -4.0)
@@ -16567,6 +16615,7 @@ func open_trunk() -> void:
 	if car == null:
 		return
 	_trunk_open = true
+	_car_store()                                # багажник по нынешнему уровню
 	inv_ui.cont_cols = int(ULCar.c("trunk_cols", 6.0))
 	inv_ui.storage_ops = true
 	open_inventory(ULBase.car_data().trunk, "Багажник УАЗа", false, "crate")
@@ -16577,8 +16626,22 @@ func open_trunk() -> void:
 func _car_store() -> void:
 	if car == null or not is_instance_valid(car):
 		return
-	ULBase.car_data()["hp"] = car.hp
+	var cd := ULBase.car_data()
+	cd["up"] = car.up.duplicate()
+	cd["hp"] = car.hp
+	cd["fuel"] = car.fuel
+	ULBase._car_norm()                          # багажник растёт по уровню
 	ULBase.save_state()
+
+
+## окно «УАЗ» на базе: улучшения, бензин, ремонт
+func open_car_ui() -> void:
+	if car == null:
+		return
+	_car_ui = ULCarUI.open(_hud.get_parent(), car, inv, _car_store)
+	_joy_id = -1
+	_joy_v = Vector2.ZERO
+	_hud_touch.clear()
 
 
 ## Проверка УАЗа (--as-test=car --as-place=cowshed): у входа, в натуральную величину, сесть, ехать, повернуть, сбить
@@ -16692,6 +16755,97 @@ func _car_test() -> void:
 	hp_h = hp
 	hurt(10.0, car.global_position + car.fwd())
 	_ok("в сломанной машине удары достаются герою", hp < hp_h)
+	do_action()
+	_test_done()
+
+
+## Проверка улучшений УАЗа на базе (--as-test=carmod): машина на базе, окно «УАЗ» у капота, бензин, ремонт;
+## улучшения меняют и цифры, и вид; по базе можно ездить — бензин тратится, без бензина не едет
+func _carmod_test() -> void:
+	ULBase.memory_only = true
+	var t0 := Time.get_ticks_msec()
+	while car == null and Time.get_ticks_msec() - t0 < 15000:
+		await get_tree().process_frame
+	_ok("УАЗ стоит на базе рядом с героем", car != null and car.global_position.distance_to(player.global_position) < 20.0, str(car.global_position.distance_to(player.global_position)) if car else "нет")
+	if car == null:
+		_test_done()
+		return
+	car.fuel = 15.0
+	car.apply_up({})
+	car.hp = car.hp_max
+	_car_store()
+	inv.wallet["spore"] = 2000
+	inv.wallet["pea"] = 30
+	inv.add({"id": "junk", "n": 50})
+	inv.add({"id": "junk", "n": 50})
+	var parts0 := car.parts.get_child_count()
+	var hp0 := car.hp_max
+	cam_dist = 10.0
+	player.global_position = car.hood_pos() + Vector3.UP * 0.1
+	for i in 8:
+		await get_tree().process_frame
+	await _snap("car_stock")
+	_ok("у капота — кнопка «Улучшить» (окно «УАЗ»)", _target != null and String(_target.type) == "car_mod" and _action_label() == "Улучшить", _action_label())
+	do_action()
+	await get_tree().process_frame
+	_ok("открылось окно «УАЗ»: прочность, бензин, багажник, четыре улучшения", _car_ui != null and is_instance_valid(_car_ui) and _modal())
+	var sp0 := int(inv.wallet.spore)
+	_car_ui.buy_fuel(10.0)
+	_ok("бензин покупается отдельно: +10 л за 8 споранов", is_equal_approx(car.fuel, 25.0) and int(inv.wallet.spore) == sp0 - 8, "%.1f л, споранов %d" % [car.fuel, int(inv.wallet.spore)])
+	var sp1 := int(inv.wallet.spore)
+	var j1 := inv.count("junk")
+	for line in ULCarUI.LINES:
+		for i in 2:
+			_car_ui.upgrade(line)
+	_ok("все улучшения до конца: скорость ×1.2, багажник 60 ячеек, прочность 1100 (прибавилась сразу), бак 60 л",
+		is_equal_approx(car.spd_k, 1.2) and ULCar.trunk_cells(int(car.up.trunk)) == 60 and is_equal_approx(car.hp_max, 1100.0) and car.hp > hp0 + 400.0 and is_equal_approx(car.tank, 60.0), str(car.up))
+	_ok("вид поменялся: 4 больших колеса, кузов выше, решётка с грузом, кенгурятник, листы и решётки, канистры", car._wheels.size() == 4 and car._lift > 0.05 and car.parts.get_child_count() > parts0 + 30, "деталей %d → %d, подъём %.2f м" % [parts0, car.parts.get_child_count(), car._lift])
+	_ok("оплачено: спораны, горошины, хлам", int(inv.wallet.spore) == sp1 - 760 and int(inv.wallet.pea) == 24 and inv.count("junk") == j1 - 56, "споранов −%d, хлама −%d" % [sp1 - int(inv.wallet.spore), j1 - inv.count("junk")])
+	_ok("багажник вырос до 60 ячеек, улучшения — в сохранении базы", (ULBase.car_data().trunk as Array).size() == 60 and int(ULBase.car_data().up.trunk) == 2 and int(ULBase.car_data().up.armor) == 2)
+	await get_tree().create_timer(0.3).timeout
+	await _snap("car_ui")
+	_car_ui.close()
+	await get_tree().process_frame
+	await get_tree().process_frame
+	await _snap("car_full")
+	# ремонт
+	car.damage(300.0)
+	open_car_ui()
+	var rp: Array = _car_ui.repair_price()
+	_car_ui.repair()
+	_ok("ремонт на базе: прочность полная, плата — %s" % ULCarUI.price_text(rp[0], rp[1]), is_equal_approx(car.hp, car.hp_max))
+	_car_ui.close()
+	await get_tree().process_frame
+	# езда по базе
+	player.global_position = car.door_pos() + Vector3.UP * 0.1
+	for i in 4:
+		await get_tree().process_frame
+	do_action()
+	var f0 := car.fuel
+	var p0 := car.global_position
+	_auto_k = 1.0
+	_auto_r = 0.5
+	_auto = [p0 + car.fwd() * 40.0]
+	var tw := 0.0
+	while tw < 2.5:
+		await get_tree().process_frame
+		tw += get_process_delta_time()
+	_auto.clear()
+	_ok("по базе ездит, бензин тратится", car_in and car.global_position.distance_to(p0) > 5.0 and car.fuel < f0, "%.1f м, бензин %.2f → %.2f л" % [car.global_position.distance_to(p0), f0, car.fuel])
+	await _snap("car_drive_base")
+	car.fuel = 0.0
+	tw = 0.0
+	while tw < 8.0 and absf(car.speed) > 0.05:                 # мотор заглох — докатывается по инерции
+		await get_tree().process_frame
+		tw += get_process_delta_time()
+	var p1 := car.global_position
+	_auto = [p1 + car.fwd() * 40.0]
+	tw = 0.0
+	while tw < 1.5:
+		await get_tree().process_frame
+		tw += get_process_delta_time()
+	_auto.clear()
+	_ok("без бензина не едет (на экране — «нет бензина»)", car.global_position.distance_to(p1) < 0.6 and car.no_fuel(), "%.2f м" % car.global_position.distance_to(p1))
 	do_action()
 	_test_done()
 
