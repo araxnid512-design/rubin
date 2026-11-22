@@ -123,7 +123,7 @@ func _ready() -> void:
 			sc.lottery = [sc.lottery[1], sc.lottery[1]]
 			sc.ruber_chances = [0, 0, 1]                 # и два Рубера — всего 57
 			ULSanatorium._cfg = sc
-	if test == "gqview" or test == "mapbake" or test == "pmap" or test == "fldiag" or test == "shbake" or test == "shcheck" or test == "gbake" or test == "gcheck" or test == "gperf" or test == "lumtest" or test == "wperf" or test == "evo" or test == "reload" or test == "look":
+	if test == "gqview" or test == "mapbake" or test == "pmap" or test == "fldiag" or test == "shbake" or test == "shcheck" or test == "gbake" or test == "gcheck" or test == "gperf" or test == "lumtest" or test == "wperf" or test == "evo" or test == "reload" or test == "look" or test == "traces":
 		# сравнение чёткости (gqview), запекание карты локации (mapbake), проверка карты (pmap): место — --as-place=
 		ULSettings.arena = false
 		for a in OS.get_cmdline_user_args():
@@ -4791,7 +4791,9 @@ func _bullets_tick(delta: float) -> void:
 			if col == player and float(bl.dmg) > 0.0:
 				hurt(float(bl.dmg), bl.a)
 				mur_hits += 1
-			elif col != null and _hit_snd_t <= 0.0:
+			elif col != null and is_instance_valid(col) and not (col is CharacterBody3D):
+				_bullet_hole(bl.a, bl.b)
+			if col != null and col != player and _hit_snd_t <= 0.0:
 				snd.play("hit_wood", bl.b, -10.0, 0.1)
 				_hit_snd_t = 0.12
 			_bullets.remove_at(i)
@@ -4800,6 +4802,10 @@ func _bullets_tick(delta: float) -> void:
 			if col.has_meta("hp"):
 				hits += 1
 				_damage(col, float(bl.dmg), bl.b)
+				if col is ULEnemy and randf() < 0.55:
+					_wall_splat(bl.b, ((bl.b as Vector3) - (bl.a as Vector3)).normalized())
+			elif not (col is CharacterBody3D):
+				_bullet_hole(bl.a, bl.b)
 			if _hit_snd_t <= 0.0:
 				snd.play("hit_wood", bl.b, -8.0, 0.1)          # не чаще восьми раз в секунду
 				_hit_snd_t = 0.12
@@ -6773,6 +6779,61 @@ func _look_test() -> void:
 			m += Vector3(c.r, c.g, c.b)
 	m /= 64.0 * 36.0
 	print("[look] %s: средний цвет %.3f %.3f %.3f · мух %d · дождь %s" % [tag, m.x, m.y, m.z, weather.flies_shown, str(weather_rain)])
+	_test_done()
+
+
+## Следы боя: дырки от пуль в стене (с пылью), брызги крови на стене за раненым, лужа под телом растекается
+func _traces_test() -> void:
+	await get_tree().create_timer(0.6).timeout
+	var t0 := Time.get_ticks_msec()
+	while temp() and not cs_ready and Time.get_ticks_msec() - t0 < 20000:
+		await get_tree().process_frame
+	if temp():
+		# у первой постройки: герой в 6 м от её середины, со стороны камеры (юг)
+		var b0: Node3D = (zone.barns[0] as Dictionary).node
+		player.global_position = b0.global_position + Vector3(0, 0.05, 9.0)
+		await get_tree().create_timer(0.5).timeout
+	hp_lock = true
+	hero_unseen = true
+	var p0 := player.global_position + Vector3.UP * 1.2
+	var wall := {}
+	var wd := Vector3.ZERO
+	for k in 16:
+		var d := Vector3(cos(k * TAU / 16.0), 0, sin(k * TAU / 16.0))
+		var h := _ray_static(p0, p0 + d * 12.0)
+		if not h.is_empty() and absf((h.normal as Vector3).y) < 0.3 and (wall.is_empty() or p0.distance_to(h.position) < p0.distance_to(wall.position)):
+			wall = h
+			wd = d
+	_ok("рядом есть стена для проверки", not wall.is_empty())
+	if wall.is_empty():
+		_test_done()
+		return
+	var wp: Vector3 = wall.position
+	var n: Vector3 = wall.normal
+	print("[traces] стена: %s, нормаль %s, кто: %s (%s)" % [str(wp), str(n), str(wall.collider), (wall.collider as Node).get_path() if wall.collider is Node else ""])
+	# герой — в 3,5 м от стены лицом к ней
+	player.global_position = Vector3(wp.x, player.global_position.y, wp.z) + Vector3(n.x, 0, n.z).normalized() * 3.5
+	_cam_ready = false
+	await get_tree().create_timer(0.4).timeout
+	var side := Vector3(-n.z, 0, n.x).normalized()
+	var m0 := marks_made
+	for i in 5:
+		var tgt := wp + side * (i - 2) * 0.35 + Vector3.UP * (0.1 * (i % 2))
+		_bullet_hole(tgt + n * 3.0, tgt)
+	_ok("5 выстрелов в стену — 5 дырок", marks_made - m0 == 5, str(marks_made - m0))
+	var m1 := marks_made
+	_wall_splat(wp + n * 0.8 + side * 0.9 + Vector3.UP * 0.1, -n)
+	_ok("раненый у стены — брызги крови на стене за ним", marks_made - m1 == 1)
+	_bullet_hole(player.global_position + Vector3.UP * 1.2, player.global_position + Vector3(0.3, -1.0, 0.2))
+	_ok("в пол дырки нет", marks_made - m1 == 1)
+	var e := spawn_enemy("infected", player.global_position + side * 1.6 + Vector3(n.x, 0, n.z) * -0.6)
+	await get_tree().create_timer(0.3).timeout
+	var p1 := pools_made
+	e.damage(9999.0)
+	await get_tree().create_timer(1.2).timeout
+	_ok("под убитым — лужа крови", pools_made - p1 == 1)
+	await get_tree().create_timer(6.0).timeout
+	await _snap("traces")
 	_test_done()
 
 
@@ -11235,6 +11296,214 @@ void fragment() {
 }"""
 
 
+# ---------------- следы боя: лужи крови, брызги на стенах, дырки от пуль ----------------
+## Лужа под телом растекается за 6 с и лежит до конца посещения (не больше POOL_MAX — старые убираются);
+## брызги на стене за раненым (пуля прошла — кровь на стене позади); дырки от пуль в стенах, заборах, технике —
+## с облачком пыли и искрами. Всё — плоские наклейки с шумовым краем, без прозрачной сортировки на весь экран.
+const POOL_MAX := 40
+const MARK_MAX := 70
+var _pools: Array = []
+var _marks: Array = []
+var _pool_mat: ShaderMaterial
+var _mark_mat: ShaderMaterial
+var marks_made := 0                  ## проверки: сколько наклеек (дырок и брызг) поставлено
+var pools_made := 0
+
+const POOL_SHADER := """shader_type spatial;
+render_mode blend_mix, depth_draw_never, cull_back;
+// лужа крови: тёмная, влажная (блик), рваный край по шуму; grow 0…1 — растекается
+uniform sampler2D noise : filter_linear, repeat_enable;
+uniform float grow = 1.0;
+uniform float fade = 1.0;
+varying vec3 wp;
+void vertex() { wp = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz; }
+void fragment() {
+	vec2 c = UV - 0.5;
+	float n = texture(noise, wp.xz * 1.3).r;
+	float r = length(c) * 2.0 + (n - 0.5) * 0.55;
+	float a = 1.0 - smoothstep(0.5 * grow, 0.5 * grow + 0.12, r);
+	if (a < 0.02) { discard; }
+	float core = 1.0 - smoothstep(0.0, 0.5 * grow, r);
+	ALBEDO = mix(vec3(0.15, 0.015, 0.012), vec3(0.07, 0.008, 0.006), core);
+	ROUGHNESS = 0.16;
+	SPECULAR = 0.6;
+	ALPHA = a * 0.92 * fade;
+}"""
+
+const MARK_SHADER := """shader_type spatial;
+render_mode blend_mix, depth_draw_never, cull_back;
+// наклейка на стену: kind 0 — дырка от пули (чёрная середина, светлый рваный край), 1 — брызги крови со стёками
+uniform sampler2D noise : filter_linear, repeat_enable;
+uniform float kind = 0.0;
+uniform float seed = 0.0;
+void fragment() {
+	vec2 c = UV - 0.5;
+	float n = texture(noise, UV * 0.7 + seed).r;
+	if (kind < 0.5) {
+		float r = length(c) * 2.0 + (n - 0.5) * 0.35;
+		float hole = 1.0 - smoothstep(0.16, 0.24, r);
+		float rim = (1.0 - smoothstep(0.5, 0.78, r)) * (1.0 - hole);
+		if (hole + rim < 0.02) { discard; }
+		ALBEDO = mix(vec3(0.62, 0.6, 0.56), vec3(0.03), hole);
+		ALPHA = clamp(hole + rim * 0.75, 0.0, 1.0);
+		ROUGHNESS = 0.95;
+	} else {
+		float r = length(c * vec2(1.0, 1.2)) * 2.0 + (n - 0.5) * 0.8;
+		float blob = 1.0 - smoothstep(0.3, 0.55, r);
+		// стёки: узкие полосы вниз от пятна (UV.y растёт вниз)
+		float lane = texture(noise, vec2(UV.x * 2.3 + seed, 0.37)).r;
+		float drip = step(0.72, lane) * (1.0 - smoothstep(0.5, 0.5 + 0.5 * lane, UV.y)) * step(0.45, UV.y) * (1.0 - smoothstep(0.25, 0.45, abs(c.x)));
+		float sp = step(0.8, texture(noise, UV * 2.9 + seed * 1.7).r) * (1.0 - smoothstep(0.5, 0.95, r));
+		float a = max(max(blob, drip), sp);
+		if (a < 0.03) { discard; }
+		ALBEDO = mix(vec3(0.22, 0.02, 0.015), vec3(0.32, 0.03, 0.02), n);
+		ALPHA = a * 0.9;
+		ROUGHNESS = 0.4;
+	}
+}"""
+
+
+func _ray_static(a: Vector3, b: Vector3) -> Dictionary:
+	var q := PhysicsRayQueryParameters3D.create(a, b)
+	q.exclude = [player.get_rid()]
+	var hit := get_world_3d().direct_space_state.intersect_ray(q)
+	if hit.is_empty() or hit.collider is CharacterBody3D:
+		return {}
+	return hit
+
+
+func _blood_pool(e: ULEnemy) -> void:
+	if _pool_mat == null:
+		_pool_mat = ShaderMaterial.new()
+		var sh := Shader.new()
+		sh.code = POOL_SHADER
+		_pool_mat.shader = sh
+		_pool_mat.set_shader_parameter("noise", _noise_tex)
+	var c := e.body_pos().lerp(e.global_position, 0.35)
+	var hit := _ray_static(c + Vector3.UP * 0.6, c + Vector3.DOWN * 2.5)
+	var y := float(hit.position.y) if not hit.is_empty() else e.global_position.y
+	var mi := MeshInstance3D.new()
+	var pm := PlaneMesh.new()
+	pm.size = Vector2(1, 1)
+	mi.mesh = pm
+	var m: ShaderMaterial = _pool_mat.duplicate()
+	m.set_shader_parameter("grow", 0.15)
+	mi.material_override = m
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(mi)
+	var k := (1.9 if e.kind == "ruber" else randf_range(1.0, 1.35))
+	mi.global_transform = Transform3D(Basis(Vector3.UP, randf() * TAU).scaled(Vector3(k, 1.0, k * randf_range(0.75, 1.0))), Vector3(c.x, y + 0.035, c.z))
+	var tw := mi.create_tween()
+	tw.tween_method(func(v: float) -> void: m.set_shader_parameter("grow", v), 0.15, 1.0, 6.0).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_SINE)
+	_pools.append(mi)
+	pools_made += 1
+	if _pools.size() > POOL_MAX:
+		var old = _pools.pop_front()
+		if is_instance_valid(old):
+			old.queue_free()
+
+
+func _stick(at: Vector3, normal: Vector3, size: float, kind: int) -> void:
+	if _mark_mat == null:
+		_mark_mat = ShaderMaterial.new()
+		var sh := Shader.new()
+		sh.code = MARK_SHADER
+		_mark_mat.shader = sh
+		_mark_mat.set_shader_parameter("noise", _noise_tex)
+	var z := normal.normalized()
+	var up := Vector3.UP - z * Vector3.UP.dot(z)
+	if up.length() < 0.2:
+		up = Vector3.FORWARD - z * Vector3.FORWARD.dot(z)
+	var yv := up.normalized()
+	var xv := yv.cross(z).normalized()
+	var mi := MeshInstance3D.new()
+	var qm := QuadMesh.new()
+	qm.size = Vector2(size, size)
+	mi.mesh = qm
+	var m: ShaderMaterial = _mark_mat.duplicate()
+	m.set_shader_parameter("kind", float(kind))
+	m.set_shader_parameter("seed", randf() * 10.0)
+	mi.material_override = m
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(mi)
+	# поворот наклейки вокруг нормали — у дырок; у крови «низ» картинки — вниз по стене (стёки)
+	var b := Basis(xv, yv, z)
+	if kind == 0:
+		b = b.rotated(z, randf() * TAU)
+	mi.global_transform = Transform3D(b, at + z * 0.012)
+	_marks.append(mi)
+	marks_made += 1
+	if _marks.size() > MARK_MAX:
+		var old = _marks.pop_front()
+		if is_instance_valid(old):
+			old.queue_free()
+
+
+## пуля попала в стену, забор, технику: точка и нормаль — лучом вдоль полёта
+func _bullet_hole(a: Vector3, b: Vector3) -> void:
+	var d := (b - a).normalized()
+	var hit := _ray_static(b - d * 0.3, b + d * 0.3)
+	if hit.is_empty():
+		return
+	var n: Vector3 = hit.normal
+	if absf(n.y) > 0.85:
+		return                                   # в пол и в землю — без дырки (там пыль от шага и так)
+	_stick(hit.position, n, randf_range(0.15, 0.2), 0)          # сверху камера далеко: дырка с выщербленным краем крупнее настоящей
+	_puff(hit.position + n * 0.05, n)
+
+
+## кровь на стене за раненым: пуля прошла — брызги летят дальше по ходу
+func _wall_splat(at: Vector3, d: Vector3) -> void:
+	var hit := _ray_static(at + d * 0.25, at + d * 1.8)
+	if hit.is_empty():
+		return
+	var n: Vector3 = hit.normal
+	if absf(n.y) > 0.7:
+		return
+	_stick(hit.position, n, randf_range(0.35, 0.6), 1)
+
+
+var _puff_mat: StandardMaterial3D
+
+
+## облачко пыли и пара искр из стены
+func _puff(at: Vector3, n: Vector3) -> void:
+	if _puff_mat == null:
+		_puff_mat = StandardMaterial3D.new()
+		_puff_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		_puff_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		_puff_mat.vertex_color_use_as_albedo = true
+		_puff_mat.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
+	var p := CPUParticles3D.new()
+	var qm := QuadMesh.new()
+	qm.size = Vector2(0.06, 0.06)
+	qm.material = _puff_mat
+	p.mesh = qm
+	p.amount = 9
+	p.one_shot = true
+	p.explosiveness = 0.95
+	p.lifetime = 0.45
+	p.direction = n
+	p.spread = 35.0
+	p.initial_velocity_min = 0.8
+	p.initial_velocity_max = 2.4
+	p.gravity = Vector3(0, -4.0, 0)
+	p.scale_amount_min = 0.6
+	p.scale_amount_max = 1.8
+	p.color = Color(0.7, 0.66, 0.6, 0.7)
+	var g := Gradient.new()
+	g.set_color(0, Color(1.0, 0.85, 0.4, 1.0))
+	g.add_point(0.12, Color(0.72, 0.68, 0.62, 0.75))
+	g.set_color(g.get_point_count() - 1, Color(0.7, 0.66, 0.6, 0.0))
+	p.color_ramp = g
+	p.local_coords = false
+	p.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(p)
+	p.global_position = at
+	p.emitting = true
+	get_tree().create_timer(0.9).timeout.connect(p.queue_free)
+
+
 ## Кровь от удара: брызги капель по направлению dir (летят и падают) и пятно на земле, которое через 20 с тает.
 ## Пятен на локации — не больше 24 (старые убираются).
 func _blood(at: Vector3, dir: Vector3, n: int) -> void:
@@ -11280,7 +11549,10 @@ func _blood(at: Vector3, dir: Vector3, n: int) -> void:
 	sp.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(sp)
 	var k := randf_range(0.45, 0.8) * clampf(n / 14.0, 0.7, 1.4)
-	sp.global_transform = Transform3D(Basis(Vector3.UP, randf() * TAU).scaled(Vector3(k, 1.0, k * randf_range(0.7, 1.0))), Vector3(at.x, 0.05, at.z) + dir * randf_range(0.25, 0.6))
+	var gp := Vector3(at.x, 0.0, at.z) + dir * randf_range(0.25, 0.6)
+	var fh := _ray_static(Vector3(gp.x, at.y + 0.3, gp.z), Vector3(gp.x, at.y - 2.5, gp.z))
+	gp.y = (float(fh.position.y) if not fh.is_empty() else 0.0) + 0.05
+	sp.global_transform = Transform3D(Basis(Vector3.UP, randf() * TAU).scaled(Vector3(k, 1.0, k * randf_range(0.7, 1.0))), gp)
 	_splats.append(sp)
 	if _splats.size() > 24:
 		var old: Node3D = _splats.pop_front()
@@ -11359,6 +11631,9 @@ func _enemies_tick(delta: float) -> void:
 		var e := enemies[i]
 		if not e.alive():
 			e.tick(delta, p, false, hero_ok)
+			if e.dead_t > 0.6 and not e.has_meta("pool"):
+				e.set_meta("pool", true)
+				_blood_pool(e)
 			if e.dead_t >= ULEnemy.CORPSE_S:
 				# тело лежит минуту и исчезает — обыскали его или нет
 				if _open_corpse == e and inv_ui.visible:
@@ -13514,6 +13789,9 @@ func _run_test() -> void:
 		return
 	if test == "look":
 		await _look_test()
+		return
+	if test == "traces":
+		await _traces_test()
 		return
 	if test == "gifts":
 		await _gifts_test()
