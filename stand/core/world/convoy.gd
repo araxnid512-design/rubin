@@ -455,6 +455,11 @@ func _c_vehicles() -> void:
 
 
 ## модель по длине (наибольший размер по земле), с коробкой столкновения; возвращает её размер (в системе модели)
+## предметы, поставленные без столкновения (тайники у стен, тела, мелочь) — через них всё равно не пройти: им
+## столкновение на слое мелких предметов (world.PROP_LAYER: только герой и машина)
+const SOFT_COL := ["ul_crate", "ul_army_crate", "ph_tyre", "ul_soldier_down", "qr_remains", "cv_stretcher", "kh_scarecrow", "ph_box", "ph_barrel", "kh_sacks", "cv_jerrycans", "qr_pallets", "qr_ibc"]
+
+
 func _c_model_box(path: String, at: Vector3, yaw: float, length: float, tint: Color, key: String, collide: bool, by_height := false) -> Vector3:
 	if not ResourceLoader.exists(path):
 		var sz := Vector3(length, 1.6, length * 0.4)
@@ -482,6 +487,8 @@ func _c_model_box(path: String, at: Vector3, yaw: float, length: float, tint: Co
 	else:
 		_cull(n, 60.0)
 	var size := bb.size * k
+	if not collide and key in SOFT_COL:
+		w.prop_col_node(n)                     # без столкновения в карте проходимости — на слое мелких предметов
 	# пятно-тень под предметом (техника, ящики, ульи, поленницы): сажает на землю
 	blob_pts.append([at, Vector2(size.x, size.z), yaw, 0.6 if length < 2.5 else 0.5])
 	if collide:

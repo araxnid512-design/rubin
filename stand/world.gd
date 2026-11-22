@@ -2099,10 +2099,10 @@ func _yard() -> void:
 	# у забора справа от калитки: бочка и покрышка
 	_prop("ph_barrel", Vector3(gx + 4.6, 0, z1 + 0.6), 0.4, 1.0, body, 0.33)
 	_prop("ph_barrel", Vector3(x0 + 1.0, 0, z0 + 1.1), 2.1, 1.0, body, 0.33)
-	var ty := _prop("ph_tyre", Vector3(gx + 6.4, 0.3, z1 + 0.3), 0.0, 1.05, body, 0.0)
+	var ty := _prop("ph_tyre", Vector3(gx + 6.4, 0.3, z1 + 0.3), 0.0, 1.05, body, 0.45)
 	if ty:
 		ty.rotation = Vector3(0.24, 0.25, 0)
-	var ty2 := _prop("ph_tyre", Vector3(gx - 5.2, 0.085, z1 + 1.6), 0.0, 1.05, body, 0.0)
+	var ty2 := _prop("ph_tyre", Vector3(gx - 5.2, 0.085, z1 + 1.6), 0.0, 1.05, body, 0.45)
 	if ty2:
 		ty2.rotation = Vector3(PI * 0.5, 0.8, 0)
 	# поленница вдоль левой стены дома (снаружи), под свесом крыши
@@ -2203,6 +2203,44 @@ func _yard() -> void:
 
 
 ## предмет обстановки из модели: поставить, при radius > 0 — круглое столкновение
+## Слой столкновений мелких предметов, расставленных заново при каждом посещении или не попавших в карту
+## проходимости (останки коров, тела, ящики у стен, покрышки): через них не проходят герой и машина; заражённые
+## их обходят по карте проходимости и в них не застревают (их маска — без этого слоя)
+const PROP_LAYER := 8
+var _props_body: StaticBody3D
+
+
+## столкновение по рамке модели n (в её собственных осях: повёрнутая модель — повёрнутая коробка), высотой не
+## больше max_h; слой PROP_LAYER
+func prop_col_node(n: Node3D, shrink := 0.85, max_h := 1.4) -> void:
+	if _props_body == null or not is_instance_valid(_props_body):
+		_props_body = StaticBody3D.new()
+		_props_body.name = "PropsBody"
+		_props_body.collision_layer = PROP_LAYER
+		_props_body.collision_mask = 0
+		add_child(_props_body)
+	var bb := AABB()
+	var first := true
+	for mi in n.find_children("*", "MeshInstance3D", true, false):
+		var m := mi as MeshInstance3D
+		var a := _rel(m, n) * m.get_aabb()
+		bb = a if first else bb.merge(a)
+		first = false
+	if first:
+		return
+	var gx := n.global_transform
+	var sc := gx.basis.get_scale()
+	var size := bb.size * sc
+	var h := clampf(size.y, 0.3, max_h)
+	var bs := BoxShape3D.new()
+	bs.size = Vector3(maxf(size.x * shrink, 0.2), h, maxf(size.z * shrink, 0.2))
+	var cs := CollisionShape3D.new()
+	cs.shape = bs
+	var bottom := gx * Vector3(bb.get_center().x, bb.position.y, bb.get_center().z)
+	cs.transform = Transform3D(gx.basis.orthonormalized(), bottom + Vector3.UP * h * 0.5)
+	_props_body.add_child(cs)
+
+
 func _prop(model: String, at: Vector3, yaw: float, sc: float, body: StaticBody3D, radius: float) -> Node3D:
 	var path := MODELS + model + ".glb"
 	if not ResourceLoader.exists(path):
@@ -2581,7 +2619,7 @@ func _player() -> void:
 	cs.position.y = 0.875
 	player.add_child(cs)
 	player.floor_snap_length = 0.4
-	player.collision_mask = 1 | ULDoor.LAYER       # и двери
+	player.collision_mask = 1 | ULDoor.LAYER | PROP_LAYER       # и двери, и мелкие предметы (слой только для героя и машины)
 	rig = BCCharacter.new()
 	player.add_child(rig)
 	ULHeroes.setup_rig(rig)                        # внешность — выбранный персонаж (Сталкер, Лис …)
@@ -3257,20 +3295,43 @@ func _sync_ground_visuals() -> void:
 
 # ---------------- ящики (хранилища) ----------------
 
-func place_crate() -> void:
-	var f := Vector3(sin(player.rotation.y), 0, cos(player.rotation.y))
-	var p := player.global_position + f * 1.0
+## Поставить ящик-хранилище: перед героем, на свободное место — ящик целиком вне стен, мебели и других ящиков
+## (проверка коробкой ящика); не помещается впереди — чуть дальше, левее, правее, поперёк, позади. Места нет —
+## подсказка, ящик не ставится. false — не поставлен.
+func place_crate() -> bool:
+	var yaw := player.rotation.y
+	var f := Vector3(sin(yaw), 0, cos(yaw))
+	var r := Vector3(-f.z, 0, f.x)
 	var space := get_world_3d().direct_space_state
-	var q := PhysicsRayQueryParameters3D.create(player.global_position + Vector3.UP * 0.4, p + Vector3.UP * 0.4)
+	var q := PhysicsShapeQueryParameters3D.new()
+	var bs := BoxShape3D.new()
+	bs.size = Vector3(1.04, 0.6, 0.66)
+	q.shape = bs
+	q.collision_mask = 1 | ULDoor.LAYER | PROP_LAYER
 	q.exclude = [player.get_rid()]
-	var hit := space.intersect_ray(q)
-	if not hit.is_empty():
-		p = player.global_position + f * maxf(0.0, player.global_position.distance_to(hit.position) - 0.45)
-	var cells := []
-	cells.resize(CRATE_SLOTS)
-	_add_crate(p, player.rotation.y, cells)
-	snd.play("hit_wood", p, -8.0, 0.1, 0.15)
-	_save()
+	var tries := [[f * 1.0, 0.0], [f * 1.25, 0.0], [f * 0.95 + r * 0.5, 0.0], [f * 0.95 - r * 0.5, 0.0], [f * 1.1, PI * 0.5],
+		[r * 1.1, PI * 0.5], [-r * 1.1, PI * 0.5], [f * 1.6, 0.0], [-f * 1.1, 0.0]]
+	for t in tries:
+		var p: Vector3 = player.global_position + (t[0] as Vector3)
+		var y := yaw + float(t[1])
+		q.transform = Transform3D(Basis(Vector3.UP, y), Vector3(p.x, player.global_position.y + 0.06 + bs.size.y * 0.5, p.z))
+		var hits := space.intersect_shape(q, 4)
+		if not hits.is_empty():
+			continue
+		# под ящиком — пол (не край обрыва и не ступени)
+		var down := PhysicsRayQueryParameters3D.create(Vector3(p.x, player.global_position.y + 0.5, p.z), Vector3(p.x, player.global_position.y - 0.4, p.z))
+		down.exclude = [player.get_rid()]
+		var g := space.intersect_ray(down)
+		if g.is_empty() or absf((g.position as Vector3).y - player.global_position.y) > 0.15:
+			continue
+		var cells := []
+		cells.resize(CRATE_SLOTS)
+		_add_crate(Vector3(p.x, (g.position as Vector3).y, p.z), y, cells)
+		snd.play("hit_wood", p, -8.0, 0.1, 0.15)
+		_save()
+		return true
+	say("Здесь ящик не поставить — мало места. Отойдите от стены")
+	return false
 
 
 func _add_crate(p: Vector3, yaw: float, cells: Array) -> void:
@@ -4296,8 +4357,7 @@ func _hud_press(k: String) -> void:
 		"build":
 			if temp():
 				say("Во временном кластере ящик не поставить — он исчезнет вместе с кластером")
-			else:
-				place_crate()
+			elif place_crate():
 				say("Поставлен ящик")
 		"menu":
 			_menu_bar.visible = not _menu_bar.visible
@@ -5328,7 +5388,8 @@ func _combat_setup() -> void:
 ## каждый кадр: задержки, очередь при удержании, возврат из прицела, доворот к цели
 func _combat_tick(delta: float) -> void:
 	if car_in:
-		_atk_want = 0.0                     # за рулём не стреляют и не бьют
+		_atk_want = 0.0                     # за рулём не стреляют и не бьют (пули турели летят дальше)
+		_bullets_tick(delta)
 		return
 	_atk_cd -= delta                        # в этом кадре может уйти в минус: очередь не теряет выстрелы при низком FPS
 	_heal_cd = maxf(0.0, _heal_cd - delta)
@@ -9866,6 +9927,26 @@ func _inv_test() -> void:
 	inv_ui._act_take()
 	_ok("взять из ящика обратно", inv.used() == u0 and cells[0] == null)
 	close_inventory()
+	# ящик у стены бункера: ставится целиком вне стены (отступив) — ни на сантиметр не в бетоне
+	var keep_p := player.global_position
+	player.global_position = house.to_global(Vector3(ULHouse.W * 0.5 + 0.8, 0.05, 0.0))
+	player.rotation.y = -PI * 0.5
+	for i in 3:
+		await get_tree().physics_frame
+	var pc_ok := place_crate()
+	var in_wall := false
+	if pc_ok:
+		var cb: Node3D = crates[crates.size() - 1]
+		var cq := PhysicsShapeQueryParameters3D.new()
+		var cbs := BoxShape3D.new()
+		cbs.size = Vector3(0.98, 0.5, 0.58)
+		cq.shape = cbs
+		cq.transform = Transform3D(cb.global_transform.basis.orthonormalized(), cb.global_position + Vector3.UP * 0.33)
+		cq.collision_mask = 1
+		cq.exclude = [(cb as CollisionObject3D).get_rid(), player.get_rid()] if cb is CollisionObject3D else [player.get_rid()]
+		in_wall = not get_world_3d().direct_space_state.intersect_shape(cq, 1).is_empty()
+	_ok("ящик у стены бункера встал рядом, а не в стене", pc_ok and not in_wall)
+	player.global_position = keep_p
 	# --- бой ---
 	var tg: Node3D = targets[1]
 	inv.hand = ""
@@ -17485,9 +17566,18 @@ func _colaudit_test() -> void:
 				break
 			cur = cur.get_parent()
 		var nm := n3.scene_file_path.get_file().get_basename()
-		if skip or nm.contains("tree") or nm.contains("pine") or nm.contains("birch") or nm.contains("spruce") or nm.contains("bush") or not n3.find_children("*", "Skeleton3D", true, false).is_empty():
+		# деревья (стволы — свои столкновения), папоротник, окна и двери в стенах, распахнутая калитка, рюкзаки и
+		# вещи на земле (их берут) — не в счёт
+		if skip or ["tree", "pine", "birch", "spruce", "bush", "oak", "fern", "window", "kh_door", "kh_gate", "bp_"].any(func(x): return nm.contains(x)) or not n3.find_children("*", "Skeleton3D", true, false).is_empty():
 			continue
-		var bb := _aabb(n3)
+		if ground.any(func(g): return g.node == n3 or (g.node as Node).is_ancestor_of(n3)):
+			continue
+		var bb := AABB()
+		var bfirst := true
+		for mi in n3.find_children("*", "MeshInstance3D", true, false):
+			var a: AABB = (mi as MeshInstance3D).global_transform * (mi as MeshInstance3D).get_aabb()
+			bb = a if bfirst else bb.merge(a)
+			bfirst = false
 		if bb.size.y < 0.45 or maxf(bb.size.x, bb.size.z) < 0.5 or maxf(bb.size.x, bb.size.z) > 25.0 or bb.position.y > 1.2:
 			continue
 		total += 1
@@ -17496,7 +17586,7 @@ func _colaudit_test() -> void:
 		bs.size = Vector3(maxf(bb.size.x * 0.5, 0.1), clampf(bb.size.y - 0.2, 0.2, 0.8), maxf(bb.size.z * 0.5, 0.1))
 		q.shape = bs
 		q.transform = Transform3D(Basis(), Vector3(bb.get_center().x, bb.position.y + 0.15 + bs.size.y * 0.5, bb.get_center().z))
-		q.collision_mask = 1 | 2 | 8
+		q.collision_mask = 1 | 2 | PROP_LAYER
 		var ok := false
 		for h in space.intersect_shape(q, 8):
 			if not (h.collider is CharacterBody3D):

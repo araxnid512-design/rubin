@@ -163,7 +163,7 @@ func setup(d: Dictionary) -> void:
 	cs.position.y = bs.size.y * 0.5
 	add_child(cs)
 	collision_layer = 1
-	collision_mask = 1
+	collision_mask = 1 | 8                 # и мелкие предметы (слой world.PROP_LAYER: останки, ящики, покрышки)
 	floor_snap_length = 0.7
 	floor_max_angle = deg_to_rad(42.0)
 	safe_margin = 0.02
@@ -259,7 +259,13 @@ func _build_wheels() -> void:
 		spin.add_child(m)
 		_matte(m, Color(0.55, 0.55, 0.55))
 		var side := 1.0 if (w.at as Vector3).x > 0.0 else -1.0
-		m.rotation.y = PI * 0.5 * side                     # ось колеса у модели — Z: поперёк машины, диск наружу
+		# ось колеса — самая тонкая сторона модели: у одних моделей Tripo она по X, у других по Z; ставится поперёк
+		# машины (по X), лицевая сторона диска — наружу
+		var b0 := _box_in(m, spin)
+		if b0.size.x <= b0.size.z:
+			m.rotation.y = 0.0 if side > 0.0 else PI
+		else:
+			m.rotation.y = PI * 0.5 * side
 		var b := _box_in(m, spin)
 		m.scale = Vector3.ONE * (rad * 2.0 / maxf(b.size.y, 0.01))
 		b = _box_in(m, spin)
@@ -771,6 +777,9 @@ func _prop(path: String, n_size: float, at: Vector3, yaw := 0.0, by_width := fal
 	_matte(n, Color(0.72, 0.72, 0.7))
 	n.rotation.y = yaw
 	var b := _box_in(n, host)
+	if by_width and b.size.z > b.size.x:
+		n.rotation.y = yaw + PI * 0.5                      # длинная сторона (ширина бампера) — поперёк машины
+		b = _box_in(n, host)
 	var ref := b.size.x if by_width else maxf(maxf(b.size.x, b.size.y), b.size.z)
 	n.scale = Vector3.ONE * (n_size / maxf(ref, 0.01))
 	b = _box_in(n, host)
