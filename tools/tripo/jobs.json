@@ -1,245 +1,27 @@
 {
- "stop": true,
+ "stop": false,
  "jobs": [
   {
-   "id": "g64_w_pm",
-   "py": "tools/tripo/chain.py",
+   "id": "g64b_task_help",
    "args": [
-    "--id",
-    "w_pm",
-    "--faces",
-    "8000",
-    "--tex",
-    "detailed",
-    "--geo",
-    "detailed",
-    "--pbr",
-    "--prompt",
-    "Makarov PM pistol, compact Soviet 9mm semi-automatic handgun, worn blued black steel slide, brown ribbed bakelite grip, side view, realistic, single object, game asset"
+    "task",
+    "--help"
    ],
-   "timeout": 1800
+   "timeout": 120
   },
   {
-   "id": "g64_w_aps",
-   "py": "tools/tripo/chain.py",
+   "id": "g64b_toz_status",
    "args": [
-    "--id",
-    "w_aps",
-    "--faces",
-    "8000",
-    "--tex",
-    "detailed",
-    "--geo",
-    "detailed",
-    "--pbr",
-    "--prompt",
-    "Stechkin APS machine pistol, Soviet 9mm automatic handgun, long black steel slide, brown bakelite grip, side view, realistic, single object, game asset"
+    "task",
+    "status",
+    "b3ecbcd3-ad41-4a1e-ab50-3ea9b0b35e48",
+    "--output-format",
+    "json"
    ],
-   "timeout": 1800
+   "timeout": 180
   },
   {
-   "id": "g64_w_sawnoff",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "w_sawnoff",
-    "--faces",
-    "8000",
-    "--tex",
-    "detailed",
-    "--geo",
-    "detailed",
-    "--pbr",
-    "--prompt",
-    "sawed-off double barrel shotgun, short side-by-side barrels, worn wooden pistol grip cut from the stock, rusty steel, realistic, single object, game asset"
-   ],
-   "timeout": 1800
-  },
-  {
-   "id": "g64_w_toz34",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "w_toz34",
-    "--faces",
-    "8000",
-    "--tex",
-    "detailed",
-    "--geo",
-    "detailed",
-    "--pbr",
-    "--prompt",
-    "Soviet TOZ-34 over-under double barrel hunting shotgun, walnut wood stock and forend, blued steel barrels, engraved receiver, realistic, single object, game asset"
-   ],
-   "timeout": 1800
-  },
-  {
-   "id": "g64_w_saiga12",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "w_saiga12",
-    "--faces",
-    "8000",
-    "--tex",
-    "detailed",
-    "--geo",
-    "detailed",
-    "--pbr",
-    "--prompt",
-    "Saiga-12 semi-automatic combat shotgun, Kalashnikov style, black polymer stock and handguard, short box magazine, realistic, single object, game asset"
-   ],
-   "timeout": 1800
-  },
-  {
-   "id": "g64_w_aks74u",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "w_aks74u",
-    "--faces",
-    "8000",
-    "--tex",
-    "detailed",
-    "--geo",
-    "detailed",
-    "--pbr",
-    "--prompt",
-    "AKS-74U short Kalashnikov carbine, side-folding metal stock folded, wooden handguard, curved orange magazine, muzzle booster, realistic, single object, game asset"
-   ],
-   "timeout": 1800
-  },
-  {
-   "id": "g64_w_asval",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "w_asval",
-    "--faces",
-    "8000",
-    "--tex",
-    "detailed",
-    "--geo",
-    "detailed",
-    "--pbr",
-    "--prompt",
-    "AS Val integrally suppressed Russian special assault rifle, thick black suppressor barrel, skeleton folding stock, short magazine, realistic, single object, game asset"
-   ],
-   "timeout": 1800
-  },
-  {
-   "id": "g64_w_mosin",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "w_mosin",
-    "--faces",
-    "8000",
-    "--tex",
-    "detailed",
-    "--geo",
-    "detailed",
-    "--pbr",
-    "--prompt",
-    "Mosin-Nagant 1891/30 bolt-action rifle, long wooden stock, straight bolt handle, Soviet WWII infantry rifle, realistic, single object, game asset"
-   ],
-   "timeout": 1800
-  },
-  {
-   "id": "g64_w_ppsh41",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "w_ppsh41",
-    "--faces",
-    "8000",
-    "--tex",
-    "detailed",
-    "--geo",
-    "detailed",
-    "--pbr",
-    "--prompt",
-    "PPSh-41 Soviet submachine gun, round drum magazine, wooden stock, perforated barrel jacket, WWII, realistic, single object, game asset"
-   ],
-   "timeout": 1800
-  },
-  {
-   "id": "g64_w_rpk74",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "w_rpk74",
-    "--faces",
-    "8000",
-    "--tex",
-    "detailed",
-    "--geo",
-    "detailed",
-    "--pbr",
-    "--prompt",
-    "RPK-74 Russian light machine gun, Kalashnikov with long heavy barrel, folded bipod under the barrel, long curved magazine, wooden stock, realistic, single object, game asset"
-   ],
-   "timeout": 1800
-  },
-  {
-   "id": "g64_car_niva",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "car_niva",
-    "--faces",
-    "16000",
-    "--tex",
-    "detailed",
-    "--geo",
-    "detailed",
-    "--pbr",
-    "--prompt",
-    "old Soviet compact two-door off-road car VAZ-2121 Niva, boxy 1980s shape, faded olive green paint with rust patches, dents and dirt, round headlights, separate black wheels with steel rims, closed windows, realistic, single object, game asset"
-   ],
-   "timeout": 1800
-  },
-  {
-   "id": "g64_car_wheel",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "car_wheel",
-    "--faces",
-    "3000",
-    "--prompt",
-    "a single off-road car wheel, worn knobby black tire on a dirty grey steel rim, standing upright, realistic, single object, game asset"
-   ],
-   "timeout": 1800
-  },
-  {
-   "id": "g64_car_battery",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "car_battery",
-    "--faces",
-    "3000",
-    "--prompt",
-    "a used 12 volt car battery, black plastic case with red and black terminals and a carry handle, dusty, realistic, single object, game asset"
-   ],
-   "timeout": 1800
-  },
-  {
-   "id": "g64_car_plugs",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "car_plugs",
-    "--faces",
-    "3000",
-    "--prompt",
-    "four automotive spark plugs lying on a small oily rag, realistic, single object, game asset"
-   ],
-   "timeout": 1800
-  },
-  {
-   "id": "g64_hd_mur_ak",
+   "id": "g64b_hd_mur_ak",
    "py": "tools/tripo/chain.py",
    "args": [
     "--id",
@@ -261,7 +43,7 @@
    "timeout": 2400
   },
   {
-   "id": "g64_hd_mur_sg",
+   "id": "g64b_hd_mur_sg",
    "py": "tools/tripo/chain.py",
    "args": [
     "--id",
@@ -283,7 +65,7 @@
    "timeout": 2400
   },
   {
-   "id": "g64_hd_mur_boss",
+   "id": "g64b_hd_mur_boss",
    "py": "tools/tripo/chain.py",
    "args": [
     "--id",
@@ -305,7 +87,7 @@
    "timeout": 2400
   },
   {
-   "id": "g64_hd_dealer",
+   "id": "g64b_hd_dealer",
    "py": "tools/tripo/chain.py",
    "args": [
     "--id",
@@ -325,24 +107,6 @@
     "full body game character in T-pose, same person and outfit as in the image, realistic detailed PBR textures"
    ],
    "timeout": 2400
-  },
-  {
-   "id": "g64_car_uaz",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "car_uaz",
-    "--faces",
-    "18000",
-    "--tex",
-    "detailed",
-    "--geo",
-    "detailed",
-    "--pbr",
-    "--prompt",
-    "Soviet UAZ-469 off-road jeep, boxy military 4x4 with soft canvas top, four doors, spare wheel on the rear door, olive green paint worn with rust and mud, round headlights, separate black off-road wheels, closed windows, realistic, single object, game asset"
-   ],
-   "timeout": 1800
   }
  ],
  "archived": [
@@ -2321,6 +2085,25 @@
     "mutated infected creature, lean muscular body, elongated clawed fingers, torn skin with exposed sinew, ragged clothes remnants, full body, game character"
    ],
    "timeout": 3600
-  }
+  },
+  "g64_w_pm",
+  "g64_w_aps",
+  "g64_w_sawnoff",
+  "g64_w_toz34",
+  "g64_w_saiga12",
+  "g64_w_aks74u",
+  "g64_w_asval",
+  "g64_w_mosin",
+  "g64_w_ppsh41",
+  "g64_w_rpk74",
+  "g64_car_niva",
+  "g64_car_wheel",
+  "g64_car_battery",
+  "g64_car_plugs",
+  "g64_hd_mur_ak",
+  "g64_hd_mur_sg",
+  "g64_hd_mur_boss",
+  "g64_hd_dealer",
+  "g64_car_uaz"
  ]
 }
