@@ -1,5 +1,5 @@
 {
- "stop": false,
+ "stop": true,
  "jobs": [
   {
    "id": "g65b_fetch_toz",
