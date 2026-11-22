@@ -237,13 +237,15 @@ func close() -> void:
 	queue_free()
 
 
-## машина в 3D на платформе (отдельный мир): та же модель и навесное, что в игре
-func _car_view(sz: Vector2, data: Dictionary) -> Control:
+## машина в 3D на платформе (отдельный мир): та же модель и навесное, что в игре. Окно сначала встаёт в parent
+## (машина собирается по рамкам в мире — вне дерева их нет)
+func _car_view(parent: Control, sz: Vector2, data: Dictionary) -> Control:
 	var svc := SubViewportContainer.new()
 	svc.custom_minimum_size = sz
 	svc.stretch = true
 	svc.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	svc.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	parent.add_child(svc)
 	var vp := SubViewport.new()
 	vp.own_world_3d = true
 	vp.transparent_bg = false
@@ -317,7 +319,7 @@ func _build_up() -> void:
 	var mid := HBoxContainer.new()
 	mid.add_theme_constant_override("separation", 10)
 	_body.add_child(mid)
-	mid.add_child(_car_view(Vector2(560, 230), d))
+	_car_view(mid, Vector2(560, 230), d)
 	var stc := _card()
 	stc.custom_minimum_size.x = 330
 	mid.add_child(stc)
@@ -664,7 +666,7 @@ func _build_cars() -> void:
 		refresh(), 70.0, 64.0, 34)
 	rb.name = "next"
 	row.add_child(rb)
-	_body.add_child(_car_view(Vector2(900, 340), cars[_sel_i] if have else {}))
+	_car_view(_body, Vector2(900, 340), cars[_sel_i] if have else {})
 	var lvl_need := 0
 	for n in range(1, gmax + 1):
 		if int(ULBase.garage_lvl(n).get("cars", 0)) > _sel_i:

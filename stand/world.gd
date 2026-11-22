@@ -17346,6 +17346,12 @@ func _garage_test() -> void:
 	await get_tree().process_frame
 	await get_tree().create_timer(0.3).timeout
 	await _snap("gar_outside")
+	_hud.visible = false                       # картинка для карточки в компьютере базы — без кнопок и надписей
+	var info_v := info.visible if info else false
+	if info:
+		info.visible = false
+	await _snap("gar_pic_out")
+	_hud.visible = true
 	# внутрь через дверь для человека: крыша скрыта
 	player.global_position = garage.to_global(Vector3(ULGarage.W * 0.5 + 1.2, 0.05, ULGarage.DOOR_Z))
 	for i in 20:
@@ -17356,6 +17362,11 @@ func _garage_test() -> void:
 		await get_tree().process_frame
 	_ok("6. дверь для человека открывается сама; внутри крыша скрыта, свет горит, стены со стороны камеры срезаны", door_open and garage.inside and not garage._roof.visible and garage._light.visible)
 	await _snap("gar_inside")
+	_hud.visible = false
+	await _snap("gar_pic_in")
+	_hud.visible = true
+	if info:
+		info.visible = info_v
 	# четыре места
 	var labels := {}
 	for z in ULGarage.ZONES:
