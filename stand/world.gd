@@ -16829,6 +16829,7 @@ const CAR_BTN_TXT := {"c_gas": "Газ", "c_brake": "Тормоз", "c_rev": "Н
 var tur_mode := false              ## режим турели: турель наводится на ближайшего врага в секторе, «Огонь» — стрелять
 var _tur_t: Node3D = null          ## цель турели
 var tur_shots := 0
+var tur_last := ""                 ## куда попал последний выстрел турели (для проверки)
 
 
 func _car_btn_shown(k: String) -> bool:
@@ -16946,6 +16947,7 @@ func _turret_shoot() -> void:
 	var hit := get_world_3d().direct_space_state.intersect_ray(q)
 	var end: Vector3 = hit.position if not hit.is_empty() else from + dir * reach
 	var col: Object = hit.collider if not hit.is_empty() else null
+	tur_last = ("%s@%.1f" % [String((col as Node).name), from.distance_to(end)]) if col is Node else "мимо"
 	var look: String = {"rifle": "a545", "mg": "a762x54", "cannon": "veh_shell", "rocket": "veh_rocket"}.get(t, "a545")
 	var splash := float(tc.get("splash", 0.0))
 	_fly_bullet(look, from, end, null if splash > 0.0 else col, 0.0 if splash > 0.0 else float(tc.dmg))
@@ -17504,10 +17506,14 @@ func _garage_test() -> void:
 	await _car_stop()
 	var back_d := garage.to_local(car.global_position)
 	_ok("28. «Назад» — задом обратно в гараж (ворота открылись перед ней), на платформу", absf(back_d.x) < 1.0 and back_d.z < ULGarage.D * 0.5 - 1.5, "x %.1f, z %.1f · %s" % [back_d.x, back_d.z, String(mrv.log)])
-	# огонь турели
+	# огонь турели: машина — на тропе перед бункером (линия огня свободна: деревья тропу не загораживают)
 	await _car_hold(["c_gas"], 3.0)
 	await _car_stop()
-	var z := spawn_enemy("infected", car.global_position + car.fwd() * 14.0)
+	car.global_position = HOUSE_AT + Vector3(0, 0.1, 15.0)
+	car.rotation.y = 0.0
+	for i in 6:
+		await get_tree().physics_frame
+	var z := spawn_enemy("infected", car.global_position + car.fwd() * 13.0)
 	z.state = "idle"
 	z.set_active(false)
 	var zhp: float = z.hp
@@ -17516,7 +17522,7 @@ func _garage_test() -> void:
 	var am0 := int(cd.turrets.rifle.ammo)
 	await _car_hold(["c_fire"], 2.0)
 	await get_tree().create_timer(0.6).timeout
-	_ok("29. «Турель» → «Огонь»: турель наводится на заражённого и стреляет, боезапас тратится, враг ранен или убит", tur_shots > 0 and int(cd.turrets.rifle.ammo) < am0 and (not z.alive() or z.hp < zhp), "выстрелов %d, боезапас %d → %d, попаданий %d, цель %s, до врага %.1f м, hp %.0f → %.0f" % [tur_shots, am0, int(cd.turrets.rifle.ammo), hits - hits0, str(_tur_t == z), z.global_position.distance_to(car.global_position), zhp, z.hp])
+	_ok("29. «Турель» → «Огонь»: турель наводится на заражённого и стреляет, боезапас тратится, враг ранен или убит", tur_shots > 0 and int(cd.turrets.rifle.ammo) < am0 and (not z.alive() or z.hp < zhp), "выстрелов %d, боезапас %d → %d, попаданий %d, цель %s, до врага %.1f м, hp %.0f → %.0f, последний: %s" % [tur_shots, am0, int(cd.turrets.rifle.ammo), hits - hits0, str(_tur_t == z), z.global_position.distance_to(car.global_position), zhp, z.hp, tur_last])
 	await _snap("gar_turret_fire")
 	_hud_press("c_exit")
 	# сохранение

@@ -35,6 +35,12 @@ func _ready() -> void:
 	var cfg := BCWeaponHold.config()
 	var list := ULItems.ITEMS.duplicate()
 	list["crate"] = {"kind": "prop", "model": "res://assets/world/ul_crate.glb"}
+	# гараж: значки деталей машины и турелей (модели Tripo; модели ещё нет — значок не рисуется, окно обходится без него)
+	for g in [["veh_wheels", "wh_2"], ["veh_engine", "en_1"], ["veh_body", "car_uaz_body"], ["veh_bumper", "bp_2"], ["veh_trunk", "ul_army_crate"],
+			["tr_rifle", "tr_rifle"], ["tr_mg", "tr_mg"], ["tr_cannon", "tr_cannon"], ["tr_rocket", "tr_rocket"]]:
+		list[g[0]] = {"kind": "prop", "model": "res://assets/world/%s.glb" % g[1]}
+	if not ResourceLoader.exists("res://assets/world/it_canister.glb"):
+		list["canister"] = {"kind": "prop", "model": "res://assets/world/cv_jerrycans.glb"}
 	var kits := {}
 	# --as-only=a,b — только эти значки (новые предметы), прежние не перерисовываются
 	var only := []

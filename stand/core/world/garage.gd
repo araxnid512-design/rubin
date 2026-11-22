@@ -590,3 +590,7 @@ func tick(delta: float, hero: Vector3, car: Node3D, driving: bool, cam_dir: Vect
 		var cut := ins and (sd.n as Vector3).dot(lc) > 0.25
 		(sd.full as Node3D).visible = not cut
 		(sd.low as Node3D).visible = cut
+		if side == "f":
+			# створки ворот — тоже по срезу стены: изнутри платформу и машину не загораживают
+			for lv in _leaves:
+				(lv[0] as Node3D).scale.y = CUT / GATE_H if cut else 1.0
