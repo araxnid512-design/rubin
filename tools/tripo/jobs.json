@@ -1,144 +1,8 @@
 {
- "stop": true,
+ "stop": false,
  "jobs": [
   {
-   "id": "g64b_task_help",
-   "args": [
-    "task",
-    "--help"
-   ],
-   "timeout": 120
-  },
-  {
-   "id": "g64b_toz_status",
-   "args": [
-    "task",
-    "status",
-    "b3ecbcd3-ad41-4a1e-ab50-3ea9b0b35e48",
-    "--output-format",
-    "json"
-   ],
-   "timeout": 180
-  },
-  {
-   "id": "g64b_hd_mur_ak",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "mur_ak_hd",
-    "--image",
-    "tools/tripo/refs/hd_mur_ak.png",
-    "--faces",
-    "14000",
-    "--tex",
-    "detailed",
-    "--geo",
-    "detailed",
-    "--pbr",
-    "--rig",
-    "biped",
-    "--prompt",
-    "full body game character in T-pose, same person and outfit as in the image, realistic detailed PBR textures"
-   ],
-   "timeout": 2400
-  },
-  {
-   "id": "g64b_hd_mur_sg",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "mur_sg_hd",
-    "--image",
-    "tools/tripo/refs/hd_mur_sg.png",
-    "--faces",
-    "14000",
-    "--tex",
-    "detailed",
-    "--geo",
-    "detailed",
-    "--pbr",
-    "--rig",
-    "biped",
-    "--prompt",
-    "full body game character in T-pose, same person and outfit as in the image, realistic detailed PBR textures"
-   ],
-   "timeout": 2400
-  },
-  {
-   "id": "g64b_hd_mur_boss",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "mur_boss_hd",
-    "--image",
-    "tools/tripo/refs/hd_mur_boss.png",
-    "--faces",
-    "14000",
-    "--tex",
-    "detailed",
-    "--geo",
-    "detailed",
-    "--pbr",
-    "--rig",
-    "biped",
-    "--prompt",
-    "full body game character in T-pose, same person and outfit as in the image, realistic detailed PBR textures"
-   ],
-   "timeout": 2400
-  },
-  {
-   "id": "g64b_hd_dealer",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "dealer_hd",
-    "--image",
-    "tools/tripo/refs/hd_dealer.png",
-    "--faces",
-    "12000",
-    "--tex",
-    "detailed",
-    "--geo",
-    "detailed",
-    "--pbr",
-    "--rig",
-    "biped",
-    "--prompt",
-    "full body game character in T-pose, same person and outfit as in the image, realistic detailed PBR textures"
-   ],
-   "timeout": 2400
-  },
-  {
-   "id": "g64b_project_help",
-   "args": [
-    "project",
-    "--help"
-   ],
-   "timeout": 120
-  },
-  {
-   "id": "g64b_project_dl_help",
-   "args": [
-    "project",
-    "download",
-    "--help"
-   ],
-   "timeout": 120
-  },
-  {
-   "id": "g64b_project_list",
-   "args": [
-    "project",
-    "list",
-    "--size",
-    "40",
-    "--output-format",
-    "json"
-   ],
-   "timeout": 180
-  },
-  {
-   "id": "g64b_fetch_toz",
+   "id": "g65_fetch_toz",
    "py": "tools/tripo/fetch_task.py",
    "args": [
     "b3ecbcd3-ad41-4a1e-ab50-3ea9b0b35e48",
@@ -147,224 +11,419 @@
    "timeout": 600
   },
   {
-   "id": "g64m_h_search_low",
-   "py": "tools/tripo/motion.py",
+   "id": "g65_uaz469",
+   "py": "tools/tripo/chain.py",
    "args": [
-    "mur_ak_hd:67cf9ec9-5b9c-4c1b-8196-d99ebcfb0a65",
-    "h_search_low",
-    "4",
-    "a man crouches down in front of a low wooden box and rummages through it with both hands, searching, then looks up"
+    "--id",
+    "uaz469",
+    "--faces",
+    "20000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--image",
+    "tools/tripo/refs/uaz_photo.png",
+    "--prompt",
+    "Soviet UAZ-469 off-road car exactly as in the photo, olive green body, canvas soft top, four doors, black front bumper"
    ],
-   "timeout": 2400
+   "timeout": 1800
   },
   {
-   "id": "g64m_h_search_high",
-   "py": "tools/tripo/motion.py",
+   "id": "g65_wh_stock",
+   "py": "tools/tripo/chain.py",
    "args": [
-    "mur_ak_hd:67cf9ec9-5b9c-4c1b-8196-d99ebcfb0a65",
-    "h_search_high",
-    "4",
-    "a man stands in front of a tall cabinet and searches the shelves with both hands at chest height, moving things aside"
+    "--id",
+    "wh_stock",
+    "--faces",
+    "4000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "single stock wheel of a Soviet UAZ-469 jeep: olive green painted steel rim with hub and lug nuts, worn all-terrain tire, standing upright, realistic, single object, game asset"
    ],
-   "timeout": 2400
+   "timeout": 1800
   },
   {
-   "id": "g64m_h_roll_fwd",
-   "py": "tools/tripo/motion.py",
+   "id": "g65_wh_1",
+   "py": "tools/tripo/chain.py",
    "args": [
-    "mur_ak_hd:67cf9ec9-5b9c-4c1b-8196-d99ebcfb0a65",
-    "h_roll_fwd",
-    "2",
-    "a man performs a quick forward combat roll on the ground and gets back up on his feet"
+    "--id",
+    "wh_1",
+    "--faces",
+    "4000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "single off-road wheel with deep aggressive mud-terrain tread tire on a black steel rim, standing upright, realistic, single object, game asset"
    ],
-   "timeout": 2400
+   "timeout": 1800
   },
   {
-   "id": "g64m_h_bandage",
-   "py": "tools/tripo/motion.py",
+   "id": "g65_wh_2",
+   "py": "tools/tripo/chain.py",
    "args": [
-    "mur_ak_hd:67cf9ec9-5b9c-4c1b-8196-d99ebcfb0a65",
-    "h_bandage",
-    "4",
-    "a man stands and wraps a bandage around his left forearm with his right hand, then tightens it"
+    "--id",
+    "wh_2",
+    "--faces",
+    "4000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "single reinforced heavy-duty off-road wheel, thick sidewall tire with very deep blocky tread, black steel beadlock rim with bolts, standing upright, realistic, single object, game asset"
    ],
-   "timeout": 2400
+   "timeout": 1800
   },
   {
-   "id": "g64m_h_inject",
-   "py": "tools/tripo/motion.py",
+   "id": "g65_wh_3",
+   "py": "tools/tripo/chain.py",
    "args": [
-    "mur_ak_hd:67cf9ec9-5b9c-4c1b-8196-d99ebcfb0a65",
-    "h_inject",
-    "3",
-    "a man quickly stabs a syringe into his own thigh with his right hand and pushes the plunger"
+    "--id",
+    "wh_3",
+    "--faces",
+    "4000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "single huge military off-road wheel, very wide tire with massive lugs, reinforced dark steel rim, standing upright, realistic, single object, game asset"
    ],
-   "timeout": 2400
+   "timeout": 1800
   },
   {
-   "id": "g64m_h_drink",
-   "py": "tools/tripo/motion.py",
+   "id": "g65_bp_1",
+   "py": "tools/tripo/chain.py",
    "args": [
-    "mur_ak_hd:67cf9ec9-5b9c-4c1b-8196-d99ebcfb0a65",
-    "h_drink",
-    "3",
-    "a man raises a flask with his right hand to his mouth, drinks several gulps and lowers it"
+    "--id",
+    "bp_1",
+    "--faces",
+    "6000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "reinforced heavy steel front bumper for an off-road jeep, thick flat black steel beam with two tow hooks, realistic, single object, game asset"
    ],
-   "timeout": 2400
+   "timeout": 1800
   },
   {
-   "id": "g64m_h_eat",
-   "py": "tools/tripo/motion.py",
+   "id": "g65_bp_2",
+   "py": "tools/tripo/chain.py",
    "args": [
-    "mur_ak_hd:67cf9ec9-5b9c-4c1b-8196-d99ebcfb0a65",
-    "h_eat",
-    "3",
-    "a man holds food with both hands near his mouth, takes a bite and chews"
+    "--id",
+    "bp_2",
+    "--faces",
+    "6000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "off-road jeep front bumper with a tubular steel guard bar above it to protect the grille and headlights, black painted steel, realistic, single object, game asset"
    ],
-   "timeout": 2400
+   "timeout": 1800
   },
   {
-   "id": "g64m_h_rifle_butt",
-   "py": "tools/tripo/motion.py",
+   "id": "g65_bp_3",
+   "py": "tools/tripo/chain.py",
    "args": [
-    "mur_ak_hd:67cf9ec9-5b9c-4c1b-8196-d99ebcfb0a65",
-    "h_rifle_butt",
-    "2",
-    "a man holding a rifle with both hands strikes forward hard with the rifle butt, then returns to a ready stance"
+    "--id",
+    "bp_3",
+    "--faces",
+    "6000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "massive armored off-road front bull bar bumper with an electric winch, thick tubular guard frame and steel plates, dark painted metal, realistic, single object, game asset"
    ],
-   "timeout": 2400
+   "timeout": 1800
   },
   {
-   "id": "g64m_h_car_enter",
-   "py": "tools/tripo/motion.py",
+   "id": "g65_tr_rifle",
+   "py": "tools/tripo/chain.py",
    "args": [
-    "mur_ak_hd:67cf9ec9-5b9c-4c1b-8196-d99ebcfb0a65",
-    "h_car_enter",
-    "2",
-    "a man turns around and sits down sideways onto a car seat, lifts his legs in and puts both hands forward on a steering wheel"
+    "--id",
+    "tr_rifle",
+    "--faces",
+    "10000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "small vehicle roof turret: assault rifle on a swivel ring mount with a small armored shield, military, realistic, single object, game asset"
    ],
-   "timeout": 2400
+   "timeout": 1800
   },
   {
-   "id": "g64m_h_car_exit",
-   "py": "tools/tripo/motion.py",
+   "id": "g65_tr_mg",
+   "py": "tools/tripo/chain.py",
    "args": [
-    "mur_ak_hd:67cf9ec9-5b9c-4c1b-8196-d99ebcfb0a65",
-    "h_car_exit",
-    "2",
-    "a man seated turns his body sideways, steps out with one leg first and stands up"
+    "--id",
+    "tr_mg",
+    "--faces",
+    "10000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "vehicle roof machine gun turret: heavy machine gun on a pintle ring mount with an ammo box and an armored shield, military, realistic, single object, game asset"
    ],
-   "timeout": 2400
+   "timeout": 1800
   },
   {
-   "id": "g64m_h_drive",
-   "py": "tools/tripo/motion.py",
+   "id": "g65_tr_cannon",
+   "py": "tools/tripo/chain.py",
    "args": [
-    "mur_ak_hd:67cf9ec9-5b9c-4c1b-8196-d99ebcfb0a65",
-    "h_drive",
-    "3",
-    "a man sitting holds a steering wheel with both hands at chest height and makes small steering movements left and right"
+    "--id",
+    "tr_cannon",
+    "--faces",
+    "10000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "compact vehicle autocannon turret: small armored turret housing with a 30mm cannon barrel on a round ring base, military, realistic, single object, game asset"
    ],
-   "timeout": 2400
+   "timeout": 1800
   },
   {
-   "id": "g64m_h_repair_wheel",
-   "py": "tools/tripo/motion.py",
+   "id": "g65_tr_rocket",
+   "py": "tools/tripo/chain.py",
    "args": [
-    "mur_ak_hd:67cf9ec9-5b9c-4c1b-8196-d99ebcfb0a65",
-    "h_repair_wheel",
-    "4",
-    "a man squats beside a car wheel and turns a wrench with both hands, loosening the bolts"
+    "--id",
+    "tr_rocket",
+    "--faces",
+    "10000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "vehicle roof rocket launcher turret: box pod with six rocket launch tubes on a rotating ring mount, military, realistic, single object, game asset"
    ],
-   "timeout": 2400
+   "timeout": 1800
   },
   {
-   "id": "g64m_h_repair_hood",
-   "py": "tools/tripo/motion.py",
+   "id": "g65_am_rifle",
+   "py": "tools/tripo/chain.py",
    "args": [
-    "mur_ak_hd:67cf9ec9-5b9c-4c1b-8196-d99ebcfb0a65",
-    "h_repair_hood",
-    "4",
-    "a man leans forward over an open car hood and works with both hands inside the engine"
+    "--id",
+    "am_rifle",
+    "--faces",
+    "3000",
+    "--prompt",
+    "metal military ammunition box for rifle cartridges, olive green with stenciled markings and a carry handle, realistic, single object, game asset"
    ],
-   "timeout": 2400
+   "timeout": 1800
   },
   {
-   "id": "g64m_h_throw_grenade",
-   "py": "tools/tripo/motion.py",
+   "id": "g65_am_mg",
+   "py": "tools/tripo/chain.py",
    "args": [
-    "mur_ak_hd:67cf9ec9-5b9c-4c1b-8196-d99ebcfb0a65",
-    "h_throw_grenade",
-    "2",
-    "a man throws a grenade overhand with his right arm in a strong arc"
+    "--id",
+    "am_mg",
+    "--faces",
+    "3000",
+    "--prompt",
+    "metal ammunition can with a machine gun cartridge belt hanging out, olive drab, realistic, single object, game asset"
    ],
-   "timeout": 2400
+   "timeout": 1800
   },
   {
-   "id": "g64m_h_push_off",
-   "py": "tools/tripo/motion.py",
+   "id": "g65_am_cannon",
+   "py": "tools/tripo/chain.py",
    "args": [
-    "mur_ak_hd:67cf9ec9-5b9c-4c1b-8196-d99ebcfb0a65",
-    "h_push_off",
-    "2",
-    "a man forcefully shoves an attacker away with both hands and steps back"
+    "--id",
+    "am_cannon",
+    "--faces",
+    "3000",
+    "--prompt",
+    "wooden military crate with large 30mm autocannon shells inside, lid open, realistic, single object, game asset"
    ],
-   "timeout": 2400
+   "timeout": 1800
   },
   {
-   "id": "g64m_h_vault",
-   "py": "tools/tripo/motion.py",
+   "id": "g65_am_rocket",
+   "py": "tools/tripo/chain.py",
    "args": [
-    "mur_ak_hd:67cf9ec9-5b9c-4c1b-8196-d99ebcfb0a65",
-    "h_vault",
-    "2",
-    "a man vaults over a low fence by placing one hand on it and swinging his legs over"
+    "--id",
+    "am_rocket",
+    "--faces",
+    "3000",
+    "--prompt",
+    "dark green military transport case with four small rockets inside, lid open, realistic, single object, game asset"
    ],
-   "timeout": 2400
+   "timeout": 1800
   },
   {
-   "id": "g64m_h_carry_box",
-   "py": "tools/tripo/motion.py",
+   "id": "g65_en_0",
+   "py": "tools/tripo/chain.py",
    "args": [
-    "mur_ak_hd:67cf9ec9-5b9c-4c1b-8196-d99ebcfb0a65",
-    "h_carry_box",
-    "2",
-    "a man walks forward carrying a heavy box in front of him with both arms"
+    "--id",
+    "en_0",
+    "--faces",
+    "5000",
+    "--prompt",
+    "old Soviet four-cylinder car engine block with carburetor and air filter, worn and greasy, isolated, realistic, single object, game asset"
    ],
-   "timeout": 2400
+   "timeout": 1800
   },
   {
-   "id": "g64m_h_limp",
-   "py": "tools/tripo/motion.py",
+   "id": "g65_en_1",
+   "py": "tools/tripo/chain.py",
    "args": [
-    "mur_ak_hd:67cf9ec9-5b9c-4c1b-8196-d99ebcfb0a65",
-    "h_limp",
-    "2",
-    "a wounded man walks forward slowly, limping on his right leg and holding his side"
+    "--id",
+    "en_1",
+    "--faces",
+    "5000",
+    "--prompt",
+    "rebuilt car engine with a new red valve cover and a new air filter, clean, isolated, realistic, single object, game asset"
    ],
-   "timeout": 2400
+   "timeout": 1800
   },
   {
-   "id": "g64m_h_break_free",
-   "py": "tools/tripo/motion.py",
+   "id": "g65_en_2",
+   "py": "tools/tripo/chain.py",
    "args": [
-    "mur_ak_hd:67cf9ec9-5b9c-4c1b-8196-d99ebcfb0a65",
-    "h_break_free",
-    "2",
-    "a man struggles, twisting his torso to break free from someone gripping his shoulders, then pushes away"
+    "--id",
+    "en_2",
+    "--faces",
+    "5000",
+    "--prompt",
+    "tuned car engine with a turbocharger and shiny intake pipes, isolated, realistic, single object, game asset"
    ],
-   "timeout": 2400
+   "timeout": 1800
   },
   {
-   "id": "g64m_h_pry_crate",
-   "py": "tools/tripo/motion.py",
+   "id": "g65_en_3",
+   "py": "tools/tripo/chain.py",
    "args": [
-    "mur_ak_hd:67cf9ec9-5b9c-4c1b-8196-d99ebcfb0a65",
-    "h_pry_crate",
-    "4",
-    "a man pries open the lid of a wooden crate with a crowbar using both hands"
+    "--id",
+    "en_3",
+    "--faces",
+    "5000",
+    "--prompt",
+    "heavy-duty military diesel engine with a large intercooler and thick hoses, isolated, realistic, single object, game asset"
    ],
-   "timeout": 2400
+   "timeout": 1800
+  },
+  {
+   "id": "g65_gr_fueltank",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "gr_fueltank",
+    "--faces",
+    "12000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "large rusty horizontal cylindrical fuel storage tank on two steel supports with a top hatch, pipes, a valve and a pressure gauge, red paint and rust, realistic, single object, game asset"
+   ],
+   "timeout": 1800
+  },
+  {
+   "id": "g65_gr_terminal",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "gr_terminal",
+    "--faces",
+    "8000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "rugged industrial vehicle diagnostic computer station for a garage: metal cabinet with a monitor, keyboard and cables, post-apocalyptic, realistic, single object, game asset"
+   ],
+   "timeout": 1800
+  },
+  {
+   "id": "g65_gr_cabinet",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "gr_cabinet",
+    "--faces",
+    "6000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "tall double-door metal storage cabinet locker, olive green, worn, industrial, realistic, single object, game asset"
+   ],
+   "timeout": 1800
+  },
+  {
+   "id": "g65_it_canister",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "it_canister",
+    "--faces",
+    "3000",
+    "--prompt",
+    "single red metal jerry can fuel canister with a handle and a spout cap, realistic, single object, game asset"
+   ],
+   "timeout": 1800
+  },
+  {
+   "id": "g65_gr_workbench",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "gr_workbench",
+    "--faces",
+    "6000",
+    "--prompt",
+    "metal workbench with a vise and tools on top, garage, realistic, single object, game asset"
+   ],
+   "timeout": 1800
+  },
+  {
+   "id": "g65_gr_toolchest",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "gr_toolchest",
+    "--faces",
+    "4000",
+    "--prompt",
+    "red rolling metal tool chest with drawers, realistic, single object, game asset"
+   ],
+   "timeout": 1800
   }
  ],
  "archived": [
@@ -2362,6 +2421,36 @@
   "g64_hd_mur_sg",
   "g64_hd_mur_boss",
   "g64_hd_dealer",
-  "g64_car_uaz"
+  "g64_car_uaz",
+  "g64b_task_help",
+  "g64b_toz_status",
+  "g64b_hd_mur_ak",
+  "g64b_hd_mur_sg",
+  "g64b_hd_mur_boss",
+  "g64b_hd_dealer",
+  "g64b_project_help",
+  "g64b_project_dl_help",
+  "g64b_project_list",
+  "g64b_fetch_toz",
+  "g64m_h_search_low",
+  "g64m_h_search_high",
+  "g64m_h_roll_fwd",
+  "g64m_h_bandage",
+  "g64m_h_inject",
+  "g64m_h_drink",
+  "g64m_h_eat",
+  "g64m_h_rifle_butt",
+  "g64m_h_car_enter",
+  "g64m_h_car_exit",
+  "g64m_h_drive",
+  "g64m_h_repair_wheel",
+  "g64m_h_repair_hood",
+  "g64m_h_throw_grenade",
+  "g64m_h_push_off",
+  "g64m_h_vault",
+  "g64m_h_carry_box",
+  "g64m_h_limp",
+  "g64m_h_break_free",
+  "g64m_h_pry_crate"
  ]
 }
