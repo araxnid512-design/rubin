@@ -49,6 +49,18 @@ var _out := 0.0
 var _bt := 0.0
 
 
+## взрыв без броска (снаряд турели машины): огненный шар, копоть и дым — сразу в точке p
+static func boom_at(parent: Node, p: Vector3, r: float) -> ULGrenade:
+	var g := ULGrenade.new()
+	parent.add_child(g)
+	g.setup(p, r, 0.0, 0.1, 0.3)
+	g.phase = "lie"
+	g._boom()
+	g._mark.visible = false
+	g._lamp.visible = false
+	return g
+
+
 func setup(target: Vector3, r: float, thr: float, fly: float, fuse: float) -> void:
 	at = target
 	radius = r

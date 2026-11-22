@@ -66,6 +66,15 @@ const ITEMS := {
 	"q_photo": {"n": "Личные вещи", "kind": "quest", "cat": "quest", "rar": "common", "stack": 1, "kg": 0.2, "price": {}, "icon": "q_photo", "gs": 0.14, "d": "Письмо домой и фотография семьи — не успел отправить."},
 	"q_journal": {"n": "Журнал диспетчера", "kind": "quest", "cat": "quest", "rar": "uncommon", "stack": 1, "kg": 0.6, "price": {}, "model": "qi_logbook", "gs": 0.24, "d": "Последняя запись: «Смена № 3 на нижнем горизонте. Связь пропала. Небо позеленело…»"},
 	"q_samples": {"n": "Образцы особой партии", "kind": "quest", "cat": "mineral", "rar": "rare", "stack": 1, "kg": 4.0, "price": {"spore": 20}, "model": "qi_samplebox", "gs": 0.5, "d": "Ящик с подписанными кернами — партия, ради которой работала смена."},
+	# гараж и машина (data/car.json, data/garage.json): канистра — топливо в литрах у самого предмета (fuel);
+	# «fuel20» — товар барахольщика: канистра, полная бензина (as — какой предмет выдаётся, fill — сколько литров)
+	"canister": {"n": "Канистра", "kind": "fuel", "stack": 1, "cap": 20, "icon": "canister", "model": "it_canister", "gs": 0.45, "kg": 1.5, "d": "Металлическая канистра на 20 л. Топливо переносят в ней: залить в резервуар гаража, наполнить из него, заправить машину (окно машины → «Бак»)."},
+	"fuel20": {"n": "Канистра с бензином (20 л)", "kind": "fuel", "stack": 1, "as": "canister", "fill": 20, "icon": "canister", "gs": 0.45, "d": "Полная канистра бензина: 20 л."},
+	# боеприпасы для турелей машины: продаёт оружейник («Боеприпасы для транспорта»), загружаются в окне машины
+	"veh_am_rifle": {"n": "Патроны автоматной турели", "kind": "veh_ammo", "stack": 300, "icon": "veh_am_rifle", "model": "am_rifle", "gs": 0.4, "d": "Лента 5,45 мм для автоматной турели на крыше машины. Не для ручного оружия."},
+	"veh_am_mg": {"n": "Лента пулемётной турели", "kind": "veh_ammo", "stack": 250, "icon": "veh_am_mg", "model": "am_mg", "gs": 0.45, "d": "Патроны 12,7 мм в коробе для пулемётной турели машины."},
+	"veh_am_cannon": {"n": "Снаряды автопушки", "kind": "veh_ammo", "stack": 60, "icon": "veh_am_cannon", "model": "am_cannon", "gs": 0.5, "d": "Осколочные снаряды 30 мм для автопушечной турели: рвутся при попадании."},
+	"veh_am_rocket": {"n": "Ракеты турели", "kind": "veh_ammo", "stack": 6, "icon": "veh_am_rocket", "model": "am_rocket", "gs": 0.8, "d": "Неуправляемые ракеты для ракетной турели машины. Сильный разрыв, боезапас невелик."},
 	"spore": {"n": "Спораны", "kind": "loot", "stack": 99, "icon": "loot_spore", "d": "Мелкие белые шарики из тел заражённых. Валюта Улья."},
 	"pea": {"n": "Горошина", "kind": "loot", "stack": 20, "icon": "loot_pea", "d": "Зелёная горошина из тела сильного заражённого. Ценится дороже споранов."},
 	"pearl_black": {"n": "Чёрная жемчужина", "kind": "loot", "stack": 10, "icon": "loot_pearl_black", "d": "Чёрная жемчужина. Большая редкость."},
@@ -140,7 +149,13 @@ static func title(it) -> String:
 	if it == null:
 		return ""
 	var n := int(it.get("n", 1))
+	if it.has("fuel"):
+		return "%s — %s / %d л" % [get_def(String(it.id)).n, _l(float(it.fuel)), int(get_def(String(it.id)).get("cap", 20))]
 	return get_def(String(it.id)).n + (" ×%d" % n if n > 1 else "")
+
+
+static func _l(v: float) -> String:
+	return str(int(round(v))) if absf(v - round(v)) < 0.05 else "%.1f" % v
 
 
 static func stack(id: String) -> int:
@@ -156,7 +171,14 @@ static func pack_slots(it) -> int:
 
 ## новый предмет; рюкзак — с пустыми ячейками
 static func make(id: String, n := 1) -> Dictionary:
+	if get_def(id).has("as"):
+		var a := make(String(get_def(id).as), n)        # товар-набор: выдаётся сам предмет (полная канистра)
+		if get_def(id).has("fill"):
+			a["fuel"] = float(get_def(id).fill)
+		return a
 	var it := {"id": id, "n": n}
+	if get_def(id).get("kind", "") == "fuel":
+		it["fuel"] = 0.0                             # пустая канистра
 	if get_def(id).has("mag"):
 		it["mag"] = int(get_def(id).mag)             # оружие — с полным магазином
 	if get_def(id).has("dur"):

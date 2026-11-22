@@ -40,7 +40,7 @@ def main():
         urls = [("", u) for u in re.findall(r'https://[^"\s]+', txt)]
     # предпочтение: модель с PBR, потом любая .glb
     pick = None
-    for key in ("pbr_model", "model", "base_model"):
+    for key in ("pbr_model", "model", "model_url", "base_model"):
         for k, u in urls:
             if k == key:
                 pick = u
@@ -58,8 +58,14 @@ def main():
         return 1
     out = Path("out") / f"{name}.glb"
     out.parent.mkdir(exist_ok=True)
-    with urllib.request.urlopen(pick, timeout=300) as r:
-        out.write_bytes(r.read())
+    # без заголовка браузера хранилище отвечает 403; не вышло — то же через curl
+    req = urllib.request.Request(pick, headers={"User-Agent": "Mozilla/5.0 (X11; Linux x86_64)", "Accept": "*/*"})
+    try:
+        with urllib.request.urlopen(req, timeout=300) as r:
+            out.write_bytes(r.read())
+    except Exception as e:
+        print("urllib:", e, "— пробую curl")
+        subprocess.run(["curl", "-sSfL", "-A", "Mozilla/5.0", "-o", str(out), pick], check=True, timeout=600)
     print("скачано:", out, out.stat().st_size, "байт")
     return 0
 

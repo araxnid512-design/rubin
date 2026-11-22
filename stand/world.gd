@@ -61,9 +61,10 @@ var out := "user://world"
 var _auto: Array = []             ## проверка: точки, к которым герой идёт сам
 var car: ULCar = null              ## УАЗ героя на временной локации (docs/PLANS.md, п. 5)
 var car_in := false                ## герой за рулём
-const CAR_HIDE := ["fire", "reload", "swap"]   ## кнопки, которых за рулём нет
+const CAR_HIDE := ["fire", "reload", "swap", "take", "inv", "heal", "build"]   ## кнопки, которых за рулём нет (свои — CAR_BTNS)
 var _trunk_open := false
-var _car_ui: ULCarUI = null
+var _car_ui: Control = null         ## окно машины или гаража (ULVehUI, ULGarageUI)
+var garage: ULGarage = null         ## гараж на базе (после покупки в компьютере базы)
 var _car_snd: AudioStreamPlayer3D = null
 var _pl_layers := Vector2i(1, 1)   ## слои столкновений героя до посадки (в машине — без столкновений)
 var _steps := {}
@@ -232,6 +233,7 @@ func _ready() -> void:
 		_storage()
 		_yard()
 		_base_props()
+		_garage_build()
 		_flora()
 		if test == "bake":
 			# карта земли — после деревьев: под ними лесная подстилка
@@ -266,8 +268,8 @@ func _ready() -> void:
 		if ULSettings.bench and (test == "" or test == "lvlbench"):
 			_bench_run.call_deferred()
 	_apply_gear()
-	if place == "home" and not arena and not lvl and (test == "" or test == "carmod"):
-		_car_spawn_home.call_deferred()                 # свой УАЗ стоит и на базе — по ней тоже можно ездить
+	if place == "home" and not arena and not lvl and (test == "" or test == "garage"):
+		_car_spawn_home.call_deferred()                 # машина из гаража стоит и на базе — по ней тоже можно ездить
 	if place == "home" and not arena and ULSettings.arrival_note != "" and test == "" and not lvl:
 		var note := ULSettings.arrival_note
 		ULSettings.arrival_note = ""
@@ -546,6 +548,11 @@ func _cowshed_enter() -> void:
 		k += 1
 		if k % 6 == 0:
 			await get_tree().process_frame          # по нескольку за кадр — без долгой заминки на входе
+	if test == "car":
+		ULBase.memory_only = true                  # проверка машины: гараж куплен — в памяти, файл не трогается
+		ULBase.load_state(true)
+		ULBase.data.garage.level = 1
+		ULBase._garage_norm()
 	if test == "" or test == "car":
 		_car_spawn()
 	cs_ready = true
@@ -1501,7 +1508,7 @@ func _vegetation() -> void:
 		var hp := p - HOUSE_AT
 		if absf(hp.x) < ULHouse.W * 0.5 + 1.0 and absf(hp.z) < ULHouse.D * 0.5 + 1.0:
 			return 0.0
-		if p.distance_to(HOUSE_AT + Vector3(0, 0, ULHouse.D * 0.5 + 2.2)) < 3.5 or _trail_dist(p) < 1.5:
+		if p.distance_to(HOUSE_AT + Vector3(0, 0, ULHouse.D * 0.5 + 2.2)) < 3.5 or _trail_dist(p) < 1.5 or _garage_lot(p, 0.4):
 			return 0.0
 		var m := mask_at(p)
 		return clampf(m.r * 1.2 - m.g * 0.9 - 0.1, 0.0, 1.0) * (0.45 if _in_yard(p) else 1.0), func(p: Vector3, r: RandomNumberGenerator) -> Color:
@@ -1515,7 +1522,7 @@ func _vegetation() -> void:
 		return (1.0 - smoothstep(0.3, 2.5, d)) * 0.8, func(_p: Vector3, r: RandomNumberGenerator) -> Color:
 		return Color(0.86, 0.9, 0.76) * r.randf_range(0.82, 1.05), Vector2(0.35, 0.6), 1.2, 910, rng_m)
 	ULVegetation.scatter(self, "flower", SIZE, 0.06 * q + 0.01, func(p: Vector3) -> float:
-		if _in_yard(p) or (p - HOUSE_AT).length() < 9.0:
+		if _in_yard(p) or (p - HOUSE_AT).length() < 9.0 or _garage_lot(p, 0.5):
 			return 0.0
 		var m := mask_at(p)
 		return m.r * smoothstep(0.55, 0.7, _noise(Vector2(p.x, p.z) / 11.0 + Vector2(0.2, 0.6))), func(_p: Vector3, r: RandomNumberGenerator) -> Color:
@@ -2137,8 +2144,8 @@ func _yard() -> void:
 	for i in 70:
 		var p := Vector3(rng.randf_range(-SIZE * 0.48, SIZE * 0.48), 0, rng.randf_range(-SIZE * 0.48, SIZE * 0.48))
 		var hq := p - HOUSE_AT
-		if absf(hq.x) < ULHouse.W * 0.5 + 0.6 and absf(hq.z) < ULHouse.D * 0.5 + 2.5:
-			continue                                               # не в доме и не на крыльце
+		if absf(hq.x) < ULHouse.W * 0.5 + 0.6 and absf(hq.z) < ULHouse.D * 0.5 + 2.5 or _garage_lot(p, 0.3):
+			continue                                               # не в доме, не на крыльце, не в гараже
 		var s := rng.randf_range(0.08, 0.32)
 		stones.append(Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3(s * rng.randf_range(0.8, 1.4), s * 0.5, s)), p - Vector3.UP * s * 0.12))
 	# несколько валунов у тропы
@@ -2157,7 +2164,7 @@ func _yard() -> void:
 	for i in 160:
 		var p := Vector3(rng.randf_range(-SIZE * 0.48, SIZE * 0.48), 0.03, rng.randf_range(-SIZE * 0.48, SIZE * 0.48))
 		var hq := p - HOUSE_AT
-		if absf(hq.x) < ULHouse.W * 0.5 + 0.6 and absf(hq.z) < ULHouse.D * 0.5 + 2.5:
+		if absf(hq.x) < ULHouse.W * 0.5 + 0.6 and absf(hq.z) < ULHouse.D * 0.5 + 2.5 or _garage_lot(p, 0.3):
 			continue
 		var ln := rng.randf_range(0.5, 1.6)
 		var sb2 := Basis(Vector3.UP, rng.randf() * TAU) * Basis(Vector3.FORWARD, PI * 0.5 + rng.randf_range(-0.04, 0.04))
@@ -2339,6 +2346,8 @@ func _spruces(body: StaticBody3D, placed: Array[Vector3], rng: RandomNumberGener
 			var hp2 := p - HOUSE_AT
 			if hp2.x > YARD[0] - 2.5 and hp2.x < YARD[2] + 2.5 and hp2.z > YARD[1] - 2.5 and hp2.z < YARD[3] + 2.5:
 				continue
+			if _garage_lot(p, 3.0):
+				continue
 			if _trail_dist(p) < 3.2 or p.distance_to(Vector3(0, 0, 6)) < 6.0:
 				continue
 			var near := false
@@ -2451,6 +2460,8 @@ func _flora() -> void:
 			# не на дом, не на дорогу, не на старт, не вплотную друг к другу
 			var hp := p - HOUSE_AT
 			if hp.x > YARD[0] - 1.5 and hp.x < YARD[2] + 1.5 and hp.z > YARD[1] - 1.5 and hp.z < YARD[3] + 1.5:
+				continue
+			if _garage_lot(p, 1.5):
 				continue
 			if p.distance_to(Vector3(0, 0, 6)) < 4.0 or _trail_dist(p) < 2.4:
 				continue
@@ -2628,10 +2639,12 @@ func _process(delta: float) -> void:
 	var dir := right * iv.x - fwd * iv.y
 	var mag := clampf(iv.length(), 0.0, 1.0)
 	if car_in and car != null:
-		# за рулём джойстик ведёт машину, герой сидит на месте водителя
-		_car_tick(dir, mag, delta)
+		# за рулём — кнопки машины (руль, газ, тормоз, назад), герой сидит на месте водителя
+		_car_tick(delta)
 		dir = Vector3.ZERO
 		mag = 0.0
+	elif car != null and is_instance_valid(car):
+		car.idle(delta)                             # стоящая машина: подвеска успокаивается, турель — прямо
 	# слегка отклонить — лёгкий бег, сильнее — быстрее, до полного бега
 	var speed := 0.0
 	if mag > 0.12:
@@ -2720,6 +2733,8 @@ func _process(delta: float) -> void:
 		if ins != house.inside:
 			house.set_inside(ins)
 		house.update_walls(player.global_position, delta)
+	if garage != null:
+		garage.tick(delta, player.global_position, car, car_in, ULFarmBuilding.cam_dir)
 	var dist_t := minf(cam_dist, 13.0) if ins else cam_dist
 	if car_in:
 		dist_t = cam_dist * 1.3                     # за рулём камера выше и дальше — видно, куда едешь
@@ -3081,6 +3096,9 @@ func close_inventory() -> void:
 		ULBase.save_state()                     # сейф — часть сохранения базы
 		_safe_door(_open_safe, false)
 		_open_safe = 0
+	if _cab_open:
+		_cab_open = false
+		ULBase.save_state()                     # грузовой шкаф гаража — часть сохранения базы
 	inv_ui.cont_cols = 4
 	inv_ui.storage_ops = false
 	inv_ui.safes = []
@@ -3091,7 +3109,7 @@ func close_inventory() -> void:
 
 
 func _on_inv_changed() -> void:
-	if _open_safe > 0:
+	if _open_safe > 0 or _cab_open or _trunk_open:
 		ULBase.save_state()
 	_apply_gear()
 	_sync_ground_visuals()
@@ -3340,11 +3358,18 @@ func _find_target() -> void:
 		if dk < bd:
 			bd = dk
 			best = {"type": "car_trunk"}
-		if place == "home":
-			var hd := Vector2(car.hood_pos().x - p.x, car.hood_pos().z - p.z).length() - 0.4
-			if hd < bd:
-				bd = hd
-				best = {"type": "car_mod"}
+		var dh := Vector2(car.hood_pos().x - p.x, car.hood_pos().z - p.z).length() - 0.4
+		if dh < bd:
+			bd = dh
+			best = {"type": "car_veh"}
+	if garage != null:
+		# гараж: компьютер модернизации, топливная станция, выбор машины, грузовой шкаф
+		var zs := garage.zones()
+		for k in zs:
+			var dz := Vector2((zs[k] as Vector3).x - p.x, (zs[k] as Vector3).z - p.z).length() - 0.5
+			if dz < bd:
+				bd = dz
+				best = {"type": String(k)}
 	if _terminal != null:
 		var dt := _terminal.global_position.distance_to(p) - 0.2
 		if dt < bd:
@@ -3466,9 +3491,11 @@ func _target_pos() -> Vector3:
 	if String(_target.type).begins_with("car_") and car != null:
 		if _target.type == "car_trunk":
 			return car.trunk_pos() + Vector3.UP * 1.3
-		if _target.type == "car_mod":
-			return car.hood_pos() + Vector3.UP * 1.6
+		if _target.type == "car_veh":
+			return car.hood_pos() + Vector3.UP * 1.5
 		return car.global_position + Vector3.UP * (car.size.y + 0.3)
+	if String(_target.type).begins_with("g_") and garage != null:
+		return garage.zones()[_target.type] + Vector3.UP * 1.6
 	if _target.type == "box":
 		var ctp: Dictionary = san.containers[int(_target.i)]
 		return (ctp.pos as Vector3) + Vector3.UP * ((ctp.size as Vector3).y + 0.2)
@@ -3489,11 +3516,13 @@ func _target_name() -> String:
 	if _target == null:
 		return ""
 	if _target.type == "car_trunk":
-		return "багажник УАЗа"
-	if _target.type == "car_mod":
-		return "УАЗ: улучшения, бензин, ремонт"
+		return "багажник: " + car_name()
+	if _target.type == "car_veh":
+		return car_name() + ": боеприпасы, бак, состояние"
 	if String(_target.type).begins_with("car_"):
-		return "УАЗ" + (" (сломан — ремонт в гараже базы)" if car != null and car.broken() else "")
+		return car_name() + (" (разбита — ремонт в гараже базы)" if car != null and car.broken() else "")
+	if String(_target.type).begins_with("g_"):
+		return String(ULGarage.ZONE_N.get(_target.type, "гараж"))
 	if _target.type == "crate":
 		return "ящик"
 	if _target.type == "box":
@@ -3520,8 +3549,10 @@ func _action_label() -> String:
 		return "Выйти"
 	if _target.type == "car_trunk":
 		return "Багажник"
-	if _target.type == "car_mod":
-		return "Улучшить"
+	if _target.type == "car_veh":
+		return "Машина"
+	if String(_target.type).begins_with("g_"):
+		return "Открыть"
 	if _target.type == "crate":
 		return "Открыть"
 	if _target.type == "box":
@@ -3550,8 +3581,11 @@ func do_action() -> void:
 	if _target.type == "car_trunk":
 		open_trunk()
 		return
-	if _target.type == "car_mod":
-		open_car_ui()
+	if _target.type == "car_veh":
+		open_veh_ui("ammo")
+		return
+	if String(_target.type).begins_with("g_"):
+		open_garage_ui(String(_target.type))
 		return
 	if _target.type == "crate":
 		open_inventory(_target.c.get_meta("items"), "Ящик", false, "crate")
@@ -3988,10 +4022,47 @@ func _stat_tex(n: String) -> Texture2D:
 
 func _hud_pos(k: String) -> Vector2:
 	var vs := get_viewport().get_visible_rect().size
-	var b: Array = HUD_BTNS[k]
+	var b: Array = HUD_BTNS[k] if HUD_BTNS.has(k) else CAR_BTNS[k]
 	if b.size() > 2:
-		return Vector2(vs.x, 0) + (b[0] as Vector2)
+		return (Vector2(0, vs.y) if String(b[2]) == "left" else Vector2(vs.x, 0)) + (b[0] as Vector2)
 	return vs + (b[0] as Vector2)
+
+
+## кнопки машины: руль стрелками, педали и режимы — подписью
+func _draw_car_btns() -> void:
+	var held: Array = _hud_touch.values()
+	for k in CAR_BTNS:
+		if not _car_btn_shown(k):
+			continue
+		var c := _hud_pos(String(k))
+		var r: float = CAR_BTNS[k][1]
+		var on: bool = held.has(k) or (String(k) == "c_tur" and tur_mode)
+		var active := true
+		var line := Color(0.6, 0.85, 1.0, 0.75)
+		match k:
+			"c_gas":
+				active = car.can_drive()
+				line = Color(0.45, 0.95, 0.5, 0.9 if active else 0.3)
+			"c_brake":
+				line = Color(1.0, 0.55, 0.4, 0.9)
+			"c_rev":
+				active = car.can_drive()
+				line = Color(1.0, 0.85, 0.4, 0.85 if active else 0.3)
+			"c_tur":
+				active = car.turret_type() != ""
+			"c_fire":
+				line = Color(1.0, 0.45, 0.35, 0.95)
+		_hud.draw_circle(c, r, Color(0.14, 0.32, 0.42, 0.8) if on else Color(0.05, 0.07, 0.09, 0.55 if active else 0.3))
+		_hud.draw_arc(c, r, 0, TAU, 44, line, 3.0)
+		var ic := Color(1, 1, 1, 0.95 if active else 0.4)
+		if k == "c_left" or k == "c_right":
+			var s := -1.0 if k == "c_left" else 1.0
+			var pts := PackedVector2Array([c + Vector2(s * r * 0.45, 0), c + Vector2(-s * r * 0.3, -r * 0.42), c + Vector2(-s * r * 0.3, r * 0.42)])
+			_hud.draw_colored_polygon(pts, ic)
+			continue
+		if k == "c_fire":
+			_hud_icon(_art("aim"), c, r * 1.6, Color(1, 1, 1, 0.35))
+		_hud_text(c + (Vector2(0, -4) if r > 50.0 else Vector2.ZERO), String(CAR_BTN_TXT.get(k, "")), 20 if r > 60.0 else (16 if r > 45.0 else 14), ic)
 
 
 ## значок кнопки из набора пользователя (assets/icons/ui): круглая картинка во всю кнопку
@@ -4059,15 +4130,25 @@ func _draw_hud() -> void:
 		# за рулём: прочность УАЗа и скорость
 		var cw := 280.0
 		var cx := vs.x * 0.5 - cw * 0.5
-		var ck := clampf(car.hp / car.hp_max, 0.0, 1.0)
+		var ck := clampf(car.hp() / car.hp_max(), 0.0, 1.0)
 		_hud.draw_rect(Rect2(cx, 84, cw, 12), Color(0, 0, 0, 0.6))
 		_hud.draw_rect(Rect2(cx + 1, 85, (cw - 2) * ck, 10), Color(0.85, 0.3, 0.2) if ck < 0.3 else Color(0.85, 0.75, 0.35))
-		_hud_text(Vector2(vs.x * 0.5, 112), "УАЗ %d / %d · %d км/ч · бензин %.1f л" % [int(round(car.hp)), int(round(car.hp_max)), int(round(absf(car.speed) * 3.6)), car.fuel] + ("  — сломан" if car.broken() else ("  — нет бензина" if car.no_fuel() else "")), 15, Color(1.0, 0.92, 0.7))
-	# джойстик
-	var jc := _joy_o if _joy_id >= 0 else Vector2(160, vs.y - 160)
-	_hud.draw_circle(jc, 92, Color(1, 1, 1, 0.07))
-	_hud.draw_arc(jc, 92, 0, TAU, 48, Color(0.6, 0.85, 1.0, 0.45), 2.5)
-	_hud.draw_circle(jc + _joy_v * 92, 36, Color(0.6, 0.85, 1.0, 0.5 if _joy_id >= 0 else 0.25))
+		var fk := clampf(car.fuel() / car.tank(), 0.0, 1.0)
+		_hud.draw_rect(Rect2(cx, 98, cw, 6), Color(0, 0, 0, 0.6))
+		_hud.draw_rect(Rect2(cx + 1, 99, (cw - 2) * fk, 4), Color(0.9, 0.3, 0.2) if fk < 0.15 else Color(0.45, 0.75, 1.0))
+		var gear := "R" if car.speed < -0.2 or (car.throttle < 0.0 and absf(car.speed) < 0.3) else ("N" if absf(car.speed) < 0.2 and car.throttle == 0.0 else "D")
+		_hud_text(Vector2(vs.x * 0.5, 120), "%s %d / %d · %s %d км/ч · бензин %.1f л" % [car_name(), int(round(car.hp())), int(round(car.hp_max())), gear, int(round(absf(car.speed) * 3.6)), car.fuel()] + ("  — разбита" if car.broken() else ("  — нет бензина" if car.no_fuel() else ("  — двигатель разрушен" if not car.can_drive() else ""))), 15, Color(1.0, 0.92, 0.7))
+		if car.turret_type() != "":
+			var tst: Dictionary = car.data.turrets.get(car.turret_type(), {})
+			_hud_text(Vector2(vs.x * 0.5, 142), "%s · %d / %d%s" % [String(ULCar.turret_cfg(car.turret_type()).n), int(tst.get("ammo", 0)), int(ULCar.turret_cfg(car.turret_type()).cap), "  · РЕЖИМ ТУРЕЛИ" if tur_mode else ""], 14, Color(1.0, 0.75, 0.55) if tur_mode else Color(0.8, 0.85, 0.9))
+	# джойстик (за рулём вместо него — кнопки руля)
+	if car_in and car != null:
+		_draw_car_btns()
+	else:
+		var jc := _joy_o if _joy_id >= 0 else Vector2(160, vs.y - 160)
+		_hud.draw_circle(jc, 92, Color(1, 1, 1, 0.07))
+		_hud.draw_arc(jc, 92, 0, TAU, 48, Color(0.6, 0.85, 1.0, 0.45), 2.5)
+		_hud.draw_circle(jc + _joy_v * 92, 36, Color(0.6, 0.85, 1.0, 0.5 if _joy_id >= 0 else 0.25))
 	var it = inv.get(inv.hand) if inv.hand != "" else null
 	var d := ULItems.get_def(String(it.id)) if it != null else {}
 	for k in HUD_BTNS:
@@ -4121,14 +4202,16 @@ func _draw_hud() -> void:
 						_hud_icon(_art("use"), c, r * 2.0, ic)
 					"crate", "box", "chest", "car_trunk":
 						_hud_icon(_tex("res://assets/icons/crate.png"), c, r * 1.5, ic)
-					"car_door", "car_exit", "car_mod":
+					"car_door", "car_exit", "car_veh":
 						_hud_icon(_art("use"), c, r * 2.0, ic)
 					"safe":
 						_hud_icon(_tex("res://assets/icons/safe.png"), c, r * 1.5, ic)
 					"corpse":
 						_hud_icon(_tex("res://assets/icons/loot_spore.png"), c, r * 1.4, ic)
-					"terminal":
+					"terminal", "g_term", "g_sel":
 						_hud_icon(_art("terminal"), c, r * 2.0, ic)
+					"g_fuel", "g_cab":
+						_hud_icon(_tex("res://assets/icons/crate.png"), c, r * 1.5, ic)
 					_:
 						var tid := String(_target.g.item.id)
 						_hud_icon(ULItems.icon(tid), c, r * 1.5, ULItems.tint(tid))
@@ -4158,12 +4241,16 @@ func _draw_hud() -> void:
 		var l2 := "вернитесь на локацию, чтобы остаться"
 		var lw2 := font0.get_string_size(l2, HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x
 		_hud.draw_string(font0, Vector2(vs.x * 0.5 - lw2 * 0.5, 176), l2, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color(0.9, 0.88, 0.8))
-	# название того, что можно взять, — над кнопкой «взять»
-	if _target != null:
+	# название того, что можно взять, — над кнопкой «взять» (за рулём этой кнопки нет)
+	if _target != null and not car_in:
 		_hud_text(_hud_pos("take") + Vector2(0, -66), _target_name(), 14, Color(1.0, 0.88, 0.55))
 
 
 func _hud_hit(p: Vector2) -> String:
+	if car_in and car != null:
+		for k in CAR_BTNS:
+			if _car_btn_shown(k) and p.distance_to(_hud_pos(k)) <= float(CAR_BTNS[k][1]) + 8.0:
+				return k
 	for k in HUD_BTNS:
 		if k == "take" and _target == null:
 			continue
@@ -4210,6 +4297,16 @@ func _hud_press(k: String) -> void:
 			open_place_map()
 		"name":
 			open_char_panel()
+		"c_exit":
+			car_exit()
+		"c_veh":
+			open_veh_ui()
+		"c_tur":
+			if car != null and car.turret_type() != "":
+				tur_mode = not tur_mode
+				say("Режим турели: наведение на ближайшего врага, «Огонь» — стрелять" if tur_mode else "Режим турели выключен")
+			else:
+				say("Оружейный модуль не установлен — турель ставится в гараже базы")
 
 
 # ---------------- карта локации ----------------
@@ -4813,6 +4910,8 @@ const BULLETS := {
 	"a9x39": [0.44, 0.094, Color(0.42, 0.43, 0.46), false],
 	"a12": [0.085, 0.085, Color(0.5, 0.5, 0.54), false],
 	"boss50": [0.62, 0.15, Color(1.0, 0.72, 0.3), false],      # тяжёлый пистолет главаря муров: крупная, светлая — видно, откуда летит
+	"veh_shell": [0.7, 0.2, Color(1.0, 0.8, 0.4), false],      # снаряд автопушки турели
+	"veh_rocket": [1.1, 0.24, Color(0.55, 0.6, 0.5), true],    # ракета турели
 }
 const BULLET_SPEED := 62.0        ## м/с: медленнее настоящей — чтобы полёт был виден
 var _flash_t := 0.0
@@ -4900,6 +4999,10 @@ func _bullets_tick(delta: float) -> void:
 			continue
 		n.visible = false
 		(_bullet_free[bl.id] as Array).append(n)
+		if bl.has("splash"):
+			_veh_blast(bl.b, float(bl.splash), float(bl.sdmg))     # снаряд турели — разрыв в точке попадания
+			_bullets.remove_at(i)
+			continue
 		var col = bl.col
 		if bool(bl.get("foe", false)):
 			# пуля мура: попала в героя — урон (отталкивает от стрелявшего); в стену — звук
@@ -11722,7 +11825,7 @@ func hurt(dmg: float, from := Vector3.INF) -> void:
 	if _dead_t > 0.0:
 		return
 	if car_in and car != null and not car.broken():
-		car.damage(dmg)                             # в целой машине бьют по машине, герой цел
+		car.hit(dmg)                                # в целой машине бьют по машине, герой цел
 		snd.play("block", car.global_position + Vector3.UP, -6.0, 0.12)
 		return
 	dmg *= ULGifts.val("skin", "k", 1.0)              # дар «Крепкая кожа»
@@ -13260,6 +13363,7 @@ func _safe_mesh() -> Dictionary:
 
 ## открыть сейф k: сетка 6 × 5, «Положить всё», «Сортировать», перенос ресурсов из кошелька
 var _open_safe := 0
+var _cab_open := false              ## открыт грузовой шкаф гаража
 
 
 func open_safe(k: int) -> void:
@@ -13408,6 +13512,10 @@ func pc_done(kind: String, id: String) -> void:
 		_armory()                               # куплено — в кладовой появляется вся оружейная
 	if kind == "upgrade" and id == "storage":
 		_storage()                              # хранилище куплено или улучшено — новый сейф в ряду
+	if kind == "upgrade" and id == "garage":
+		_garage_build()                         # гараж построен: здание на площадке, в нём — машина
+		if car == null:
+			_car_spawn()
 	if kind == "upgrade" and ULBase.has_staff("gunsmith") and npc_by_role("оружейник") == null:
 		_npcs_setup()
 	snd.play("click", player.global_position + Vector3.UP * 1.0, -4.0)
@@ -13427,8 +13535,12 @@ const SHOP := {
 	"supplies": [["bandage", 1, {"spore": 1}], ["medkit", 1, {"spore": 4}], ["tonic", 1, {"spore": 2}], ["water", 1, {"spore": 1}],
 		["rusk", 1, {"spore": 1}], ["can", 1, {"spore": 2}], ["pack_small", 1, {"spore": 8}], ["pack_medium", 1, {"pea": 1}],
 		["pack_large", 1, {"pea": 2}]],
+	# боеприпасы для турелей машины (ТЗ гаража): цены — предложение (урон за споран — около ручного оружия),
+	# не утверждённый баланс; покупка — в инвентарь, загрузка — в окне машины «Боеприпасы»
+	"veh_ammo": [["veh_am_rifle", 100, {"spore": 7}], ["veh_am_mg", 50, {"spore": 6}], ["veh_am_cannon", 10, {"spore": 6}],
+		["veh_am_rocket", 1, {"spore": 3}]],
 }
-const SHOP_TABS := [["weapons", "Оружие"], ["ammo", "Патроны"], ["supplies", "Припасы и снаряжение"], ["repair", "Ремонт"]]
+const SHOP_TABS := [["weapons", "Оружие"], ["ammo", "Патроны"], ["supplies", "Припасы и снаряжение"], ["veh_ammo", "Боеприпасы для транспорта"], ["repair", "Ремонт"]]
 var _talk_trade: Button
 var _talk_sell: Button
 var _shop_ui: Control
@@ -13787,7 +13899,7 @@ func open_shop() -> void:
 		var tb := ULSettings.button(String(t[1]), func() -> void:
 			_shop_tab = String(t[0])
 			_shop_sel = 0
-			_shop_build(), 150.0 if String(t[0]) != "supplies" else 280.0)
+			_shop_build(), {"supplies": 280.0, "veh_ammo": 330.0}.get(String(t[0]), 150.0))
 		tabs.add_child(tb)
 		_shop_tabs.append(tb)
 	var body := HBoxContainer.new()
@@ -13948,8 +14060,8 @@ func _run_test() -> void:
 	if test == "car":
 		await _car_test()
 		return
-	if test == "carmod":
-		await _carmod_test()
+	if test == "garage":
+		await _garage_test()
 		return
 	if test == "setshot":
 		# снимок окна настроек (строка о разрешении экрана и подстройке)
@@ -16430,54 +16542,130 @@ func _run_test() -> void:
 	get_tree().quit()
 
 
-# ---------------- УАЗ героя (docs/PLANS.md, п. 5, этап 1; ULCar, data/car.json) ----------------
+# ---------------- гараж базы (ULGarage, data/garage.json) ----------------
 
-## Поставить машину у входа на временную локацию: сбоку от тропы, мордой внутрь, на свободное место
+## гараж слева от бункера: куплен — здание (стены, ворота, платформа, четыре места), нет — площадка под него.
+## Для запекания карты проходимости строится всегда (жители и враги обходят его место).
+func _garage_build() -> void:
+	if place != "home" or arena:
+		return
+	if garage != null:
+		garage.free()
+	garage = ULGarage.new()
+	garage.name = "Garage"
+	add_child(garage)
+	garage.setup(ULBase.garage_cfg(), ULBase.garage_level() >= 1 or test == "bake")
+
+
+## участок гаража с запасом m (там не растут деревья, кусты и трава), перед воротами — подъезд
+func _garage_lot(p: Vector3, m: float) -> bool:
+	var at: Array = ULBase.garage_cfg().get("at", [-14.6, 0.0, -12.0])
+	var c := Vector3(float(at[0]), 0, float(at[2]))
+	var l := p - c
+	return absf(l.x) < ULGarage.W * 0.5 + m and l.z > -ULGarage.D * 0.5 - m and l.z < ULGarage.D * 0.5 + m + 4.0
+
+
+## места гаража: компьютер модернизации, топливная станция, выбор машины — окно гаража; грузовой шкаф — хранилище
+func open_garage_ui(zone: String) -> void:
+	if zone == "g_cab":
+		open_cabinet()
+		return
+	var tab: String = {"g_term": "up", "g_fuel": "fuel", "g_sel": "cars"}.get(zone, "up")
+	_car_ui = ULGarageUI.open(_hud.get_parent(), self, tab)
+	_joy_id = -1
+	_joy_v = Vector2.ZERO
+	_hud_touch.clear()
+	snd.play("click", player.global_position + Vector3.UP, -6.0)
+
+
+## грузовой шкаф гаража: 30 ячеек, класть и брать (как сейф хранилища)
+func open_cabinet() -> void:
+	_cab_open = true
+	inv_ui.cont_cols = 5
+	inv_ui.storage_ops = true
+	open_inventory(ULBase.cabinet(), "Грузовой шкаф", false, "safe")
+	snd.play("cover_open", player.global_position + Vector3.UP, -8.0)
+
+
+## после покупки и замены в гараже: вид машины по деталям, сохранение
+func garage_changed() -> void:
+	if car != null and is_instance_valid(car):
+		ULCar.norm_data(car.data)
+		car.rebuild()
+	ULBase.save_state()
+
+
+## выбрана другая машина гаража: прежняя убирается, новая встаёт на платформу
+func garage_select(i: int) -> bool:
+	var cs := ULBase.cars()
+	if i < 0 or i >= cs.size():
+		return false
+	if i == int(ULBase.garage().sel) and car != null:
+		return true
+	_car_free_node()
+	ULBase.garage()["sel"] = i
+	(cs[i] as Dictionary)["at"] = []
+	ULBase.save_state()
+	_car_spawn()
+	return true
+
+
+# ---------------- машина героя (docs/PLANS.md, п. 5; ULCar, data/car.json, гараж — ULGarage) ----------------
+
+## Поставить выбранную машину гаража: на базе — где оставили (или на платформе гаража), на временной локации —
+## у входа, сбоку от тропы, мордой внутрь. Гаража нет — машины нет.
 func _car_spawn() -> void:
 	if not (temp() or place == "home") or arena or car != null:
 		return
 	var cd := ULBase.car_data()
+	if cd.is_empty():
+		return
 	car = ULCar.new()
-	car.hp = float(cd.hp)
-	car.fuel = float(cd.fuel)
 	add_child(car)
-	car.setup()
-	car.apply_up(cd.up)
-	car.hp = float(cd.hp)
+	car.setup(cd)
 	var home := place == "home"
-	var e := player.global_position if home else zone_entry()
-	var yaw := 0.0
+	var placed := false
 	if home:
-		yaw = player.rotation.y + PI * 0.5
-	else:
-		yaw = zone_entry_yaw() if place in ["cowshed", "sanatorium"] else atan2(-e.x, -e.z)
-	var fw := Vector3(sin(yaw), 0, cos(yaw))
-	var rt := Vector3(-fw.z, 0, fw.x)
-	var map := get_world_3d().navigation_map
-	var picked := false
-	var offs := [rt * 4.5 + fw * 3.0, -rt * 4.5 + fw * 3.0, rt * 6.5 + fw * 6.0, -rt * 6.5 + fw * 6.0, fw * 9.0, rt * 9.0, -rt * 9.0, rt * 5.0 + fw * 12.0, -rt * 5.0 + fw * 12.0]
-	if home:
-		offs = []
-		for rr in [7.0, 10.0, 13.0, 16.0]:
-			for k in 12:
-				offs.append(Vector3(sin(k * TAU / 12.0), 0, cos(k * TAU / 12.0)) * rr)
-	for off in offs:
-		var want: Vector3 = e + off
-		var at := NavigationServer3D.map_get_closest_point(map, want)
-		if NavigationServer3D.map_get_iteration_id(map) == 0:
-			at = Vector3(want.x, e.y - 0.05, want.z)        # карта проходимости ещё не готова — по месту героя
-		if Vector2(at.x - want.x, at.z - want.z).length() > 1.5:
-			continue
-		car.global_position = at + Vector3.UP * 0.1
-		car.rotation.y = yaw
-		if _car_free():
-			picked = true
-			break
-	if not picked:
-		car.global_position = e + rt * 4.5 + fw * 3.0 + Vector3.UP * 0.1
-		car.rotation.y = yaw
-	for i in 8:
-		car.drive(Vector3.ZERO, 0.0, 0.05)            # опустить на землю
+		var at: Array = cd.get("at", [])
+		if at.size() == 4:
+			car.global_position = Vector3(float(at[0]), float(at[1]) + 0.1, float(at[2]))
+			car.rotation.y = float(at[3])
+			placed = _car_free()
+		if not placed and garage != null:
+			var xf := garage.platform_xf()
+			car.global_position = xf.origin + Vector3.UP * 0.1
+			car.rotation.y = xf.basis.get_euler().y
+			placed = true
+	if not placed:
+		var e := player.global_position if home else zone_entry()
+		var yaw := player.rotation.y + PI * 0.5 if home else (zone_entry_yaw() if place in ["cowshed", "sanatorium"] else atan2(-e.x, -e.z))
+		var fw := Vector3(sin(yaw), 0, cos(yaw))
+		var rt := Vector3(-fw.z, 0, fw.x)
+		var map := get_world_3d().navigation_map
+		var offs := [rt * 4.5 + fw * 3.0, -rt * 4.5 + fw * 3.0, rt * 6.5 + fw * 6.0, -rt * 6.5 + fw * 6.0, fw * 9.0, rt * 9.0, -rt * 9.0, rt * 5.0 + fw * 12.0, -rt * 5.0 + fw * 12.0]
+		if home:
+			offs = []
+			for rr in [7.0, 10.0, 13.0, 16.0]:
+				for k in 12:
+					offs.append(Vector3(sin(k * TAU / 12.0), 0, cos(k * TAU / 12.0)) * rr)
+		for off in offs:
+			var want: Vector3 = e + off
+			var at2 := NavigationServer3D.map_get_closest_point(map, want)
+			if NavigationServer3D.map_get_iteration_id(map) == 0:
+				at2 = Vector3(want.x, e.y - 0.05, want.z)        # карта проходимости ещё не готова — по месту героя
+			if Vector2(at2.x - want.x, at2.z - want.z).length() > 1.5:
+				continue
+			car.global_position = at2 + Vector3.UP * 0.1
+			car.rotation.y = yaw
+			if _car_free():
+				placed = true
+				break
+		if not placed:
+			car.global_position = e + rt * 4.5 + fw * 3.0 + Vector3.UP * 0.1
+			car.rotation.y = yaw
+	for i in 10:
+		car.step(0.05)                                # опустить на землю, колёса — по земле
+	car.speed = 0.0
 	_car_snd = AudioStreamPlayer3D.new()
 	var es: AudioStream = load("res://assets/audio/engine_loop.ogg")
 	if es is AudioStreamOggVorbis:
@@ -16488,7 +16676,7 @@ func _car_spawn() -> void:
 	car.add_child(_car_snd)
 
 
-## база: подождать карту проходимости и поставить машину рядом с героем на свободное место
+## база: подождать карту проходимости и поставить машину
 func _car_spawn_home() -> void:
 	var map := get_world_3d().navigation_map
 	for i in 90:
@@ -16496,6 +16684,16 @@ func _car_spawn_home() -> void:
 		if NavigationServer3D.map_get_iteration_id(map) > 0:
 			break
 	_car_spawn()
+
+
+## убрать машину со сцены (сменили машину в гараже, купили гараж — новая встанет заново)
+func _car_free_node() -> void:
+	if car_in:
+		car_exit()
+	if car != null and is_instance_valid(car):
+		car.queue_free()
+	car = null
+	_car_snd = null
 
 
 ## место под машину свободно (ничего, кроме земли, в коробке кузова, приподнятой над землёй)
@@ -16522,16 +16720,177 @@ func _spot_free(at: Vector3) -> bool:
 	return get_world_3d().direct_space_state.intersect_shape(q, 1).is_empty()
 
 
+## Кнопки за рулём (как HUD_BTNS; «left» — от левого нижнего угла): руль ◀ ▶ слева; газ (на месте кнопки атаки),
+## тормоз, назад, выйти, окно машины, режим турели и огонь турели (только в режиме турели) — справа
+const CAR_BTNS := {
+	"c_left": [Vector2(118, -128), 66.0, "left"],
+	"c_right": [Vector2(276, -128), 66.0, "left"],
+	"c_gas": [Vector2(-128, -132), 76.0],
+	"c_brake": [Vector2(-292, -96), 52.0],
+	"c_rev": [Vector2(-270, -236), 44.0],
+	"c_exit": [Vector2(-116, -290), 42.0],
+	"c_veh": [Vector2(-116, -396), 38.0],
+	"c_tur": [Vector2(-236, -360), 38.0],
+	"c_fire": [Vector2(-440, -140), 62.0],
+}
+const CAR_BTN_TXT := {"c_gas": "Газ", "c_brake": "Тормоз", "c_rev": "Назад", "c_exit": "Выйти", "c_veh": "Машина", "c_tur": "Турель", "c_fire": "Огонь"}
+var tur_mode := false              ## режим турели: турель наводится на ближайшего врага в секторе, «Огонь» — стрелять
+var _tur_t: Node3D = null          ## цель турели
+var tur_shots := 0
+
+
+func _car_btn_shown(k: String) -> bool:
+	if not car_in or car == null:
+		return false
+	match k:
+		"c_fire":
+			return tur_mode and car.turret_type() != ""
+	return true
+
+
+## управление машиной: кнопки (пальцы держат), клавиатура (W — газ, S — назад, A/D — руль, пробел — тормоз,
+## F — огонь турели), в проверке — автоводитель к точке _auto
+func _car_ctrl() -> void:
+	var held: Array = _hud_touch.values()
+	var gas := held.has("c_gas") or Input.is_physical_key_pressed(KEY_W) or Input.is_physical_key_pressed(KEY_UP)
+	var rev := held.has("c_rev") or Input.is_physical_key_pressed(KEY_S) or Input.is_physical_key_pressed(KEY_DOWN)
+	var st := 0.0
+	if held.has("c_left") or Input.is_physical_key_pressed(KEY_A) or Input.is_physical_key_pressed(KEY_LEFT):
+		st += 1.0
+	if held.has("c_right") or Input.is_physical_key_pressed(KEY_D) or Input.is_physical_key_pressed(KEY_RIGHT):
+		st -= 1.0
+	car.brake = held.has("c_brake") or Input.is_physical_key_pressed(KEY_SPACE)
+	car.throttle = 1.0 if gas and not rev else (-1.0 if rev and not gas else 0.0)
+	car.steer_in = st
+	if not _auto.is_empty():
+		# автоводитель проверки: руль — на точку, газ — _auto_k
+		var lp := car.global_transform.affine_inverse() * (_auto[0] as Vector3)
+		car.steer_in = clampf(atan2(lp.x, lp.z) * 2.0, -1.0, 1.0)
+		car.throttle = _auto_k
+		car.brake = false
+	if _modal():
+		car.throttle = 0.0
+		car.steer_in = 0.0
+
+
 ## кадр за рулём: сбитые заражённые (до шага — иначе тело врага остановило бы машину раньше удара), езда,
-## удары о препятствия, звук мотора
-func _car_tick(dir: Vector3, mag: float, delta: float) -> void:
+## удары о препятствия, звук мотора, турель
+func _car_tick(delta: float) -> void:
+	_car_ctrl()
 	_car_ram(delta)
-	car.drive(dir, mag, delta)
+	car.step(delta)
 	if car.crashed > 0.0:
 		snd.play("block", car.global_position + Vector3.UP, clampf(-14.0 + car.crashed * 1.5, -14.0, 0.0), 0.1)
 		car.crashed = 0.0
 	if _car_snd:
-		_car_snd.pitch_scale = 0.75 + absf(car.speed) / ULCar.c("max_speed", 15.0) * 0.95
+		if car.can_drive() and not _car_snd.playing:
+			_car_snd.play()
+		elif not car.can_drive() and _car_snd.playing:
+			_car_snd.stop()
+		_car_snd.pitch_scale = 0.75 + absf(car.speed) / maxf(car.vmax(), 1.0) * 0.95
+	_turret_tick()
+
+
+## турель: в режиме турели — на ближайшего видимого врага в секторе и в дальности; «Огонь» (или F) — выстрел
+func _turret_tick() -> void:
+	var t := car.turret_type()
+	if t == "":
+		tur_mode = false
+		return
+	if not tur_mode:
+		car.turret_want = 0.0
+		return
+	var tc := ULCar.turret_cfg(t)
+	var rng := float(tc.get("range", 20.0))
+	var arc := deg_to_rad(ULCar.c("turret_arc_deg", 150.0))
+	var best: Node3D = null
+	var bd := rng
+	var inv_t := car.global_transform.affine_inverse()
+	for e in enemies:
+		if not is_instance_valid(e) or not e.alive():
+			continue
+		var d: float = e.global_position.distance_to(car.global_position)
+		if d >= bd:
+			continue
+		var lp: Vector3 = inv_t * e.global_position
+		if absf(atan2(lp.x, lp.z)) > arc:
+			continue
+		bd = d
+		best = e
+	_tur_t = best
+	if best != null:
+		car.aim_at(best.global_position)
+	else:
+		car.turret_want = 0.0
+	var fire: bool = _hud_touch.values().has("c_fire") or Input.is_physical_key_pressed(KEY_F)
+	if fire and not _modal():
+		_turret_shoot()
+
+
+func _turret_shoot() -> void:
+	var r := car.turret_fire()
+	if r.is_empty():
+		return
+	if r.has("empty"):
+		if Time.get_ticks_msec() * 0.001 - _why_t > 2.0:
+			_why_t = Time.get_ticks_msec() * 0.001
+			say("Нет боеприпасов для турели — загрузите их в окне «Машина» → «Боеприпасы»")
+		return
+	if r.has("broken"):
+		say("Турель разбита — ремонт в гараже")
+		return
+	tur_shots += 1
+	var tc: Dictionary = r.cfg
+	var t := String(r.type)
+	var from: Vector3 = r.from
+	var dir: Vector3 = r.dir
+	if _tur_t != null and is_instance_valid(_tur_t):
+		dir = ((_tur_t.global_position + Vector3.UP * 1.0) - from).normalized()
+	var sp := deg_to_rad(float(tc.get("spread", 1.0)))
+	dir = (dir + Vector3(randf_range(-1, 1), randf_range(-0.3, 0.3), randf_range(-1, 1)) * tan(sp)).normalized()
+	var reach := float(tc.get("range", 20.0)) + 1.0
+	var q := PhysicsRayQueryParameters3D.create(from, from + dir * reach)
+	q.exclude = [car.get_rid(), player.get_rid()]
+	var hit := get_world_3d().direct_space_state.intersect_ray(q)
+	var end: Vector3 = hit.position if not hit.is_empty() else from + dir * reach
+	var col: Object = hit.collider if not hit.is_empty() else null
+	var look: String = {"rifle": "a545", "mg": "a762x54", "cannon": "veh_shell", "rocket": "veh_rocket"}.get(t, "a545")
+	var splash := float(tc.get("splash", 0.0))
+	_fly_bullet(look, from, end, null if splash > 0.0 else col, 0.0 if splash > 0.0 else float(tc.dmg))
+	if splash > 0.0:
+		var bl: Dictionary = _bullets.back()
+		bl["splash"] = splash
+		bl["sdmg"] = float(tc.dmg)
+	for e in enemies:
+		e.hear(car.global_position)
+	var sname: String = {"rifle": "shot_ak", "mg": "shot_pkp", "cannon": "shot_deagle", "rocket": "grenade_boom"}.get(t, "shot_ak")
+	snd.play(sname, from, -2.0 if t != "rocket" else -8.0, 0.05)
+	_flash.global_position = from + dir * 0.15
+	_flash.visible = true
+	_flash.scale = Vector3.ONE * (1.0 if t in ["rifle", "mg"] else 1.6)
+	_flash_t = 0.05
+	_car_store()
+
+
+## разрыв снаряда турели (автопушка, ракета): огонь и дым, урон врагам в радиусе (меньше к краю, стены закрывают)
+func _veh_blast(at: Vector3, r: float, dmg: float) -> void:
+	ULGrenade.boom_at(self, at, r)
+	snd.play("grenade_boom", at + Vector3.UP * 0.4, 2.0 if r > 2.5 else -2.0, 0.05)
+	shake(clampf(1.2 - player.global_position.distance_to(at) * 0.08, 0.2, 1.2), 0.4)
+	var space := get_world_3d().direct_space_state
+	for e in enemies.duplicate():
+		if not is_instance_valid(e) or not e.alive():
+			continue
+		var d: float = (e.global_position + Vector3.UP * 0.8).distance_to(at)
+		if d > r:
+			continue
+		var q := PhysicsRayQueryParameters3D.create(at + Vector3.UP * 0.4, e.global_position + Vector3.UP * 1.0)
+		q.exclude = [car.get_rid() if car != null else RID(), player.get_rid()]
+		q.collision_mask = 1
+		var h := space.intersect_ray(q)
+		if not h.is_empty() and h.collider != e and not (h.collider is CharacterBody3D):
+			continue
+		_damage(e, dmg * lerpf(1.0, 0.4, clampf(d / maxf(r, 0.1), 0.0, 1.0)), at)
 
 
 ## заражённые на пути машины в этот кадр (кузов, вытянутый по ходу на шаг кадра и ещё 0,8 м)
@@ -16556,15 +16915,16 @@ func _car_ram(delta: float) -> void:
 		var away := e.global_position - car.global_position
 		away.y = 0.0
 		away = away.normalized() if away.length() > 0.01 else car.fwd()
+		var front := lp.z > 0.0
 		if e.kind == "ruber":
 			# Рубер — как стена: машина встаёт и мнётся
-			car.damage(ULCar.c("ruber_car_dmg", 40.0) * (0.5 + 0.5 * car.ram_k))
+			car.crash(ULCar.c("ruber_car_dmg", 40.0), front)
 			car.speed = 0.0
 			e.damage(sp * sp * 0.6, car.global_position)
 			snd.play("block", e.global_position + Vector3.UP, -2.0)
 		else:
 			e.damage(sp * sp * ULCar.c("ram_dmg_k", 2.4), car.global_position)
-			car.damage(ULCar.c("ram_car_dmg", 2.0) * car.ram_k)
+			car.crash(ULCar.c("ram_car_dmg", 2.0), front)
 			if e.alive():
 				e.global_position += away * 0.8                # выжил — отброшен в сторону
 			snd.play("body_fall", e.global_position + Vector3.UP * 0.5, -4.0)
@@ -16576,28 +16936,39 @@ func car_enter() -> void:
 	if car == null or car_in:
 		return
 	car_in = true
+	tur_mode = false
 	_pl_layers = Vector2i(player.collision_layer, player.collision_mask)
 	player.collision_layer = 0
 	player.collision_mask = 0
 	player.visible = false
 	player.velocity = Vector3.ZERO
 	player.global_position = car.seat_pos()
+	_joy_id = -1
+	_joy_v = Vector2.ZERO
 	snd.play("cover_close", car.door_pos() + Vector3.UP, -6.0)
-	if _car_snd and not car.broken():
+	if _car_snd and car.can_drive():
 		_car_snd.play()
+	if car.broken():
+		say("Машина разбита — нужен ремонт кузова в гараже базы")
+	elif car.no_fuel():
+		say("Бак пуст — заправьте машину из канистры (окно «Машина» → «Бак»)")
 
 
 ## выйти: у водительской двери; занято — с другой стороны, сзади, спереди
 func car_exit() -> void:
 	if car == null or not car_in:
 		return
-	var spots := [car.door_pos(), car.global_transform * Vector3(-car.size.x * 0.5 - 0.6, 0.0, car.size.z * 0.05), car.trunk_pos(), car.global_transform * Vector3(0.0, 0.0, car.size.z * 0.5 + 0.7)]
+	var spots := [car.door_pos(), car.global_transform * Vector3(-car.size.x * 0.5 - 0.6, 0.0, car.size.z * 0.05), car.trunk_pos(), car.hood_pos()]
 	var at: Vector3 = spots[0]
 	for sp in spots:
 		if _spot_free(sp):
 			at = sp
 			break
 	car_in = false
+	tur_mode = false
+	car.throttle = 0.0
+	car.steer_in = 0.0
+	car.brake = true
 	car.speed = 0.0
 	player.global_position = at + Vector3.UP * 0.1
 	player.collision_layer = _pl_layers.x
@@ -16610,120 +16981,198 @@ func car_exit() -> void:
 	_car_store()
 
 
-## багажник: хранилище на 30 ячеек (как сейф), класть и брать
+## багажник: хранилище по уровню модуля багажника (30–60 ячеек), класть и брать
 func open_trunk() -> void:
 	if car == null:
 		return
 	_trunk_open = true
-	_car_store()                                # багажник по нынешнему уровню
+	ULCar.norm_data(car.data)                    # багажник по нынешнему уровню
 	inv_ui.cont_cols = int(ULCar.c("trunk_cols", 6.0))
 	inv_ui.storage_ops = true
-	open_inventory(ULBase.car_data().trunk, "Багажник УАЗа", false, "crate")
+	open_inventory(car.data.trunk, "Багажник: %s" % car_name(), false, "crate")
 	snd.play("cover_open", car.trunk_pos() + Vector3.UP, -8.0)
 
 
-## прочность машины и багажник — в сохранение базы
+func car_name() -> String:
+	var list: Array = ULBase.garage_cfg().get("cars", [])
+	for c in list:
+		if car != null and String(c.id) == String(car.data.get("id", "")):
+			return String(c.n)
+	return "УАЗ-469"
+
+
+## машина (детали, бензин, багажник, боезапас) и где она стоит на базе — в сохранение базы
 func _car_store() -> void:
 	if car == null or not is_instance_valid(car):
 		return
-	var cd := ULBase.car_data()
-	cd["up"] = car.up.duplicate()
-	cd["hp"] = car.hp
-	cd["fuel"] = car.fuel
-	ULBase._car_norm()                          # багажник растёт по уровню
+	if place == "home":
+		var p := car.global_position
+		car.data["at"] = [snappedf(p.x, 0.01), snappedf(p.y, 0.01), snappedf(p.z, 0.01), snappedf(car.rotation.y, 0.001)]
 	ULBase.save_state()
 
 
-## окно «УАЗ» на базе: улучшения, бензин, ремонт
-func open_car_ui() -> void:
+## окно машины: багажник, боеприпасы, бак, состояние деталей
+func open_veh_ui(tab := "ammo") -> void:
 	if car == null:
 		return
-	_car_ui = ULCarUI.open(_hud.get_parent(), car, inv, _car_store)
+	if tab == "trunk":
+		open_trunk()
+		return
+	_car_ui = ULGarageUI.open(_hud.get_parent(), self, tab, true)
 	_joy_id = -1
 	_joy_v = Vector2.ZERO
 	_hud_touch.clear()
 
 
-## Проверка УАЗа (--as-test=car --as-place=cowshed): у входа, в натуральную величину, сесть, ехать, повернуть, сбить
-## пустыша, удары врагов — по машине, а не по герою, выйти, багажник (положить, в сохранение), сломанная не едет
+## проверка машины: держать кнопки keys (как пальцы на экране) sec секунд; каждый кадр — f.call()
+func _car_hold(keys: Array, sec: float, f := Callable()) -> void:
+	for i in keys.size():
+		_hud_touch[90 + i] = keys[i]
+	var tw := 0.0
+	while tw < sec:
+		await get_tree().process_frame
+		tw += get_process_delta_time()
+		if f.is_valid():
+			f.call()
+	for i in keys.size():
+		_hud_touch.erase(90 + i)
+
+
+## остановиться тормозом
+func _car_stop() -> void:
+	var tw := 0.0
+	_hud_touch[97] = "c_brake"
+	while tw < 5.0 and absf(car.speed) > 0.05:
+		await get_tree().process_frame
+		tw += get_process_delta_time()
+	_hud_touch.erase(97)
+	await get_tree().process_frame
+
+
+## Проверка машины на локации (--as-test=car --as-place=cowshed): гараж есть — машина у входа, в натуральную
+## величину; сесть; кнопки руля, газа, тормоза и заднего хода; разгон (кузов приседает), колёса крутятся; сбить
+## пустыша; тормоз (нос клюёт); поворот — дугой, кузов кренится наружу; на месте руль не крутит машину; задний ход —
+## НАЗАД и медленнее, с рулём зад уходит в сторону поворота; удары врагов — по машине; выйти; багажник; разбитая
+## машина не едет
 func _car_test() -> void:
 	var t0 := Time.get_ticks_msec()
 	while not cs_ready and Time.get_ticks_msec() - t0 < 25000:
 		await get_tree().process_frame
 	await get_tree().create_timer(0.6).timeout
-	ULBase.memory_only = true
-	_ok("УАЗ стоит у входа на локацию", car != null and car.global_position.distance_to(zone_entry()) < 16.0, str(car.global_position) if car else "нет")
+	_ok("машина гаража стоит у входа на локацию", car != null and car.global_position.distance_to(zone_entry()) < 16.0, str(car.global_position) if car else "нет")
 	if car == null:
 		_test_done()
 		return
 	_ok("в натуральную величину (УАЗ-469: 4,0 × 1,8–2,1 × 2,0–2,2 м)", car.size.z > 3.8 and car.size.z < 4.3 and car.size.x > 1.7 and car.size.x < 2.3 and car.size.y > 1.8 and car.size.y < 2.4, "%.2f × %.2f × %.2f м" % [car.size.z, car.size.x, car.size.y])
+	_ok("четыре отдельных колеса (передние — на поворотных узлах), колёсная база 2,2–2,6 м", car._wheels.size() == 4 and car._wb > 2.2 and car._wb < 2.6 and car._wheels.filter(func(w): return w.front).size() == 2, "база %.2f м, колея %.2f м" % [car._wb, car._track])
 	var gq := PhysicsRayQueryParameters3D.create(car.global_position + Vector3.UP * 3.0, car.global_position + Vector3.DOWN * 3.0)
 	gq.exclude = [car.get_rid()]
 	var gh := get_world_3d().direct_space_state.intersect_ray(gq)
 	_ok("стоит на земле: не висит и не провалился", not gh.is_empty() and absf(car.global_position.y - (gh.position as Vector3).y) < 0.3, "%.2f над землёй" % (car.global_position.y - (gh.position as Vector3).y if not gh.is_empty() else 99.0))
-	# проверка машины, а не боя: враги рядом — в сторону
 	for e in enemies:
-		if is_instance_valid(e) and e.alive() and e.global_position.distance_to(car.global_position) < 45.0:
+		if is_instance_valid(e) and e.alive() and e.global_position.distance_to(car.global_position) < 60.0:
 			e.global_position += Vector3(0, -50, 0)
 			e.set_active(false)
 			e.state = "idle"
+	car.data["fuel"] = 40.0
 	player.global_position = car.door_pos() + Vector3.UP * 0.1
 	for i in 6:
 		await get_tree().process_frame
-	await _snap("car_door")
 	_ok("у водительской двери — кнопка «Сесть»", _target != null and String(_target.type) == "car_door" and _action_label() == "Сесть", _action_label())
 	do_action()
 	for i in 4:
 		await get_tree().process_frame
-	_ok("сел за руль: героя не видно, кнопка — «Выйти», на экране прочность УАЗа", car_in and not player.visible and _action_label() == "Выйти")
-	# вперёд по ходу 3 с; на второй секунде впереди на дороге — пустыш
+	var btns := ["c_left", "c_right", "c_gas", "c_brake", "c_rev", "c_exit", "c_veh", "c_tur"]
+	_ok("сел: героя не видно; на экране — руль ◀ ▶, «Газ», «Тормоз», «Назад», «Выйти», «Машина», «Турель»; стрельбы и джойстика нет",
+		car_in and not player.visible and btns.all(func(k): return _car_btn_shown(k)) and _hud_hit(_hud_pos("c_gas")) == "c_gas" and _hud_hit(_hud_pos("c_left")) == "c_left" and _hud_hit(_hud_pos("c_rev")) == "c_rev")
+	await _snap("car_seat")
+	# 1. газ прямо: разгон, колёса крутятся, кузов приседает назад; на дороге — пустыш
 	var p0 := car.global_position
-	_auto_k = 1.0
-	_auto_r = 0.5
-	_auto = [p0 + car.fwd() * 80.0]
-	var tw := 0.0
-	var vmax := 0.0
-	var z: ULEnemy = null
-	var z_kmh := 0
-	while tw < 3.0 or (z != null and z.alive() and tw < 5.0):
-		await get_tree().process_frame
-		tw += get_process_delta_time()
-		vmax = maxf(vmax, absf(car.speed))
-		if z == null and tw > 1.6:
-			z = spawn_enemy("infected", car.global_position + car.fwd() * 14.0)
+	var f0 := car.fwd()
+	var spin0: Basis = (car._wheels[0].spin as Node3D).basis
+	var m := {"vmax": 0.0, "pitch_min": 0.0, "kmh": 0, "z": null}
+	await _car_hold(["c_gas"], 3.2, func() -> void:
+		m.vmax = maxf(m.vmax, car.speed)
+		m.pitch_min = minf(m.pitch_min, car.body_tilt().x)
+		if m.z == null and Vector2(car.global_position.x - p0.x, car.global_position.z - p0.z).length() > 4.0:
+			var z := spawn_enemy("infected", car.global_position + car.fwd() * 14.0)
 			z.state = "idle"
 			z.set_active(false)
-		if z != null and z.alive():
-			z_kmh = int(absf(car.speed) * 3.6)
-	_auto.clear()
-	var dist := Vector2(car.global_position.x - p0.x, car.global_position.z - p0.z).length()
-	_ok("едет: за 3 с — больше 12 м, разгон до %d км/ч; герой на месте водителя, камера — за машиной" % int(vmax * 3.6), dist > 12.0 and player.global_position.distance_to(car.seat_pos()) < 0.6 and Vector2(_cam_t.x - car.global_position.x, _cam_t.z - car.global_position.z).length() < 3.0, "%.1f м" % dist)
-	_ok("сбил пустыша на дороге на скорости — насмерть", z != null and not z.alive(), "скорость %d км/ч" % z_kmh)
+			m.z = z
+		if m.z != null and (m.z as ULEnemy).alive():
+			m.kmh = int(absf(car.speed) * 3.6))
+	var dv := car.global_position - p0
+	var fwd_d := Vector2(dv.x, dv.z).dot(Vector2(f0.x, f0.z))
+	_ok("газ: едет ВПЕРЁД (за 3 с %.1f м), разгон до %d км/ч, кузов приседает при разгоне" % [fwd_d, int(m.vmax * 3.6)], fwd_d > 12.0 and m.vmax > 7.0 and m.pitch_min < -0.004, "клевок %.3f" % m.pitch_min)
+	_ok("колёса крутятся по пути, герой на месте водителя, камера — за машиной", not (car._wheels[0].spin as Node3D).basis.is_equal_approx(spin0) and player.global_position.distance_to(car.seat_pos()) < 0.6 and Vector2(_cam_t.x - car.global_position.x, _cam_t.z - car.global_position.z).length() < 3.0)
+	_ok("сбил пустыша на дороге — насмерть", m.z != null and not (m.z as ULEnemy).alive(), "скорость %d км/ч" % m.kmh)
 	await _snap("car_drive")
-	# поворот направо
-	var yaw0 := car.rotation.y
-	var rt := Vector3(-car.fwd().z, 0, car.fwd().x)
-	_auto = [car.global_position + car.fwd() * 6.0 - rt * 25.0]
-	tw = 0.0
-	while tw < 2.0:
+	# 2. тормоз: нос клюёт
+	var mb := {"pitch_max": 0.0}
+	_hud_touch[97] = "c_brake"
+	var tw := 0.0
+	while tw < 4.0 and absf(car.speed) > 0.05:
 		await get_tree().process_frame
 		tw += get_process_delta_time()
-	_auto.clear()
-	_ok("поворачивает на ходу (курс изменился больше чем на 30°)", absf(angle_difference(yaw0, car.rotation.y)) > deg_to_rad(30.0), "%.0f°" % rad_to_deg(absf(angle_difference(yaw0, car.rotation.y))))
+		mb.pitch_max = maxf(mb.pitch_max, car.body_tilt().x)
+	_hud_touch.erase(97)
+	_ok("«Тормоз»: остановилась за %.1f с, нос клюёт вниз" % tw, absf(car.speed) <= 0.05 and mb.pitch_max > 0.004, "клевок %.3f" % mb.pitch_max)
+	# 3. руль без газа: колёса поворачиваются, машина на месте не крутится
+	var yaw_s := car.rotation.y
+	var ps := car.global_position
+	await _car_hold(["c_left"], 0.8)
+	var fw_steer: float = (car._wheels.filter(func(w): return w.front)[0].steer as Node3D).rotation.y
+	_ok("руль на месте: передние колёса повернулись (%d°), машина не крутится на месте" % int(rad_to_deg(fw_steer)), fw_steer > 0.3 and absf(angle_difference(yaw_s, car.rotation.y)) < 0.02 and car.global_position.distance_to(ps) < 0.1)
+	# 4. газ + влево: поворот дугой, крен наружу
+	var mr := {"roll": 0.0, "path": 0.0, "last": car.global_position, "yaw": 0.0, "prev": car.rotation.y}
+	await _car_hold(["c_gas", "c_left"], 2.2, func() -> void:
+		mr.roll = maxf(mr.roll, car.body_tilt().y)
+		mr.path += (car.global_position - (mr.last as Vector3)).length()
+		mr.last = car.global_position
+		mr.yaw += angle_difference(float(mr.prev), car.rotation.y)
+		mr.prev = car.rotation.y)
+	var dyaw := float(mr.yaw)
+	var radius := float(mr.path) / maxf(absf(dyaw), 0.01)
+	_ok("газ + ◀: поворот налево ДУГОЙ (курс +%d°, путь %.1f м, радиус %.1f м — не на месте), кузов кренится наружу" % [int(rad_to_deg(dyaw)), float(mr.path), radius], dyaw > deg_to_rad(30.0) and radius > 3.5 and float(mr.path) > 6.0 and float(mr.roll) > 0.008, "крен %.3f" % float(mr.roll))
+	await _snap("car_turn")
+	await _car_stop()
+	# 5. задний ход прямо: едет НАЗАД, медленнее
+	var p2 := car.global_position
+	var f2 := car.fwd()
+	var mrv := {"vmin": 0.0}
+	await _car_hold(["c_rev"], 2.6, func() -> void: mrv.vmin = minf(mrv.vmin, car.speed))
+	var d2 := car.global_position - p2
+	var back := Vector2(d2.x, d2.z).dot(Vector2(f2.x, f2.z))
+	_ok("«Назад»: машина едет НАЗАД (%.1f м задом), не вперёд; задом медленнее (%d км/ч при %d вперёд)" % [-back, int(-mrv.vmin * 3.6), int(car.vmax() * 3.6)], back < -2.5 and mrv.vmin < -1.0 and -mrv.vmin <= car.vmax() * 0.36 + 0.05)
+	await _snap("car_reverse")
+	# 6. задний ход с рулём влево: зад уходит влево — машина поворачивает по часовой (курс уменьшается)
+	var p3 := car.global_position
+	var f3 := car.fwd()
+	var my := {"yaw": 0.0, "prev": car.rotation.y}
+	await _car_hold(["c_rev", "c_left"], 1.8, func() -> void:
+		my.yaw += angle_difference(float(my.prev), car.rotation.y)
+		my.prev = car.rotation.y)
+	var d3 := car.global_position - p3
+	var dyaw3 := float(my.yaw)
+	_ok("«Назад» + ◀: едет назад, зад уходит влево — курс меняется в обратную сторону (%d°), как у настоящей машины" % int(rad_to_deg(dyaw3)), Vector2(d3.x, d3.z).dot(Vector2(f3.x, f3.z)) < -1.5 and dyaw3 < -deg_to_rad(8.0))
+	await _car_stop()
+	# 7. с заднего хода — газ: сначала тормозит, потом вперёд
+	await _car_hold(["c_rev"], 1.0)
+	var mg := {"vmin": 0.0}
+	await _car_hold(["c_gas"], 2.0, func() -> void: mg.vmin = minf(mg.vmin, car.speed))
+	_ok("ехал назад, нажал «Газ» — машина остановилась и поехала вперёд", car.speed > 1.0)
+	await _car_stop()
 	# удары врагов в машине — по машине
 	var hp_h := hp
-	var hp_c := car.hp
+	var hp_c := car.hp()
 	hurt(20.0, car.global_position + car.fwd())
-	_ok("удар врага, пока герой в машине, тратит прочность машины, герой цел", car.hp < hp_c and is_equal_approx(hp, hp_h), "машина %.0f → %.0f" % [hp_c, car.hp])
-	# остановиться и выйти
-	tw = 0.0
-	while tw < 4.0 and absf(car.speed) > 0.2:
-		await get_tree().process_frame
-		tw += get_process_delta_time()
-	do_action()
+	_ok("удар врага, пока герой в машине, тратит прочность кузова, герой цел", car.hp() < hp_c and is_equal_approx(hp, hp_h), "кузов %.0f → %.0f" % [hp_c, car.hp()])
+	var fuel0 := car.fuel()
+	_ok("бензин тратится на ходу (осталось %.2f из 40 л)" % fuel0, fuel0 < 40.0)
+	_hud_press("c_exit")
 	for i in 4:
 		await get_tree().process_frame
-	_ok("вышел: герой у машины, виден, столкновения вернулись", not car_in and player.visible and player.collision_layer != 0 and player.global_position.distance_to(car.global_position) < 4.5, str(player.global_position.distance_to(car.global_position)))
+	_ok("кнопка «Выйти»: герой у машины, виден, столкновения вернулись", not car_in and player.visible and player.collision_layer != 0 and player.global_position.distance_to(car.global_position) < 4.5, str(player.global_position.distance_to(car.global_position)))
 	# багажник
 	player.global_position = car.trunk_pos() + Vector3.UP * 0.1
 	for i in 6:
@@ -16733,121 +17182,249 @@ func _car_test() -> void:
 	do_action()
 	await get_tree().create_timer(0.3).timeout
 	await _snap("car_trunk")
-	var tr: Array = ULBase.car_data().trunk
+	var tr: Array = car.data.trunk
 	_ok("багажник открылся окном хранилища: 30 ячеек", inv_ui.visible and inv_ui.cont == tr and tr.size() == 30)
 	inv_ui._put_all()
 	close_inventory()
-	_ok("«Положить всё»: бинты в багажнике; закрыл — багажник в сохранении базы", inv.count("bandage") == 0 and ULBase.car_data().trunk.any(func(x): return x != null and String(x.id) == "bandage"))
-	# сломанная не едет
-	car.damage(99999.0)
+	_ok("«Положить всё»: бинты в багажнике; закрыл — багажник в сохранении гаража", inv.count("bandage") == 0 and (ULBase.car_data().trunk as Array).any(func(x): return x != null and String(x.id) == "bandage"))
+	# разбитая не едет
+	car.hit(99999.0)
 	player.global_position = car.door_pos() + Vector3.UP * 0.1
 	for i in 4:
 		await get_tree().process_frame
 	do_action()
-	var p1 := car.global_position
-	_auto = [p1 + car.fwd() * 40.0]
-	tw = 0.0
-	while tw < 1.5:
-		await get_tree().process_frame
-		tw += get_process_delta_time()
-	_auto.clear()
-	_ok("сломанная машина не едет (ремонт — в гараже базы, следующий этап), из-под капота дым", car.broken() and car.global_position.distance_to(p1) < 0.5 and car.smoke.emitting)
+	var p4 := car.global_position
+	await _car_hold(["c_gas"], 1.5)
+	_ok("разбитая машина не едет (ремонт — в гараже базы), из-под капота дым", car.broken() and car.global_position.distance_to(p4) < 0.5 and car.smoke.emitting)
 	hp_h = hp
 	hurt(10.0, car.global_position + car.fwd())
-	_ok("в сломанной машине удары достаются герою", hp < hp_h)
-	do_action()
+	_ok("в разбитой машине удары достаются герою", hp < hp_h)
+	_hud_press("c_exit")
 	_test_done()
 
 
-## Проверка улучшений УАЗа на базе (--as-test=carmod): машина на базе, окно «УАЗ» у капота, бензин, ремонт;
-## улучшения меняют и цифры, и вид; по базе можно ездить — бензин тратится, без бензина не едет
-func _carmod_test() -> void:
+## Проверка гаража (--as-test=garage, база): до покупки — площадка и машины нет; покупка в компьютере базы за
+## 80 споранов (уровни 2 и 3 закрыты); здание с платформой, воротами и дверью, крыша скрывается внутри; четыре места;
+## окно «Улучшения» — детали за горох (3/5/6/4/7), вид и характеристики меняются, ремонт и замена; турели —
+## покупка, замена без бесплатных копий; боеприпасы у оружейника и загрузка; топливо канистрами (барахольщик →
+## резервуар → канистра → бак); выбор машины; грузовой шкаф; выезд из гаража и заезд задом; огонь турели;
+## всё — в сохранении базы
+func _garage_test() -> void:
 	ULBase.memory_only = true
-	var t0 := Time.get_ticks_msec()
-	while car == null and Time.get_ticks_msec() - t0 < 15000:
+	ULBase.load_state(true)
+	ULBase.data.upgrades["gunsmith"] = 1
+	ULBase.data.staff["gunsmith"] = true
+	_car_free_node()
+	_garage_build()
+	await get_tree().create_timer(0.8).timeout
+	cam_dist = 14.0
+	_ok("1. до покупки: на месте гаража — площадка, машины нет, мест взаимодействия нет", garage != null and not garage.built and car == null and garage.zones().is_empty() and ULBase.car_data().is_empty())
+	player.global_position = garage.to_global(Vector3(0, 0.05, ULGarage.D * 0.5 + 4.0))
+	await get_tree().create_timer(0.4).timeout
+	await _snap("gar_lot")
+	# компьютер базы: карточка «Гараж»
+	open_terminal()
+	await get_tree().process_frame
+	var pc := _term_ui as ULBasePC
+	var card := func() -> Dictionary:
+		var c := pc.find_child("up_garage", true, false)
+		if c == null:
+			return {}
+		var b := c.find_child("buy", true, false) as Button
+		var lv := c.find_child("Level", true, false) as Label
+		return {"btn": b.text if b else "", "dis": b.disabled if b else false, "lvl": lv.text if lv else ""}
+	var c0: Dictionary = card.call()
+	_ok("2. в компьютере базы карточка «Гараж»: «Ур. 0 / 3», «КУПИТЬ И УСТАНОВИТЬ — 80 СПОРАНОВ»", String(c0.get("lvl", "")) == "Ур. 0 / 3" and String(c0.get("btn", "")) == "КУПИТЬ И УСТАНОВИТЬ — 80 СПОРАНОВ", str(c0))
+	inv.wallet = {"spore": 50}
+	pc.ask_upgrade("garage")
+	var dt := pc.dialog_text()
+	pc.dialog_close()
+	_ok("3. 50 споранов — не хватает 30: ничего не списано, гаража нет", dt.contains("30 споранов") and int(inv.wallet.spore) == 50 and ULBase.garage_level() == 0, dt.replace("\n", " / "))
+	inv.wallet = {"spore": 600, "pea": 80}
+	pc.ask_upgrade("garage")
+	pc.dialog_confirm()
+	pc.dialog_confirm()
+	await get_tree().create_timer(0.5).timeout
+	var c1: Dictionary = card.call()
+	_ok("4. куплено за 80 споранов: «Ур. 1 / 3», следующий уровень закрыт; гараж построен, в нём УАЗ-469 на платформе", ULBase.garage_level() == 1 and int(inv.wallet.spore) == 520 and String(c1.get("lvl", "")) == "Ур. 1 / 3" and bool(c1.get("dis", false)) and String(c1.get("btn", "")).contains("ЗАКРЫТ") and garage.built and car != null and car.global_position.distance_to(garage.platform_xf().origin) < 0.6, str(c1))
+	_ok("5. второй раз уровень 2 не купить (закрыт)", not ULBase.buy_garage(inv).ok and int(inv.wallet.spore) == 520)
+	pc.close()
+	await get_tree().process_frame
+	await get_tree().create_timer(0.3).timeout
+	await _snap("gar_outside")
+	# внутрь через дверь для человека: крыша скрыта
+	player.global_position = garage.to_global(Vector3(ULGarage.W * 0.5 + 1.2, 0.05, ULGarage.DOOR_Z))
+	for i in 20:
 		await get_tree().process_frame
-	_ok("УАЗ стоит на базе рядом с героем", car != null and car.global_position.distance_to(player.global_position) < 20.0, str(car.global_position.distance_to(player.global_position)) if car else "нет")
-	if car == null:
-		_test_done()
-		return
-	car.fuel = 15.0
-	car.apply_up({})
-	car.hp = car.hp_max
-	_car_store()
-	inv.wallet["spore"] = 2000
-	inv.wallet["pea"] = 30
-	inv.add({"id": "junk", "n": 50})
-	inv.add({"id": "junk", "n": 50})
-	var parts0 := car.parts.get_child_count()
-	var hp0 := car.hp_max
-	cam_dist = 10.0
-	player.global_position = car.hood_pos() + Vector3.UP * 0.1
-	for i in 8:
+	var door_open := garage._door != null and garage._door.open
+	player.global_position = garage.to_global(Vector3(2.6, 0.05, 2.6))
+	for i in 10:
 		await get_tree().process_frame
-	await _snap("car_stock")
-	_ok("у капота — кнопка «Улучшить» (окно «УАЗ»)", _target != null and String(_target.type) == "car_mod" and _action_label() == "Улучшить", _action_label())
+	_ok("6. дверь для человека открывается сама; внутри крыша скрыта, свет горит, стены со стороны камеры срезаны", door_open and garage.inside and not garage._roof.visible and garage._light.visible)
+	await _snap("gar_inside")
+	# четыре места
+	var labels := {}
+	for z in ULGarage.ZONES:
+		player.global_position = garage.to_global(ULGarage.ZONES[z] + Vector3(0, 0.05, 0))
+		for i in 4:
+			await get_tree().process_frame
+		labels[z] = "%s:%s" % [String(_target.type) if _target != null else "", _action_label()]
+	_ok("7. четыре места: компьютер модернизации, топливная станция, выбор машины, грузовой шкаф — у каждого «Открыть»", ULGarage.ZONES.keys().all(func(z): return String(labels[z]) == "%s:Открыть" % z), str(labels))
+	# «Улучшения»
+	player.global_position = garage.to_global(ULGarage.ZONES.g_term + Vector3(0, 0.05, 0))
+	for i in 4:
+		await get_tree().process_frame
 	do_action()
-	await get_tree().process_frame
-	_ok("открылось окно «УАЗ»: прочность, бензин, багажник, четыре улучшения", _car_ui != null and is_instance_valid(_car_ui) and _modal())
-	await get_tree().create_timer(0.3).timeout
-	await _snap("car_ui_stock")
-	var sp0 := int(inv.wallet.spore)
-	_car_ui.buy_fuel(10.0)
-	_ok("бензин покупается отдельно: +10 л за 8 споранов", is_equal_approx(car.fuel, 25.0) and int(inv.wallet.spore) == sp0 - 8, "%.1f л, споранов %d" % [car.fuel, int(inv.wallet.spore)])
-	var sp1 := int(inv.wallet.spore)
-	var j1 := inv.count("junk")
-	for line in ULCarUI.LINES:
+	await get_tree().create_timer(0.6).timeout
+	var ui := _car_ui as ULGarageUI
+	_ok("8. окно «Гараж → Улучшения»: машина в 3D, 5 деталей, 4 турели", ui != null and ui._view_car != null and ULCar.PARTS.all(func(k): return ui.find_child("part_" + k, true, false) != null) and ["rifle", "mg", "cannon", "rocket"].all(func(t): return ui.find_child("tur_" + t, true, false) != null))
+	await _snap("gar_ui_up0")
+	var cd := ULBase.car_data()
+	var r0: float = car._wheels[0].r
+	var nodes0 := car.parts_n.get_child_count()
+	var pea0 := int(inv.wallet.pea)
+	for k in ULCar.PARTS:
+		ui._do_upgrade(k)
+	var paid := pea0 - int(inv.wallet.pea)
+	var st := ULGarageOps.stats(cd)
+	_ok("9. каждая деталь на 1 уровень за горох 3 + 5 + 6 + 4 + 7 = %d" % paid, paid == 25 and ULCar.PARTS.all(func(k): return ULGarageOps.lvl(cd, k) == 1))
+	_ok("10. характеристики выросли: прочность 1250, 70 км/ч, багажник 40 ячеек", is_equal_approx(float(st.hp_max), 1250.0) and is_equal_approx(float(st.hp), 1250.0) and int(st.kmh) == 70 and int(st.cells) == 40 and (cd.trunk as Array).size() == 40)
+	_ok("11. вид машины изменился: колёса крупнее (кузов выше), бампер, листы на кузове, ящик на задней двери", car._wheels[0].r > r0 + 0.005 and car.parts_n.get_child_count() > nodes0 + 4 and car.body.position.y > 0.005, "колесо %.3f → %.3f м, деталей %d → %d" % [r0, float(car._wheels[0].r), nodes0, car.parts_n.get_child_count()])
+	for k in ULCar.PARTS:
 		for i in 2:
-			_car_ui.upgrade(line)
-	_ok("все улучшения до конца: скорость ×1.2, багажник 60 ячеек, прочность 1100 (прибавилась сразу), бак 60 л",
-		is_equal_approx(car.spd_k, 1.2) and ULCar.trunk_cells(int(car.up.trunk)) == 60 and is_equal_approx(car.hp_max, 1100.0) and car.hp > hp0 + 400.0 and is_equal_approx(car.tank, 60.0), str(car.up))
-	_ok("вид поменялся: 4 больших колеса, кузов выше, решётка с грузом, кенгурятник, листы и решётки, канистры", car._wheels.size() == 4 and car._lift > 0.05 and car.parts.get_child_count() > parts0 + 30, "деталей %d → %d, подъём %.2f м" % [parts0, car.parts.get_child_count(), car._lift])
-	_ok("оплачено: спораны, горошины, хлам", int(inv.wallet.spore) == sp1 - 760 and int(inv.wallet.pea) == 24 and inv.count("junk") == j1 - 56, "споранов −%d, хлама −%d" % [sp1 - int(inv.wallet.spore), j1 - inv.count("junk")])
-	_ok("багажник вырос до 60 ячеек, улучшения — в сохранении базы", (ULBase.car_data().trunk as Array).size() == 60 and int(ULBase.car_data().up.trunk) == 2 and int(ULBase.car_data().up.armor) == 2)
+			ui._do_upgrade(k)
+	_ok("12. все детали до 3/3; дальше — «Максимум»", ULCar.PARTS.all(func(k): return ULGarageOps.lvl(cd, k) == 3) and not ULGarageOps.upgrade(inv, cd, "wheels").ok)
+	await get_tree().create_timer(0.4).timeout
+	await _snap("gar_ui_up3")
+	# ремонт и замена
+	car.hit(600.0)
+	var hp1 := car.hp()
+	var rc := ULGarageOps.repair_cost(cd, "body")
+	var sp1 := int(inv.wallet.spore)
+	inv.add({"id": "junk", "n": 50})
+	var j1 := inv.count("junk")
+	ui._do_repair("body")
+	_ok("13. ремонт кузова: %d → %d, уровень остался 3, плата %s" % [int(hp1), int(car.hp()), ui._cost_text(rc)], is_equal_approx(car.hp(), car.hp_max()) and ULGarageOps.lvl(cd, "body") == 3 and int(inv.wallet.spore) == sp1 - int(rc.price.spore) and inv.count("junk") == j1 - int(rc.junk))
+	cd.parts.wheels["hp"] = 0.0
+	var vm0 := car.vmax()
+	var pea1 := int(inv.wallet.pea)
+	ui._do_replace("wheels")
+	_ok("14. разрушенные колёса заменены новыми того же уровня за его цену (10 гороха); машина снова быстрая", is_equal_approx(float(cd.parts.wheels.hp), ULGarageOps.part_hp(cd, "wheels").y) and pea1 - int(inv.wallet.pea) == 10 and car.vmax() > vm0 * 2.0)
+	# турели
+	inv.wallet["pea"] = 40
+	ui._do_turret_buy("rifle")
+	var t_ok1 := String(cd.turret) == "rifle" and car.turret_root != null and int(inv.wallet.pea) == 36
+	ui._do_turret_buy("mg")
+	_ok("15. турель: автоматная куплена за 4 и стоит на крыше; пулемётная за 5 — встала вместо неё, автоматная хранится", t_ok1 and String(cd.turret) == "mg" and (cd.turrets as Dictionary).has("rifle") and int(inv.wallet.pea) == 31)
+	var again := ULGarageOps.turret_buy(inv, cd, "rifle")
+	ui._do_turret_on("rifle")
+	_ok("16. вторую автоматную не купить (бесплатных копий нет); «Поставить» — автоматная снова на крыше", not again.ok and String(again.err) == "owned" and String(cd.turret) == "rifle" and int(inv.wallet.pea) == 31)
 	await get_tree().create_timer(0.3).timeout
-	await _snap("car_ui")
-	_car_ui.close()
+	await _snap("gar_ui_turret")
+	ui.close()
 	await get_tree().process_frame
+	# боеприпасы у оружейника
+	inv.wallet["spore"] = 400
+	var sp2 := int(inv.wallet.spore)
+	var vi := SHOP.veh_ammo.map(func(g): return String(g[0])).find("veh_am_rifle")
+	buy("veh_ammo", vi)
+	_ok("17. у оружейника раздел «Боеприпасы для транспорта»: патроны автоматной турели ×100 — в инвентаре", SHOP_TABS.any(func(t): return String(t[0]) == "veh_ammo" and String(t[1]) == "Боеприпасы для транспорта") and inv.count("veh_am_rifle") == 100 and int(inv.wallet.spore) == sp2 - 7)
+	open_veh_ui("ammo")
+	await get_tree().create_timer(0.4).timeout
+	await _snap("veh_ammo0")
+	var vui := _car_ui as ULGarageUI
+	var lb := vui.find_child("load", true, false) as Button
+	lb.pressed.emit()
+	_ok("18. окно машины «Боеприпасы» → «Загрузить»: в турели 100/300, в инвентаре 0", int(cd.turrets.rifle.ammo) == 100 and inv.count("veh_am_rifle") == 0)
+	await get_tree().create_timer(0.2).timeout
+	await _snap("veh_ammo1")
+	vui.close()
 	await get_tree().process_frame
-	await _snap("car_full")
-	# ремонт
-	car.damage(300.0)
-	open_car_ui()
-	var rp: Array = _car_ui.repair_price()
-	_car_ui.repair()
-	_ok("ремонт на базе: прочность полная, плата — %s" % ULCarUI.price_text(rp[0], rp[1]), is_equal_approx(car.hp, car.hp_max))
-	_car_ui.close()
+	# топливо канистрами
+	var r1 := ULDealer.buy(inv, "fuel20", 1)
+	var r2 := ULDealer.buy(inv, "canister", 1)
+	var cans := ULGarageOps.canisters(inv)
+	_ok("19. у барахольщика: канистра с бензином (20 л) и пустая канистра", r1.ok and r2.ok and cans.size() == 2 and cans.any(func(c): return is_equal_approx(ULGarageOps.fuel_of(c.it), 20.0)) and cans.any(func(c): return ULGarageOps.fuel_of(c.it) == 0.0))
+	_ok("20. резервуар гаража при покупке пуст (бесплатного топлива нет): 0 / 1000 л", is_zero_approx(ULBase.station_fuel()) and is_equal_approx(ULBase.station_cap(), 1000.0))
+	open_garage_ui("g_fuel")
+	await get_tree().create_timer(0.4).timeout
+	ui = _car_ui as ULGarageUI
+	var full: Dictionary = cans.filter(func(c): return ULGarageOps.fuel_of(c.it) > 0.0)[0].it
+	var empty: Dictionary = cans.filter(func(c): return ULGarageOps.fuel_of(c.it) == 0.0)[0].it
+	ui.use_canister("in", full)
+	_ok("21. левая ячейка «Залить в резервуар»: 20 л из канистры в резервуар (20 / 1000), канистра пуста", is_equal_approx(ULBase.station_fuel(), 20.0) and ULGarageOps.fuel_of(full) == 0.0)
+	await get_tree().create_timer(0.2).timeout
+	await _snap("gar_ui_fuel")
+	ui.use_canister("out", empty)
+	_ok("22. правая ячейка «Наполнить канистру»: 20 л из резервуара в пустую канистру", is_zero_approx(ULBase.station_fuel()) and is_equal_approx(ULGarageOps.fuel_of(empty), 20.0))
+	ui.close()
 	await get_tree().process_frame
-	# езда по базе
+	cd["fuel"] = 5.0
+	open_veh_ui("tank")
+	await get_tree().create_timer(0.3).timeout
+	vui = _car_ui as ULGarageUI
+	vui.use_canister("car", empty)
+	_ok("23. окно машины «Бак»: канистру — в бак (5 → 25 л)", is_equal_approx(car.fuel(), 25.0) and ULGarageOps.fuel_of(empty) == 0.0)
+	await _snap("veh_tank")
+	vui.close()
+	await get_tree().process_frame
+	# выбор машины
+	open_garage_ui("g_sel")
+	await get_tree().create_timer(0.5).timeout
+	ui = _car_ui as ULGarageUI
+	var sel := ui.find_child("select", true, false) as Button
+	var s1 := sel.text
+	await _snap("gar_ui_cars")
+	(ui.find_child("next", true, false) as Button).pressed.emit()
+	await get_tree().process_frame
+	sel = ui.find_child("select", true, false) as Button
+	_ok("24. «Автомобили»: Машина №1 — УАЗ-469 «Выбрана»; место №2 закрыто до гаража 2/3", s1 == "Выбрана" and sel.disabled and sel.text.contains("гараж 2/3"), "%s / %s" % [s1, sel.text])
+	ui.close()
+	await get_tree().process_frame
+	# грузовой шкаф
+	inv.add({"id": "bandage", "n": 2})
+	open_garage_ui("g_cab")
+	await get_tree().create_timer(0.3).timeout
+	_ok("25. грузовой шкаф: окно хранилища на 30 ячеек", inv_ui.visible and inv_ui.cont == ULBase.cabinet() and ULBase.cabinet().size() == 30)
+	await _snap("gar_cabinet")
+	inv_ui._put_all()
+	close_inventory()
+	_ok("26. положил — вещи в шкафу гаража", ULBase.cabinet().any(func(x): return x != null and String(x.id) == "bandage"))
+	# выезд из гаража и заезд задом
 	player.global_position = car.door_pos() + Vector3.UP * 0.1
 	for i in 4:
 		await get_tree().process_frame
 	do_action()
-	var f0 := car.fuel
-	var p0 := car.global_position
-	_auto_k = 1.0
-	_auto_r = 0.5
-	_auto = [p0 + car.fwd() * 40.0]
-	var tw := 0.0
-	while tw < 2.5:
-		await get_tree().process_frame
-		tw += get_process_delta_time()
-	_auto.clear()
-	_ok("по базе ездит, бензин тратится", car_in and car.global_position.distance_to(p0) > 5.0 and car.fuel < f0, "%.1f м, бензин %.2f → %.2f л" % [car.global_position.distance_to(p0), f0, car.fuel])
-	await _snap("car_drive_base")
-	car.fuel = 0.0
-	tw = 0.0
-	while tw < 8.0 and absf(car.speed) > 0.05:                 # мотор заглох — докатывается по инерции
-		await get_tree().process_frame
-		tw += get_process_delta_time()
-	var p1 := car.global_position
-	_auto = [p1 + car.fwd() * 40.0]
-	tw = 0.0
-	while tw < 1.5:
-		await get_tree().process_frame
-		tw += get_process_delta_time()
-	_auto.clear()
-	_ok("без бензина не едет (на экране — «нет бензина»)", car.global_position.distance_to(p1) < 0.6 and car.no_fuel(), "%.2f м" % car.global_position.distance_to(p1))
-	do_action()
+	var mo := {"gate": 0.0}
+	await _car_hold(["c_gas"], 3.2, func() -> void: mo.gate = maxf(mo.gate, garage.gate_open))
+	var out_d := garage.to_local(car.global_position)
+	_ok("27. газ — машина сама съезжает с платформы и выезжает из гаража; ворота открылись перед ней", out_d.z > ULGarage.D * 0.5 + 1.0 and float(mo.gate) > 0.9, "z %.1f, ворота %.2f" % [out_d.z, float(mo.gate)])
+	await _snap("gar_drive_out")
+	await _car_stop()
+	await _car_hold(["c_rev"], 6.0, func() -> void: pass)
+	await _car_stop()
+	var back_d := garage.to_local(car.global_position)
+	_ok("28. «Назад» — задом обратно в гараж, на платформу", absf(back_d.x) < 1.0 and back_d.z < ULGarage.D * 0.5 - 1.5, "x %.1f, z %.1f" % [back_d.x, back_d.z])
+	# огонь турели
+	await _car_hold(["c_gas"], 3.0)
+	await _car_stop()
+	var z := spawn_enemy("infected", car.global_position + car.fwd() * 11.0)
+	z.state = "idle"
+	z.set_active(false)
+	var zhp: float = z.hp
+	_hud_press("c_tur")
+	var am0 := int(cd.turrets.rifle.ammo)
+	await _car_hold(["c_fire"], 2.0)
+	await get_tree().create_timer(0.6).timeout
+	_ok("29. «Турель» → «Огонь»: турель наводится на заражённого и стреляет, боезапас тратится, враг ранен или убит", tur_shots > 0 and int(cd.turrets.rifle.ammo) < am0 and (not z.alive() or z.hp < zhp), "выстрелов %d, боезапас %d → %d" % [tur_shots, am0, int(cd.turrets.rifle.ammo)])
+	await _snap("gar_turret_fire")
+	_hud_press("c_exit")
+	# сохранение
+	var js := JSON.stringify(ULBase.data)
+	var back = JSON.parse_string(js)
+	ULBase.data = back
+	ULBase._garage_norm()
+	var cd2 := ULBase.car_data()
+	_ok("30. после сохранения и загрузки: гараж 1/3, детали 3/3, турели (автоматная на крыше, пулемётная в гараже), боезапас, бак, шкаф",
+		ULBase.garage_level() == 1 and ULCar.PARTS.all(func(k): return ULGarageOps.lvl(cd2, k) == 3) and String(cd2.turret) == "rifle" and (cd2.turrets as Dictionary).has("mg") and int(cd2.turrets.rifle.ammo) == int(cd.turrets.rifle.ammo) and is_equal_approx(float(cd2.fuel), float(cd.fuel)) and ULBase.cabinet().any(func(x): return x != null and String(x.id) == "bandage"))
 	_test_done()
-

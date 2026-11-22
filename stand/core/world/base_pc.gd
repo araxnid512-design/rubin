@@ -456,6 +456,9 @@ func _build_upgrades() -> void:
 		if String(id) == "storage":
 			_left_box.add_child(_storage_card(d))
 			continue
+		if String(id) == "garage":
+			_left_box.add_child(_garage_card(d))
+			continue
 		var card := _card()
 		card.name = "up_" + String(id)
 		_left_box.add_child(card)
@@ -545,10 +548,68 @@ func _storage_card(d: Dictionary) -> Control:
 	return card
 
 
+## Гараж: уровень N/3; до покупки — «Купить и установить за 80 споранов» (data/garage.json), потом — «Установлено»
+## и следующий уровень под замком (места под вторую и третью машину появятся позже)
+func _garage_card(d: Dictionary) -> Control:
+	var lv := ULBase.garage_level()
+	var mx := ULBase.garage_max()
+	var card := _card()
+	card.name = "up_garage"
+	if lv > 0:
+		card.add_theme_stylebox_override("panel", _sb(C_CARD, Color(0.95, 0.78, 0.25), 2, 8, 8))
+	var v0 := VBoxContainer.new()
+	v0.add_theme_constant_override("separation", 6)
+	card.add_child(v0)
+	var h := HBoxContainer.new()
+	h.add_theme_constant_override("separation", 10)
+	v0.add_child(h)
+	h.add_child(_pic(String(d.get("pic_on" if lv > 0 else "pic", d.get("pic", ""))), Vector2(160, 150)))
+	var v := VBoxContainer.new()
+	v.size_flags_horizontal = SIZE_EXPAND_FILL
+	v.add_theme_constant_override("separation", 3)
+	h.add_child(v)
+	var th := HBoxContainer.new()
+	th.add_theme_constant_override("separation", 8)
+	v.add_child(th)
+	th.add_child(_ico(String(d.get("icon", "truck")), 26))
+	var tl := _lbl(String(d.n), 20, Color(0.97, 0.97, 0.94), true)
+	tl.size_flags_horizontal = SIZE_EXPAND_FILL
+	th.add_child(tl)
+	var lvp := PanelContainer.new()
+	lvp.add_theme_stylebox_override("panel", _sb(Color(0.1, 0.09, 0.04, 0.9), Color(0.95, 0.78, 0.25), 1, 4, 2))
+	var lvl := _lbl("Ур. %d / %d" % [lv, mx], 13, Color(1.0, 0.85, 0.4), true)
+	lvl.name = "Level"
+	lvp.add_child(lvl)
+	th.add_child(lvp)
+	if lv > 0:
+		v.add_child(_lbl("✓ Установлено", 14, Color(0.5, 0.95, 0.5), true))
+	v.add_child(_lbl(String(d.d), 12, C_TEXT, false, true))
+	var cars := int(ULBase.garage_lvl(lv).get("cars", 0))
+	var info := _lbl("Мест для машин: %d из %d" % [cars, int(ULBase.garage_lvl(mx).get("cars", 3))], 13, Color(1.0, 0.85, 0.4))
+	info.name = "Info"
+	v.add_child(info)
+	var b: Button
+	var nx := ULBase.garage_lvl(lv + 1) if lv < mx else {}
+	if lv >= mx:
+		b = _btn("МАКСИМАЛЬНЫЙ УРОВЕНЬ — %d/%d" % [mx, mx], "", "gray", func() -> void: pass, Vector2(0, 42), 15)
+		b.disabled = true
+	elif bool(nx.get("locked", false)):
+		b = _btn("УРОВЕНЬ %d/%d — ПОКА ЗАКРЫТ" % [lv + 1, mx], "lock", "gray", func() -> void: pass, Vector2(0, 42), 15)
+		b.disabled = true
+	else:
+		b = _btn("КУПИТЬ И УСТАНОВИТЬ — %s" % ULEconomy.list_text(nx.get("price", {})).to_upper(), "hammer", "green", ask_upgrade.bind("garage"), Vector2(0, 42), 15)
+	b.name = "buy"
+	v0.add_child(b)
+	return card
+
+
 ## Нажата «Купить и установить»: не хватает — предупреждение с недостачей; хватает — подтверждение
 func ask_upgrade(id: String) -> void:
 	if id == "storage":
 		_ask_storage()
+		return
+	if id == "garage":
+		_ask_garage()
 		return
 	if busy or ULBase.installed(id):
 		return
@@ -582,6 +643,35 @@ func _do_storage() -> void:
 		w.pc_done("upgrade", "storage")
 		var lv := ULBase.storage_level()
 		toast("Хранилище: уровень %d/%d — сейф №%d установлен (%d ячеек всего)." % [lv, ULBase.STORAGE_MAX, lv, lv * ULBase.SAFE_CELLS])
+	elif r.err == "money":
+		toast("Не хватает: " + ULEconomy.list_text(r.miss))
+	_build_upgrades()
+	busy = false
+
+
+func _ask_garage() -> void:
+	var lv := ULBase.garage_level()
+	if busy or lv >= ULBase.garage_max():
+		return
+	var nx := ULBase.garage_lvl(lv + 1)
+	if bool(nx.get("locked", false)):
+		return
+	var price: Dictionary = nx.get("price", {})
+	var miss := ULEconomy.missing(inv.wallet, price)
+	if not miss.is_empty():
+		_dialog("Не хватает ресурсов", "Гараж — нужно: %s.\nНе хватает: %s." % [ULEconomy.list_text(price), ULEconomy.list_text(miss)], Callable())
+		return
+	_dialog("Подтвердите покупку", "Купить и установить гараж за %s?\nОн встанет слева от бункера, в нём — УАЗ-469." % ULEconomy.list_text(price), _do_garage)
+
+
+func _do_garage() -> void:
+	if busy:
+		return
+	busy = true
+	var r := ULBase.buy_garage(inv)
+	if r.ok:
+		w.pc_done("upgrade", "garage")
+		toast("Гараж построен: слева от бункера. В нём — УАЗ-469.")
 	elif r.err == "money":
 		toast("Не хватает: " + ULEconomy.list_text(r.miss))
 	_build_upgrades()

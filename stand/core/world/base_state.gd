@@ -55,38 +55,120 @@ static func load_state(force := false) -> void:
 			if arr[i] != null and not (arr[i] is Dictionary):
 				arr[i] = null
 		stg.safes["safe_%d" % k] = arr
-	_car_norm()
+	_garage_norm()
 
 
-## УАЗ героя (ULCar): прочность и багажник — с собой из посещения в посещение
-static func _car_norm() -> void:
-	if not (data.get("car") is Dictionary):
-		data["car"] = {}
-	var cd: Dictionary = data.car
-	# улучшения (ULCar.lvl): колёса, багажник, броня, бак
-	if not (cd.get("up") is Dictionary):
-		cd["up"] = {}
-	for k in ["wheels", "trunk", "armor", "tank"]:
-		cd.up[k] = clampi(int(cd.up.get(k, 0)), 0, ULCar.max_lvl(k))
-	var hmax := float(ULCar.lvl("armor", int(cd.up.armor)).get("hp", ULCar.c("hp", 600.0)))
-	cd["hp"] = clampf(float(cd.get("hp", hmax)), 0.0, hmax)
-	var fc: Dictionary = ULCar.cfg().get("fuel", {})
-	var tmax := float(ULCar.lvl("tank", int(cd.up.tank)).get("tank", fc.get("tank", 30)))
-	cd["fuel"] = clampf(float(cd.get("fuel", fc.get("start", 15))), 0.0, tmax)
-	var tr = cd.get("trunk")
-	if not (tr is Array):
-		tr = []
-	tr.resize(maxi(ULCar.trunk_cells(int(cd.up.trunk)), tr.size()))
-	for i in tr.size():
-		if tr[i] != null and not (tr[i] is Dictionary):
-			tr[i] = null
-	cd["trunk"] = tr
+# ---------------- гараж и машины (data/garage.json, ULCar) ----------------
+# data.garage: level 0–3 (0 — не построен), fuel — литры в резервуаре топливной станции, cabinet — грузовой шкаф
+# (30 ячеек), sel — выбранная машина, cars — машины по местам (ULCar.new_data: детали, бензин, багажник, турели).
+# Первая машина (УАЗ-469) появляется вместе с гаражом; места 2 и 3 — под будущие машины (уровни 2/3 пока закрыты).
+
+const GARAGE := "res://data/garage.json"
+static var _gcfg := {}
 
 
-static func car_data() -> Dictionary:
+static func garage_cfg() -> Dictionary:
+	if _gcfg.is_empty():
+		var d = JSON.parse_string(FileAccess.get_file_as_string(GARAGE))
+		_gcfg = d if d is Dictionary else {}
+	return _gcfg
+
+
+static func garage_max() -> int:
+	return maxi((garage_cfg().get("levels", []) as Array).size() - 1, 0)
+
+
+static func station_cap() -> float:
+	return float(garage_cfg().get("fuel_station", {}).get("cap", 1000))
+
+
+static func _garage_norm() -> void:
+	data.erase("car")                       # запись машины до гаража (в сборки не попадала)
+	if not (data.get("garage") is Dictionary):
+		data["garage"] = {}
+	var g: Dictionary = data.garage
+	g["level"] = clampi(int(g.get("level", 0)), 0, garage_max())
+	g["fuel"] = clampf(float(g.get("fuel", garage_cfg().get("fuel_station", {}).get("start", 0))), 0.0, station_cap())
+	var cab = g.get("cabinet")
+	if not (cab is Array):
+		cab = []
+	cab.resize(maxi(int(garage_cfg().get("cabinet_cells", 30)), cab.size()))
+	for i in cab.size():
+		if cab[i] != null and not (cab[i] is Dictionary):
+			cab[i] = null
+	g["cabinet"] = cab
+	if not (g.get("cars") is Array):
+		g["cars"] = []
+	var list: Array = garage_cfg().get("cars", [])
+	var slots := int((garage_cfg().get("levels", []) as Array)[g.level].get("cars", 0)) if int(g.level) > 0 else 0
+	for i in mini(slots, list.size()):
+		if (g.cars as Array).size() <= i:
+			(g.cars as Array).append(ULCar.new_data(String(list[i].id)))
+	for cd in g.cars:
+		if cd is Dictionary:
+			ULCar.norm_data(cd)
+	g["sel"] = clampi(int(g.get("sel", 0)), 0, maxi((g.cars as Array).size() - 1, 0))
+
+
+static func garage() -> Dictionary:
 	load_state()
-	_car_norm()
-	return data.car
+	return data.garage
+
+
+static func garage_level() -> int:
+	return int(garage().level)
+
+
+## уровень гаража n (0…3): {n, cars, price?, locked?}
+static func garage_lvl(n: int) -> Dictionary:
+	var ls: Array = garage_cfg().get("levels", [])
+	return ls[clampi(n, 0, ls.size() - 1)] if not ls.is_empty() else {}
+
+
+## Купить гараж (0 → 1) или следующий уровень. Закрытый уровень (locked) не продаётся: err «locked».
+## Ответ — как у buy_upgrade; err «max» — уже последний.
+static func buy_garage(inv: ULInventory) -> Dictionary:
+	var lv := garage_level()
+	if lv >= garage_max():
+		return {"ok": false, "err": "max", "miss": {}}
+	var nx := garage_lvl(lv + 1)
+	if bool(nx.get("locked", false)):
+		return {"ok": false, "err": "locked", "miss": {}}
+	var price: Dictionary = nx.get("price", {})
+	var miss := ULEconomy.missing(inv.wallet, price)
+	if not miss.is_empty() or not inv.pay(price):
+		return {"ok": false, "err": "money", "miss": miss}
+	data.garage.level = lv + 1
+	data.upgrades["garage"] = lv + 1
+	_garage_norm()
+	save_state()
+	return {"ok": true, "err": "", "miss": {}}
+
+
+## машины гаража (сохранения ULCar) по местам
+static func cars() -> Array:
+	return garage().cars
+
+
+## выбранная машина; {} — гаража нет
+static func car_data() -> Dictionary:
+	var cs := cars()
+	if cs.is_empty():
+		return {}
+	return cs[clampi(int(data.garage.sel), 0, cs.size() - 1)]
+
+
+static func cabinet() -> Array:
+	return garage().cabinet
+
+
+## литры в резервуаре топливной станции
+static func station_fuel() -> float:
+	return float(garage().fuel)
+
+
+static func set_station_fuel(l: float) -> void:
+	garage()["fuel"] = clampf(l, 0.0, station_cap())
 
 
 static func save_state() -> void:
