@@ -10,21 +10,22 @@ extends Node3D
 ## Герой (или машина с ним) внутри — крыша скрыта, стены со стороны камеры срезаны на высоте CUT.
 ## Своя система: центр на земле, ворота — к +Z (W — по X, D — по Z).
 
-const W := 8.0
-const D := 10.0
+const W := 10.0
+const D := 12.0
 const H := 3.4                    ## высота стен
 const T := 0.25                   ## толщина стен
 const CUT := 1.1
 const GATE_W := 3.4
 const GATE_H := 2.9
-const DOOR_Z := 3.2               ## дверь для человека — в правой стене (к бункеру), ближе к воротам
+const DOOR_Z := 3.6               ## дверь для человека — в правой стене (к бункеру), ближе к воротам
 const DOOR_W := 0.95
 const DOOR_H := 2.1
-const PLAT := Vector3(3.0, 0.1, 5.2)      ## платформа: ширина, высота, длина верха
+const PLAT := Vector3(3.2, 0.13, 5.6)     ## помост: ширина, высота, длина верха
 const PLAT_Z := 0.4
-const RAMP := 0.7
+const RAMP := 0.8                         ## заезды спереди и сзади
+const SIDE := 0.32                        ## пологий край по бокам (герой заходит на помост сбоку)
 const ZONE_N := {"g_term": "компьютер модернизации", "g_fuel": "топливная станция", "g_sel": "выбор машины", "g_cab": "грузовой шкаф"}
-const ZONES := {"g_term": Vector3(-2.75, 0, -0.6), "g_sel": Vector3(-2.75, 0, 2.0), "g_fuel": Vector3(-2.3, 0, -3.25), "g_cab": Vector3(2.75, 0, -1.8)}
+const ZONES := {"g_term": Vector3(-3.45, 0, -1.0), "g_sel": Vector3(-3.45, 0, 1.6), "g_fuel": Vector3(-3.0, 0, -4.0), "g_cab": Vector3(3.45, 0, -1.6)}
 const MODELS := "res://assets/world/"
 const TEX := "res://assets/world/tex/"
 
@@ -200,6 +201,7 @@ func _pad() -> void:
 
 
 func _build() -> void:
+	_stains()
 	_walls()
 	_gates()
 	_roof_build()
@@ -274,6 +276,50 @@ func _walls() -> void:
 			_box("w_" + side + "_low", "plinth", Vector3(0.34, CUT + 0.05, 0.34), Vector3(sx * (W * 0.5 - 0.1), (CUT + 0.05) * 0.5, sz * (D * 0.5 - 0.1)))
 
 
+## Пол как в настоящем гараже: масляные пятна под помостом и у верстака, потёки у цистерны, след шин от ворот
+## (плоские полупрозрачные пятна над бетоном — одна сетка, один материал)
+func _stains() -> void:
+	var g := Gradient.new()
+	g.set_color(0, Color(1, 1, 1, 1))
+	g.add_point(0.55, Color(1, 1, 1, 0.55))
+	g.set_color(g.get_point_count() - 1, Color(1, 1, 1, 0))
+	var tx := GradientTexture2D.new()
+	tx.gradient = g
+	tx.fill = GradientTexture2D.FILL_RADIAL
+	tx.fill_from = Vector2(0.5, 0.5)
+	tx.fill_to = Vector2(1.0, 0.5)
+	tx.width = 64
+	tx.height = 64
+	var m := StandardMaterial3D.new()
+	m.albedo_texture = tx
+	m.albedo_color = Color(0.05, 0.045, 0.04, 0.55)
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	m.roughness = 0.25
+	m.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 7
+	var spots := [[Vector3(0.3, 0, PLAT_Z + 3.6), 1.1], [Vector3(-0.6, 0, PLAT_Z + 4.4), 0.7], [Vector3(-3.0, 0, -4.4), 1.3],
+		[Vector3(-2.4, 0, -3.7), 0.6], [Vector3(1.2, 0, -4.6), 1.0], [Vector3(2.9, 0, -4.2), 0.8], [Vector3(3.2, 0, 4.6), 0.9],
+		[Vector3(-3.3, 0, 4.4), 0.8], [Vector3(2.6, 0, 1.8), 0.5], [Vector3(-2.2, 0, 0.2), 0.55]]
+	for sp in spots:
+		var pm := PlaneMesh.new()
+		var k := float(sp[1])
+		pm.size = Vector2(k * rng.randf_range(1.0, 1.5), k)
+		st.append_from(pm, 0, Transform3D(Basis(Vector3.UP, rng.randf() * TAU), (sp[0] as Vector3) + Vector3(0, 0.014, 0)))
+	# след шин: две полосы от ворот к помосту
+	for sx in [-0.75, 0.75]:
+		var pm := PlaneMesh.new()
+		pm.size = Vector2(0.32, 2.2)
+		st.append_from(pm, 0, Transform3D(Basis(), Vector3(sx, 0.013, D * 0.5 - 1.4)))
+	var mi := MeshInstance3D.new()
+	mi.mesh = st.commit()
+	mi.material_override = m
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(mi)
+
+
 ## распашные ворота: две створки из профлиста на раме, петли — у краёв проёма, открываются наружу
 func _gates() -> void:
 	var leaf_w := GATE_W * 0.5 - 0.03
@@ -338,21 +384,23 @@ func _roof_build() -> void:
 	_group("roof_beams").reparent(_roof)
 
 
-## платформа: пологие заезды со всех сторон (машина въезжает сама), огни по углам, подъёмник по бокам
+## Помост в центре (как в Last Day): рифлёный металл с жёлто-чёрными полосами, заезды спереди и сзади (машина
+## въезжает и съезжает сама), пологий край по бокам (герой заходит сбоку), огни по углам. Модель Tripo — если есть.
 func _platform() -> void:
-	var mi := MeshInstance3D.new()
 	var top := Vector2(PLAT.x, PLAT.z)
-	var bot := top + Vector2.ONE * RAMP * 2.0
-	mi.mesh = ULHouse._frustum(bot, top, PLAT.y)
-	var sh := Shader.new()
-	sh.code = PLATE_SHADER
-	var sm := ShaderMaterial.new()
-	sm.shader = sh
-	sm.set_shader_parameter("half_top", top * 0.5)
-	mi.material_override = sm
-	mi.position = Vector3(0, 0.0, PLAT_Z)
-	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	add_child(mi)
+	var bot := top + Vector2(SIDE * 2.0, RAMP * 2.0)
+	if not _platform_model(bot):
+		var mi := MeshInstance3D.new()
+		mi.mesh = ULHouse._frustum(bot, top, PLAT.y)
+		var sh := Shader.new()
+		sh.code = PLATE_SHADER
+		var sm := ShaderMaterial.new()
+		sm.shader = sh
+		sm.set_shader_parameter("half_top", top * 0.5)
+		mi.material_override = sm
+		mi.position = Vector3(0, 0.0, PLAT_Z)
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(mi)
 	var pts := PackedVector3Array()
 	for v in [Vector3(-bot.x, 0, -bot.y), Vector3(bot.x, 0, -bot.y), Vector3(bot.x, 0, bot.y), Vector3(-bot.x, 0, bot.y)]:
 		pts.append(v * 0.5 + Vector3(0, -0.02, PLAT_Z))
@@ -367,88 +415,145 @@ func _platform() -> void:
 	for sx in [-1.0, 1.0]:
 		for sz in [-1.0, 1.0]:
 			_box("plat", "amber", Vector3(0.12, 0.03, 0.12), Vector3(sx * (PLAT.x * 0.5 - 0.09), PLAT.y + 0.015, PLAT_Z + sz * (PLAT.z * 0.5 - 0.09)))
-	# стойки подъёмника (жёлтые) по бокам платформы, с лапами
-	var px := PLAT.x * 0.5 + RAMP - 0.2
-	for sx in [-1.0, 1.0]:
-		for z in [PLAT_Z - 1.4, PLAT_Z + 1.4]:
-			_box("plat", "yellow", Vector3(0.2, 2.7, 0.24), Vector3(sx * px, 1.35, z), true)
-			_box("plat", "metal", Vector3(0.36, 0.08, 0.4), Vector3(sx * px, 0.04, z))
-			_box("plat", "metal", Vector3(0.12, 0.06, 0.5), Vector3(sx * px, 0.42, z + (0.3 if z > PLAT_Z else -0.3)))
-		_box("plat", "yellow", Vector3(0.14, 0.14, 2.8 + 0.24), Vector3(sx * px, 2.62, PLAT_Z))
 
 
-## обстановка: модели Tripo (гаражные — если уже есть) и свои детали; у мест взаимодействия — свои вещи
+## помост — модель Tripo (длинная сторона — вдоль заезда), растянутая на весь след помоста и прижатая по высоте
+func _platform_model(bot: Vector2) -> bool:
+	var path := MODELS + "gr_platform.glb"
+	if not ResourceLoader.exists(path):
+		return false
+	var n: Node3D = (load(path) as PackedScene).instantiate()
+	_group("models").add_child(n)
+	var b := _aabb(n)
+	var along_x := b.size.x >= b.size.z
+	n.rotation.y = PI * 0.5 if along_x else 0.0
+	var ln := b.size.x if along_x else b.size.z
+	var wd := b.size.z if along_x else b.size.x
+	# масштаб по своим осям модели: длина — на длину следа, ширина — на ширину, высота — на высоту помоста
+	n.scale = Vector3(bot.y / maxf(ln, 0.01), (PLAT.y + 0.02) / maxf(b.size.y, 0.01), bot.x / maxf(wd, 0.01)) if along_x \
+		else Vector3(bot.x / maxf(wd, 0.01), (PLAT.y + 0.02) / maxf(b.size.y, 0.01), bot.y / maxf(ln, 0.01))
+	b = _aabb(n)
+	n.position += Vector3(-b.get_center().x, -b.position.y - 0.01, PLAT_Z - b.get_center().z)
+	for gi in n.find_children("*", "GeometryInstance3D", true, false):
+		(gi as GeometryInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	return true
+
+
+## Обстановка, как в гараже из Last Day: всё по стенам и углам, середина свободна под помост и машину.
+## Левая стена (от дальнего угла к воротам): цистерна «ТОПЛИВО» с колонкой, стойка канистр, компьютер
+## модернизации, экран выбора машины, стеллаж с банками и коробками; у ворот — покрышки и бочки.
+## Дальняя стена: стена с инструментами над рабочим столом, верстак модернизации, сварочный пост, ящик инструментов.
+## Правая стена: двигатель на стенде, грузовой шкаф, широкий стеллаж с запчастями, дверь; у ворот — кучка
+## запчастей и подкатной домкрат. Под крышей — лампы и таль над помостом.
+## Модели Tripo; чего ещё нет — простая замена (или ничего, если это мелочь).
 func _furniture() -> void:
-	# компьютер модернизации (у левой стены, экраном в гараж)
-	if not _model("gr_terminal", Vector3(-W * 0.5 + T + 0.4, 0, ZONES.g_term.z), PI * 0.5, 1.5, "h"):
-		_box("furn", "metal", Vector3(0.7, 0.9, 1.3), Vector3(-W * 0.5 + T + 0.38, 0.45, ZONES.g_term.z), true)
-		_box("furn", "metal", Vector3(0.12, 0.7, 1.0), Vector3(-W * 0.5 + T + 0.12, 1.4, ZONES.g_term.z))
-		_box("furn", "screen", Vector3(0.03, 0.55, 0.85), Vector3(-W * 0.5 + T + 0.2, 1.4, ZONES.g_term.z))
-		_box("furn", "metal", Vector3(0.3, 0.04, 0.6), Vector3(-W * 0.5 + T + 0.6, 0.92, ZONES.g_term.z))
-	# выбор машины: экран на стене с тремя местами
-	_box("furn", "metal", Vector3(0.1, 1.0, 1.6), Vector3(-W * 0.5 + T + 0.05, 1.55, ZONES.g_sel.z))
-	_box("furn", "screen", Vector3(0.03, 0.84, 1.44), Vector3(-W * 0.5 + T + 0.12, 1.55, ZONES.g_sel.z))
-	_box("furn", "metal", Vector3(0.45, 1.0, 0.5), Vector3(-W * 0.5 + T + 0.25, 0.5, ZONES.g_sel.z), true)
-	# топливная станция: большой ржавый бак «ТОПЛИВО» на опорах у задней стены, колонка со шлангом
-	var tank_at := Vector3(-W * 0.5 + T + 1.25, 0, -D * 0.5 + T + 0.75)
-	if not _model("gr_fueltank", tank_at, 0.0, 2.3, "x"):
+	var lx := -W * 0.5 + T            # внутренняя грань левой стены
+	var rx := W * 0.5 - T
+	var bz := -D * 0.5 + T            # дальняя стена
+	var fz := D * 0.5 - T
+	# --- левая стена ---
+	var tank_at := Vector3(lx + 1.3, 0, bz + 0.8)
+	if not _model("gr_fueltank", tank_at, 0.0, 2.4, "x"):
 		_cyl("furn", "rust", 0.62, 2.3, Transform3D(Basis(Vector3.FORWARD, PI * 0.5), tank_at + Vector3(0, 1.05, 0)), 20)
 		for xx in [-0.7, 0.7]:
 			_box("furn", "metal", Vector3(0.12, 0.5, 1.0), tank_at + Vector3(xx, 0.25, 0), true)
-		_cyl("furn", "metal", 0.15, 0.12, Transform3D(Basis(), tank_at + Vector3(0.4, 1.7, 0)))
-	# надпись по трафарету на боку бака
 	var lb := Label3D.new()
 	lb.text = "ТОПЛИВО"
 	lb.font_size = 72
 	lb.pixel_size = 0.005
 	lb.modulate = Color(0.92, 0.9, 0.82)
 	lb.outline_size = 0
-	lb.position = tank_at + Vector3(0, 0.95, 0.6)
+	lb.position = tank_at + Vector3(0, 0.95, 0.62)
 	add_child(lb)
-	var col := CollisionShape3D.new()
-	var tb := BoxShape3D.new()
-	tb.size = Vector3(2.4, 1.7, 1.3)
-	col.shape = tb
-	col.position = tank_at + Vector3(0, 0.85, 0)
-	_body.add_child(col)
-	_box("furn", "metal", Vector3(0.4, 1.3, 0.35), tank_at + Vector3(1.55, 0.65, 0.2), true)
-	_box("furn", "screen", Vector3(0.28, 0.18, 0.02), tank_at + Vector3(1.55, 1.05, 0.38))
-	_prop("cv_jerrycans", tank_at + Vector3(-0.2, 0, 0.95), 0.0, 0.75)
-	# грузовой шкаф (у правой стены, дверцами в гараж)
-	if not _model("gr_cabinet", Vector3(W * 0.5 - T - 0.35, 0, ZONES.g_cab.z), PI, 2.0, "h"):        # дверцы у модели — к +X
-		_box("furn", "gate", Vector3(0.6, 2.0, 1.5), Vector3(W * 0.5 - T - 0.32, 1.0, ZONES.g_cab.z), true)
-		_box("furn", "metal", Vector3(0.02, 1.9, 0.02), Vector3(W * 0.5 - T - 0.62, 1.0, ZONES.g_cab.z))
-		for zz in [-0.1, 0.1]:
-			_box("furn", "metal", Vector3(0.04, 0.2, 0.03), Vector3(W * 0.5 - T - 0.64, 1.1, ZONES.g_cab.z + zz))
+	_col(Vector3(2.5, 1.7, 1.3), tank_at + Vector3(0, 0.85, 0))
+	# колонка со шлангом и табло
+	_box("furn", "metal", Vector3(0.4, 1.3, 0.35), tank_at + Vector3(1.62, 0.65, 0.15), true)
+	_box("furn", "screen", Vector3(0.28, 0.18, 0.02), tank_at + Vector3(1.62, 1.05, 0.33))
+	_place("gr_jerryrack", Vector3(lx + 0.4, 0, bz + 2.15), PI * 0.5, 0.95, "l", true)
+	if not _model("gr_terminal", Vector3(lx + 0.4, 0, ZONES.g_term.z), PI * 0.5, 1.5, "h"):
+		_box("furn", "metal", Vector3(0.7, 0.9, 1.3), Vector3(lx + 0.38, 0.45, ZONES.g_term.z), true)
+		_box("furn", "metal", Vector3(0.12, 0.7, 1.0), Vector3(lx + 0.12, 1.4, ZONES.g_term.z))
+		_box("furn", "screen", Vector3(0.03, 0.55, 0.85), Vector3(lx + 0.2, 1.4, ZONES.g_term.z))
+		_box("furn", "metal", Vector3(0.3, 0.04, 0.6), Vector3(lx + 0.6, 0.92, ZONES.g_term.z))
 	else:
-		var cc := CollisionShape3D.new()
-		var cb := BoxShape3D.new()
-		cb.size = Vector3(0.6, 2.0, 1.5)
-		cc.shape = cb
-		cc.position = Vector3(W * 0.5 - T - 0.32, 1.0, ZONES.g_cab.z)
-		_body.add_child(cc)
-	# верстак у задней стены, ящик инструментов, стеллаж с запчастями, покрышки
-	if not _model("gr_workbench", Vector3(1.2, 0, -D * 0.5 + T + 0.38), 0.0, 2.1, "x"):
-		_box("furn", "wood", Vector3(2.1, 0.08, 0.7), Vector3(1.2, 0.9, -D * 0.5 + T + 0.38), true)
-		for xx in [0.25, 2.15]:
-			_box("furn", "metal", Vector3(0.08, 0.86, 0.6), Vector3(xx, 0.43, -D * 0.5 + T + 0.38))
-		_box("furn", "wood", Vector3(2.1, 0.9, 0.04), Vector3(1.2, 1.45, -D * 0.5 + T + 0.04))
-		_prop("qi_tool", Vector3(0.9, 0.94, -D * 0.5 + T + 0.4), 0.3, 0.45, false, false)
-	if not _model("gr_toolchest", Vector3(W * 0.5 - T - 0.35, 0, -D * 0.5 + T + 0.45), PI, 1.0, "h"):
-		_box("furn", "yellow", Vector3(0.6, 1.0, 0.8), Vector3(W * 0.5 - T - 0.33, 0.5, -D * 0.5 + T + 0.5), true)
-		for y in [0.3, 0.55, 0.8]:
-			_box("furn", "metal", Vector3(0.02, 0.03, 0.6), Vector3(W * 0.5 - T - 0.64, y, -D * 0.5 + T + 0.5))
-	_prop("hm_rack", Vector3(W * 0.5 - T - 0.3, 0, 1.0), -PI * 0.5, 1.8, true)
-	for i in 3:
-		_prop("ph_tyre", Vector3(-W * 0.5 + T + 0.55, 0.0 + i * 0.27, D * 0.5 - T - 0.6), i * 0.7, 0.95, false, false)
-	_prop("ph_tyre", Vector3(W * 0.5 - T - 0.5, 0.0, 0.0), 0.0, 0.95)
-	_prop("ph_barrel", Vector3(-W * 0.5 + T + 0.45, 0, -1.8), 0.0, 0.95)
-	var tc := CollisionShape3D.new()
-	var tyb := BoxShape3D.new()
-	tyb.size = Vector3(1.0, 0.9, 1.0)
-	tc.shape = tyb
-	tc.position = Vector3(-W * 0.5 + T + 0.55, 0.45, D * 0.5 - T - 0.6)
-	_body.add_child(tc)
+		_col(Vector3(0.75, 1.5, 1.2), Vector3(lx + 0.4, 0.75, ZONES.g_term.z))
+	# выбор машины: экран на стене с тремя местами, под ним — стойка
+	_box("furn", "metal", Vector3(0.1, 1.0, 1.6), Vector3(lx + 0.05, 1.55, ZONES.g_sel.z))
+	_box("furn", "screen", Vector3(0.03, 0.84, 1.44), Vector3(lx + 0.12, 1.55, ZONES.g_sel.z))
+	_box("furn", "metal", Vector3(0.45, 1.0, 0.5), Vector3(lx + 0.25, 0.5, ZONES.g_sel.z), true)
+	_place("gr_shelf", Vector3(lx + 0.33, 0, 3.55), 0.0, 2.3, "h", true)
+	# угол у ворот: покрышки стопкой и бочки
+	if not _place("gr_tyres", Vector3(lx + 0.55, 0, fz - 0.6), 0.0, 1.05, "h", true):
+		for i in 3:
+			_prop("ph_tyre", Vector3(lx + 0.55, 0.0 + i * 0.27, fz - 0.6), i * 0.7, 0.95, false, false)
+		_col(Vector3(1.0, 0.9, 1.0), Vector3(lx + 0.55, 0.45, fz - 0.6))
+	if not _place("gr_barrels", Vector3(lx + 1.75, 0, fz - 0.55), 0.3, 1.3, "l", true):
+		_prop("ph_barrel", Vector3(lx + 1.6, 0, fz - 0.5), 0.0, 0.95)
+	# --- дальняя стена ---
+	if not _place("gr_pegboard", Vector3(-1.05, 0, bz + 0.32), PI * 0.5, 2.1, "l", true):
+		_box("furn", "wood", Vector3(2.1, 0.08, 0.7), Vector3(-1.05, 0.9, bz + 0.38), true)
+		_box("furn", "wood", Vector3(2.1, 0.9, 0.04), Vector3(-1.05, 1.45, bz + 0.04))
+	if not _place("gr_upbench", Vector3(1.35, 0, bz + 0.45), -PI * 0.5, 2.2, "l", true):         # стол у модели — лицом к +X
+		if not _model("gr_workbench", Vector3(1.35, 0, bz + 0.38), 0.0, 2.1, "x"):
+			_box("furn", "wood", Vector3(2.1, 0.08, 0.7), Vector3(1.35, 0.9, bz + 0.38), true)
+			for xx in [0.4, 2.3]:
+				_box("furn", "metal", Vector3(0.08, 0.86, 0.6), Vector3(xx, 0.43, bz + 0.38))
+		else:
+			_col(Vector3(2.1, 0.95, 0.75), Vector3(1.35, 0.47, bz + 0.38))
+	_place("gr_welder", Vector3(3.0, 0, bz + 0.45), PI, 1.3, "h", true)
+	if not _model("gr_toolchest", Vector3(rx - 0.4, 0, bz + 0.45), PI, 1.05, "h"):
+		_box("furn", "yellow", Vector3(0.6, 1.0, 0.8), Vector3(rx - 0.33, 0.5, bz + 0.5), true)
+	else:
+		_col(Vector3(0.7, 1.05, 0.75), Vector3(rx - 0.4, 0.52, bz + 0.45))
+	# --- правая стена ---
+	_place("gr_engstand", Vector3(rx - 0.65, 0, bz + 1.85), -PI * 0.5, 1.2, "h", true)
+	if not _model("gr_cabinet", Vector3(rx - 0.35, 0, ZONES.g_cab.z), PI, 2.0, "h"):        # дверцы у модели — к +X
+		_box("furn", "gate", Vector3(0.6, 2.0, 1.5), Vector3(rx - 0.32, 1.0, ZONES.g_cab.z), true)
+		_box("furn", "metal", Vector3(0.02, 1.9, 0.02), Vector3(rx - 0.62, 1.0, ZONES.g_cab.z))
+	else:
+		_col(Vector3(0.6, 2.0, 1.5), Vector3(rx - 0.32, 1.0, ZONES.g_cab.z))
+	if not _place("gr_shelf2", Vector3(rx - 0.38, 0, 0.95), -PI * 0.5, 2.2, "l", true):
+		_prop("hm_rack", Vector3(rx - 0.3, 0, 0.95), -PI * 0.5, 1.8, true)
+	# угол у ворот справа (дверь — в стороне, проход к помосту свободен)
+	_place("gr_parts", Vector3(rx - 0.7, 0, fz - 0.6), 0.6, 1.2, "l", true)
+	_place("gr_jack", Vector3(rx - 1.9, 0, fz - 0.45), PI * 0.5, 1.1, "l", true)
+	# --- под крышей: лампы над помостом и таль ---
+	for z in [PLAT_Z - 1.6, PLAT_Z + 1.9]:
+		_place("gr_lamp", Vector3(0, H - 0.95, z), 0.0, 0.9, "h", false)
+	_place("gr_hoist", Vector3(0, H - 1.25, PLAT_Z - 0.2), PI * 0.5, 1.2, "h", false)
+	# канистры у бака — на полу как готовые к выдаче места (сами предметы кладёт мир: can_spots)
+	_prop("cv_jerrycans", tank_at + Vector3(0.95, 0, 0.95), 0.4, 0.7)
+
+
+## модель Tripo в гараже: fit «h» — по высоте, «l» — по длинной стороне; yaw — поворот (лицом к комнате);
+## col — со столкновением (рамка ×0,9). false — модели ещё нет.
+func _place(id: String, at: Vector3, yaw: float, sz: float, fit: String, col: bool) -> bool:
+	var path := MODELS + id + ".glb"
+	if not ResourceLoader.exists(path):
+		return false
+	var n: Node3D = (load(path) as PackedScene).instantiate()
+	_group("models").add_child(n)
+	n.rotation.y = yaw
+	var b := _aabb(n)
+	var ref := b.size.y if fit == "h" else maxf(b.size.x, b.size.z)
+	n.scale = Vector3.ONE * (sz / maxf(ref, 0.01))
+	b = _aabb(n)
+	n.position += at - Vector3(b.get_center().x, b.position.y, b.get_center().z)
+	for gi in n.find_children("*", "GeometryInstance3D", true, false):
+		(gi as GeometryInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	if col:
+		b = _aabb(n)
+		_col(Vector3(maxf(b.size.x * 0.9, 0.2), maxf(b.size.y, 0.3), maxf(b.size.z * 0.9, 0.2)), b.get_center())
+	return true
+
+
+func _col(size: Vector3, at: Vector3) -> void:
+	var cs := CollisionShape3D.new()
+	var bs := BoxShape3D.new()
+	bs.size = size
+	cs.shape = bs
+	cs.position = at
+	_body.add_child(cs)
 
 
 ## модель Tripo, если уже есть: низ на полу, по высоте (fit «h») или длине по X (fit «x»); false — модели нет
@@ -522,14 +627,19 @@ func _rel(m: Node3D) -> Transform3D:
 
 ## лампы под крышей (светят, только когда герой внутри — снаружи их не видно)
 func _lights() -> void:
-	for z in [-2.0, 2.2]:
+	# лампы-полосы под крышей — если своих подвесных ламп (Tripo) ещё нет; по бокам — всегда (светлые стены)
+	var zs: Array = [-2.0, 2.2] if not ResourceLoader.exists(MODELS + "gr_lamp.glb") else []
+	for z in zs:
 		_box("roof_lamps", "metal", Vector3(1.3, 0.06, 0.16), Vector3(0, H - 0.2, z))
 		_box("roof_lamps", "lamp", Vector3(1.2, 0.04, 0.1), Vector3(0, H - 0.24, z))
+	for sx in [-1.0, 1.0]:
+		_box("roof_lamps", "metal", Vector3(0.16, 0.06, 1.4), Vector3(sx * (W * 0.5 - 1.2), H - 0.2, -1.0))
+		_box("roof_lamps", "lamp", Vector3(0.1, 0.04, 1.3), Vector3(sx * (W * 0.5 - 1.2), H - 0.24, -1.0))
 	_flush()
 	_light = OmniLight3D.new()
 	_light.position = Vector3(0, H - 0.6, 0.2)
-	_light.omni_range = 8.5
-	_light.light_energy = 1.1
+	_light.omni_range = 10.5
+	_light.light_energy = 1.2
 	_light.light_color = Color(1.0, 0.94, 0.82)
 	_light.shadow_enabled = false
 	_light.visible = false
@@ -547,7 +657,7 @@ func contains(p: Vector3) -> bool:
 ## места взаимодействия (мир)
 ## где в новом гараже стоят канистры (у топливной станции), в системе гаража
 func can_spots() -> Array:
-	return [Vector3(-1.25, 0.02, -4.3), Vector3(-0.75, 0.02, -4.35), Vector3(-1.0, 0.02, -3.85)]
+	return [Vector3(-2.05, 0.02, -4.25), Vector3(-1.6, 0.02, -4.4), Vector3(-1.85, 0.02, -3.85)]
 
 
 func zones() -> Dictionary:

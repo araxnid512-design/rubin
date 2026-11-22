@@ -14159,6 +14159,9 @@ func _run_test() -> void:
 	if test == "turfx":
 		await _turfx_test()
 		return
+	if test == "garview":
+		await _garview_test()
+		return
 	if test == "garage":
 		await _garage_test()
 	if test == "colaudit":
@@ -16359,6 +16362,38 @@ func _run_test() -> void:
 		await _snap("s3_inventory")
 		get_tree().quit()
 		return
+	if test == "hitfx":
+		# попадание по заражённому: удар на замахе сбивает его удар, тело отбрасывает, фигура вспыхивает, над головой —
+		# полоска здоровья; удар врага не доходит до героя; стоит от героя на вытянутую руку, а не вплотную
+		hp_lock = true
+		for e0 in enemies.duplicate():
+			e0.damage(1000000.0)
+		player.global_position = Vector3(18.0, 0.05, 10.0)
+		var z := spawn_enemy("infected", Vector3(18.0, 0.0, 13.0))
+		z.hear(player.global_position)
+		var t0 := Time.get_ticks_msec()
+		var closest := 99.0
+		while Time.get_ticks_msec() - t0 < 8000 and not (z._hit_due >= 0.0 and z._snap_at >= 0.0):
+			await get_tree().process_frame
+		closest = z.global_position.distance_to(player.global_position)
+		var wind := z._hit_due >= 0.0 and z._snap_at >= 0.0
+		var p0 := z.global_position
+		var hp0 := hp
+		z.damage(20.0, player.global_position)
+		var bar_on: bool = z._mini != null and z._mini.visible
+		var flash_on: bool = z._meshes.size() > 0 and (z._meshes[0] as GeometryInstance3D).material_overlay != null
+		await get_tree().create_timer(0.25).timeout
+		var away := Vector2(z.global_position.x - p0.x, z.global_position.z - p0.z).dot(Vector2(p0.x - player.global_position.x, p0.z - player.global_position.z).normalized())
+		var flash_off: bool = (z._meshes[0] as GeometryInstance3D).material_overlay == null
+		_ok("заражённый начал удар с вытянутой руки (%.2f м между центрами), а не вплотную" % closest, wind and closest > 0.85)
+		_ok("удар на замахе сбил его удар (сбит %d раз), герой не ранен" % z.interrupts, z.interrupts == 1 and z._hit_due < 0.0 and hp >= hp0)
+		_ok("отброшен от удара на %.2f м" % away, away > 0.12)
+		_ok("вспыхнул на миг и погас", flash_on and flash_off)
+		_ok("над головой — полоска здоровья", bar_on)
+		z.damage(1000.0, player.global_position)
+		_ok("убит — полоска пропала", not z._mini.visible)
+		_test_done()
+		return
 	if test == "ragdoll":
 		# гибель на физике: враги разных видов убиты спереди, сзади и сбоку; снимки сбоку низко и игровой камерой,
 		# замер: тело легло (таз и голова у земли), поза записана, тела удалены
@@ -17532,6 +17567,40 @@ func _car_test() -> void:
 ## покупка, замена без бесплатных копий; боеприпасы у оружейника и загрузка; топливо канистрами (барахольщик →
 ## резервуар → канистра → бак); выбор машины; грузовой шкаф; выезд из гаража и заезд задом; огонь турели;
 ## всё — в сохранении базы
+## Обзор гаража: построен (в памяти), крыша убрана, снимки сверху под углом с четырёх сторон и вид игровой камерой
+func _garview_test() -> void:
+	ULBase.memory_only = true
+	ULBase.load_state(true)
+	ULBase.data.garage.level = 1
+	ULBase._garage_norm()
+	_car_free_node()
+	_garage_build()
+	_car_spawn()
+	await get_tree().create_timer(0.8).timeout
+	player.global_position = garage.to_global(ULGarage.ZONES.g_sel + Vector3(0.8, 0.05, 0.6))
+	await get_tree().create_timer(0.6).timeout
+	garage._roof.visible = false
+	for sd in ["f", "b", "l", "r"]:
+		(garage._sides[sd].full as Node3D).visible = false
+		(garage._sides[sd].low as Node3D).visible = true
+	var cam := Camera3D.new()
+	add_child(cam)
+	cam.fov = 50.0
+	cam.current = true
+	_hud.visible = false
+	var c := garage.global_position
+	for v in [["top", Vector3(0, 15.0, 6.0)], ["back", Vector3(0, 8.0, -10.0)], ["left", Vector3(-10.0, 8.0, 0.0)], ["right", Vector3(10.0, 8.0, 0.0)]]:
+		cam.look_at_from_position(c + garage.global_transform.basis * (v[1] as Vector3), c + Vector3.UP * 0.6)
+		for i in 3:
+			await get_tree().process_frame
+		await _snap("gv_" + String(v[0]))
+	cam.current = false
+	_hud.visible = true
+	await get_tree().create_timer(0.5).timeout
+	await _snap("gv_game")
+	_test_done()
+
+
 func _garage_test() -> void:
 	ULBase.memory_only = true
 	ULBase.load_state(true)
