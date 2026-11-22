@@ -1,0 +1,105 @@
+{
+ "_": "Новые движения героя (сборка 65, заказ 22.11, по ~20 кредитов): метка, секунд, описание. Генерируются на скелете мура-автоматчика в высоком качестве (mur_ak_hd) и переносятся на героев поправкой BCAnimSet.",
+ "motions": [
+  {
+   "tag": "h_search_low",
+   "seconds": 4,
+   "prompt": "a man crouches down in front of a low wooden box and rummages through it with both hands, searching, then looks up"
+  },
+  {
+   "tag": "h_search_high",
+   "seconds": 4,
+   "prompt": "a man stands in front of a tall cabinet and searches the shelves with both hands at chest height, moving things aside"
+  },
+  {
+   "tag": "h_roll_fwd",
+   "seconds": 2,
+   "prompt": "a man performs a quick forward combat roll on the ground and gets back up on his feet"
+  },
+  {
+   "tag": "h_bandage",
+   "seconds": 4,
+   "prompt": "a man stands and wraps a bandage around his left forearm with his right hand, then tightens it"
+  },
+  {
+   "tag": "h_inject",
+   "seconds": 3,
+   "prompt": "a man quickly stabs a syringe into his own thigh with his right hand and pushes the plunger"
+  },
+  {
+   "tag": "h_drink",
+   "seconds": 3,
+   "prompt": "a man raises a flask with his right hand to his mouth, drinks several gulps and lowers it"
+  },
+  {
+   "tag": "h_eat",
+   "seconds": 3,
+   "prompt": "a man holds food with both hands near his mouth, takes a bite and chews"
+  },
+  {
+   "tag": "h_rifle_butt",
+   "seconds": 2,
+   "prompt": "a man holding a rifle with both hands strikes forward hard with the rifle butt, then returns to a ready stance"
+  },
+  {
+   "tag": "h_car_enter",
+   "seconds": 2,
+   "prompt": "a man turns around and sits down sideways onto a car seat, lifts his legs in and puts both hands forward on a steering wheel"
+  },
+  {
+   "tag": "h_car_exit",
+   "seconds": 2,
+   "prompt": "a man seated turns his body sideways, steps out with one leg first and stands up"
+  },
+  {
+   "tag": "h_drive",
+   "seconds": 3,
+   "prompt": "a man sitting holds a steering wheel with both hands at chest height and makes small steering movements left and right"
+  },
+  {
+   "tag": "h_repair_wheel",
+   "seconds": 4,
+   "prompt": "a man squats beside a car wheel and turns a wrench with both hands, loosening the bolts"
+  },
+  {
+   "tag": "h_repair_hood",
+   "seconds": 4,
+   "prompt": "a man leans forward over an open car hood and works with both hands inside the engine"
+  },
+  {
+   "tag": "h_throw_grenade",
+   "seconds": 2,
+   "prompt": "a man throws a grenade overhand with his right arm in a strong arc"
+  },
+  {
+   "tag": "h_push_off",
+   "seconds": 2,
+   "prompt": "a man forcefully shoves an attacker away with both hands and steps back"
+  },
+  {
+   "tag": "h_vault",
+   "seconds": 2,
+   "prompt": "a man vaults over a low fence by placing one hand on it and swinging his legs over"
+  },
+  {
+   "tag": "h_carry_box",
+   "seconds": 2,
+   "prompt": "a man walks forward carrying a heavy box in front of him with both arms"
+  },
+  {
+   "tag": "h_limp",
+   "seconds": 2,
+   "prompt": "a wounded man walks forward slowly, limping on his right leg and holding his side"
+  },
+  {
+   "tag": "h_break_free",
+   "seconds": 2,
+   "prompt": "a man struggles, twisting his torso to break free from someone gripping his shoulders, then pushes away"
+  },
+  {
+   "tag": "h_pry_crate",
+   "seconds": 4,
+   "prompt": "a man pries open the lid of a wooden crate with a crowbar using both hands"
+  }
+ ]
+}
