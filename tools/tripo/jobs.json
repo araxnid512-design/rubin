@@ -237,6 +237,94 @@
     "four automotive spark plugs lying on a small oily rag, realistic, single object, game asset"
    ],
    "timeout": 1800
+  },
+  {
+   "id": "g64_hd_mur_ak",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "mur_ak_hd",
+    "--image",
+    "tools/tripo/refs/hd_mur_ak.png",
+    "--faces",
+    "14000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--rig",
+    "biped",
+    "--prompt",
+    "full body game character in T-pose, same person and outfit as in the image, realistic detailed PBR textures"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "g64_hd_mur_sg",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "mur_sg_hd",
+    "--image",
+    "tools/tripo/refs/hd_mur_sg.png",
+    "--faces",
+    "14000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--rig",
+    "biped",
+    "--prompt",
+    "full body game character in T-pose, same person and outfit as in the image, realistic detailed PBR textures"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "g64_hd_mur_boss",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "mur_boss_hd",
+    "--image",
+    "tools/tripo/refs/hd_mur_boss.png",
+    "--faces",
+    "14000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--rig",
+    "biped",
+    "--prompt",
+    "full body game character in T-pose, same person and outfit as in the image, realistic detailed PBR textures"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "g64_hd_dealer",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "dealer_hd",
+    "--image",
+    "tools/tripo/refs/hd_dealer.png",
+    "--faces",
+    "12000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--rig",
+    "biped",
+    "--prompt",
+    "full body game character in T-pose, same person and outfit as in the image, realistic detailed PBR textures"
+   ],
+   "timeout": 2400
   }
  ],
  "archived": [
