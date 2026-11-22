@@ -33,8 +33,8 @@
 		"shop_back": [["can", 1, 2, 4], ["water", 1, 2, 3], ["junk", 1, 1, 2]],
 		"shop_stock": [["can", 1, 3, 5], ["rusk", 1, 2, 3], ["water", 1, 2, 3]],
 		"barn": [["scrap_metal", 1, 2, 3], ["cable", 1, 1, 2], ["junk", 1, 1, 4], ["spare_parts", 1, 1, 2], ["a12", 4, 8, 1]],
-		"shed": [["scrap_metal", 1, 2, 3], ["cable", 1, 1, 3], ["junk", 1, 1, 4], ["spare_parts", 1, 1, 2], ["can", 1, 1, 1]],
-		"garage": [["spare_parts", 1, 1, 4], ["scrap_metal", 1, 2, 4], ["cable", 1, 1, 3], ["junk", 1, 1, 2], ["tool_ind", 1, 1, 0.5]]
+		"shed": [["canister", 1, 1, 0.6], ["scrap_metal", 1, 2, 3], ["cable", 1, 1, 3], ["junk", 1, 1, 4], ["spare_parts", 1, 1, 2], ["can", 1, 1, 1]],
+		"garage": [["canister", 1, 1, 1.2], ["fuel20", 1, 1, 0.5], ["spare_parts", 1, 1, 4], ["scrap_metal", 1, 2, 4], ["cable", 1, 1, 3], ["junk", 1, 1, 2], ["tool_ind", 1, 1, 0.5]]
 	},
 	"blood": 18,
 	"loot": {
@@ -56,8 +56,8 @@
 		"tools": [["junk", 2, 4, 0.9], ["machete", 1, 1, 0.06]],
 		"workbench": [["junk", 2, 4, 0.85], ["a12", 4, 8, 0.12]],
 		"garden": [["junk", 1, 2, 0.5], ["water", 1, 1, 0.3], ["can", 1, 1, 0.2]],
-		"car": [["junk", 1, 3, 0.7], ["water", 1, 1, 0.4], ["medkit", 1, 1, 0.2], ["a12", 6, 12, 0.15], ["tt", 1, 1, 0.04]],
-		"tractor": [["junk", 2, 4, 0.8], ["can", 1, 1, 0.25]],
+		"car": [["fuel10", 1, 1, 0.2], ["junk", 1, 3, 0.7], ["water", 1, 1, 0.4], ["medkit", 1, 1, 0.2], ["a12", 6, 12, 0.15], ["tt", 1, 1, 0.04]],
+		"tractor": [["fuel10", 1, 1, 0.25], ["canister", 1, 1, 0.2], ["junk", 2, 4, 0.8], ["can", 1, 1, 0.25]],
 		"trailer": [["junk", 2, 5, 0.85], ["water", 1, 1, 0.2]]
 	}
 }

@@ -68,6 +68,7 @@ var fx_cfg := {}                ## настройки генератора ме�
 var fx: BCCreatureFx
 var stand_clamp := false        ## всегда держать нижнюю стопу на полу (движения по описанию записаны с неточной высотой таза)
 var _gw := 0.0
+var ragdoll: BCRagdoll           ## тело на физике после гибели (BCRagdoll); готовится в prepare_ragdoll
 static var _lib_cache := {}     ## «модель|набор|построенные» → {lib, info, report}
 
 
@@ -523,6 +524,13 @@ func busy() -> bool:
 
 
 func _process(delta: float) -> void:
+	if ragdoll != null:
+		if ragdoll.running:
+			ragdoll.tick(delta)
+			if ragdoll.done:
+				set_process(false)            # легло: поза записана в скелет, считать больше нечего
+			return
+		ragdoll.remember(delta)
 	if not _active:
 		return
 	if not _detail:
@@ -567,6 +575,8 @@ func _process(delta: float) -> void:
 
 ## пауза / продолжение: дерево анимаций и все модификаторы скелета (житель, которого не видно, и т. п.)
 func set_active(on: bool) -> void:
+	if ragdoll != null and (ragdoll.running or ragdoll.done):
+		return                                # тело на физике или уже легло — клипы и поправки больше не трогают позу
 	_active = on
 	if tree:
 		tree.active = on
@@ -583,7 +593,7 @@ var _detail := true
 ## Подробность: false — без постановки стоп (IK) и мелких движений (пальцы, дыхание, укус головой). Так персонаж
 ## считается в 8–18 м от героя: движения тела те же, а мелочей на таком расстоянии не видно.
 func set_detail(on: bool) -> void:
-	if on == _detail:
+	if on == _detail or (ragdoll != null and (ragdoll.running or ragdoll.done)):
 		return
 	_detail = on
 	# издали — и движения через кадр (30 раз в секунду вместо 60): анимация и поправки скелета считаются вдвое реже
@@ -616,6 +626,86 @@ func _half_step(delta: float) -> void:
 	if skel:
 		skel.advance(_half_acc)
 	_half_acc = 0.0
+
+
+## Гибель на физике: prepare_ragdoll — в миг гибели (пока идёт клип падения, запоминается скорость частей тела),
+## go_ragdoll — перейти на физику (push — толчок, м/с; hit — точка удара). false — скелет не подходит: клип как есть.
+func prepare_ragdoll() -> bool:
+	if skel == null or not BCRagdoll.fits(skel):
+		return false
+	if ragdoll == null:
+		ragdoll = BCRagdoll.new()
+		ragdoll.name = "Ragdoll"
+		ragdoll.height = height
+		ragdoll.active = false
+		skel.add_child(ragdoll)
+		set_process(true)
+	return true
+
+
+func go_ragdoll(push: Vector3, hit := Vector3.INF) -> bool:
+	if not prepare_ragdoll():
+		return false
+	# полные движения: скелет считается каждый кадр (вдали — через кадр по ручному вызову, а тело падает сейчас)
+	set_detail(true)
+	if not _active:
+		set_active(true)
+	if not ragdoll.start(push, hit):
+		return false
+	for m in [limbs, arms, hands, hold, ground, fx, ik]:
+		if m:
+			m.active = false
+	if tree:
+		tree.active = false
+	_action = ""
+	set_process(true)
+	_drop_weapon(push)
+	return true
+
+
+## оружие выпадает из рук и падает рядом (а не висит в воздухе у мёртвой кисти)
+func _drop_weapon(push: Vector3) -> void:
+	if hold == null or hold.node == null or not is_instance_valid(hold.node):
+		return
+	var wn := hold.node
+	var g := wn.global_transform
+	var box := AABB()
+	var first := true
+	var bt := Transform3D(g.basis.orthonormalized(), g.origin)
+	for mi in wn.find_children("*", "MeshInstance3D", true, false):
+		var m := mi as MeshInstance3D
+		if m.mesh == null:
+			continue
+		var bb: AABB = (bt.affine_inverse() * m.global_transform) * m.mesh.get_aabb()
+		box = bb if first else box.merge(bb)
+		first = false
+	if first or box.size.length() < 0.05:
+		return
+	var holder: Node = self
+	while holder != null and not (holder is CharacterBody3D):
+		holder = holder.get_parent()
+	if holder == null:
+		return
+	var body := RigidBody3D.new()
+	body.name = "DroppedWeapon"
+	body.top_level = true
+	body.collision_layer = BCRagdoll.LAYER
+	body.collision_mask = BCRagdoll.MASK
+	body.mass = 3.5
+	body.continuous_cd = true
+	body.angular_damp = 1.5
+	var cs := CollisionShape3D.new()
+	var sh := BoxShape3D.new()
+	sh.size = box.size.max(Vector3.ONE * 0.04)
+	cs.shape = sh
+	cs.position = box.get_center()
+	body.add_child(cs)
+	holder.add_child(body)
+	body.global_transform = bt
+	wn.reparent(body, true)
+	hold.node = null
+	body.linear_velocity = push * 0.6 + Vector3.UP * 0.8
+	body.angular_velocity = Vector3(randf_range(-3, 3), randf_range(-2, 2), randf_range(-3, 3))
 
 
 ## кость для крепления (оружие в руку, фонарь …)

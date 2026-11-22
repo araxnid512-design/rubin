@@ -252,7 +252,7 @@
 		"rifle": {
 			"n": "Автоматная турель",
 			"icon": "tr_rifle",
-			"model": "tr_rifle",
+			"model": "tr2_rifle",
 			"price": {
 				"pea": 4
 			},
@@ -265,14 +265,14 @@
 			"spread": 2.0,
 			"dmg_txt": "низкий",
 			"rate_txt": "высокая",
-			"len": 1.0,
-			"lift": 0.32,
-			"model_yaw": 0.0
+			"len": 0.95,
+			"model_yaw": 0.0,
+			"muz_h": 0.78
 		},
 		"mg": {
 			"n": "Пулемётная турель",
 			"icon": "tr_mg",
-			"model": "tr_mg",
+			"model": "tr2_mg",
 			"price": {
 				"pea": 5
 			},
@@ -285,13 +285,14 @@
 			"spread": 2.5,
 			"dmg_txt": "средний",
 			"rate_txt": "высокая",
-			"len": 1.25,
-			"model_yaw": 0.0
+			"len": 1.1,
+			"model_yaw": 1.0,
+			"muz_h": 0.8
 		},
 		"cannon": {
 			"n": "Автопушечная турель",
 			"icon": "tr_cannon",
-			"model": "tr_cannon",
+			"model": "tr2_cannon",
 			"price": {
 				"pea": 6
 			},
@@ -305,13 +306,14 @@
 			"spread": 1.0,
 			"dmg_txt": "высокий",
 			"rate_txt": "средняя",
-			"len": 1.5,
-			"model_yaw": 0.0
+			"len": 1.2,
+			"model_yaw": -1.5708,
+			"muz_h": 0.55
 		},
 		"rocket": {
 			"n": "Ракетная турель",
 			"icon": "tr_rocket",
-			"model": "tr_rocket",
+			"model": "tr2_rocket",
 			"price": {
 				"pea": 7
 			},
@@ -325,8 +327,9 @@
 			"spread": 0.5,
 			"dmg_txt": "очень высокий",
 			"rate_txt": "низкая",
-			"len": 1.2,
-			"model_yaw": -1.5708
+			"len": 1.1,
+			"model_yaw": -1.5708,
+			"muz_h": 0.6
 		}
 	},
 	"turret_arc_deg": 150.0,

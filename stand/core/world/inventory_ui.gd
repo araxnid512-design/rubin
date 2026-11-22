@@ -403,7 +403,7 @@ func _cell(src: String, i: int, it, sz: Vector2) -> Control:
 	if it != null:
 		var id := String(it.id)
 		var tr := TextureRect.new()
-		tr.texture = ULItems.icon(id)
+		tr.texture = ULItems.icon_of(it)
 		tr.modulate = ULItems.tint(id)
 		tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
@@ -529,7 +529,7 @@ func _update_card() -> void:
 	var id := String(it.id)
 	var d := ULItems.get_def(id)
 	var ic := TextureRect.new()
-	ic.texture = ULItems.icon(id)
+	ic.texture = ULItems.icon_of(it)
 	ic.modulate = ULItems.tint(id)
 	ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED

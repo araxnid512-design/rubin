@@ -37,8 +37,10 @@ func _ready() -> void:
 	list["crate"] = {"kind": "prop", "model": "res://assets/world/ul_crate.glb"}
 	# гараж: значки деталей машины и турелей (модели Tripo; модели ещё нет — значок не рисуется, окно обходится без него)
 	for g in [["veh_wheels", "wh_2"], ["veh_engine", "en_1"], ["veh_body", "car_uaz_body"], ["veh_bumper", "bp_1"], ["veh_trunk", "ul_army_crate"],
-			["tr_rifle", "tr_rifle"], ["tr_mg", "tr_mg"], ["tr_cannon", "tr_cannon"], ["tr_rocket", "tr_rocket"]]:
+			["tr_rifle", "tr2_rifle"], ["tr_mg", "tr2_mg"], ["tr_cannon", "tr2_cannon"], ["tr_rocket", "tr2_rocket"]]:
 		list[g[0]] = {"kind": "prop", "model": "res://assets/world/%s.glb" % g[1]}
+	if ResourceLoader.exists("res://assets/world/it_canister_e.glb"):
+		list["canister_e"] = {"kind": "prop", "model": "res://assets/world/it_canister_e.glb"}    # пустая канистра
 	if not ResourceLoader.exists("res://assets/world/it_canister.glb"):
 		list["canister"] = {"kind": "prop", "model": "res://assets/world/cv_jerrycans.glb"}
 	var kits := {}

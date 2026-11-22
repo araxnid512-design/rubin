@@ -70,7 +70,7 @@
   "d": "Заражённый низшей ступени: бывший человек, которого Улей переродил. Разума нет, только голод. Медленный и слабый, опасен числом.",
   "anim": "res://assets/anim/zombie",
   "anim_cfg": "res://data/anim_enemy.json",
-  "close": 0.8,
+  "close": 0.95,
   "build": "infected",
   "clips": {
    "idle": "infected_idle",
@@ -340,7 +340,7 @@
   "d": "Заражённый на ранней стадии развития: высокий, худой, с когтями и отростками у пасти. Быстрее и крепче пустыша, слышит даже шаги.",
   "anim": "res://assets/anim/lottery",
   "anim_cfg": "res://data/anim_enemy.json",
-  "close": 0.84
+  "close": 1.0
  },
  "ruber": {
   "n": "Рубер",
@@ -647,6 +647,7 @@
   "model": "res://assets/models/mur_boss.glb",
   "anim": "res://assets/anim/hero",
   "height": 2.25,
+  "ragdoll_at": 0.9,
   "hp": 3000,
   "walk": 1.5,
   "run": 4.2,

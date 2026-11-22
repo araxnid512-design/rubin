@@ -68,8 +68,9 @@ const ITEMS := {
 	"q_samples": {"n": "Образцы особой партии", "kind": "quest", "cat": "mineral", "rar": "rare", "stack": 1, "kg": 4.0, "price": {"spore": 20}, "model": "qi_samplebox", "gs": 0.5, "d": "Ящик с подписанными кернами — партия, ради которой работала смена."},
 	# гараж и машина (data/car.json, data/garage.json): канистра — топливо в литрах у самого предмета (fuel);
 	# «fuel20» — товар барахольщика: канистра, полная бензина (as — какой предмет выдаётся, fill — сколько литров)
-	"canister": {"n": "Канистра", "kind": "fuel", "stack": 1, "cap": 20, "icon": "canister", "model": "it_canister", "gs": 0.45, "kg": 1.5, "d": "Металлическая канистра на 20 л. Топливо переносят в ней: залить в резервуар гаража, наполнить из него, заправить машину (окно машины → «Бак»)."},
+	"canister": {"n": "Канистра", "kind": "fuel", "stack": 1, "cap": 20, "icon": "canister", "model": "it_canister", "icon_e": "canister_e", "model_e": "it_canister_e", "gs": 0.45, "kg": 1.5, "d": "Металлическая канистра на 20 л. Топливо переносят в ней: залить в резервуар гаража, наполнить из него, заправить машину (окно машины → «Бак»)."},
 	"fuel20": {"n": "Канистра с бензином (20 л)", "kind": "fuel", "stack": 1, "as": "canister", "fill": 20, "icon": "canister", "gs": 0.45, "d": "Полная канистра бензина: 20 л."},
+	"fuel10": {"n": "Канистра с остатком бензина (10 л)", "kind": "fuel", "stack": 1, "as": "canister", "fill": 10, "icon": "canister", "gs": 0.45, "d": "Канистра, в которой осталось 10 л бензина."},
 	# боеприпасы для турелей машины: продаёт оружейник («Боеприпасы для транспорта»), загружаются в окне машины
 	"veh_am_rifle": {"n": "Патроны автоматной турели", "kind": "veh_ammo", "stack": 300, "icon": "veh_am_rifle", "model": "am_rifle", "gs": 0.4, "d": "Лента 5,45 мм для автоматной турели на крыше машины. Не для ручного оружия."},
 	"veh_am_mg": {"n": "Лента пулемётной турели", "kind": "veh_ammo", "stack": 250, "icon": "veh_am_mg", "model": "am_mg", "gs": 0.45, "d": "Патроны 12,7 мм в коробе для пулемётной турели машины."},
@@ -150,7 +151,14 @@ static func title(it) -> String:
 		return ""
 	var n := int(it.get("n", 1))
 	if it.has("fuel"):
-		return "%s — %s / %d л" % [get_def(String(it.id)).n, _l(float(it.fuel)), int(get_def(String(it.id)).get("cap", 20))]
+		# канистра: пустая, полная или с остатком — так и называется (и значок у пустой свой)
+		var cap := int(get_def(String(it.id)).get("cap", 20))
+		var l := float(it.fuel)
+		if l <= 0.05:
+			return "Пустая канистра"
+		if l >= float(cap) - 0.05:
+			return "Канистра с бензином — %d л" % cap
+		return "Канистра с бензином — %s / %d л" % [_l(l), cap]
 	return get_def(String(it.id)).n + (" ×%d" % n if n > 1 else "")
 
 
@@ -236,6 +244,35 @@ static func kit_mesh(id: String, part := "") -> Mesh:
 
 
 static var _icons := {}
+
+
+## пустая ли канистра (у пустой — свой значок и своя модель на земле)
+static func empty_can(it) -> bool:
+	return it != null and it.has("fuel") and float(it.fuel) <= 0.05
+
+
+## значок предмета с учётом состояния (пустая канистра — серая, без бензина)
+static func icon_of(it) -> Texture2D:
+	if it == null:
+		return null
+	var id := String(it.id)
+	if empty_can(it) and get_def(id).has("icon_e"):
+		var key := "%s#e" % id
+		if not _icons.has(key):
+			var path := ICONS + String(get_def(id).icon_e) + ".png"
+			_icons[key] = load(path) if ResourceLoader.exists(path) else icon(id)
+		return _icons[key]
+	return icon(id)
+
+
+## модель предмета на земле с учётом состояния
+static func model_of(it) -> String:
+	var id := String(it.id)
+	if empty_can(it) and get_def(id).has("model_e"):
+		var m := "res://assets/world/" + String(get_def(id).model_e) + ".glb"
+		if ResourceLoader.exists(m):
+			return m
+	return model_path(id)
 
 
 static func icon(id: String) -> Texture2D:

@@ -193,6 +193,10 @@ func setup(k: String, at: Vector3, seed_n: int) -> void:
 					mt.albedo_color = Color(0.62, 0.74, 0.6)
 					m.set_surface_override_material(si, mt)
 	_rim(rig.model)
+	for mi in rig.model.find_children("*", "MeshInstance3D", true, false):
+		_meshes.append(mi)
+	if not def.has("gun"):
+		_mini_make()
 	rotation.y = _rng.randf() * TAU
 	_t = _rng.randf_range(1.0, 4.0)
 	_growl = _rng.randf_range(3.0, 9.0)
@@ -346,13 +350,26 @@ func damage(d: float, from := Vector3.INF) -> void:
 		_charge_t = 0.0
 		_rock_abort()
 		rig.set_motion(0.0, 0.0, 0.016)
+		_mini_show(false)
+		# Гибель на физике (как в мобильных выживалках): клип падения идёт долю секунды (оседает, запрокидывается),
+		# потом тело валится всем весом от удара и ложится по земле (BCRagdoll). Скелет не подходит — клип как есть.
+		_rd_at = -1.0
+		if ragdoll_on and bool(def.get("ragdoll", true)) and rig.prepare_ragdoll():
+			_rd_at = float(def.get("ragdoll_at", 0.22))
+			var fw := Vector3(sin(rotation.y), 0, cos(rotation.y))
+			var pv := (global_position - from) if from != Vector3.INF else -fw
+			pv.y = 0.0
+			pv = pv.normalized() if pv.length() > 0.01 else -fw
+			var pk := clampf(d / maxf(float(def.hp), 1.0) * 2.0, 0.6, 1.5) * float(def.get("ragdoll_push", 1.2))
+			_rd_push = pv * pk + Vector3.UP * 0.6
+			_rd_hit = global_position + Vector3.UP * float(def.get("height", 1.78)) * 0.7
 		# ударили спереди — валится на спину; сзади — лицом вперёд; сбоку — разворачивает к удару и валит от него
 		var clip := "death_front" if side == "back" and rig.has_clip("death_front") else "death"
 		if side == "side" and rig.has_clip("death_side"):
 			clip = "death_side"                      # своё падение набок
 		var pose: String = {"death": "dead", "death_front": "dead_front", "death_side": "dead_side"}[clip]
 		death_clip = clip if side != "side" else "death_side"
-		if side == "side" and clip != "death_side":
+		if side == "side" and clip != "death_side" and _rd_at < 0.0:
 			var tv := from - global_position
 			_twist = atan2(tv.x, tv.z)
 		if rig.has_clip(clip):
@@ -360,6 +377,7 @@ func damage(d: float, from := Vector3.INF) -> void:
 			rig.set_pose(pose if rig.has_clip(pose) else "dead", maxf(len_s - 0.3, 0.0))
 		noise.emit("zdeath", global_position)
 		return
+	_hit_fx(d, from)
 	if _calm() or state == "alert":
 		# удар будит сразу, без крика
 		state = "chase"
@@ -376,6 +394,19 @@ func damage(d: float, from := Vector3.INF) -> void:
 			# оглушён до броска: камень рассыпается в руках, метка гаснет
 			_rock_abort()
 			state = "chase"
+	elif _hit_due >= 0.0 and _snap_at >= 0.0 and not bool(def.get("no_flinch", false)) \
+			and d >= float(def.get("interrupt_dmg", float(def.hp) * 0.15)):
+		# удар на замахе сбивает его удар (как в Last Day on Earth: ударил первым — успел отойти)
+		rig.stop_action()
+		_hit_due = -1.0
+		_snap_at = -1.0
+		_lunge_t = 0.0
+		_strikes.clear()
+		_atk = maxf(_atk, float(def.cd) * 0.6)
+		interrupts += 1
+		var hc0 := "hit_back" if side == "back" and rig.has_clip("hit_back") else "hit_front"
+		if rig.has_clip(hc0):
+			rig.play(hc0, 1.5)
 	elif not rig.busy() and not bool(def.get("no_flinch", false)):
 		var hc := "hit_back" if side == "back" and rig.has_clip("hit_back") else "hit_front"
 		if rig.has_clip(hc):
@@ -388,10 +419,9 @@ func tick(delta: float, p: Vector3, can_see: bool, hero_alive: bool) -> void:
 	if not _strikes.is_empty():
 		_strike_tick(delta)
 	if state == "dead":
-		dead_t += delta
-		if _twist != INF and dead_t < 0.45:
-			rotation.y = lerp_angle(rotation.y, _twist, 1.0 - exp(-delta * 9.0))
+		_dead_tick(delta)
 		return
+	_mini_tick(delta)
 	var to := p - global_position
 	to.y = 0.0
 	var dist := to.length()
@@ -600,7 +630,8 @@ func tick(delta: float, p: Vector3, can_see: bool, hero_alive: bool) -> void:
 		speed = _spd_s
 	else:
 		_spd_s = speed
-	velocity = Vector3(fwd.x * speed * step_k, velocity.y - 9.8 * delta, fwd.z * speed * step_k)
+	velocity = Vector3(fwd.x * speed * step_k + _kb.x, velocity.y - 9.8 * delta, fwd.z * speed * step_k + _kb.z)
+	_kb = _kb.move_toward(Vector3.ZERO, delta * 14.0)
 	move_and_slide()
 	velocity.x /= step_k
 	velocity.z /= step_k
@@ -886,3 +917,130 @@ func set_shadow(on: bool) -> void:
 
 
 var _geo: Array = []              ## [сетка, её тень по умолчанию]
+
+
+# ---------------- попадание: отброс, вспышка, полоска здоровья ----------------
+
+static var ragdoll_on := true            ## гибель на физике (BCRagdoll); false — только клипы падения
+var ragdolled := false                   ## тело упало на физике (для проверок)
+var interrupts := 0                      ## сколько раз удар героя сбил его замах (для проверок)
+var _rd_at := -1.0
+var _rd_push := Vector3.ZERO
+var _rd_hit := Vector3.INF
+var _kb := Vector3.ZERO                  ## отброс от удара, м/с (гаснет за ~0,15 с)
+var _meshes: Array = []
+var _flash_t := 0.0
+var _mini: MeshInstance3D
+var _mini_k := 1.0
+var _mini_t := 0.0
+static var _flash_mat: StandardMaterial3D
+static var _bar_mat: ShaderMaterial
+
+
+## Попадание: тело отбрасывает от удара (сильнее — дальше; тяжёлого — меньше), фигура на миг вспыхивает красным,
+## над головой появляется полоска здоровья.
+## убит: через долю секунды клипа — на физику; последние две секунды тело уходит в землю (не пропадает разом)
+func _dead_tick(delta: float) -> void:
+	dead_t += delta
+	if _rd_at >= 0.0 and dead_t >= _rd_at:
+		_rd_at = -1.0
+		ragdolled = rig.go_ragdoll(_rd_push, _rd_hit)
+	if _twist != INF and dead_t < 0.45:
+		rotation.y = lerp_angle(rotation.y, _twist, 1.0 - exp(-delta * 9.0))
+	var sink := clampf((dead_t - (CORPSE_S - 2.0)) / 2.0, 0.0, 1.0)
+	if sink > 0.0 and rig != null:
+		rig.position.y = -0.55 * sink * sink
+
+
+## тело легло (лужа крови — под ним, обыск — там): на физике — когда тела замерли, иначе — через 0,6 с
+func settled() -> bool:
+	if _rd_at >= 0.0:
+		return false
+	if ragdolled and rig.ragdoll != null and not rig.ragdoll.done:
+		return dead_t > 4.0
+	return dead_t > 0.6
+
+
+func _hit_fx(d: float, from: Vector3) -> void:
+	if from != Vector3.INF:
+		var v := global_position - from
+		v.y = 0.0
+		if v.length() > 0.01:
+			var k := clampf(d / maxf(float(def.hp), 1.0) * 6.0, 0.6, 3.2) * float(def.get("knock_k", 1.0))
+			_kb = v.normalized() * k
+	if _flash_mat == null:
+		_flash_mat = StandardMaterial3D.new()
+		_flash_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		_flash_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		_flash_mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+		_flash_mat.albedo_color = Color(0.36, 0.07, 0.04, 1.0)
+	for m in _meshes:
+		if is_instance_valid(m):
+			(m as GeometryInstance3D).material_overlay = _flash_mat
+	_flash_t = 0.09
+	set_process(true)
+	_mini_t = 6.0
+	_mini_show(true)
+
+
+func _process(delta: float) -> void:
+	if _flash_t > 0.0:
+		_flash_t -= delta
+		if _flash_t <= 0.0:
+			for m in _meshes:
+				if is_instance_valid(m):
+					(m as GeometryInstance3D).material_overlay = null
+	if _flash_t <= 0.0:
+		set_process(false)
+
+
+func _mini_make() -> void:
+	if _bar_mat == null:
+		var sh := Shader.new()
+		sh.code = """shader_type spatial;
+render_mode unshaded, cull_disabled, depth_test_disabled, shadows_disabled, fog_disabled;
+instance uniform float k = 1.0;
+instance uniform float lag = 1.0;
+void vertex() {
+	MODELVIEW_MATRIX = VIEW_MATRIX * mat4(INV_VIEW_MATRIX[0], INV_VIEW_MATRIX[1], INV_VIEW_MATRIX[2], MODEL_MATRIX[3]);
+}
+void fragment() {
+	float bx = step(UV.x, 0.025) + step(0.975, UV.x) + step(UV.y, 0.16) + step(0.84, UV.y);
+	vec3 c = UV.x < k ? vec3(0.86, 0.12, 0.08) : (UV.x < lag ? vec3(0.95, 0.85, 0.6) : vec3(0.12, 0.1, 0.1));
+	ALBEDO = mix(c, vec3(0.02), clamp(bx, 0.0, 1.0));
+	ALPHA = 0.92;
+}
+"""
+		_bar_mat = ShaderMaterial.new()
+		_bar_mat.shader = sh
+		_bar_mat.render_priority = 3
+	_mini = MeshInstance3D.new()
+	_mini.name = "HpMini"
+	var qm := QuadMesh.new()
+	qm.size = Vector2(0.62, 0.075)
+	_mini.mesh = qm
+	_mini.material_override = _bar_mat
+	_mini.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_mini.position = Vector3(0, float(def.get("height", 1.78)) + 0.28, 0)
+	_mini.visible = false
+	add_child(_mini)
+
+
+func _mini_show(on: bool) -> void:
+	if _mini == null:
+		return
+	_mini.visible = on and alive() and hp < float(def.hp)
+	if _mini.visible:
+		_mini.set_instance_shader_parameter("k", clampf(hp / float(def.hp), 0.0, 1.0))
+
+
+## полоска: сразу показывает новое здоровье, светлый «след» потери догоняет его; без попаданий 6 с — прячется
+func _mini_tick(delta: float) -> void:
+	if _mini == null or not _mini.visible:
+		return
+	var k := clampf(hp / float(def.hp), 0.0, 1.0)
+	_mini_k = move_toward(_mini_k, k, delta * 0.8)
+	_mini.set_instance_shader_parameter("lag", _mini_k)
+	_mini_t -= delta
+	if _mini_t <= 0.0 and state != "attack" and state != "chase":
+		_mini.visible = false

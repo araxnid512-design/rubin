@@ -206,9 +206,7 @@ func gun_range() -> float:
 func tick(delta: float, p: Vector3, can_see: bool, hero_alive: bool) -> void:
 	_hero_p = p
 	if state == "dead":
-		dead_t += delta
-		if _twist != INF and dead_t < 0.45:
-			rotation.y = lerp_angle(rotation.y, _twist, 1.0 - exp(-delta * 9.0))
+		_dead_tick(delta)
 		return
 	var to := p - global_position
 	to.y = 0.0

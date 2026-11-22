@@ -52,6 +52,17 @@ var _mat_plate: StandardMaterial3D
 var turret_root: Node3D             ## кольцо на крыше
 var turret_yaw: Node3D              ## поворотная часть
 var turret_muzzle: Node3D
+var turret_gun: Node3D              ## само оружие турели (откатывается при выстреле)
+var turret_fx: BCShotFx             ## вспышка, дымок и гильзы турели (в мире)
+var _kick := 0.0                    ## откат ствола, м (гаснет за доли секунды)
+var _muz := Vector3.INF             ## дульный срез по модели турели (в системе оружия)
+## эффекты выстрела по видам турелей: откат, вспышка, дым (× размер), гильза [длина, радиус, цвет] или выхлоп назад
+const TUR_FX := {
+	"rifle": {"kick": 0.05, "flash": 1.1, "puff": 0.8, "case": [0.039, 0.0055, Color(0.85, 0.62, 0.3)]},
+	"mg": {"kick": 0.07, "flash": 1.4, "puff": 1.0, "case": [0.054, 0.0064, Color(0.85, 0.62, 0.3)]},
+	"cannon": {"kick": 0.16, "flash": 2.3, "puff": 2.2, "case": [0.165, 0.016, Color(0.8, 0.6, 0.28)]},
+	"rocket": {"kick": 0.03, "flash": 1.6, "puff": 2.8, "back": true},
+}
 var turret_aim := 0.0               ## куда наведена (рад, относительно курса машины)
 var turret_want := 0.0
 var _fire_cd := 0.0
@@ -356,6 +367,10 @@ func _build_turret() -> void:
 	turret_root = null
 	turret_yaw = null
 	turret_muzzle = null
+	turret_gun = null
+	turret_fx = null
+	_kick = 0.0
+	_muz = Vector3.INF
 	var t := turret_type()
 	if t == "":
 		return
@@ -376,6 +391,12 @@ func _build_turret() -> void:
 	turret_yaw = Node3D.new()
 	turret_yaw.position.y = 0.1
 	turret_root.add_child(turret_yaw)
+	turret_gun = Node3D.new()
+	turret_gun.name = "Gun"
+	turret_yaw.add_child(turret_gun)
+	turret_fx = BCShotFx.new()
+	turret_fx.name = "TurretFx"
+	turret_root.add_child(turret_fx)
 	var mpath := "res://assets/world/%s.glb" % String(tc.get("model", ""))
 	var length := float(tc.get("len", 1.3))
 	var lift := float(tc.get("lift", 0.0))
@@ -398,7 +419,10 @@ func _build_turret() -> void:
 			fork.material_override = _mat_metal
 			fork.position.y = lift
 			turret_yaw.add_child(fork)
-		_prop(mpath, length, Vector3(0, lift, 0), float(tc.get("model_yaw", 0.0)), false, turret_yaw)
+		var gm := _prop(mpath, length, Vector3(0, lift, 0), float(tc.get("model_yaw", 0.0)), false, turret_gun)
+		# дульный срез — у переднего края модели (ствол смотрит по +Z), на высоте ствола (доля высоты модели)
+		var gb := _box_in(gm, turret_gun)
+		_muz = Vector3(gb.get_center().x, gb.position.y + gb.size.y * float(tc.get("muz_h", 0.7)), gb.end.z - 0.03)
 	else:
 		# запасной вид (пока нет модели): короб и ствол (у ракетной — пакет направляющих)
 		var bx := MeshInstance3D.new()
@@ -407,7 +431,7 @@ func _build_turret() -> void:
 		bx.mesh = bm
 		bx.material_override = _mat_plate
 		bx.position = Vector3(0, 0.18, 0)
-		turret_yaw.add_child(bx)
+		turret_gun.add_child(bx)
 		var br := MeshInstance3D.new()
 		var cy := CylinderMesh.new()
 		cy.top_radius = 0.035 if t != "rocket" else 0.18
@@ -417,10 +441,11 @@ func _build_turret() -> void:
 		br.material_override = _mat_metal
 		br.rotation.x = PI * 0.5
 		br.position = Vector3(0, 0.22, 0.6)
-		turret_yaw.add_child(br)
+		turret_gun.add_child(br)
 	turret_muzzle = Node3D.new()
-	turret_muzzle.position = Vector3(0, 0.25 + lift * 0.4, length * 0.52)
-	turret_yaw.add_child(turret_muzzle)
+	var mz: Array = tc.get("muzzle", [])
+	turret_muzzle.position = Vector3(float(mz[0]), float(mz[1]), float(mz[2])) if mz.size() == 3 else (_muz if _muz != Vector3.INF else Vector3(0, 0.25 + lift * 0.4, length * 0.52))
+	turret_gun.add_child(turret_muzzle)
 	turret_yaw.rotation.y = turret_aim
 
 
@@ -680,6 +705,31 @@ func _turret_tick(delta: float) -> void:
 		return
 	turret_aim = move_toward(turret_aim, turret_want, 2.6 * delta)
 	turret_yaw.rotation.y = turret_aim
+	if turret_gun != null and (_kick > 0.0 or turret_gun.position.z != 0.0):
+		# откат: ствол резко назад и плавно на место (у пушки — заметно, у пулемёта — дрожь очереди)
+		_kick = move_toward(_kick, 0.0, delta * 0.9)
+		turret_gun.position.z = -_kick
+
+
+## Выстрел турели виден: откат ствола, вспышка у дульного среза, дымок, гильза вылетает вбок и падает на землю;
+## у ракетной — выхлоп назад из пакета (сам полёт ракеты с дымным следом рисует мир)
+func turret_effects(t: String, dir: Vector3) -> void:
+	var fx: Dictionary = TUR_FX.get(t, {})
+	_kick = float(fx.get("kick", 0.05))
+	if turret_fx == null or turret_muzzle == null or not turret_fx.is_inside_tree():
+		return
+	var m := turret_muzzle.global_position
+	var length := float(turret_cfg(t).get("len", 1.2))
+	if float(fx.get("flash", 0.0)) > 0.0:
+		turret_fx.flash(m, dir, float(fx.flash))
+	if bool(fx.get("back", false)):
+		turret_fx.puff(m - dir * length * 0.9, -dir, float(fx.get("puff", 2.0)))
+		turret_fx.puff(m, dir, float(fx.get("puff", 2.0)) * 0.6)
+	elif fx.has("puff"):
+		turret_fx.puff(m, dir, float(fx.puff))
+	if fx.has("case"):
+		var right := dir.cross(Vector3.UP).normalized()
+		turret_fx.eject(m - dir * length * 0.45 + Vector3.UP * 0.06, Basis(right, Vector3.UP, -dir), global_position.y, fx.case)
 
 
 ## выстрел турели, если готова: тратит боезапас; {from, dir, cfg, type}, {"empty": true} — нечем, {} — не готова

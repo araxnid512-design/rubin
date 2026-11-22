@@ -757,7 +757,7 @@ func _build_tank() -> void:
 		var row := HBoxContainer.new()
 		row.add_theme_constant_override("separation", 10)
 		v.add_child(row)
-		row.add_child(_icon("canister", 36))
+		row.add_child(_icon("canister_e" if ULItems.empty_can(it) else "canister", 36))
 		row.add_child(_lbl(ULItems.title(it), 17, C_TEXT))
 		var b := _btn("Залить в бак", "green", func() -> void: use_canister("car", it), 200.0, 40.0, 16)
 		b.name = "pour"

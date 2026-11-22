@@ -560,6 +560,12 @@
 		],
 		"boiler": [
 			[
+				"canister",
+				1,
+				1,
+				0.8
+			],
+			[
 				"spare_parts",
 				1,
 				1,

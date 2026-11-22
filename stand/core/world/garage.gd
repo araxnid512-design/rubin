@@ -545,6 +545,11 @@ func contains(p: Vector3) -> bool:
 
 
 ## места взаимодействия (мир)
+## где в новом гараже стоят канистры (у топливной станции), в системе гаража
+func can_spots() -> Array:
+	return [Vector3(-1.25, 0.02, -4.3), Vector3(-0.75, 0.02, -4.35), Vector3(-1.0, 0.02, -3.85)]
+
+
 func zones() -> Dictionary:
 	if not built:
 		return {}

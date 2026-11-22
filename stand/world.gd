@@ -140,7 +140,7 @@ func _ready() -> void:
 			sc.lottery = [sc.lottery[1], sc.lottery[1]]
 			sc.ruber_chances = [0, 0, 1]                 # и два Рубера — всего 57
 			ULSanatorium._cfg = sc
-	if test == "gqview" or test == "mapbake" or test == "pmap" or test == "fldiag" or test == "shbake" or test == "shcheck" or test == "gbake" or test == "gcheck" or test == "gperf" or test == "lumtest" or test == "wperf" or test == "evo" or test == "reload" or test == "look" or test == "traces" or test == "car" or test == "colaudit":
+	if test == "gqview" or test == "mapbake" or test == "pmap" or test == "fldiag" or test == "shbake" or test == "shcheck" or test == "gbake" or test == "gcheck" or test == "gperf" or test == "lumtest" or test == "wperf" or test == "evo" or test == "reload" or test == "look" or test == "traces" or test == "car" or test == "turfx" or test == "colaudit":
 		# сравнение чёткости (gqview), запекание карты локации (mapbake), проверка карты (pmap): место — --as-place=
 		ULSettings.arena = false
 		for a in OS.get_cmdline_user_args():
@@ -260,6 +260,7 @@ func _ready() -> void:
 	if ResourceLoader.exists(MODELS + "ul_crate.glb"):
 		_crate_scene = load(MODELS + "ul_crate.glb")
 	_load()
+	_garage_gift()
 	if test == "" and not lvl and not temp() and not arena and ULCase.pending() != null:
 		# награда из оружейного сундука не выдана (не было места, закрыли игру) — окно выдачи сразу дома
 		_case_show.call_deferred(ULCase.pending(), true)
@@ -548,12 +549,12 @@ func _cowshed_enter() -> void:
 		k += 1
 		if k % 6 == 0:
 			await get_tree().process_frame          # по нескольку за кадр — без долгой заминки на входе
-	if test == "car":
+	if test == "car" or test == "turfx":
 		ULBase.memory_only = true                  # проверка машины: гараж куплен — в памяти, файл не трогается
 		ULBase.load_state(true)
 		ULBase.data.garage.level = 1
 		ULBase._garage_norm()
-	if test == "" or test == "car":
+	if test == "" or test == "car" or test == "turfx":
 		_car_spawn()
 	cs_ready = true
 	sn_ready_ms = Time.get_ticks_msec()
@@ -3234,9 +3235,9 @@ func _ground_visual(g: Dictionary) -> void:
 		m.rotation.x = -0.25 if String(pk.back) == "-z" else 0.0
 		m.rotation.z = 0.0 if String(pk.back) == "-z" else 0.25
 		node.add_child(m)
-	elif ULItems.model_path(String(it.id)) != "":
-		# минералы, запчасти, хлам карьера — своя модель Tripo, по размеру на земле (gs), повёрнута как упала
-		var qm: Node3D = (load(ULItems.model_path(String(it.id))) as PackedScene).instantiate()
+	elif ULItems.model_of(it) != "":
+		# минералы, запчасти, хлам карьера, канистры — своя модель Tripo, по размеру на земле (gs), повёрнута как упала
+		var qm: Node3D = (load(ULItems.model_of(it)) as PackedScene).instantiate()
 		var qb := _aabb(qm)
 		var qs := float(d.get("gs", 0.3)) / maxf(qb.size.x, maxf(qb.size.y, qb.size.z))
 		qm.scale = Vector3.ONE * qs
@@ -3263,7 +3264,7 @@ func _ground_visual(g: Dictionary) -> void:
 	else:
 		# мелкий предмет — иконка на земле, лицом к камере
 		var sp := Sprite3D.new()
-		sp.texture = ULItems.icon(String(it.id))
+		sp.texture = ULItems.icon_of(it)
 		sp.modulate = ULItems.tint(String(it.id))
 		sp.pixel_size = 0.0016
 		sp.billboard = BaseMaterial3D.BILLBOARD_FIXED_Y
@@ -5047,7 +5048,9 @@ func _fly_bullet(id: String, a: Vector3, b: Vector3, col: Object, dmg: float, fo
 	n.global_position = a
 	if a.distance_to(b) > 0.05:
 		n.look_at(b, Vector3.UP if absf((b - a).normalized().y) < 0.98 else Vector3.RIGHT)
-	_bullets.append({"n": n, "a": a, "b": b, "t": 0.0, "dur": maxf(a.distance_to(b) / (BULLET_SPEED * bullet_k), 0.02), "col": col, "dmg": dmg, "id": id, "foe": foe})
+	# ракета турели летит заметно медленнее пули, снаряд автопушки — чуть медленнее
+	var vk: float = {"veh_rocket": 0.42, "veh_shell": 0.75}.get(id, 1.0)
+	_bullets.append({"n": n, "a": a, "b": b, "t": 0.0, "dur": maxf(a.distance_to(b) / (BULLET_SPEED * bullet_k * vk), 0.02), "col": col, "dmg": dmg, "id": id, "foe": foe})
 
 
 ## полёт пуль: каждая летит по прямой; долетела — урон и звук попадания
@@ -11722,7 +11725,7 @@ func _blood_pool(e: ULEnemy) -> void:
 		sh.code = POOL_SHADER
 		_pool_mat.shader = sh
 		_pool_mat.set_shader_parameter("noise", _noise_tex)
-	var c := e.body_pos().lerp(e.global_position, 0.35)
+	var c := e.body_pos() if e.ragdolled else e.body_pos().lerp(e.global_position, 0.35)
 	var hit := _ray_static(c + Vector3.UP * 0.6, c + Vector3.DOWN * 2.5)
 	var y := float(hit.position.y) if not hit.is_empty() else e.global_position.y
 	var mi := MeshInstance3D.new()
@@ -11980,7 +11983,7 @@ func _enemies_tick(delta: float) -> void:
 		var e := enemies[i]
 		if not e.alive():
 			e.tick(delta, p, false, hero_ok)
-			if e.dead_t > 0.6 and not e.has_meta("pool"):
+			if e.settled() and not e.has_meta("pool"):
 				e.set_meta("pool", true)
 				_blood_pool(e)
 			if e.dead_t >= ULEnemy.CORPSE_S:
@@ -13608,6 +13611,7 @@ func pc_done(kind: String, id: String) -> void:
 		_garage_build()                         # гараж построен: здание на площадке, в нём — машина
 		if car == null:
 			_car_spawn()
+		_garage_gift()
 	if kind == "upgrade" and ULBase.has_staff("gunsmith") and npc_by_role("оружейник") == null:
 		_npcs_setup()
 	snd.play("click", player.global_position + Vector3.UP * 1.0, -4.0)
@@ -14151,6 +14155,9 @@ func _run_test() -> void:
 		return
 	if test == "car":
 		await _car_test()
+		return
+	if test == "turfx":
+		await _turfx_test()
 		return
 	if test == "garage":
 		await _garage_test()
@@ -16352,6 +16359,65 @@ func _run_test() -> void:
 		await _snap("s3_inventory")
 		get_tree().quit()
 		return
+	if test == "ragdoll":
+		# гибель на физике: враги разных видов убиты спереди, сзади и сбоку; снимки сбоку низко и игровой камерой,
+		# замер: тело легло (таз и голова у земли), поза записана, тела удалены
+		DirAccess.make_dir_recursive_absolute(out)
+		hp_lock = true
+		for e0 in enemies.duplicate():
+			e0.damage(1000000.0)
+		player.global_position = Vector3(18.0, 0.05, 10.0)
+		var kinds := ["infected", "lottery", "infected", "ruber", "mur_ak"]
+		var froms := [Vector3(0, 0, -1), Vector3(0, 0, 1), Vector3(1, 0, 0), Vector3(0, 0, -1), Vector3(-1, 0, 0)]
+		for a in OS.get_cmdline_user_args():
+			if a.begins_with("--as-kind="):
+				kinds = [a.substr(10)]
+		var rc := Camera3D.new()
+		add_child(rc)
+		rc.fov = 40.0
+		rc.current = true
+		_hud.visible = false
+		var bad := 0
+		for ki in kinds.size():
+			var kd := String(kinds[ki])
+			var at := Vector3(18.0 + ki * 0.01, 0.0, 22.0)
+			var z := spawn_enemy(kd, at)
+			z.def = z.def.duplicate()
+			z.def.see = 0.0
+			z.def.walk = 0.0
+			z.wander_r = 0.0
+			z.rotation.y = 0.0
+			rc.look_at_from_position(at + Vector3(-4.2, 1.3, 1.0), at + Vector3(0, 0.5, 0.6))
+			await get_tree().create_timer(0.8).timeout
+			var fr: Vector3 = froms[ki % froms.size()]
+			z.damage(100000.0, at + fr * 1.5 + Vector3.UP)
+			var t0 := Time.get_ticks_msec()
+			for ti in [0.15, 0.4, 0.8, 1.4, 2.5, 4.5]:
+				while Time.get_ticks_msec() - t0 < int(ti * 1000.0):
+					await get_tree().process_frame
+				await _snap("%d_%s_%.2f" % [ki, kd, ti])
+			var sk: Skeleton3D = z.rig.skel
+			var hy := -1.0
+			var hd := -1.0
+			var top := -1.0
+			for bn in ["Hip", "Head", "Spine02"]:
+				var bi := sk.find_bone(bn)
+				if bi >= 0:
+					var y := (sk.global_transform * sk.get_bone_global_pose(bi).origin).y - z.global_position.y
+					top = maxf(top, y)
+					if bn == "Hip":
+						hy = y
+					if bn == "Head":
+						hd = y
+			var rd: BCRagdoll = z.rig.ragdoll
+			var ok := z.ragdolled and rd != null and rd.done and top < 0.5 and hy > -0.05
+			if not ok:
+				bad += 1
+			print("[ragdoll] %s: на физике %s, легло %s за %.1f с, таз %.2f м, голова %.2f м, выше всего %.2f м, смещение %.2f м — %s" % [kd, str(z.ragdolled), str(rd != null and rd.done), rd.t if rd != null else -1.0, hy, hd, top, z.body_pos().distance_to(at), "ок" if ok else "ПЛОХО"])
+			z.global_position += Vector3(0, -40, 0)
+		print("[ragdoll] итог: плохо %d" % bad)
+		get_tree().quit()
+		return
 	if test == "eclips":
 		# движения заражённого крупным планом: по шесть кадров на клип
 		DirAccess.make_dir_recursive_absolute(out)
@@ -16650,6 +16716,21 @@ func _garage_build() -> void:
 	garage.name = "Garage"
 	add_child(garage)
 	garage.setup(ULBase.garage_cfg(), ULBase.garage_level() >= 1 or test == "bake")
+
+
+## Новый гараж — с канистрами у топливной станции: одна с бензином, две пустые (один раз; дальше — свои вещи)
+func _garage_gift() -> void:
+	if place != "home" or arena or test != "" or garage == null or ULBase.garage_level() < 1:
+		return
+	var gd := ULBase.garage()
+	if bool(gd.get("cans", false)):
+		return
+	gd["cans"] = true
+	var spots: Array = garage.can_spots()
+	for i in spots.size():
+		_spawn_ground(ULItems.make("fuel20" if i == 0 else "canister"), garage.to_global(spots[i]), randf() * TAU)
+	ULBase.save_state()
+	_save()
 
 
 ## участок гаража с запасом m (там не растут деревья, кусты и трава), перед воротами — подъезд
@@ -16972,11 +17053,85 @@ func _turret_shoot() -> void:
 		e.hear(car.global_position)
 	var sname: String = {"rifle": "shot_ak", "mg": "shot_pkp", "cannon": "shot_deagle", "rocket": "grenade_boom"}.get(t, "shot_ak")
 	snd.play(sname, from, -2.0 if t != "rocket" else -8.0, 0.05)
-	_flash.global_position = from + dir * 0.15
-	_flash.visible = true
-	_flash.scale = Vector3.ONE * (1.0 if t in ["rifle", "mg"] else 1.6)
-	_flash_t = 0.05
+	car.turret_effects(t, dir)
+	if t == "rocket":
+		_rocket_trail(_bullets.back())
 	_car_store()
+
+
+## Ракета турели летит медленнее пули, с огоньком двигателя и дымным следом, который ещё секунду висит в воздухе
+func _rocket_trail(bl: Dictionary) -> void:
+	var a: Vector3 = bl.a
+	var b: Vector3 = bl.b
+	var dur := float(bl.dur)
+	var root := Node3D.new()
+	root.name = "RocketTrail"
+	add_child(root)
+	root.global_position = a
+	if a.distance_to(b) > 0.05:
+		root.look_at(b, Vector3.UP if absf((b - a).normalized().y) < 0.98 else Vector3.RIGHT)
+	if ResourceLoader.exists(MODELS + "fx_rocket.glb"):
+		# своя модель ракеты (Tripo) вместо вытянутой пули
+		var rm: Node3D = (load(MODELS + "fx_rocket.glb") as PackedScene).instantiate()
+		var rb := _aabb(rm)
+		var ln := maxf(rb.size.x, maxf(rb.size.y, rb.size.z))
+		rm.scale = Vector3.ONE * (0.9 / maxf(ln, 0.01))
+		if rb.size.x >= rb.size.z and rb.size.x >= rb.size.y:
+			rm.rotation.y = PI * 0.5                 # длинная ось модели — по направлению полёта (−Z)
+		elif rb.size.y > rb.size.z:
+			rm.rotation.x = -PI * 0.5
+		root.add_child(rm)
+		(bl.n as MeshInstance3D).visible = false
+	var glow := OmniLight3D.new()
+	glow.light_color = Color(1.0, 0.6, 0.25)
+	glow.light_energy = 2.0
+	glow.omni_range = 3.0
+	glow.position = Vector3(0, 0, 0.5)
+	root.add_child(glow)
+	var tr := CPUParticles3D.new()
+	tr.amount = 46
+	tr.lifetime = 1.1
+	tr.local_coords = false
+	tr.position = Vector3(0, 0, 0.5)
+	tr.direction = Vector3(0, 0, 1)
+	tr.spread = 12.0
+	tr.initial_velocity_min = 0.4
+	tr.initial_velocity_max = 1.0
+	tr.gravity = Vector3(0, 0.5, 0)
+	tr.scale_amount_min = 0.5
+	tr.scale_amount_max = 1.0
+	var curve := Curve.new()
+	curve.add_point(Vector2(0, 0.35))
+	curve.add_point(Vector2(1, 1.6))
+	tr.scale_amount_curve = curve
+	var grad := Gradient.new()
+	grad.set_color(0, Color(1.0, 0.75, 0.4, 0.9))
+	grad.add_point(0.12, Color(0.6, 0.58, 0.55, 0.6))
+	grad.set_color(grad.get_point_count() - 1, Color(0.55, 0.55, 0.55, 0.0))
+	tr.color_ramp = grad
+	var q := QuadMesh.new()
+	q.size = Vector2(0.45, 0.45)
+	var qm := StandardMaterial3D.new()
+	qm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	qm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	qm.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
+	qm.vertex_color_use_as_albedo = true
+	qm.albedo_texture = BCShotFx._blob()
+	qm.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
+	q.material = qm
+	tr.mesh = q
+	tr.emitting = true
+	root.add_child(tr)
+	var tw := root.create_tween()
+	tw.tween_property(root, "global_position", b, dur)
+	tw.tween_callback(func() -> void:
+		tr.emitting = false
+		glow.visible = false
+		for c in root.get_children():
+			if c is Node3D and c != tr:
+				(c as Node3D).visible = false)
+	tw.tween_interval(1.3)
+	tw.tween_callback(root.queue_free)
 
 
 ## разрыв снаряда турели (автопушка, ракета): огонь и дым, урон врагам в радиусе (меньше к краю, стены закрывают)
@@ -17161,6 +17316,67 @@ func _car_stop() -> void:
 ## пустыша; тормоз (нос клюёт); поворот — дугой, кузов кренится наружу; на месте руль не крутит машину; задний ход —
 ## НАЗАД и медленнее, с рулём зад уходит в сторону поворота; удары врагов — по машине; выйти; багажник; разбитая
 ## машина не едет
+## Выстрел каждой турели крупным планом: откат ствола, вспышка, гильзы (у автомата, пулемёта, пушки), у ракетной —
+## выхлоп назад и ракета с дымным следом. Снимки: в миг выстрела, через 0,15 с и через 0,6 с.
+func _turfx_test() -> void:
+	var t0 := Time.get_ticks_msec()
+	while not cs_ready and Time.get_ticks_msec() - t0 < 25000:
+		await get_tree().process_frame
+	await get_tree().create_timer(0.6).timeout
+	if car == null:
+		_ok("машина есть", false)
+		_test_done()
+		return
+	for e in enemies:
+		if is_instance_valid(e) and e.alive() and e.global_position.distance_to(car.global_position) < 60.0:
+			e.global_position += Vector3(0, -50, 0)
+			e.set_active(false)
+			e.state = "idle"
+	hp_lock = true
+	player.global_position = car.door_pos() + Vector3(1.5, 0.1, 0)
+	var cam := Camera3D.new()
+	add_child(cam)
+	cam.fov = 38.0
+	cam.current = true
+	_hud.visible = false
+	var cd: Dictionary = car.data
+	for t in ["rifle", "mg", "cannon", "rocket"]:
+		(cd.turrets as Dictionary)[t] = {"ammo": 40, "hp": 300.0}
+		cd["turret"] = t
+		car.rebuild()
+		for i in 4:
+			await get_tree().process_frame
+		var z := spawn_enemy("infected", car.global_position + car.fwd() * 7.0 + car.global_transform.basis.x * 2.0)
+		z.state = "idle"
+		z.set_active(false)
+		car.aim_at(z.global_position)
+		var side := car.global_transform.basis.x
+		var top := car.global_position + Vector3.UP * (car.size.y + 0.4)
+		cam.look_at_from_position(top - side * 3.4 + Vector3.UP * 1.2 - car.fwd() * 1.2, top + car.fwd() * 0.8)
+		await get_tree().create_timer(1.2).timeout
+		var ej0: int = car.turret_fx.ejected if car.turret_fx != null else 0
+		var pf0: int = car.turret_fx.puffed if car.turret_fx != null else 0
+		_tur_t = z
+		car._fire_cd = 0.0
+		var n0 := tur_shots
+		_turret_shoot()
+		await get_tree().process_frame
+		var kick: float = car._kick
+		await _snap("tfx_%s_0" % t)
+		await get_tree().create_timer(0.15).timeout
+		var trail := get_node_or_null("RocketTrail") != null
+		await _snap("tfx_%s_1" % t)
+		await get_tree().create_timer(0.45).timeout
+		await _snap("tfx_%s_2" % t)
+		var ej: int = (car.turret_fx.ejected if car.turret_fx != null else 0) - ej0
+		var pf: int = (car.turret_fx.puffed if car.turret_fx != null else 0) - pf0
+		var ok := tur_shots > n0 and kick > 0.0 and pf > 0 and (ej > 0 if t != "rocket" else trail)
+		_ok("%s: выстрел — откат %.2f м, дымков %d, гильз %d%s" % [t, kick, pf, ej, (", след ракеты" if trail else "") if t == "rocket" else ""], ok)
+		z.global_position += Vector3(0, -50, 0)
+		await get_tree().create_timer(0.8).timeout
+	_test_done()
+
+
 func _car_test() -> void:
 	var t0 := Time.get_ticks_msec()
 	while not cs_ready and Time.get_ticks_msec() - t0 < 25000:
