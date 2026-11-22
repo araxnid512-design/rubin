@@ -107,6 +107,35 @@
     "full body game character in T-pose, same person and outfit as in the image, realistic detailed PBR textures"
    ],
    "timeout": 2400
+  },
+  {
+   "id": "g64b_project_help",
+   "args": [
+    "project",
+    "--help"
+   ],
+   "timeout": 120
+  },
+  {
+   "id": "g64b_project_dl_help",
+   "args": [
+    "project",
+    "download",
+    "--help"
+   ],
+   "timeout": 120
+  },
+  {
+   "id": "g64b_project_list",
+   "args": [
+    "project",
+    "list",
+    "--size",
+    "40",
+    "--output-format",
+    "json"
+   ],
+   "timeout": 180
   }
  ],
  "archived": [
