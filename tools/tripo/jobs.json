@@ -1,8 +1,8 @@
 {
- "stop": true,
+ "stop": false,
  "jobs": [
   {
-   "id": "g65_fetch_toz",
+   "id": "g65b_fetch_toz",
    "py": "tools/tripo/fetch_task.py",
    "args": [
     "b3ecbcd3-ad41-4a1e-ab50-3ea9b0b35e48",
@@ -11,7 +11,7 @@
    "timeout": 600
   },
   {
-   "id": "g65_uaz469",
+   "id": "g65b_uaz469",
    "py": "tools/tripo/chain.py",
    "args": [
     "--id",
@@ -31,43 +31,7 @@
    "timeout": 1800
   },
   {
-   "id": "g65_wh_stock",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "wh_stock",
-    "--faces",
-    "4000",
-    "--tex",
-    "detailed",
-    "--geo",
-    "detailed",
-    "--pbr",
-    "--prompt",
-    "single stock wheel of a Soviet UAZ-469 jeep: olive green painted steel rim with hub and lug nuts, worn all-terrain tire, standing upright, realistic, single object, game asset"
-   ],
-   "timeout": 1800
-  },
-  {
-   "id": "g65_wh_1",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "wh_1",
-    "--faces",
-    "4000",
-    "--tex",
-    "detailed",
-    "--geo",
-    "detailed",
-    "--pbr",
-    "--prompt",
-    "single off-road wheel with deep aggressive mud-terrain tread tire on a black steel rim, standing upright, realistic, single object, game asset"
-   ],
-   "timeout": 1800
-  },
-  {
-   "id": "g65_wh_2",
+   "id": "g65b_wh_2",
    "py": "tools/tripo/chain.py",
    "args": [
     "--id",
@@ -85,7 +49,7 @@
    "timeout": 1800
   },
   {
-   "id": "g65_wh_3",
+   "id": "g65b_wh_3",
    "py": "tools/tripo/chain.py",
    "args": [
     "--id",
@@ -103,7 +67,7 @@
    "timeout": 1800
   },
   {
-   "id": "g65_bp_1",
+   "id": "g65b_bp_1",
    "py": "tools/tripo/chain.py",
    "args": [
     "--id",
@@ -121,7 +85,7 @@
    "timeout": 1800
   },
   {
-   "id": "g65_bp_2",
+   "id": "g65b_bp_2",
    "py": "tools/tripo/chain.py",
    "args": [
     "--id",
@@ -139,7 +103,7 @@
    "timeout": 1800
   },
   {
-   "id": "g65_bp_3",
+   "id": "g65b_bp_3",
    "py": "tools/tripo/chain.py",
    "args": [
     "--id",
@@ -157,7 +121,7 @@
    "timeout": 1800
   },
   {
-   "id": "g65_tr_rifle",
+   "id": "g65b_tr_rifle",
    "py": "tools/tripo/chain.py",
    "args": [
     "--id",
@@ -175,7 +139,7 @@
    "timeout": 1800
   },
   {
-   "id": "g65_tr_mg",
+   "id": "g65b_tr_mg",
    "py": "tools/tripo/chain.py",
    "args": [
     "--id",
@@ -193,7 +157,7 @@
    "timeout": 1800
   },
   {
-   "id": "g65_tr_cannon",
+   "id": "g65b_tr_cannon",
    "py": "tools/tripo/chain.py",
    "args": [
     "--id",
@@ -211,7 +175,7 @@
    "timeout": 1800
   },
   {
-   "id": "g65_tr_rocket",
+   "id": "g65b_tr_rocket",
    "py": "tools/tripo/chain.py",
    "args": [
     "--id",
@@ -229,7 +193,7 @@
    "timeout": 1800
   },
   {
-   "id": "g65_am_rifle",
+   "id": "g65b_am_rifle",
    "py": "tools/tripo/chain.py",
    "args": [
     "--id",
@@ -242,7 +206,7 @@
    "timeout": 1800
   },
   {
-   "id": "g65_am_mg",
+   "id": "g65b_am_mg",
    "py": "tools/tripo/chain.py",
    "args": [
     "--id",
@@ -255,7 +219,7 @@
    "timeout": 1800
   },
   {
-   "id": "g65_am_cannon",
+   "id": "g65b_am_cannon",
    "py": "tools/tripo/chain.py",
    "args": [
     "--id",
@@ -268,7 +232,7 @@
    "timeout": 1800
   },
   {
-   "id": "g65_am_rocket",
+   "id": "g65b_am_rocket",
    "py": "tools/tripo/chain.py",
    "args": [
     "--id",
@@ -281,7 +245,7 @@
    "timeout": 1800
   },
   {
-   "id": "g65_en_0",
+   "id": "g65b_en_0",
    "py": "tools/tripo/chain.py",
    "args": [
     "--id",
@@ -294,7 +258,7 @@
    "timeout": 1800
   },
   {
-   "id": "g65_en_1",
+   "id": "g65b_en_1",
    "py": "tools/tripo/chain.py",
    "args": [
     "--id",
@@ -307,7 +271,7 @@
    "timeout": 1800
   },
   {
-   "id": "g65_en_2",
+   "id": "g65b_en_2",
    "py": "tools/tripo/chain.py",
    "args": [
     "--id",
@@ -320,7 +284,7 @@
    "timeout": 1800
   },
   {
-   "id": "g65_en_3",
+   "id": "g65b_en_3",
    "py": "tools/tripo/chain.py",
    "args": [
     "--id",
@@ -333,7 +297,7 @@
    "timeout": 1800
   },
   {
-   "id": "g65_gr_fueltank",
+   "id": "g65b_gr_fueltank",
    "py": "tools/tripo/chain.py",
    "args": [
     "--id",
@@ -351,7 +315,7 @@
    "timeout": 1800
   },
   {
-   "id": "g65_gr_terminal",
+   "id": "g65b_gr_terminal",
    "py": "tools/tripo/chain.py",
    "args": [
     "--id",
@@ -369,7 +333,7 @@
    "timeout": 1800
   },
   {
-   "id": "g65_gr_cabinet",
+   "id": "g65b_gr_cabinet",
    "py": "tools/tripo/chain.py",
    "args": [
     "--id",
@@ -387,7 +351,7 @@
    "timeout": 1800
   },
   {
-   "id": "g65_it_canister",
+   "id": "g65b_it_canister",
    "py": "tools/tripo/chain.py",
    "args": [
     "--id",
@@ -400,7 +364,7 @@
    "timeout": 1800
   },
   {
-   "id": "g65_gr_workbench",
+   "id": "g65b_gr_workbench",
    "py": "tools/tripo/chain.py",
    "args": [
     "--id",
@@ -413,7 +377,7 @@
    "timeout": 1800
   },
   {
-   "id": "g65_gr_toolchest",
+   "id": "g65b_gr_toolchest",
    "py": "tools/tripo/chain.py",
    "args": [
     "--id",
@@ -2451,6 +2415,8 @@
   "g64m_h_carry_box",
   "g64m_h_limp",
   "g64m_h_break_free",
-  "g64m_h_pry_crate"
+  "g64m_h_pry_crate",
+  "g65_wh_stock",
+  "g65_wh_1"
  ]
 }
