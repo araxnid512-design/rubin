@@ -2871,19 +2871,46 @@ func bake_light() -> void:
 				cc.append((float(c[0]) + float(c[1])) * 0.5)
 			plan.append([bi, f, float(bk.iu0), float(bk.iu1), float(bk.iv0), float(bk.iv1), rs, lp, cc])
 	var cellar := style == "cellar"
-	# фон пишет только в свой ящик (не в корпус: корпус могут удалить раньше, чем фон закончит)
+	_light_wait()                                    # прежний расчёт (повторная постройка) — дождаться
+	# фон пишет только в свой ящик (не в корпус: корпус могут удалить раньше, чем фон закончит) и не держит
+	# сам корпус (задача — статическая функция, а не замыкание на корпусе)
 	var box: Array = []
 	_light_res = box
-	_light_job = WorkerThreadPool.add_task(func() -> void:
-		for p in plan:
-			box.append([p[0], p[1], ULBlock._light_image(p, cellar)]))
+	_light_job = WorkerThreadPool.add_task(ULBlock._light_run.bind(plan, cellar, box))
+	_light_jobs[_light_job] = true
 	set_process(true)
 
 
-func _exit_tree() -> void:
+static var _light_jobs := {}          ## все запущенные расчёты света (id → true) — дождаться при выходе
+
+
+static func _light_run(plan: Array, cellar: bool, box: Array) -> void:
+	for p in plan:
+		box.append([p[0], p[1], ULBlock._light_image(p, cellar)])
+
+
+## дождаться своего расчёта (каждую задачу пула нужно дождаться ровно один раз)
+func _light_wait() -> void:
 	if _light_job >= 0:
-		WorkerThreadPool.wait_for_task_completion(_light_job)   # корпус убирают — фон доделывает и отпускает
+		WorkerThreadPool.wait_for_task_completion(_light_job)
+		_light_jobs.erase(_light_job)
 		_light_job = -1
+
+
+## выход из игры или смена сцены: дождаться всех расчётов света (и тех корпусов, что так и не попали в дерево)
+static func light_wait_all() -> void:
+	for id in _light_jobs.keys():
+		WorkerThreadPool.wait_for_task_completion(int(id))
+	_light_jobs.clear()
+
+
+func _exit_tree() -> void:
+	_light_wait()                                    # корпус убирают — фон доделывает; готовое применится, если вернётся
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_PREDELETE:
+		_light_wait()
 
 
 ## картинка света этажа блока: R — множитель (0,45…1), G — сила пятна от окна (0…1)
@@ -2946,10 +2973,9 @@ static func _light_image(p: Array, cellar: bool) -> Image:
 
 
 func _process(_delta: float) -> void:
-	if _light_job < 0 or not WorkerThreadPool.is_task_completed(_light_job):
+	if _light_job >= 0 and not WorkerThreadPool.is_task_completed(_light_job):
 		return
-	WorkerThreadPool.wait_for_task_completion(_light_job)
-	_light_job = -1
+	_light_wait()
 	set_process(false)
 	if _lsh_mul == null:
 		_lsh_mul = Shader.new()

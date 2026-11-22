@@ -76,6 +76,12 @@ var _toast: Label
 var _toast_t := 0.0
 
 
+## уход со сцены (смена локации, выход из игры): дождаться фоновых расчётов света корпусов — иначе поток пула
+## доделывает работу, когда движок уже закрывается (падение при выходе)
+func _exit_tree() -> void:
+	ULBlock.light_wait_all()
+
+
 func _ready() -> void:
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--as-test="):
@@ -9945,37 +9951,43 @@ func _inv_test() -> void:
 	_ok("пустое имя не принимается, длинное обрезается до 16 знаков", not set_hero_name("   ") and set_hero_name("Очень длинное имя сталкера") and hero_name.length() == 16, hero_name)
 	set_hero_name("Сталкер")
 	# --- подстройка под частоту кадров: сначала сглаживание, потом тени, разрешение — последним ---
-	var st0 := {"scale": 0.8, "msaa": true, "shadows": true, "cap": 0.8, "can_msaa": true, "can_shadows": true}
+	var st0 := {"scale": 1.0, "msaa": true, "shadows": true, "cap": 1.0, "can_msaa": true, "can_shadows": true}
 	var a1 := adapt_step(st0, 25.0, true)
-	_ok("25 кадров/с: первым снимается сглаживание, разрешение и тени — как были", not bool(a1.msaa) and bool(a1.shadows) and is_equal_approx(float(a1.scale), 0.8))
+	_ok("25 кадров/с: первым снимается сглаживание, разрешение и тени — как были", not bool(a1.msaa) and bool(a1.shadows) and is_equal_approx(float(a1.scale), 1.0))
 	var a2 := adapt_step(a1, 25.0, true)
-	_ok("дальше — тени солнца, разрешение всё ещё 80 %", not bool(a2.shadows) and is_equal_approx(float(a2.scale), 0.8))
+	_ok("дальше — тени солнца, разрешение всё ещё 100 % (по экрану)", not bool(a2.shadows) and is_equal_approx(float(a2.scale), 1.0))
 	var a3 := adapt_step(a2, 25.0, true)
-	_ok("и только потом разрешение: крупный шаг (80 → 74 %)", is_equal_approx(float(a3.scale), 0.74))
-	_ok("35 кадров/с без сглаживания и теней: мелкий шаг вниз (80 → 77 %)", is_equal_approx(float(adapt_step(a2, 35.0, true).scale), 0.77))
+	_ok("и только потом разрешение: крупный шаг (100 → 94 %)", is_equal_approx(float(a3.scale), 0.94))
+	_ok("35 кадров/с без сглаживания и теней: мелкий шаг вниз (100 → 97 %)", is_equal_approx(float(adapt_step(a2, 35.0, true).scale), 0.97))
 	# быстрая земля (запечённая) — после теней и до разрешения; обратно — после разрешения и до теней
-	var g0 := {"scale": 0.8, "msaa": false, "shadows": false, "cap": 0.8, "can_msaa": true, "can_shadows": true, "ground": true, "can_ground": true, "has_fast": true}
+	var g0 := {"scale": 1.0, "msaa": false, "shadows": false, "cap": 1.0, "can_msaa": true, "can_shadows": true, "ground": true, "can_ground": true, "has_fast": true}
 	var g1 := adapt_step(g0, 25.0, true)
-	_ok("есть запечённая земля: после теней подстройка переходит на быструю землю, разрешение — как было", not bool(g1.ground) and is_equal_approx(float(g1.scale), 0.8))
-	_ok("и только следующим шагом — разрешение (80 → 74 %)", is_equal_approx(float(adapt_step(g1, 25.0, true).scale), 0.74))
-	var g2 := adapt_step({"scale": 0.8, "msaa": false, "shadows": false, "cap": 0.8, "can_msaa": true, "can_shadows": true, "ground": false, "can_ground": true, "has_fast": true}, 60.0, true)
+	_ok("есть запечённая земля: после теней подстройка переходит на быструю землю, разрешение — как было", not bool(g1.ground) and is_equal_approx(float(g1.scale), 1.0))
+	_ok("и только следующим шагом — разрешение (100 → 94 %)", is_equal_approx(float(adapt_step(g1, 25.0, true).scale), 0.94))
+	var g2 := adapt_step({"scale": 1.0, "msaa": false, "shadows": false, "cap": 1.0, "can_msaa": true, "can_shadows": true, "ground": false, "can_ground": true, "has_fast": true}, 60.0, true)
 	_ok("60 кадров/с при полном разрешении: первой возвращается подробная земля, тени — ещё нет", bool(g2.ground) and not bool(g2.shadows))
-	var g3 := adapt_step({"scale": 0.8, "msaa": false, "shadows": false, "cap": 0.8, "can_msaa": true, "can_shadows": true, "ground": false, "can_ground": false, "has_fast": true}, 60.0, true)
+	var g3 := adapt_step({"scale": 1.0, "msaa": false, "shadows": false, "cap": 1.0, "can_msaa": true, "can_shadows": true, "ground": false, "can_ground": false, "has_fast": true}, 60.0, true)
 	_ok("на «Низкой» (быстрая земля выбрана настройками) подстройка подробную не включает — возвращает тени", not bool(g3.ground) and bool(g3.shadows))
-	var g4 := adapt_step({"scale": 0.8, "msaa": false, "shadows": false, "cap": 0.8, "can_msaa": true, "can_shadows": true, "ground": true, "can_ground": true, "has_fast": false}, 25.0, true)
-	_ok("нет запечённой земли (полигон): после теней сразу разрешение", bool(g4.ground) and is_equal_approx(float(g4.scale), 0.74))
+	var g4 := adapt_step({"scale": 1.0, "msaa": false, "shadows": false, "cap": 1.0, "can_msaa": true, "can_shadows": true, "ground": true, "can_ground": true, "has_fast": false}, 25.0, true)
+	_ok("нет запечённой земли (полигон): после теней сразу разрешение", bool(g4.ground) and is_equal_approx(float(g4.scale), 0.94))
 	_ok("45 кадров/с: ничего не трогается", adapt_step(a1, 45.0, true) == a1)
 	var r1 := adapt_step(a3, 60.0, true)
-	_ok("60 кадров/с: сначала возвращается разрешение (74 → 78 %), тени ещё выключены", is_equal_approx(float(r1.scale), 0.78) and not bool(r1.shadows))
+	_ok("60 кадров/с: сначала возвращается разрешение (94 → 98 %), тени ещё выключены", is_equal_approx(float(r1.scale), 0.98) and not bool(r1.shadows))
 	var r2 := adapt_step(adapt_step(r1, 60.0, true), 60.0, true)
-	_ok("затем тени, потом сглаживание", is_equal_approx(float(r2.scale), 0.8) and bool(r2.shadows) and not bool(r2.msaa) and bool(adapt_step(r2, 60.0, true).msaa))
+	_ok("затем тени, потом сглаживание", is_equal_approx(float(r2.scale), 1.0) and bool(r2.shadows) and not bool(r2.msaa) and bool(adapt_step(r2, 60.0, true).msaa))
 	_ok("сразу после снижения вверх не идёт", adapt_step(a3, 60.0, false) == a3)
-	var st_low := {"scale": 0.62, "msaa": false, "shadows": false, "cap": 0.62, "can_msaa": false, "can_shadows": false}
+	var st_low := {"scale": 1.0, "msaa": false, "shadows": false, "cap": 1.0, "can_msaa": false, "can_shadows": false}
 	_ok("«Низкая»: сглаживания и теней нет — возвращать нечего", adapt_step(st_low, 60.0, true) == st_low)
-	var sc_low := 0.8
+	var sc_low := 1.0
 	for i in 12:
-		sc_low = res_step(sc_low, 15.0, 0.8, true)
-	_ok("ниже 62 % разрешение само не опускается (картинка не мылится)", is_equal_approx(sc_low, ULSettings.SCALE_MIN), "%.2f" % sc_low)
+		sc_low = res_step(sc_low, 15.0, 1.0, true)
+	_ok("ниже %d %% разрешение само не опускается (картинка не мылится)" % int(round(ULSettings.SCALE_MIN * 100.0)), is_equal_approx(sc_low, ULSettings.SCALE_MIN), "%.2f" % sc_low)
+	var sc_own := res_step(0.6, 15.0, 0.6, true)
+	_ok("игрок сам выбрал 60 %: подстройка не поднимает разрешение выше выбора", is_equal_approx(sc_own, 0.6), "%.2f" % sc_own)
+	var pres_ok := true
+	for g in ULSettings.GFX:
+		pres_ok = pres_ok and is_equal_approx(float(g.scale), 1.0)
+	_ok("на всех качествах графики 3D рисуется в разрешении экрана (100 %)", pres_ok)
 	# --- расположение кнопок ---
 	var over := ""
 	var ks := ["fire", "swap", "inv", "take", "reload", "heal"]
@@ -11971,10 +11983,11 @@ func adapt_step(st: Dictionary, fps: float, may_raise: bool) -> Dictionary:
 
 ## новое разрешение по текущему, частоте кадров и пределу качества
 func res_step(sc: float, fps: float, cap: float, may_raise: bool) -> float:
+	var lo := minf(ULSettings.SCALE_MIN, cap)          # игрок сам выбрал меньше предела — не поднимать выше выбора
 	if fps < ULSettings.FPS_MIN:
-		return maxf(ULSettings.SCALE_MIN, sc - 0.06)
+		return minf(sc, maxf(lo, sc - 0.06))
 	if fps < 40.0:
-		return maxf(ULSettings.SCALE_MIN, sc - 0.03)
+		return minf(sc, maxf(lo, sc - 0.03))
 	if fps > 50.0 and sc < cap and may_raise:
 		return minf(cap, sc + 0.04)
 	return minf(sc, cap)
@@ -13831,6 +13844,14 @@ func _run_test() -> void:
 		return
 	if test == "look":
 		await _look_test()
+		return
+	if test == "setshot":
+		# снимок окна настроек (строка о разрешении экрана и подстройке)
+		await get_tree().create_timer(1.0).timeout
+		open_settings()
+		await get_tree().create_timer(0.6).timeout
+		await _snap("settings")
+		_test_done()
 		return
 	if test == "traces":
 		await _traces_test()

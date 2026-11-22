@@ -255,7 +255,8 @@ static func _fix_for(fixes: Dictionary, skel: Skeleton3D, path: String) -> Dicti
 ## пути дорожек «…/Skeleton3D:Кость» → путь к нашему скелету; дорожки масштаба и чужие кости — прочь
 ## fix — поправка для чужого скелета (_rest_fix): повороты пересчитываются в его исходную позу, сдвиг таза —
 ## в его рост; сдвиги остальных костей убираются (длины костей — свои)
-static func _retarget(a: Animation, skel: Skeleton3D, skel_path: String, fix := {}, root_bone := "Hip") -> void:
+## keep_path — пути дорожек не трогать (перезапись набора под новый скелет: tools/anim_rebake.gd)
+static func _retarget(a: Animation, skel: Skeleton3D, skel_path: String, fix := {}, root_bone := "Hip", keep_path := false) -> void:
 	for i in range(a.get_track_count() - 1, -1, -1):
 		var p := String(a.track_get_path(i))
 		var colon := p.find(":")
@@ -267,7 +268,8 @@ static func _retarget(a: Animation, skel: Skeleton3D, skel_path: String, fix := 
 		if bi < 0:
 			a.remove_track(i)
 			continue
-		a.track_set_path(i, NodePath(skel_path + ":" + bone))
+		if not keep_path:
+			a.track_set_path(i, NodePath(skel_path + ":" + bone))
 		if fix.is_empty():
 			continue
 		var par := skel.get_bone_parent(bi)
