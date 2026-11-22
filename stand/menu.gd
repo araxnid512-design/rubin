@@ -35,6 +35,15 @@ func _ready() -> void:
 	bd.dim["cont"] = not FileAccess.file_exists(SAVE)
 	add_child(bd)
 	bd.tapped.connect(_on_tap)
+	# какой отрисовщик (сборка А — OpenGL, Б — Vulkan): мелкая подпись в углу — для сравнения на телефоне
+	var rl := Label.new()
+	rl.name = "Renderer"
+	rl.text = ULSettings.renderer_name()
+	rl.add_theme_font_size_override("font_size", 14)
+	rl.add_theme_color_override("font_color", Color(1, 1, 1, 0.55))
+	rl.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT)
+	rl.position = Vector2(10, get_viewport_rect().size.y - 26)
+	add_child(rl)
 	if test != "":
 		_run_test.call_deferred()
 

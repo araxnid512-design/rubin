@@ -1261,6 +1261,17 @@ func _env() -> void:
 	e.fog_depth_begin = 32.0
 	e.fog_depth_end = 110.0
 	e.fog_depth_curve = 1.5
+	if ULSettings.vulkan():
+		# сборка Б (Vulkan): свечение огня, окон, кристаллов, фар; растяжение FSR вместо простого — чётче при
+		# 3D в доле разрешения; экспозиция чуть выше (тени солнца в OpenGL рисовались светлее — под них подобран свет)
+		e.glow_enabled = true
+		e.glow_intensity = 0.55
+		e.glow_strength = 0.9
+		e.glow_bloom = 0.04
+		e.glow_hdr_threshold = 0.95
+		e.tonemap_exposure *= 1.12
+		get_viewport().scaling_3d_mode = Viewport.SCALING_3D_MODE_FSR
+		get_viewport().fsr_sharpness = 0.35
 	env.environment = e
 	world_env = e
 	add_child(env)
@@ -1676,15 +1687,22 @@ func ground_fast_ok() -> bool:
 
 
 ## какую землю хотят настройки: быструю (true) или подробную; --as-ground=fast|full — для проверок и снимков
+var _ground_force := false            ## проверки: быструю землю можно и в Vulkan
+
+
 func ground_want_fast() -> bool:
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--as-ground="):
 			return a.substr(12) == "fast"
+	if ULSettings.vulkan():
+		return false                             # тон «быстрой земли» подобран под OpenGL; в Vulkan — подробная земля
 	return not bool(ULSettings.q().get("ground", true))
 
 
 ## переключить землю: fast — готовая картинка (если она есть), иначе подробный шейдер
 func _ground_apply(fast: bool) -> void:
+	if ULSettings.vulkan() and not _ground_force:
+		fast = false                             # сборка Б: тон «быстрой земли» подобран под OpenGL
 	fast = fast and ground_fast_ok()
 	ground_fast = fast
 	if fast and _ground_tex == null:
@@ -5230,8 +5248,11 @@ func _sun_light_apply() -> void:
 		sun.light_energy = _sun_e0
 		sun.light_color = _sun_c0
 	else:
-		sun.light_energy = _sun_e0 * (SUN_NOSHADOW_K if temp() else SUN_NOSHADOW_K_HOME)
-		sun.light_color = _sun_c0 * SUN_NOSHADOW_TINT
+		# в OpenGL солнце с тенями рисуется доп. проходом и выходит ярче — без теней его усиливаем; в Vulkan
+		# такого нет, яркость с тенями и без одинакова сама
+		var vk := ULSettings.vulkan()
+		sun.light_energy = _sun_e0 * (1.0 if vk else (SUN_NOSHADOW_K if temp() else SUN_NOSHADOW_K_HOME))
+		sun.light_color = _sun_c0 * (Color.WHITE if vk else SUN_NOSHADOW_TINT)
 
 
 const SHADOW_CATCH := """shader_type spatial;

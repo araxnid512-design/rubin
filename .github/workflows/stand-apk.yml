@@ -1,6 +1,6 @@
 # «Стикс: Человеческий улей»: сборка APK. Официальный Godot 4.6.3 упаковывает игру (export-pack, текстуры
 # ETC2/ASTC), Gradle собирает Android-приложение с официальной библиотекой Godot 4.6.3 (Maven Central). Готовый
-# APK — в выпуске «stiks» (прямая ссылка: releases/download/stiks/Stiks.apk), в ветке stand-apk (файл Stiks.apk;
+# APK — в выпуске «stiks» (прямая ссылка: releases/download/stiks/Stiks.apk; сборка Б на Vulkan — Stiks_vulkan.apk), в ветке stand-apk (файл Stiks.apk;
 # больше 95 МБ — частями Stiks.apk.part-NN) и в артефактах сборки.
 # Запуск: изменить stand/tools/apk_build.txt в рабочей ветке (или вручную).
 name: 'Стикс: Человеческий улей — APK'
@@ -54,10 +54,30 @@ jobs:
           cp app/build/outputs/apk/release/app-release.apk ../../Stiks.apk
           ls -la ../../Stiks.apk
 
+      # сборка Б: тот же код, отрисовщик «Мобильный» (Vulkan) вместо «Совместимости» (OpenGL ES 3); если у телефона
+      # нет Vulkan — Godot сам откатывается на OpenGL. Для сравнения на телефоне: Stiks.apk (А) и Stiks_vulkan.apk (Б)
+      - name: Сборка Б (Vulkan)
+        working-directory: stand
+        run: |
+          cp project.godot ../project.godot.bak
+          sed -i 's/^renderer\/rendering_method.mobile="gl_compatibility"/renderer\/rendering_method.mobile="mobile"/' project.godot
+          sed -i 's/^\[rendering\]$/[rendering]\n\nrendering_device\/fallback_to_opengl3=true/' project.godot
+          grep -n "rendering_method\|fallback_to_opengl3" project.godot
+          ../godot4 --headless --path . --export-pack "Android" export/stand_vk.zip 2>&1 | tail -5
+          rm -rf android/app/build/godot_assets
+          mkdir -p android/app/build/godot_assets
+          unzip -q export/stand_vk.zip -d android/app/build/godot_assets
+          cd android && ./gradlew assembleRelease --no-daemon -q
+          cp app/build/outputs/apk/release/app-release.apk ../../Stiks_vulkan.apk
+          cd .. && cp ../project.godot.bak project.godot
+          ls -la ../Stiks_vulkan.apk
+
       - uses: actions/upload-artifact@v4
         with:
           name: Stiks-apk
-          path: Stiks.apk
+          path: |
+            Stiks.apk
+            Stiks_vulkan.apk
 
       # прямая ссылка для телефона (без входа в GitHub, одним файлом):
       # https://github.com/<репозиторий>/releases/download/stiks/Stiks.apk — каждая сборка заменяет файл
@@ -71,6 +91,7 @@ jobs:
             gh release create stiks --repo "$R" --target "${GITHUB_SHA}" --title "Стикс: Человеческий улей — APK" --notes "APK для телефона."
           fi
           gh release upload stiks Stiks.apk --repo "$R" --clobber
+          if [ -f Stiks_vulkan.apk ]; then gh release upload stiks Stiks_vulkan.apk --repo "$R" --clobber; fi
           gh release edit stiks --repo "$R" --title "Стикс: Человеческий улей — ${BN} (${GITHUB_SHA::8})" --notes-file stand/tools/apk_build.txt
 
       - name: APK в ветку stand-apk

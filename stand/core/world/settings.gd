@@ -56,6 +56,16 @@ static var gfx := 1
 static var dev_force := false               ## проверки: вести себя как собранная игра (без отладочных кнопок) — false
 
 
+## Отрисовщик: false — «Совместимость» (OpenGL ES 3, сборка А), true — «Мобильный» (Vulkan, сборка Б). Поправки
+## яркости, подобранные под OpenGL (солнце без теней ярче, тон «быстрой земли»), нужны только в первом.
+static func vulkan() -> bool:
+	return RenderingServer.get_current_rendering_method() != "gl_compatibility"
+
+
+static func renderer_name() -> String:
+	return "Vulkan" if vulkan() else "OpenGL"
+
+
 ## Отладочное (строка состояния с кадрами/с, «Враг +», «Тест FPS», «Убрать ящик», «3D», «Лаборатория») — только
 ## при запуске из редактора Godot (и в проверках); в собранной игре — одиночной и в мультиплеере — их нет
 static func dev() -> bool:
