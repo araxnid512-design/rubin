@@ -252,6 +252,9 @@ func alive() -> bool:
 func body_pos() -> Vector3:
 	if alive() or rig == null or rig.skel == null:
 		return global_position
+	if rig.ragdoll != null and rig.ragdoll.running:
+		var hb := rig.ragdoll.hip_pos()                # тело ещё падает на физике — где сейчас таз
+		return Vector3(hb.x, global_position.y, hb.z)
 	var hip := rig.skel.find_bone("Hip")
 	if hip < 0:
 		return global_position

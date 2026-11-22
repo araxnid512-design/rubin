@@ -166,6 +166,13 @@ static func _basis_x(d: Vector3) -> Basis:
 	return Basis(x, y, z)
 
 
+## где таз (тело таза), пока тело на физике
+func hip_pos() -> Vector3:
+	if _items.is_empty():
+		return get_skeleton().global_position if get_skeleton() != null else Vector3.ZERO
+	return (_items[0].body as RigidBody3D).global_position
+
+
 ## пока клип падения идёт — запоминаются положения частей тела (скорость в миг перехода)
 func remember(delta: float) -> void:
 	var sk := get_skeleton()
@@ -197,10 +204,16 @@ func tick(delta: float) -> void:
 	if not running:
 		return
 	t += delta
+	if t > 1.0 and t - delta <= 1.0:
+		# упало — гасит остаточную дрожь суставов (иначе тело на 30 шагах физики в секунду мелко шевелится и не
+		# засыпает): трение воздуха и вращения выше, тело замирает за доли секунды
+		for it in _items:
+			(it.body as RigidBody3D).linear_damp = 2.5
+			(it.body as RigidBody3D).angular_damp = 8.0
 	var still := true
 	for it in _items:
 		var b := it.body as RigidBody3D
-		if not b.sleeping and (b.linear_velocity.length() > 0.12 or b.angular_velocity.length() > 0.5):
+		if not b.sleeping and (b.linear_velocity.length() > 0.12 or b.angular_velocity.length() > 0.9):
 			still = false
 			break
 	_quiet = _quiet + delta if still else 0.0

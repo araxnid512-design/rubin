@@ -7146,7 +7146,10 @@ func _traces_test() -> void:
 	await get_tree().create_timer(0.3).timeout
 	var p1 := pools_made
 	e.damage(9999.0)
-	await get_tree().create_timer(1.2).timeout
+	# тело падает на физике: лужа — когда легло (там, где легло)
+	var tp0 := Time.get_ticks_msec()
+	while Time.get_ticks_msec() - tp0 < 8000 and pools_made - p1 < 1:
+		await get_tree().process_frame
 	_ok("под убитым — лужа крови", pools_made - p1 == 1)
 	await get_tree().create_timer(6.0).timeout
 	await _snap("traces")
@@ -10388,7 +10391,7 @@ func _inv_test() -> void:
 	var dmgs := []
 	for a in e.def.attacks:
 		dmgs.append(float(a.dmg))
-	_ok("подошёл вплотную (до 0.85 м между центрами) и ударил", hp < hp0 and dmgs.has(hp0 - hp) and gap <= 0.85, "%s: %.0f → %.0f за %.1f с, расстояние %.2f м" % [e.last_attack, hp0, hp, wait_s, gap])
+	_ok("подошёл на вытянутую руку и ударил (с выпадом — не ближе 0,6 м между центрами: капсулы не входят друг в друга)", hp < hp0 and dmgs.has(hp0 - hp) and gap >= 0.6 and gap <= 1.15, "%s: %.0f → %.0f за %.1f с, расстояние %.2f м" % [e.last_attack, hp0, hp, wait_s, gap])
 	_ok("после удара экран краснеет", _hurt_t > 0.0)
 	_ok("от удара герой отшатывается (корпус и голова) и брызжет кровь с той стороны, откуда ударили", flinch != null and flinch._t < 0.8 and flinch._dir.dot((player.global_position - e.global_position).normalized()) > 0.5 and not _splats.is_empty())
 	_damage(e, 25.0, e.global_position + Vector3.UP)
@@ -10409,7 +10412,9 @@ func _inv_test() -> void:
 	_ok("в теле — от нуля до трёх споранов (встречается 0, 1, 2 и 3)", not bad and seen.size() == 4, str(seen.keys()))
 	e.loot = [ULItems.make("spore", 2), null, null, null]
 	var sp0 := inv.count("spore")
-	await get_tree().create_timer(2.6).timeout                         # упал и лежит
+	var tl0 := Time.get_ticks_msec()
+	while Time.get_ticks_msec() - tl0 < 7000 and (Time.get_ticks_msec() - tl0 < 2600 or (e.rig.ragdoll != null and not e.rig.ragdoll.done)):
+		await get_tree().process_frame                                 # упал (на физике) и лёг
 	_ok("тело лежит на земле (таз ниже 0.4 м)", (e.rig.skel.global_transform * e.rig.skel.get_bone_global_pose(e.rig.skel.find_bone("Hip")).origin).y < 0.4, "таз на высоте %.2f м" % (e.rig.skel.global_transform * e.rig.skel.get_bone_global_pose(e.rig.skel.find_bone("Hip")).origin).y)
 	player.global_position = e.body_pos() + Vector3(0.7, 0.05, 0.0)
 	await get_tree().create_timer(0.25).timeout
@@ -16431,6 +16436,8 @@ func _run_test() -> void:
 				while Time.get_ticks_msec() - t0 < int(ti * 1000.0):
 					await get_tree().process_frame
 				await _snap("%d_%s_%.2f" % [ki, kd, ti])
+			while Time.get_ticks_msec() - t0 < 12000 and z.rig.ragdoll != null and not z.rig.ragdoll.done:
+				await get_tree().process_frame
 			var sk: Skeleton3D = z.rig.skel
 			var hy := -1.0
 			var hd := -1.0
@@ -16446,6 +16453,12 @@ func _run_test() -> void:
 						hd = y
 			var rd: BCRagdoll = z.rig.ragdoll
 			var ok := z.ragdolled and rd != null and rd.done and top < 0.5 and hy > -0.05
+			if not ok and rd != null:
+				var info := []
+				for it in rd._items:
+					var b := it.body as RigidBody3D
+					info.append("%s y%.2f v%.2f сон%s" % [b.name, b.global_position.y - z.global_position.y, b.linear_velocity.length(), str(b.sleeping)])
+				print("[ragdoll]   тела: ", ", ".join(info), " | модиф. %s, скелет-модиф. режим %d, процесс рига %s, дерево %s" % [str(rd.active), z.rig.skel.modifier_callback_mode_process, str(z.rig.is_processing()), str(z.rig.tree.active)])
 			if not ok:
 				bad += 1
 			print("[ragdoll] %s: на физике %s, легло %s за %.1f с, таз %.2f м, голова %.2f м, выше всего %.2f м, смещение %.2f м — %s" % [kd, str(z.ragdolled), str(rd != null and rd.done), rd.t if rd != null else -1.0, hy, hd, top, z.body_pos().distance_to(at), "ок" if ok else "ПЛОХО"])
