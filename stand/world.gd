@@ -4119,8 +4119,6 @@ func _draw_car_btns() -> void:
 				line = Color(1.0, 0.85, 0.4, 0.85 if active else 0.3)
 			"c_tur":
 				active = car.turret_type() != ""
-			"c_fire":
-				line = Color(1.0, 0.45, 0.35, 0.95)
 		_hud.draw_circle(c, r, Color(0.14, 0.32, 0.42, 0.8) if on else Color(0.05, 0.07, 0.09, 0.55 if active else 0.3))
 		_hud.draw_arc(c, r, 0, TAU, 44, line, 3.0)
 		var ic := Color(1, 1, 1, 0.95 if active else 0.4)
@@ -4129,8 +4127,10 @@ func _draw_car_btns() -> void:
 			var pts := PackedVector2Array([c + Vector2(s * r * 0.45, 0), c + Vector2(-s * r * 0.3, -r * 0.42), c + Vector2(-s * r * 0.3, r * 0.42)])
 			_hud.draw_colored_polygon(pts, ic)
 			continue
-		if k == "c_fire":
-			_hud_icon(_art("aim"), c, r * 1.6, Color(1, 1, 1, 0.35))
+		if k == "c_tur":
+			_hud_text(c + Vector2(0, -8), "Турель", 14, ic)
+			_hud_text(c + Vector2(0, 12), "ВКЛ" if tur_mode else "ВЫКЛ", 13, Color(1.0, 0.5, 0.35) if tur_mode else Color(0.7, 0.75, 0.8, ic.a))
+			continue
 		_hud_text(c + (Vector2(0, -4) if r > 50.0 else Vector2.ZERO), String(CAR_BTN_TXT.get(k, "")), 20 if r > 60.0 else (16 if r > 45.0 else 14), ic)
 
 
@@ -4209,7 +4209,7 @@ func _draw_hud() -> void:
 		_hud_text(Vector2(vs.x * 0.5, 120), "%s %d / %d · %s %d км/ч · бензин %.1f л" % [car_name(), int(round(car.hp())), int(round(car.hp_max())), gear, int(round(absf(car.speed) * 3.6)), car.fuel()] + ("  — разбита" if car.broken() else ("  — нет бензина" if car.no_fuel() else ("  — двигатель разрушен" if not car.can_drive() else ""))), 15, Color(1.0, 0.92, 0.7))
 		if car.turret_type() != "":
 			var tst: Dictionary = car.data.turrets.get(car.turret_type(), {})
-			_hud_text(Vector2(vs.x * 0.5, 142), "%s · %d / %d%s" % [String(ULCar.turret_cfg(car.turret_type()).n), int(tst.get("ammo", 0)), int(ULCar.turret_cfg(car.turret_type()).cap), "  · РЕЖИМ ТУРЕЛИ" if tur_mode else ""], 14, Color(1.0, 0.75, 0.55) if tur_mode else Color(0.8, 0.85, 0.9))
+			_hud_text(Vector2(vs.x * 0.5, 142), "%s · %d / %d%s" % [String(ULCar.turret_cfg(car.turret_type()).n), int(tst.get("ammo", 0)), int(ULCar.turret_cfg(car.turret_type()).cap), "  · ВКЛЮЧЕНА" if tur_mode else "  · выключена"], 14, Color(1.0, 0.75, 0.55) if tur_mode else Color(0.8, 0.85, 0.9))
 	# джойстик (за рулём вместо него — кнопки руля)
 	if car_in and car != null:
 		_draw_car_btns()
@@ -4372,7 +4372,7 @@ func _hud_press(k: String) -> void:
 		"c_tur":
 			if car != null and car.turret_type() != "":
 				tur_mode = not tur_mode
-				say("Режим турели: наведение на ближайшего врага, «Огонь» — стрелять" if tur_mode else "Режим турели выключен")
+				say("Турель включена: сама стреляет по врагам ближе 10 м" if tur_mode else "Турель выключена")
 			else:
 				say("Оружейный модуль не установлен — турель ставится в гараже базы")
 
@@ -4597,6 +4597,8 @@ func open_place_map() -> bool:
 func _input(e: InputEvent) -> void:
 	if _modal():
 		return
+	if e is InputEventKey and (e as InputEventKey).pressed and not (e as InputEventKey).echo and (e as InputEventKey).physical_keycode == KEY_F and car_in:
+		_hud_press("c_tur")                     # клавиатура: F — включить / выключить турель
 	var vs := get_viewport().get_visible_rect().size
 	if e is InputEventScreenTouch:
 		var t := e as InputEventScreenTouch
@@ -16642,7 +16644,8 @@ func _garage_build() -> void:
 	if place != "home" or arena:
 		return
 	if garage != null:
-		garage.free()
+		garage.name = "GarageOld"
+		garage.queue_free()                       # не сразу: в этом кадре здание ещё рисуется
 	garage = ULGarage.new()
 	garage.name = "Garage"
 	add_child(garage)
@@ -16813,7 +16816,7 @@ func _spot_free(at: Vector3) -> bool:
 
 
 ## Кнопки за рулём (как HUD_BTNS; «left» — от левого нижнего угла): руль ◀ ▶ слева; газ (на месте кнопки атаки),
-## тормоз, назад, выйти, окно машины, режим турели и огонь турели (только в режиме турели) — справа
+## тормоз, назад, выйти, окно машины и «Турель» (включить / выключить: включённая стреляет сама) — справа
 const CAR_BTNS := {
 	"c_left": [Vector2(118, -128), 66.0, "left"],
 	"c_right": [Vector2(276, -128), 66.0, "left"],
@@ -16822,23 +16825,17 @@ const CAR_BTNS := {
 	"c_rev": [Vector2(-270, -236), 44.0],
 	"c_exit": [Vector2(-116, -290), 42.0],
 	"c_veh": [Vector2(-116, -396), 38.0],
-	"c_tur": [Vector2(-236, -360), 38.0],
-	"c_fire": [Vector2(-440, -140), 62.0],
+	"c_tur": [Vector2(-236, -360), 42.0],
 }
-const CAR_BTN_TXT := {"c_gas": "Газ", "c_brake": "Тормоз", "c_rev": "Назад", "c_exit": "Выйти", "c_veh": "Машина", "c_tur": "Турель", "c_fire": "Огонь"}
-var tur_mode := false              ## режим турели: турель наводится на ближайшего врага в секторе, «Огонь» — стрелять
+const CAR_BTN_TXT := {"c_gas": "Газ", "c_brake": "Тормоз", "c_rev": "Назад", "c_exit": "Выйти", "c_veh": "Машина", "c_tur": "Турель"}
+var tur_mode := false              ## турель включена: сама наводится на ближайшего видимого врага не дальше 10 м и стреляет
 var _tur_t: Node3D = null          ## цель турели
 var tur_shots := 0
 var tur_last := ""                 ## куда попал последний выстрел турели (для проверки)
 
 
-func _car_btn_shown(k: String) -> bool:
-	if not car_in or car == null:
-		return false
-	match k:
-		"c_fire":
-			return tur_mode and car.turret_type() != ""
-	return true
+func _car_btn_shown(_k: String) -> bool:
+	return car_in and car != null
 
 
 ## управление машиной: кнопки (пальцы держат), клавиатура (W — газ, S — назад, A/D — руль, пробел — тормоз,
@@ -16884,7 +16881,8 @@ func _car_tick(delta: float) -> void:
 	_turret_tick()
 
 
-## турель: в режиме турели — на ближайшего видимого врага в секторе и в дальности; «Огонь» (или F) — выстрел
+## турель: включена — наводится на ближайшего врага в секторе, не дальше turret_range_max (10 м) и в прямой
+## видимости (не за стеной и не за деревом), и, наведясь, сама стреляет в темпе своего оружия
 func _turret_tick() -> void:
 	var t := car.turret_type()
 	if t == "":
@@ -16894,30 +16892,45 @@ func _turret_tick() -> void:
 		car.turret_want = 0.0
 		return
 	var tc := ULCar.turret_cfg(t)
-	var rng := float(tc.get("range", 20.0))
+	var rng := minf(float(tc.get("range", 10.0)), ULCar.c("turret_range_max", 10.0))
 	var arc := deg_to_rad(ULCar.c("turret_arc_deg", 150.0))
-	var best: Node3D = null
-	var bd := rng
+	var cands: Array = []
 	var inv_t := car.global_transform.affine_inverse()
 	for e in enemies:
 		if not is_instance_valid(e) or not e.alive():
 			continue
 		var d: float = e.global_position.distance_to(car.global_position)
-		if d >= bd:
+		if d > rng:
 			continue
 		var lp: Vector3 = inv_t * e.global_position
 		if absf(atan2(lp.x, lp.z)) > arc:
 			continue
-		bd = d
-		best = e
+		cands.append([d, e])
+	cands.sort_custom(func(a, b): return float(a[0]) < float(b[0]))
+	var best: Node3D = null
+	for c in cands:
+		if _turret_sees(c[1]):
+			best = c[1]
+			break
 	_tur_t = best
-	if best != null:
-		car.aim_at(best.global_position)
-	else:
+	if best == null:
 		car.turret_want = 0.0
-	var fire: bool = _hud_touch.values().has("c_fire") or Input.is_physical_key_pressed(KEY_F)
-	if fire and not _modal():
+		return
+	car.aim_at(best.global_position)
+	# наведена (ствол смотрит на цель) — огонь
+	if absf(angle_difference(car.turret_aim, car.turret_want)) < 0.2 and not _modal():
 		_turret_shoot()
+
+
+## цель турели видна: луч от ствола до груди врага ни во что не упирается
+func _turret_sees(e: Node3D) -> bool:
+	if car.turret_muzzle == null:
+		return false
+	var from := car.turret_muzzle.global_position
+	var q := PhysicsRayQueryParameters3D.create(from, e.global_position + Vector3.UP * 1.0)
+	q.exclude = [car.get_rid(), player.get_rid()]
+	var h := get_world_3d().direct_space_state.intersect_ray(q)
+	return h.is_empty() or h.collider == e or (h.collider is Node and (e as Node).is_ancestor_of(h.collider))
 
 
 func _turret_shoot() -> void:
@@ -17099,7 +17112,7 @@ func car_name() -> String:
 func _car_store() -> void:
 	if car == null or not is_instance_valid(car):
 		return
-	if place == "home":
+	if place == "home" and car.is_inside_tree():
 		var p := car.global_position
 		car.data["at"] = [snappedf(p.x, 0.01), snappedf(p.y, 0.01), snappedf(p.z, 0.01), snappedf(car.rotation.y, 0.001)]
 	ULBase.save_state()
@@ -17524,16 +17537,37 @@ func _garage_test() -> void:
 	car.rotation.y = 0.0
 	for i in 6:
 		await get_tree().physics_frame
-	var z := spawn_enemy("infected", car.global_position + car.fwd() * 13.0)
+	var z := spawn_enemy("infected", car.global_position + car.fwd() * 14.0)
 	z.state = "idle"
 	z.set_active(false)
 	var zhp: float = z.hp
 	var hits0 := hits
-	_hud_press("c_tur")
 	var am0 := int(cd.turrets.rifle.ammo)
-	await _car_hold(["c_fire"], 2.0)
+	_hud_press("c_tur")
+	var tsh0 := tur_shots
+	var tw2 := 0.0
+	while tw2 < 1.5:
+		await get_tree().process_frame
+		tw2 += get_process_delta_time()
+		z.global_position = car.global_position + car.fwd() * 14.0
+	var far_shots := tur_shots - tsh0
+	z.global_position = car.global_position + car.fwd() * 8.0
+	tw2 = 0.0
+	while tw2 < 2.5 and z.alive():
+		await get_tree().process_frame
+		tw2 += get_process_delta_time()
 	await get_tree().create_timer(0.6).timeout
-	_ok("29. «Турель» → «Огонь»: турель наводится на заражённого и стреляет, боезапас тратится, враг ранен или убит", tur_shots > 0 and int(cd.turrets.rifle.ammo) < am0 and (not z.alive() or z.hp < zhp), "выстрелов %d, боезапас %d → %d, попаданий %d, цель %s, до врага %.1f м, hp %.0f → %.0f, последний: %s" % [tur_shots, am0, int(cd.turrets.rifle.ammo), hits - hits0, str(_tur_t == z), z.global_position.distance_to(car.global_position), zhp, z.hp, tur_last])
+	_ok("29. «Турель» включена: враг в 14 м — не стреляет (дальность 10 м); в 8 м — сама наводится и стреляет, боезапас тратится, враг ранен или убит", tur_mode and far_shots == 0 and tur_shots > tsh0 and int(cd.turrets.rifle.ammo) < am0 and (not z.alive() or z.hp < zhp), "в 14 м выстрелов %d; потом %d, боезапас %d → %d, попаданий %d, hp %.0f → %.0f, последний: %s" % [far_shots, tur_shots - tsh0, am0, int(cd.turrets.rifle.ammo), hits - hits0, zhp, z.hp, tur_last])
+	var z2 := spawn_enemy("infected", car.global_position + car.fwd() * 7.0)
+	z2.state = "idle"
+	z2.set_active(false)
+	_hud_press("c_tur")
+	var tsh1 := tur_shots
+	tw2 = 0.0
+	while tw2 < 1.5:
+		await get_tree().process_frame
+		tw2 += get_process_delta_time()
+	_ok("29а. «Турель» ещё раз — выключена: по врагу в 7 м не стреляет", not tur_mode and tur_shots == tsh1)
 	await _snap("gar_turret_fire")
 	_hud_press("c_exit")
 	# сохранение

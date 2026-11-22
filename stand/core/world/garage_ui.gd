@@ -429,7 +429,7 @@ func _turret_card(d: Dictionary, t: String) -> Control:
 	hv.add_theme_constant_override("separation", 0)
 	h.add_child(hv)
 	hv.add_child(_lbl(String(tc.get("n", t)), 16, Color(0.97, 0.97, 0.94)))
-	hv.add_child(_lbl("Урон: %s · темп: %s" % [String(tc.get("dmg_txt", "")), String(tc.get("rate_txt", ""))], 12, C_DIM))
+	hv.add_child(_lbl("Урон: %s · темп: %s · до %d м" % [String(tc.get("dmg_txt", "")), String(tc.get("rate_txt", "")), int(minf(float(tc.get("range", 10.0)), ULCar.c("turret_range_max", 10.0)))], 12, C_DIM))
 	if own:
 		var st: Dictionary = d.turrets[t]
 		v.add_child(_lbl("Боезапас %d/%d · прочность %d/%d" % [int(st.get("ammo", 0)), int(tc.cap), int(round(float(st.get("hp", 0)))), int(tc.hp)], 13, C_OK if on else C_TEXT))

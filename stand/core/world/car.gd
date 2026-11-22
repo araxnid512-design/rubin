@@ -204,7 +204,8 @@ func _wheels_from_json(p: String) -> void:
 ## пересобрать навесное по уровням деталей: колёса, бампер, листы кузова, грузовые модули, турель
 func rebuild() -> void:
 	if parts_n != null:
-		parts_n.free()
+		parts_n.name = "PartsOld"
+		parts_n.queue_free()                       # не сразу: в этом кадре узлы ещё рисуются
 	parts_n = Node3D.new()
 	parts_n.name = "Parts"
 	body.add_child(parts_n)
@@ -244,7 +245,7 @@ func cond(cat: String) -> float:
 func _build_wheels() -> void:
 	for w in _wheels:
 		if w.steer != null and is_instance_valid(w.steer):
-			(w.steer as Node3D).free()
+			(w.steer as Node3D).queue_free()
 	var lc := lvl_cfg("wheels", lvl("wheels"))
 	var mpath := "res://assets/world/%s.glb" % String(lc.get("model", "wh_stock"))
 	if not ResourceLoader.exists(mpath):
