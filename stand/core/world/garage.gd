@@ -396,14 +396,15 @@ func _furniture() -> void:
 		for xx in [-0.7, 0.7]:
 			_box("furn", "metal", Vector3(0.12, 0.5, 1.0), tank_at + Vector3(xx, 0.25, 0), true)
 		_cyl("furn", "metal", 0.15, 0.12, Transform3D(Basis(), tank_at + Vector3(0.4, 1.7, 0)))
-		var lb := Label3D.new()
-		lb.text = "ТОПЛИВО"
-		lb.font_size = 72
-		lb.pixel_size = 0.005
-		lb.modulate = Color(0.92, 0.9, 0.82)
-		lb.outline_size = 0
-		lb.position = tank_at + Vector3(0, 1.1, 0.63)
-		add_child(lb)
+	# надпись по трафарету на боку бака
+	var lb := Label3D.new()
+	lb.text = "ТОПЛИВО"
+	lb.font_size = 72
+	lb.pixel_size = 0.005
+	lb.modulate = Color(0.92, 0.9, 0.82)
+	lb.outline_size = 0
+	lb.position = tank_at + Vector3(0, 0.95, 0.6)
+	add_child(lb)
 	var col := CollisionShape3D.new()
 	var tb := BoxShape3D.new()
 	tb.size = Vector3(2.4, 1.7, 1.3)
@@ -414,7 +415,7 @@ func _furniture() -> void:
 	_box("furn", "screen", Vector3(0.28, 0.18, 0.02), tank_at + Vector3(1.55, 1.05, 0.38))
 	_prop("cv_jerrycans", tank_at + Vector3(-0.2, 0, 0.95), 0.0, 0.75)
 	# грузовой шкаф (у правой стены, дверцами в гараж)
-	if not _model("gr_cabinet", Vector3(W * 0.5 - T - 0.35, 0, ZONES.g_cab.z), -PI * 0.5, 2.0, "h"):
+	if not _model("gr_cabinet", Vector3(W * 0.5 - T - 0.35, 0, ZONES.g_cab.z), PI, 2.0, "h"):        # дверцы у модели — к +X
 		_box("furn", "gate", Vector3(0.6, 2.0, 1.5), Vector3(W * 0.5 - T - 0.32, 1.0, ZONES.g_cab.z), true)
 		_box("furn", "metal", Vector3(0.02, 1.9, 0.02), Vector3(W * 0.5 - T - 0.62, 1.0, ZONES.g_cab.z))
 		for zz in [-0.1, 0.1]:
@@ -433,7 +434,7 @@ func _furniture() -> void:
 			_box("furn", "metal", Vector3(0.08, 0.86, 0.6), Vector3(xx, 0.43, -D * 0.5 + T + 0.38))
 		_box("furn", "wood", Vector3(2.1, 0.9, 0.04), Vector3(1.2, 1.45, -D * 0.5 + T + 0.04))
 		_prop("qi_tool", Vector3(0.9, 0.94, -D * 0.5 + T + 0.4), 0.3, 0.45, false, false)
-	if not _model("gr_toolchest", Vector3(W * 0.5 - T - 0.35, 0, -D * 0.5 + T + 0.45), -PI * 0.5, 1.0, "h"):
+	if not _model("gr_toolchest", Vector3(W * 0.5 - T - 0.35, 0, -D * 0.5 + T + 0.45), PI, 1.0, "h"):
 		_box("furn", "yellow", Vector3(0.6, 1.0, 0.8), Vector3(W * 0.5 - T - 0.33, 0.5, -D * 0.5 + T + 0.5), true)
 		for y in [0.3, 0.55, 0.8]:
 			_box("furn", "metal", Vector3(0.02, 0.03, 0.6), Vector3(W * 0.5 - T - 0.64, y, -D * 0.5 + T + 0.5))
@@ -459,6 +460,9 @@ func _model(id: String, at: Vector3, yaw: float, sz: float, fit: String) -> bool
 	_group("models").add_child(n)
 	n.rotation.y = yaw
 	var b := _aabb(n)
+	if fit == "x" and b.size.z > b.size.x:
+		n.rotation.y = yaw + PI * 0.5                      # длинная сторона — вдоль стены (по X)
+		b = _aabb(n)
 	var ref := b.size.y if fit == "h" else maxf(b.size.x, b.size.z)
 	n.scale = Vector3.ONE * (sz / maxf(ref, 0.01))
 	b = _aabb(n)

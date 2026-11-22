@@ -281,13 +281,13 @@ func _build_bumper(n: int) -> void:
 	if n <= 0:
 		return
 	var zf := size.z * 0.5 + 0.05
-	# брус — модель Tripo усиленного бампера (bp_1), нет её — свой брус; на втором уровне — дуга, на третьем —
-	# дуга с крыльями и лебёдка (свои детали поверх бруса)
-	var mpath := "res://assets/world/%s.glb" % String(lvl_cfg("bumper", 1).get("model", "bp_1"))
-	if ResourceLoader.exists(mpath):
+	# модель Tripo своего уровня: брус (1), брус с защитной дугой (2), силовой бампер с лебёдкой и рамой (3)
+	var mpath := "res://assets/world/%s.glb" % String(lvl_cfg("bumper", n).get("model", ""))
+	if lvl_cfg("bumper", n).has("model") and ResourceLoader.exists(mpath):
 		_prop(mpath, size.x * 1.0, Vector3(0, 0.3, zf + 0.12), 0.0, true)
-	else:
-		_plate(Vector3(0, 0.52, zf), Vector3(size.x * 0.95, 0.2, 0.18), _mat_metal)
+		return
+	# нет модели — брус из своих деталей, на втором уровне — дуга, на третьем — дуга с крыльями и лебёдка
+	_plate(Vector3(0, 0.52, zf), Vector3(size.x * 0.95, 0.2, 0.18), _mat_metal)
 	if n >= 2:
 		for xx in [-0.5, 0.5]:
 			_tube(Vector3(xx, 0.6, zf), Vector3(xx, 1.12, zf - 0.08), 0.04)
