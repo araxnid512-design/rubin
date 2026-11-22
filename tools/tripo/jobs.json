@@ -1,5 +1,5 @@
 {
- "stop": true,
+ "stop": false,
  "jobs": [
   {
    "id": "g65b_fetch_toz",
@@ -424,6 +424,24 @@
     "a single isolated car part only, no vehicle, no wheels, no body: heavy black steel winch bumper with an electric winch drum in the middle and a tall tubular bull bar frame, realistic, game asset"
    ],
    "timeout": 1800
+  },
+  {
+   "id": "g66_fetch_uaz469",
+   "py": "tools/tripo/fetch_task.py",
+   "args": [
+    "3bbb44a9-39c5-40b4-a5cf-534d07764334",
+    "uaz469"
+   ],
+   "timeout": 600
+  },
+  {
+   "id": "g66_fetch_toz",
+   "py": "tools/tripo/fetch_task.py",
+   "args": [
+    "b3ecbcd3-ad41-4a1e-ab50-3ea9b0b35e48",
+    "w_toz34"
+   ],
+   "timeout": 600
   }
  ],
  "archived": [
