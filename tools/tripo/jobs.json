@@ -1,5 +1,5 @@
 {
- "stop": false,
+ "stop": true,
  "jobs": [
   {
    "id": "g64b_task_help",
