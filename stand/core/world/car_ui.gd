@@ -46,16 +46,18 @@ func _build() -> void:
 	_vb = VBoxContainer.new()
 	_vb.add_theme_constant_override("separation", 8)
 	_vb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_vb.custom_minimum_size.x = 900
 	sc.add_child(_vb)
 	refresh()
 
 
-func _lab(t: String, fs: int, col := ULSettings.C_TEXT) -> Label:
+func _lab(t: String, fs: int, col := ULSettings.C_TEXT, wrap := true) -> Label:
 	var l := Label.new()
 	l.text = t
 	l.add_theme_font_size_override("font_size", fs)
 	l.add_theme_color_override("font_color", col)
-	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	# перенос — только там, где у строки есть ширина (в ряду кнопок строка с переносом сжималась бы в столбик)
+	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART if wrap else TextServer.AUTOWRAP_OFF
 	return l
 
 
@@ -162,10 +164,12 @@ func refresh() -> void:
 		ch.queue_free()
 	var head := HBoxContainer.new()
 	_vb.add_child(head)
-	var tl := _lab("УАЗ-469", 24)
+	var tl := _lab("УАЗ-469", 24, ULSettings.C_TEXT, false)
 	tl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	head.add_child(tl)
-	head.add_child(_lab("%s · хлам %d" % [ULEconomy.list_text({"spore": int(inv.wallet.get("spore", 0)), "pea": int(inv.wallet.get("pea", 0))}), inv.count("junk")], 15, Color(1.0, 0.9, 0.6)))
+	var wl := _lab("%s · хлам %d" % [ULEconomy.list_text({"spore": int(inv.wallet.get("spore", 0)), "pea": int(inv.wallet.get("pea", 0))}), inv.count("junk")], 15, Color(1.0, 0.9, 0.6), false)
+	wl.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	head.add_child(wl)
 	head.add_child(ULSettings.button("Закрыть", close, 120))
 	_vb.add_child(_lab("Прочность %d / %d · бензин %.1f / %d л · багажник %d ячеек" % [int(round(car.hp)), int(round(car.hp_max)), car.fuel, int(car.tank), ULCar.trunk_cells(int(car.up.trunk))], 16, Color(0.75, 0.9, 1.0)))
 	# заправка и ремонт

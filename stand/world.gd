@@ -16789,6 +16789,8 @@ func _carmod_test() -> void:
 	do_action()
 	await get_tree().process_frame
 	_ok("открылось окно «УАЗ»: прочность, бензин, багажник, четыре улучшения", _car_ui != null and is_instance_valid(_car_ui) and _modal())
+	await get_tree().create_timer(0.3).timeout
+	await _snap("car_ui_stock")
 	var sp0 := int(inv.wallet.spore)
 	_car_ui.buy_fuel(10.0)
 	_ok("бензин покупается отдельно: +10 л за 8 споранов", is_equal_approx(car.fuel, 25.0) and int(inv.wallet.spore) == sp0 - 8, "%.1f л, споранов %d" % [car.fuel, int(inv.wallet.spore)])
