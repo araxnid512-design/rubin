@@ -3,8 +3,8 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://dcgng7pxlca3q"
-path.s3tc="res://.godot/imported/aerial_grass_c.jpg-53a3e2b9b995d71899e950afd934c824.s3tc.ctex"
-path.etc2="res://.godot/imported/aerial_grass_c.jpg-53a3e2b9b995d71899e950afd934c824.etc2.ctex"
+path.bptc="res://.godot/imported/aerial_grass_c.jpg-53a3e2b9b995d71899e950afd934c824.bptc.ctex"
+path.astc="res://.godot/imported/aerial_grass_c.jpg-53a3e2b9b995d71899e950afd934c824.astc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
@@ -13,12 +13,12 @@ metadata={
 [deps]
 
 source_file="res://assets/world/tex/aerial_grass_c.jpg"
-dest_files=["res://.godot/imported/aerial_grass_c.jpg-53a3e2b9b995d71899e950afd934c824.s3tc.ctex", "res://.godot/imported/aerial_grass_c.jpg-53a3e2b9b995d71899e950afd934c824.etc2.ctex"]
+dest_files=["res://.godot/imported/aerial_grass_c.jpg-53a3e2b9b995d71899e950afd934c824.bptc.ctex", "res://.godot/imported/aerial_grass_c.jpg-53a3e2b9b995d71899e950afd934c824.astc.ctex"]
 
 [params]
 
 compress/mode=2
-compress/high_quality=false
+compress/high_quality=true
 compress/lossy_quality=0.7
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0

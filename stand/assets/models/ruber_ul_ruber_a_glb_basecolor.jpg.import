@@ -3,8 +3,8 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://cex2wawp4b2qp"
-path.s3tc="res://.godot/imported/ruber_ul_ruber_a_glb_basecolor.jpg-c4b0e48598e84704d0332c3811c1a226.s3tc.ctex"
-path.etc2="res://.godot/imported/ruber_ul_ruber_a_glb_basecolor.jpg-c4b0e48598e84704d0332c3811c1a226.etc2.ctex"
+path.bptc="res://.godot/imported/ruber_ul_ruber_a_glb_basecolor.jpg-c4b0e48598e84704d0332c3811c1a226.bptc.ctex"
+path.astc="res://.godot/imported/ruber_ul_ruber_a_glb_basecolor.jpg-c4b0e48598e84704d0332c3811c1a226.astc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
@@ -16,12 +16,12 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/models/ruber_ul_ruber_a_glb_basecolor.jpg"
-dest_files=["res://.godot/imported/ruber_ul_ruber_a_glb_basecolor.jpg-c4b0e48598e84704d0332c3811c1a226.s3tc.ctex", "res://.godot/imported/ruber_ul_ruber_a_glb_basecolor.jpg-c4b0e48598e84704d0332c3811c1a226.etc2.ctex"]
+dest_files=["res://.godot/imported/ruber_ul_ruber_a_glb_basecolor.jpg-c4b0e48598e84704d0332c3811c1a226.bptc.ctex", "res://.godot/imported/ruber_ul_ruber_a_glb_basecolor.jpg-c4b0e48598e84704d0332c3811c1a226.astc.ctex"]
 
 [params]
 
 compress/mode=2
-compress/high_quality=false
+compress/high_quality=true
 compress/lossy_quality=0.7
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0

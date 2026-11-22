@@ -3,8 +3,8 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://bq3x8opcx5j4k"
-path.s3tc="res://.godot/imported/w_tt_w_tt_glb_basecolor.png-2037aa7ae3a560b483e2051b72d91a9d.s3tc.ctex"
-path.etc2="res://.godot/imported/w_tt_w_tt_glb_basecolor.png-2037aa7ae3a560b483e2051b72d91a9d.etc2.ctex"
+path.bptc="res://.godot/imported/w_tt_w_tt_glb_basecolor.png-2037aa7ae3a560b483e2051b72d91a9d.bptc.ctex"
+path.astc="res://.godot/imported/w_tt_w_tt_glb_basecolor.png-2037aa7ae3a560b483e2051b72d91a9d.astc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
@@ -16,12 +16,12 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/weapons/w_tt_w_tt_glb_basecolor.png"
-dest_files=["res://.godot/imported/w_tt_w_tt_glb_basecolor.png-2037aa7ae3a560b483e2051b72d91a9d.s3tc.ctex", "res://.godot/imported/w_tt_w_tt_glb_basecolor.png-2037aa7ae3a560b483e2051b72d91a9d.etc2.ctex"]
+dest_files=["res://.godot/imported/w_tt_w_tt_glb_basecolor.png-2037aa7ae3a560b483e2051b72d91a9d.bptc.ctex", "res://.godot/imported/w_tt_w_tt_glb_basecolor.png-2037aa7ae3a560b483e2051b72d91a9d.astc.ctex"]
 
 [params]
 
 compress/mode=2
-compress/high_quality=false
+compress/high_quality=true
 compress/lossy_quality=0.7
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0

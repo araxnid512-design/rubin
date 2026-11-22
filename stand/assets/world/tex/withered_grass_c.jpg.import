@@ -3,8 +3,8 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://dn3iyqp7t50b3"
-path.s3tc="res://.godot/imported/withered_grass_c.jpg-f23f2ac587e923d6210b74417a187ff0.s3tc.ctex"
-path.etc2="res://.godot/imported/withered_grass_c.jpg-f23f2ac587e923d6210b74417a187ff0.etc2.ctex"
+path.bptc="res://.godot/imported/withered_grass_c.jpg-f23f2ac587e923d6210b74417a187ff0.bptc.ctex"
+path.astc="res://.godot/imported/withered_grass_c.jpg-f23f2ac587e923d6210b74417a187ff0.astc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
@@ -13,12 +13,12 @@ metadata={
 [deps]
 
 source_file="res://assets/world/tex/withered_grass_c.jpg"
-dest_files=["res://.godot/imported/withered_grass_c.jpg-f23f2ac587e923d6210b74417a187ff0.s3tc.ctex", "res://.godot/imported/withered_grass_c.jpg-f23f2ac587e923d6210b74417a187ff0.etc2.ctex"]
+dest_files=["res://.godot/imported/withered_grass_c.jpg-f23f2ac587e923d6210b74417a187ff0.bptc.ctex", "res://.godot/imported/withered_grass_c.jpg-f23f2ac587e923d6210b74417a187ff0.astc.ctex"]
 
 [params]
 
 compress/mode=2
-compress/high_quality=false
+compress/high_quality=true
 compress/lossy_quality=0.7
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0

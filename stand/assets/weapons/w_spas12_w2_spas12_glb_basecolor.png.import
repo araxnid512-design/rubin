@@ -3,8 +3,8 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://dm8hf2ett3rwd"
-path.s3tc="res://.godot/imported/w_spas12_w2_spas12_glb_basecolor.png-c4a413a20598f1f3d129368858de8f3d.s3tc.ctex"
-path.etc2="res://.godot/imported/w_spas12_w2_spas12_glb_basecolor.png-c4a413a20598f1f3d129368858de8f3d.etc2.ctex"
+path.bptc="res://.godot/imported/w_spas12_w2_spas12_glb_basecolor.png-c4a413a20598f1f3d129368858de8f3d.bptc.ctex"
+path.astc="res://.godot/imported/w_spas12_w2_spas12_glb_basecolor.png-c4a413a20598f1f3d129368858de8f3d.astc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
@@ -16,12 +16,12 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/weapons/w_spas12_w2_spas12_glb_basecolor.png"
-dest_files=["res://.godot/imported/w_spas12_w2_spas12_glb_basecolor.png-c4a413a20598f1f3d129368858de8f3d.s3tc.ctex", "res://.godot/imported/w_spas12_w2_spas12_glb_basecolor.png-c4a413a20598f1f3d129368858de8f3d.etc2.ctex"]
+dest_files=["res://.godot/imported/w_spas12_w2_spas12_glb_basecolor.png-c4a413a20598f1f3d129368858de8f3d.bptc.ctex", "res://.godot/imported/w_spas12_w2_spas12_glb_basecolor.png-c4a413a20598f1f3d129368858de8f3d.astc.ctex"]
 
 [params]
 
 compress/mode=2
-compress/high_quality=false
+compress/high_quality=true
 compress/lossy_quality=0.7
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0
