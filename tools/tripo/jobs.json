@@ -136,6 +136,235 @@
     "json"
    ],
    "timeout": 180
+  },
+  {
+   "id": "g64b_fetch_toz",
+   "py": "tools/tripo/fetch_task.py",
+   "args": [
+    "b3ecbcd3-ad41-4a1e-ab50-3ea9b0b35e48",
+    "w_toz34"
+   ],
+   "timeout": 600
+  },
+  {
+   "id": "g64m_h_search_low",
+   "py": "tools/tripo/motion.py",
+   "args": [
+    "mur_ak_hd:67cf9ec9-5b9c-4c1b-8196-d99ebcfb0a65",
+    "h_search_low",
+    "4",
+    "a man crouches down in front of a low wooden box and rummages through it with both hands, searching, then looks up"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "g64m_h_search_high",
+   "py": "tools/tripo/motion.py",
+   "args": [
+    "mur_ak_hd:67cf9ec9-5b9c-4c1b-8196-d99ebcfb0a65",
+    "h_search_high",
+    "4",
+    "a man stands in front of a tall cabinet and searches the shelves with both hands at chest height, moving things aside"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "g64m_h_roll_fwd",
+   "py": "tools/tripo/motion.py",
+   "args": [
+    "mur_ak_hd:67cf9ec9-5b9c-4c1b-8196-d99ebcfb0a65",
+    "h_roll_fwd",
+    "2",
+    "a man performs a quick forward combat roll on the ground and gets back up on his feet"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "g64m_h_bandage",
+   "py": "tools/tripo/motion.py",
+   "args": [
+    "mur_ak_hd:67cf9ec9-5b9c-4c1b-8196-d99ebcfb0a65",
+    "h_bandage",
+    "4",
+    "a man stands and wraps a bandage around his left forearm with his right hand, then tightens it"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "g64m_h_inject",
+   "py": "tools/tripo/motion.py",
+   "args": [
+    "mur_ak_hd:67cf9ec9-5b9c-4c1b-8196-d99ebcfb0a65",
+    "h_inject",
+    "3",
+    "a man quickly stabs a syringe into his own thigh with his right hand and pushes the plunger"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "g64m_h_drink",
+   "py": "tools/tripo/motion.py",
+   "args": [
+    "mur_ak_hd:67cf9ec9-5b9c-4c1b-8196-d99ebcfb0a65",
+    "h_drink",
+    "3",
+    "a man raises a flask with his right hand to his mouth, drinks several gulps and lowers it"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "g64m_h_eat",
+   "py": "tools/tripo/motion.py",
+   "args": [
+    "mur_ak_hd:67cf9ec9-5b9c-4c1b-8196-d99ebcfb0a65",
+    "h_eat",
+    "3",
+    "a man holds food with both hands near his mouth, takes a bite and chews"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "g64m_h_rifle_butt",
+   "py": "tools/tripo/motion.py",
+   "args": [
+    "mur_ak_hd:67cf9ec9-5b9c-4c1b-8196-d99ebcfb0a65",
+    "h_rifle_butt",
+    "2",
+    "a man holding a rifle with both hands strikes forward hard with the rifle butt, then returns to a ready stance"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "g64m_h_car_enter",
+   "py": "tools/tripo/motion.py",
+   "args": [
+    "mur_ak_hd:67cf9ec9-5b9c-4c1b-8196-d99ebcfb0a65",
+    "h_car_enter",
+    "2",
+    "a man turns around and sits down sideways onto a car seat, lifts his legs in and puts both hands forward on a steering wheel"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "g64m_h_car_exit",
+   "py": "tools/tripo/motion.py",
+   "args": [
+    "mur_ak_hd:67cf9ec9-5b9c-4c1b-8196-d99ebcfb0a65",
+    "h_car_exit",
+    "2",
+    "a man seated turns his body sideways, steps out with one leg first and stands up"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "g64m_h_drive",
+   "py": "tools/tripo/motion.py",
+   "args": [
+    "mur_ak_hd:67cf9ec9-5b9c-4c1b-8196-d99ebcfb0a65",
+    "h_drive",
+    "3",
+    "a man sitting holds a steering wheel with both hands at chest height and makes small steering movements left and right"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "g64m_h_repair_wheel",
+   "py": "tools/tripo/motion.py",
+   "args": [
+    "mur_ak_hd:67cf9ec9-5b9c-4c1b-8196-d99ebcfb0a65",
+    "h_repair_wheel",
+    "4",
+    "a man squats beside a car wheel and turns a wrench with both hands, loosening the bolts"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "g64m_h_repair_hood",
+   "py": "tools/tripo/motion.py",
+   "args": [
+    "mur_ak_hd:67cf9ec9-5b9c-4c1b-8196-d99ebcfb0a65",
+    "h_repair_hood",
+    "4",
+    "a man leans forward over an open car hood and works with both hands inside the engine"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "g64m_h_throw_grenade",
+   "py": "tools/tripo/motion.py",
+   "args": [
+    "mur_ak_hd:67cf9ec9-5b9c-4c1b-8196-d99ebcfb0a65",
+    "h_throw_grenade",
+    "2",
+    "a man throws a grenade overhand with his right arm in a strong arc"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "g64m_h_push_off",
+   "py": "tools/tripo/motion.py",
+   "args": [
+    "mur_ak_hd:67cf9ec9-5b9c-4c1b-8196-d99ebcfb0a65",
+    "h_push_off",
+    "2",
+    "a man forcefully shoves an attacker away with both hands and steps back"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "g64m_h_vault",
+   "py": "tools/tripo/motion.py",
+   "args": [
+    "mur_ak_hd:67cf9ec9-5b9c-4c1b-8196-d99ebcfb0a65",
+    "h_vault",
+    "2",
+    "a man vaults over a low fence by placing one hand on it and swinging his legs over"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "g64m_h_carry_box",
+   "py": "tools/tripo/motion.py",
+   "args": [
+    "mur_ak_hd:67cf9ec9-5b9c-4c1b-8196-d99ebcfb0a65",
+    "h_carry_box",
+    "2",
+    "a man walks forward carrying a heavy box in front of him with both arms"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "g64m_h_limp",
+   "py": "tools/tripo/motion.py",
+   "args": [
+    "mur_ak_hd:67cf9ec9-5b9c-4c1b-8196-d99ebcfb0a65",
+    "h_limp",
+    "2",
+    "a wounded man walks forward slowly, limping on his right leg and holding his side"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "g64m_h_break_free",
+   "py": "tools/tripo/motion.py",
+   "args": [
+    "mur_ak_hd:67cf9ec9-5b9c-4c1b-8196-d99ebcfb0a65",
+    "h_break_free",
+    "2",
+    "a man struggles, twisting his torso to break free from someone gripping his shoulders, then pushes away"
+   ],
+   "timeout": 2400
+  },
+  {
+   "id": "g64m_h_pry_crate",
+   "py": "tools/tripo/motion.py",
+   "args": [
+    "mur_ak_hd:67cf9ec9-5b9c-4c1b-8196-d99ebcfb0a65",
+    "h_pry_crate",
+    "4",
+    "a man pries open the lid of a wooden crate with a crowbar using both hands"
+   ],
+   "timeout": 2400
   }
  ],
  "archived": [
