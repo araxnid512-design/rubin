@@ -518,9 +518,10 @@ func _furniture() -> void:
 	_place("gr_parts", Vector3(rx - 0.7, 0, fz - 0.6), 0.6, 1.2, "l", true)
 	_place("gr_jack", Vector3(rx - 1.9, 0, fz - 0.45), PI * 0.5, 1.1, "l", true)
 	# --- под крышей: лампы над помостом и таль ---
-	for z in [PLAT_Z - 1.6, PLAT_Z + 1.9]:
-		_place("gr_lamp", Vector3(0, H - 0.95, z), 0.0, 0.9, "h", false)
-	_place("gr_hoist", Vector3(0, H - 1.25, PLAT_Z - 0.2), PI * 0.5, 1.2, "h", false)
+	# лампы — над проходами по бокам помоста (машину сверху не закрывают), таль — над задним заездом
+	for lp in [Vector3(-2.15, 0, PLAT_Z - 1.2), Vector3(2.15, 0, PLAT_Z + 1.6), Vector3(-2.15, 0, PLAT_Z + 2.6), Vector3(2.15, 0, PLAT_Z - 2.2)]:
+		_place("gr_lamp", Vector3(lp.x, H - 0.85, lp.z), 0.0, 0.8, "h", false)
+	_place("gr_hoist", Vector3(0, H - 1.15, PLAT_Z - PLAT.z * 0.5 - 0.35), PI * 0.5, 1.1, "h", false)
 	# канистры у бака — на полу как готовые к выдаче места (сами предметы кладёт мир: can_spots)
 	_prop("cv_jerrycans", tank_at + Vector3(0.95, 0, 0.95), 0.4, 0.7)
 

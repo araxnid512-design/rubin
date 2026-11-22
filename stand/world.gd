@@ -17124,8 +17124,8 @@ func _rocket_trail(bl: Dictionary) -> void:
 	glow.position = Vector3(0, 0, 0.5)
 	root.add_child(glow)
 	var tr := CPUParticles3D.new()
-	tr.amount = 46
-	tr.lifetime = 1.1
+	tr.amount = 60
+	tr.lifetime = 1.2
 	tr.local_coords = false
 	tr.position = Vector3(0, 0, 0.5)
 	tr.direction = Vector3(0, 0, 1)
@@ -17141,11 +17141,11 @@ func _rocket_trail(bl: Dictionary) -> void:
 	tr.scale_amount_curve = curve
 	var grad := Gradient.new()
 	grad.set_color(0, Color(1.0, 0.75, 0.4, 0.9))
-	grad.add_point(0.12, Color(0.6, 0.58, 0.55, 0.6))
+	grad.add_point(0.12, Color(0.62, 0.6, 0.57, 0.8))
 	grad.set_color(grad.get_point_count() - 1, Color(0.55, 0.55, 0.55, 0.0))
 	tr.color_ramp = grad
 	var q := QuadMesh.new()
-	q.size = Vector2(0.45, 0.45)
+	q.size = Vector2(0.7, 0.7)
 	var qm := StandardMaterial3D.new()
 	qm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	qm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
@@ -17394,6 +17394,7 @@ func _turfx_test() -> void:
 		_tur_t = z
 		car._fire_cd = 0.0
 		var n0 := tur_shots
+		bullet_k = 0.3 if t == "rocket" else 1.0          # ракета на снимках — в полёте (замедлена)
 		_turret_shoot()
 		await get_tree().process_frame
 		var kick: float = car._kick
@@ -17405,6 +17406,7 @@ func _turfx_test() -> void:
 		await _snap("tfx_%s_2" % t)
 		var ej: int = (car.turret_fx.ejected if car.turret_fx != null else 0) - ej0
 		var pf: int = (car.turret_fx.puffed if car.turret_fx != null else 0) - pf0
+		bullet_k = 1.0
 		var ok := tur_shots > n0 and kick > 0.0 and pf > 0 and (ej > 0 if t != "rocket" else trail)
 		_ok("%s: выстрел — откат %.2f м, дымков %d, гильз %d%s" % [t, kick, pf, ej, (", след ракеты" if trail else "") if t == "rocket" else ""], ok)
 		z.global_position += Vector3(0, -50, 0)
