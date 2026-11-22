@@ -59,6 +59,12 @@ var info: Label
 var test := ""
 var out := "user://world"
 var _auto: Array = []             ## проверка: точки, к которым герой идёт сам
+var car: ULCar = null              ## УАЗ героя на временной локации (docs/PLANS.md, п. 5)
+var car_in := false                ## герой за рулём
+const CAR_HIDE := ["fire", "reload", "swap"]   ## кнопки, которых за рулём нет
+var _trunk_open := false
+var _car_snd: AudioStreamPlayer3D = null
+var _pl_layers := Vector2i(1, 1)   ## слои столкновений героя до посадки (в машине — без столкновений)
 var _steps := {}
 var inv: ULInventory
 var inv_ui: ULInventoryUI
@@ -80,6 +86,7 @@ var _toast_t := 0.0
 ## доделывает работу, когда движок уже закрывается (падение при выходе)
 func _exit_tree() -> void:
 	ULBlock.light_wait_all()
+	_car_store()
 
 
 func _ready() -> void:
@@ -131,7 +138,7 @@ func _ready() -> void:
 			sc.lottery = [sc.lottery[1], sc.lottery[1]]
 			sc.ruber_chances = [0, 0, 1]                 # и два Рубера — всего 57
 			ULSanatorium._cfg = sc
-	if test == "gqview" or test == "mapbake" or test == "pmap" or test == "fldiag" or test == "shbake" or test == "shcheck" or test == "gbake" or test == "gcheck" or test == "gperf" or test == "lumtest" or test == "wperf" or test == "evo" or test == "reload" or test == "look" or test == "traces":
+	if test == "gqview" or test == "mapbake" or test == "pmap" or test == "fldiag" or test == "shbake" or test == "shcheck" or test == "gbake" or test == "gcheck" or test == "gperf" or test == "lumtest" or test == "wperf" or test == "evo" or test == "reload" or test == "look" or test == "traces" or test == "car":
 		# сравнение чёткости (gqview), запекание карты локации (mapbake), проверка карты (pmap): место — --as-place=
 		ULSettings.arena = false
 		for a in OS.get_cmdline_user_args():
@@ -536,6 +543,8 @@ func _cowshed_enter() -> void:
 		k += 1
 		if k % 6 == 0:
 			await get_tree().process_frame          # по нескольку за кадр — без долгой заминки на входе
+	if test == "" or test == "car":
+		_car_spawn()
 	cs_ready = true
 	sn_ready_ms = Time.get_ticks_msec()
 	_blobs_build()
@@ -2615,6 +2624,11 @@ func _process(delta: float) -> void:
 	var right := Vector3(-fwd.z, 0, fwd.x)
 	var dir := right * iv.x - fwd * iv.y
 	var mag := clampf(iv.length(), 0.0, 1.0)
+	if car_in and car != null:
+		# за рулём джойстик ведёт машину, герой сидит на месте водителя
+		_car_tick(dir, mag, delta)
+		dir = Vector3.ZERO
+		mag = 0.0
 	# слегка отклонить — лёгкий бег, сильнее — быстрее, до полного бега
 	var speed := 0.0
 	if mag > 0.12:
@@ -2694,6 +2708,9 @@ func _process(delta: float) -> void:
 	rig.set_motion(real, 0.0, delta)
 	_body_pose(real)
 	_steps_sfx(real)
+	if car_in and car != null:
+		player.global_position = car.seat_pos()
+		player.velocity = Vector3.ZERO
 	# в доме: дом Tripo и крыша скрыты, видны комнаты, передние стены опущены
 	var ins := _in_house(player.global_position)
 	if house != null:
@@ -2701,6 +2718,8 @@ func _process(delta: float) -> void:
 			house.set_inside(ins)
 		house.update_walls(player.global_position, delta)
 	var dist_t := minf(cam_dist, 13.0) if ins else cam_dist
+	if car_in:
+		dist_t = cam_dist * 1.3                     # за рулём камера выше и дальше — видно, куда едешь
 	# бой с главарём: камера сдвигается к нему (в кадре оба) и чуть отходит; вне боя — возвращается
 	var boss_off := Vector3.ZERO
 	if boss_hud_on():
@@ -3051,6 +3070,10 @@ func close_inventory() -> void:
 	inv_ui.visible = false
 	_hud.visible = true
 	_open_ground = null
+	if _trunk_open:
+		_trunk_open = false
+		_car_store()                            # багажник — часть сохранения базы
+		snd.play("cover_close", car.trunk_pos() + Vector3.UP if car != null else player.global_position, -8.0)
 	if _open_safe > 0:
 		ULBase.save_state()                     # сейф — часть сохранения базы
 		_safe_door(_open_safe, false)
@@ -3283,6 +3306,9 @@ func remove_crate() -> void:
 # ---------------- действие ----------------
 
 func _find_target() -> void:
+	if car_in and car != null:
+		_target = {"type": "car_exit"}               # за рулём — одна кнопка: «Выйти»
+		return
 	var p := player.global_position
 	var best = null
 	var bd := 1.6
@@ -3302,6 +3328,15 @@ func _find_target() -> void:
 		if d < bd:
 			bd = d
 			best = {"type": "npc", "n": n}
+	if car != null and is_instance_valid(car):
+		var dd := Vector2(car.door_pos().x - p.x, car.door_pos().z - p.z).length() - 0.4
+		if dd < bd:
+			bd = dd
+			best = {"type": "car_door"}
+		var dk := Vector2(car.trunk_pos().x - p.x, car.trunk_pos().z - p.z).length() - 0.4
+		if dk < bd:
+			bd = dk
+			best = {"type": "car_trunk"}
 	if _terminal != null:
 		var dt := _terminal.global_position.distance_to(p) - 0.2
 		if dt < bd:
@@ -3420,6 +3455,8 @@ func _box_glow(best) -> void:
 func _target_pos() -> Vector3:
 	if _target == null:
 		return Vector3.ZERO
+	if String(_target.type).begins_with("car_") and car != null:
+		return car.trunk_pos() + Vector3.UP * 1.3 if _target.type == "car_trunk" else car.global_position + Vector3.UP * (car.size.y + 0.3)
 	if _target.type == "box":
 		var ctp: Dictionary = san.containers[int(_target.i)]
 		return (ctp.pos as Vector3) + Vector3.UP * ((ctp.size as Vector3).y + 0.2)
@@ -3439,6 +3476,10 @@ func _target_pos() -> Vector3:
 func _target_name() -> String:
 	if _target == null:
 		return ""
+	if _target.type == "car_trunk":
+		return "багажник УАЗа"
+	if String(_target.type).begins_with("car_"):
+		return "УАЗ" + (" (сломан — ремонт в гараже базы)" if car != null and car.broken() else "")
 	if _target.type == "crate":
 		return "ящик"
 	if _target.type == "box":
@@ -3459,6 +3500,12 @@ func _target_name() -> String:
 func _action_label() -> String:
 	if _target == null:
 		return ""
+	if _target.type == "car_door":
+		return "Сесть"
+	if _target.type == "car_exit":
+		return "Выйти"
+	if _target.type == "car_trunk":
+		return "Багажник"
 	if _target.type == "crate":
 		return "Открыть"
 	if _target.type == "box":
@@ -3477,6 +3524,15 @@ func _action_label() -> String:
 
 func do_action() -> void:
 	if _target == null:
+		return
+	if _target.type == "car_door":
+		car_enter()
+		return
+	if _target.type == "car_exit":
+		car_exit()
+		return
+	if _target.type == "car_trunk":
+		open_trunk()
 		return
 	if _target.type == "crate":
 		open_inventory(_target.c.get_meta("items"), "Ящик", false, "crate")
@@ -3980,6 +4036,14 @@ func _draw_hud() -> void:
 	# спораны — валюта
 	_hud_icon(_tex("res://assets/icons/loot_spore.png"), Vector2(sx + 8, 68), 24)
 	_hud_text(Vector2(sx + 40, 68), "%d" % inv.count("spore"), 15, Color(0.95, 0.95, 0.9))
+	if car_in and car != null:
+		# за рулём: прочность УАЗа и скорость
+		var cw := 280.0
+		var cx := vs.x * 0.5 - cw * 0.5
+		var ck := clampf(car.hp / car.hp_max, 0.0, 1.0)
+		_hud.draw_rect(Rect2(cx, 84, cw, 12), Color(0, 0, 0, 0.6))
+		_hud.draw_rect(Rect2(cx + 1, 85, (cw - 2) * ck, 10), Color(0.85, 0.3, 0.2) if ck < 0.3 else Color(0.85, 0.75, 0.35))
+		_hud_text(Vector2(vs.x * 0.5, 112), "УАЗ %d / %d · %d км/ч" % [int(round(car.hp)), int(round(car.hp_max)), int(round(absf(car.speed) * 3.6))] + ("  — сломан" if car.broken() else ""), 15, Color(1.0, 0.92, 0.7))
 	# джойстик
 	var jc := _joy_o if _joy_id >= 0 else Vector2(160, vs.y - 160)
 	_hud.draw_circle(jc, 92, Color(1, 1, 1, 0.07))
@@ -3992,6 +4056,8 @@ func _draw_hud() -> void:
 		var r: float = HUD_BTNS[k][1]
 		var on: bool = _hud_touch.values().has(k)
 		var active := true
+		if car_in and k in CAR_HIDE:
+			continue                                       # за рулём не стреляют и оружие не меняют
 		match k:
 			"take":
 				if _target == null:
@@ -4034,8 +4100,10 @@ func _draw_hud() -> void:
 				match String(_target.type):
 					"npc":
 						_hud_icon(_art("use"), c, r * 2.0, ic)
-					"crate", "box", "chest":
+					"crate", "box", "chest", "car_trunk":
 						_hud_icon(_tex("res://assets/icons/crate.png"), c, r * 1.5, ic)
+					"car_door", "car_exit":
+						_hud_icon(_art("use"), c, r * 2.0, ic)
 					"safe":
 						_hud_icon(_tex("res://assets/icons/safe.png"), c, r * 1.5, ic)
 					"corpse":
@@ -4079,6 +4147,8 @@ func _draw_hud() -> void:
 func _hud_hit(p: Vector2) -> String:
 	for k in HUD_BTNS:
 		if k == "take" and _target == null:
+			continue
+		if car_in and k in CAR_HIDE:
 			continue
 		if k == "map" and not map_exists():
 			continue
@@ -5127,6 +5197,9 @@ func _combat_setup() -> void:
 
 ## каждый кадр: задержки, очередь при удержании, возврат из прицела, доворот к цели
 func _combat_tick(delta: float) -> void:
+	if car_in:
+		_atk_want = 0.0                     # за рулём не стреляют и не бьют
+		return
 	_atk_cd -= delta                        # в этом кадре может уйти в минус: очередь не теряет выстрелы при низком FPS
 	_heal_cd = maxf(0.0, _heal_cd - delta)
 	_aim_t += delta
@@ -11288,7 +11361,9 @@ func _blobs_tick() -> void:
 		if player == null:
 			return
 		_blobs_build()                      # дом и полигон: только движущиеся пятна
-	var items: Array = [[player.global_position, 0.42, 0.6]]
+	var items: Array = [] if car_in else [[player.global_position, 0.42, 0.6]]
+	if car != null and is_instance_valid(car):
+		items.append([car.global_position, 2.1, 0.5])      # пятно под машиной (без теней солнца — «стоит» на земле)
 	var hp := player.global_position
 	for e in enemies:
 		if not is_instance_valid(e) or not e.alive() or not e.visible:
@@ -11627,6 +11702,10 @@ var hp_lock := false               ## проверки: удары видны, �
 func hurt(dmg: float, from := Vector3.INF) -> void:
 	if _dead_t > 0.0:
 		return
+	if car_in and car != null and not car.broken():
+		car.damage(dmg)                             # в целой машине бьют по машине, герой цел
+		snd.play("block", car.global_position + Vector3.UP, -6.0, 0.12)
+		return
 	dmg *= ULGifts.val("skin", "k", 1.0)              # дар «Крепкая кожа»
 	_calm_t = 0.0
 	if not lvl and not hp_lock:
@@ -11645,6 +11724,8 @@ func hurt(dmg: float, from := Vector3.INF) -> void:
 			_knock = push * clampf(dmg / 9.0, 1.6, 2.8)
 			_blood(player.global_position + Vector3.UP * 1.3 - push * 0.18, push, int(clampf(dmg, 8.0, 24.0)))
 	if hp <= 0.0:
+		if car_in:
+			car_exit()                                  # погиб в сломанной машине — тело снаружи
 		# погиб: через три секунды — снова у дома, с половиной здоровья; враги расходятся
 		_dead_t = 3.0
 		close_inventory()
@@ -13844,6 +13925,9 @@ func _run_test() -> void:
 		return
 	if test == "look":
 		await _look_test()
+		return
+	if test == "car":
+		await _car_test()
 		return
 	if test == "setshot":
 		# снимок окна настроек (строка о разрешении экрана и подстройке)
@@ -16322,3 +16406,292 @@ func _run_test() -> void:
 	_log("горница: " + _where())
 	await _perf_report()
 	get_tree().quit()
+
+
+# ---------------- УАЗ героя (docs/PLANS.md, п. 5, этап 1; ULCar, data/car.json) ----------------
+
+## Поставить машину у входа на временную локацию: сбоку от тропы, мордой внутрь, на свободное место
+func _car_spawn() -> void:
+	if not temp() or arena or car != null:
+		return
+	var cd := ULBase.car_data()
+	car = ULCar.new()
+	car.hp = float(cd.hp)
+	add_child(car)
+	car.setup()
+	var e := zone_entry()
+	var yaw := zone_entry_yaw() if place in ["cowshed", "sanatorium"] else atan2(-e.x, -e.z)
+	var fw := Vector3(sin(yaw), 0, cos(yaw))
+	var rt := Vector3(-fw.z, 0, fw.x)
+	var map := get_world_3d().navigation_map
+	var picked := false
+	for off in [rt * 4.5 + fw * 3.0, -rt * 4.5 + fw * 3.0, rt * 6.5 + fw * 6.0, -rt * 6.5 + fw * 6.0, fw * 9.0, rt * 9.0, -rt * 9.0, rt * 5.0 + fw * 12.0, -rt * 5.0 + fw * 12.0]:
+		var want: Vector3 = e + off
+		var at := NavigationServer3D.map_get_closest_point(map, want)
+		if Vector2(at.x - want.x, at.z - want.z).length() > 1.5:
+			continue
+		car.global_position = at + Vector3.UP * 0.1
+		car.rotation.y = yaw
+		if _car_free():
+			picked = true
+			break
+	if not picked:
+		car.global_position = e + rt * 4.5 + fw * 3.0 + Vector3.UP * 0.1
+		car.rotation.y = yaw
+	for i in 8:
+		car.drive(Vector3.ZERO, 0.0, 0.05)            # опустить на землю
+	_car_snd = AudioStreamPlayer3D.new()
+	var es: AudioStream = load("res://assets/audio/engine_loop.ogg")
+	if es is AudioStreamOggVorbis:
+		(es as AudioStreamOggVorbis).loop = true
+	_car_snd.stream = es
+	_car_snd.volume_db = -9.0
+	_car_snd.unit_size = 6.0
+	car.add_child(_car_snd)
+
+
+## место под машину свободно (ничего, кроме земли, в коробке кузова, приподнятой над землёй)
+func _car_free() -> bool:
+	var q := PhysicsShapeQueryParameters3D.new()
+	var bs := BoxShape3D.new()
+	bs.size = Vector3(car.size.x * 0.95, car.size.y * 0.6, car.size.z * 0.95)
+	q.shape = bs
+	q.transform = Transform3D(Basis(Vector3.UP, car.rotation.y), car.global_position + Vector3.UP * (0.45 + bs.size.y * 0.5))
+	q.collision_mask = 1
+	q.exclude = [car.get_rid(), player.get_rid()]
+	return get_world_3d().direct_space_state.intersect_shape(q, 1).is_empty()
+
+
+## точка для героя свободна (выход из машины)
+func _spot_free(at: Vector3) -> bool:
+	var q := PhysicsShapeQueryParameters3D.new()
+	var sp := SphereShape3D.new()
+	sp.radius = 0.38
+	q.shape = sp
+	q.transform = Transform3D(Basis.IDENTITY, at + Vector3.UP * 0.9)
+	q.collision_mask = 1
+	q.exclude = [player.get_rid()]
+	return get_world_3d().direct_space_state.intersect_shape(q, 1).is_empty()
+
+
+## кадр за рулём: сбитые заражённые (до шага — иначе тело врага остановило бы машину раньше удара), езда,
+## удары о препятствия, звук мотора
+func _car_tick(dir: Vector3, mag: float, delta: float) -> void:
+	_car_ram(delta)
+	car.drive(dir, mag, delta)
+	if car.crashed > 0.0:
+		snd.play("block", car.global_position + Vector3.UP, clampf(-14.0 + car.crashed * 1.5, -14.0, 0.0), 0.1)
+		car.crashed = 0.0
+	if _car_snd:
+		_car_snd.pitch_scale = 0.75 + absf(car.speed) / ULCar.c("max_speed", 15.0) * 0.95
+
+
+## заражённые на пути машины в этот кадр (кузов, вытянутый по ходу на шаг кадра и ещё 0,8 м)
+func _car_ram(delta: float) -> void:
+	var sp := absf(car.speed)
+	if sp < ULCar.c("ram_min_speed", 3.5):
+		return
+	var now := Time.get_ticks_msec() * 0.001
+	var inv_t := car.global_transform.affine_inverse()
+	var reach := sp * delta + 0.8
+	var zf := car.size.z * 0.5 + (reach if car.speed > 0.0 else 0.4)
+	var zb := -car.size.z * 0.5 - (reach if car.speed < 0.0 else 0.4)
+	for e in enemies:
+		if not is_instance_valid(e) or not e.alive():
+			continue
+		var lp: Vector3 = inv_t * e.global_position
+		if absf(lp.x) > car.size.x * 0.5 + 0.45 or lp.z > zf or lp.z < zb or lp.y < -1.0 or lp.y > 2.5:
+			continue
+		if now - float(e.get_meta("car_hit", -9.0)) < 0.6:
+			continue
+		e.set_meta("car_hit", now)
+		var away := e.global_position - car.global_position
+		away.y = 0.0
+		away = away.normalized() if away.length() > 0.01 else car.fwd()
+		if e.kind == "ruber":
+			# Рубер — как стена: машина встаёт и мнётся
+			car.damage(ULCar.c("ruber_car_dmg", 40.0))
+			car.speed = 0.0
+			e.damage(sp * sp * 0.6, car.global_position)
+			snd.play("block", e.global_position + Vector3.UP, -2.0)
+		else:
+			e.damage(sp * sp * ULCar.c("ram_dmg_k", 2.4), car.global_position)
+			car.damage(ULCar.c("ram_car_dmg", 2.0))
+			if e.alive():
+				e.global_position += away * 0.8                # выжил — отброшен в сторону
+			snd.play("body_fall", e.global_position + Vector3.UP * 0.5, -4.0)
+			_blood(e.global_position + Vector3.UP, away, 14)
+
+
+## сесть за руль (у водительской двери)
+func car_enter() -> void:
+	if car == null or car_in:
+		return
+	car_in = true
+	_pl_layers = Vector2i(player.collision_layer, player.collision_mask)
+	player.collision_layer = 0
+	player.collision_mask = 0
+	player.visible = false
+	player.velocity = Vector3.ZERO
+	player.global_position = car.seat_pos()
+	snd.play("cover_close", car.door_pos() + Vector3.UP, -6.0)
+	if _car_snd and not car.broken():
+		_car_snd.play()
+
+
+## выйти: у водительской двери; занято — с другой стороны, сзади, спереди
+func car_exit() -> void:
+	if car == null or not car_in:
+		return
+	var spots := [car.door_pos(), car.global_transform * Vector3(-car.size.x * 0.5 - 0.6, 0.0, car.size.z * 0.05), car.trunk_pos(), car.global_transform * Vector3(0.0, 0.0, car.size.z * 0.5 + 0.7)]
+	var at: Vector3 = spots[0]
+	for sp in spots:
+		if _spot_free(sp):
+			at = sp
+			break
+	car_in = false
+	car.speed = 0.0
+	player.global_position = at + Vector3.UP * 0.1
+	player.collision_layer = _pl_layers.x
+	player.collision_mask = _pl_layers.y
+	player.visible = true
+	player.velocity = Vector3.ZERO
+	snd.play("cover_open", at + Vector3.UP, -6.0)
+	if _car_snd:
+		_car_snd.stop()
+	_car_store()
+
+
+## багажник: хранилище на 30 ячеек (как сейф), класть и брать
+func open_trunk() -> void:
+	if car == null:
+		return
+	_trunk_open = true
+	inv_ui.cont_cols = int(ULCar.c("trunk_cols", 6.0))
+	inv_ui.storage_ops = true
+	open_inventory(ULBase.car_data().trunk, "Багажник УАЗа", false, "crate")
+	snd.play("cover_open", car.trunk_pos() + Vector3.UP, -8.0)
+
+
+## прочность машины и багажник — в сохранение базы
+func _car_store() -> void:
+	if car == null or not is_instance_valid(car):
+		return
+	ULBase.car_data()["hp"] = car.hp
+	ULBase.save_state()
+
+
+## Проверка УАЗа (--as-test=car --as-place=cowshed): у входа, в натуральную величину, сесть, ехать, повернуть, сбить
+## пустыша, удары врагов — по машине, а не по герою, выйти, багажник (положить, в сохранение), сломанная не едет
+func _car_test() -> void:
+	var t0 := Time.get_ticks_msec()
+	while not cs_ready and Time.get_ticks_msec() - t0 < 25000:
+		await get_tree().process_frame
+	await get_tree().create_timer(0.6).timeout
+	ULBase.memory_only = true
+	_ok("УАЗ стоит у входа на локацию", car != null and car.global_position.distance_to(zone_entry()) < 16.0, str(car.global_position) if car else "нет")
+	if car == null:
+		_test_done()
+		return
+	_ok("в натуральную величину (УАЗ-469: 4,0 × 1,8–2,1 × 2,0–2,2 м)", car.size.z > 3.8 and car.size.z < 4.3 and car.size.x > 1.7 and car.size.x < 2.3 and car.size.y > 1.8 and car.size.y < 2.4, "%.2f × %.2f × %.2f м" % [car.size.z, car.size.x, car.size.y])
+	var gq := PhysicsRayQueryParameters3D.create(car.global_position + Vector3.UP * 3.0, car.global_position + Vector3.DOWN * 3.0)
+	gq.exclude = [car.get_rid()]
+	var gh := get_world_3d().direct_space_state.intersect_ray(gq)
+	_ok("стоит на земле: не висит и не провалился", not gh.is_empty() and absf(car.global_position.y - (gh.position as Vector3).y) < 0.3, "%.2f над землёй" % (car.global_position.y - (gh.position as Vector3).y if not gh.is_empty() else 99.0))
+	# проверка машины, а не боя: враги рядом — в сторону
+	for e in enemies:
+		if is_instance_valid(e) and e.alive() and e.global_position.distance_to(car.global_position) < 45.0:
+			e.global_position += Vector3(0, -50, 0)
+			e.set_active(false)
+			e.state = "idle"
+	player.global_position = car.door_pos() + Vector3.UP * 0.1
+	for i in 6:
+		await get_tree().process_frame
+	await _snap("car_door")
+	_ok("у водительской двери — кнопка «Сесть»", _target != null and String(_target.type) == "car_door" and _action_label() == "Сесть", _action_label())
+	do_action()
+	for i in 4:
+		await get_tree().process_frame
+	_ok("сел за руль: героя не видно, кнопка — «Выйти», на экране прочность УАЗа", car_in and not player.visible and _action_label() == "Выйти")
+	# вперёд по ходу 3 с; на второй секунде впереди на дороге — пустыш
+	var p0 := car.global_position
+	_auto_k = 1.0
+	_auto_r = 0.5
+	_auto = [p0 + car.fwd() * 80.0]
+	var tw := 0.0
+	var vmax := 0.0
+	var z: ULEnemy = null
+	var z_kmh := 0
+	while tw < 3.0 or (z != null and z.alive() and tw < 5.0):
+		await get_tree().process_frame
+		tw += get_process_delta_time()
+		vmax = maxf(vmax, absf(car.speed))
+		if z == null and tw > 1.6:
+			z = spawn_enemy("infected", car.global_position + car.fwd() * 14.0)
+			z.state = "idle"
+			z.set_active(false)
+		if z != null and z.alive():
+			z_kmh = int(absf(car.speed) * 3.6)
+	_auto.clear()
+	var dist := Vector2(car.global_position.x - p0.x, car.global_position.z - p0.z).length()
+	_ok("едет: за 3 с — больше 12 м, разгон до %d км/ч; герой на месте водителя, камера — за машиной" % int(vmax * 3.6), dist > 12.0 and player.global_position.distance_to(car.seat_pos()) < 0.6 and Vector2(_cam_t.x - car.global_position.x, _cam_t.z - car.global_position.z).length() < 3.0, "%.1f м" % dist)
+	_ok("сбил пустыша на дороге на скорости — насмерть", z != null and not z.alive(), "скорость %d км/ч" % z_kmh)
+	await _snap("car_drive")
+	# поворот направо
+	var yaw0 := car.rotation.y
+	var rt := Vector3(-car.fwd().z, 0, car.fwd().x)
+	_auto = [car.global_position + car.fwd() * 6.0 - rt * 25.0]
+	tw = 0.0
+	while tw < 2.0:
+		await get_tree().process_frame
+		tw += get_process_delta_time()
+	_auto.clear()
+	_ok("поворачивает на ходу (курс изменился больше чем на 30°)", absf(angle_difference(yaw0, car.rotation.y)) > deg_to_rad(30.0), "%.0f°" % rad_to_deg(absf(angle_difference(yaw0, car.rotation.y))))
+	# удары врагов в машине — по машине
+	var hp_h := hp
+	var hp_c := car.hp
+	hurt(20.0, car.global_position + car.fwd())
+	_ok("удар врага, пока герой в машине, тратит прочность машины, герой цел", car.hp < hp_c and is_equal_approx(hp, hp_h), "машина %.0f → %.0f" % [hp_c, car.hp])
+	# остановиться и выйти
+	tw = 0.0
+	while tw < 4.0 and absf(car.speed) > 0.2:
+		await get_tree().process_frame
+		tw += get_process_delta_time()
+	do_action()
+	for i in 4:
+		await get_tree().process_frame
+	_ok("вышел: герой у машины, виден, столкновения вернулись", not car_in and player.visible and player.collision_layer != 0 and player.global_position.distance_to(car.global_position) < 4.5, str(player.global_position.distance_to(car.global_position)))
+	# багажник
+	player.global_position = car.trunk_pos() + Vector3.UP * 0.1
+	for i in 6:
+		await get_tree().process_frame
+	_ok("у задней двери — кнопка «Багажник»", _target != null and String(_target.type) == "car_trunk" and _action_label() == "Багажник", _action_label())
+	inv.add({"id": "bandage", "n": 3})
+	do_action()
+	await get_tree().create_timer(0.3).timeout
+	await _snap("car_trunk")
+	var tr: Array = ULBase.car_data().trunk
+	_ok("багажник открылся окном хранилища: 30 ячеек", inv_ui.visible and inv_ui.cont == tr and tr.size() == 30)
+	inv_ui._put_all()
+	close_inventory()
+	_ok("«Положить всё»: бинты в багажнике; закрыл — багажник в сохранении базы", inv.count("bandage") == 0 and ULBase.car_data().trunk.any(func(x): return x != null and String(x.id) == "bandage"))
+	# сломанная не едет
+	car.damage(99999.0)
+	player.global_position = car.door_pos() + Vector3.UP * 0.1
+	for i in 4:
+		await get_tree().process_frame
+	do_action()
+	var p1 := car.global_position
+	_auto = [p1 + car.fwd() * 40.0]
+	tw = 0.0
+	while tw < 1.5:
+		await get_tree().process_frame
+		tw += get_process_delta_time()
+	_auto.clear()
+	_ok("сломанная машина не едет (ремонт — в гараже базы, следующий этап), из-под капота дым", car.broken() and car.global_position.distance_to(p1) < 0.5 and car.smoke.emitting)
+	hp_h = hp
+	hurt(10.0, car.global_position + car.fwd())
+	_ok("в сломанной машине удары достаются герою", hp < hp_h)
+	do_action()
+	_test_done()
+

@@ -55,6 +55,30 @@ static func load_state(force := false) -> void:
 			if arr[i] != null and not (arr[i] is Dictionary):
 				arr[i] = null
 		stg.safes["safe_%d" % k] = arr
+	_car_norm()
+
+
+## УАЗ героя (ULCar): прочность и багажник — с собой из посещения в посещение
+static func _car_norm() -> void:
+	if not (data.get("car") is Dictionary):
+		data["car"] = {}
+	var cd: Dictionary = data.car
+	var hmax := ULCar.c("hp", 600.0)
+	cd["hp"] = clampf(float(cd.get("hp", hmax)), 0.0, hmax)
+	var tr = cd.get("trunk")
+	if not (tr is Array):
+		tr = []
+	tr.resize(int(ULCar.c("trunk_cells", 30.0)))
+	for i in tr.size():
+		if tr[i] != null and not (tr[i] is Dictionary):
+			tr[i] = null
+	cd["trunk"] = tr
+
+
+static func car_data() -> Dictionary:
+	load_state()
+	_car_norm()
+	return data.car
 
 
 static func save_state() -> void:

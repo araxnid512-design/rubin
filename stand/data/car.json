@@ -1,0 +1,23 @@
+{
+	"_": "УАЗ героя (docs/PLANS.md, п. 5, этап 1). Числа — предложение, не утверждённый баланс: правятся здесь.",
+	"model": "res://assets/world/ul_uaz.glb",
+	"model_front": "x",
+	"length": 4.0,
+	"tint": [0.72, 0.74, 0.68],
+	"hp": 600,
+	"trunk_cells": 30,
+	"trunk_cols": 6,
+	"max_speed": 15.0,
+	"reverse_speed": 5.0,
+	"accel": 5.5,
+	"brake": 14.0,
+	"drag": 3.0,
+	"turn_rate": 1.6,
+	"crash_speed": 5.0,
+	"crash_dmg": 9.0,
+	"ram_min_speed": 3.5,
+	"ram_dmg_k": 2.4,
+	"ram_car_dmg": 2.0,
+	"ruber_car_dmg": 40.0,
+	"smoke_below": 0.3
+}
