@@ -19,7 +19,7 @@
 ![окно «Улучшения» — всё до 3/3](garage_ui.jpg)
 ![топливная станция](garage_fuel.jpg)
 ![за рулём: поворот дугой](car_drive.jpg)
-![режим турели](car_turret.jpg)
+![выстрел турелей: автоматная, пулемётная, автопушка, ракетная](car_turret.jpg)
 Код: `core/world/car.gd` (машина), `core/world/garage.gd` (здание), `core/world/garage_ops.gd` (правила),
 `core/world/garage_ui.gd` (окна), `core/world/base_state.gd` (сохранение `data.garage`); числа — `data/car.json`,
 `data/garage.json` (предложение, не утверждённый баланс). Проверки: `--as-test=car --as-place=cowshed` (езда, 23
