@@ -1,131 +1,12 @@
 {
- "stop": true,
+ "stop": false,
  "jobs": [
   {
-   "id": "g65b_fetch_toz",
-   "py": "tools/tripo/fetch_task.py",
-   "args": [
-    "b3ecbcd3-ad41-4a1e-ab50-3ea9b0b35e48",
-    "w_toz34"
-   ],
-   "timeout": 600
-  },
-  {
-   "id": "g65b_uaz469",
+   "id": "g67_tr2_rifle",
    "py": "tools/tripo/chain.py",
    "args": [
     "--id",
-    "uaz469",
-    "--faces",
-    "20000",
-    "--tex",
-    "detailed",
-    "--geo",
-    "detailed",
-    "--pbr",
-    "--image",
-    "tools/tripo/refs/uaz_photo.png",
-    "--prompt",
-    "Soviet UAZ-469 off-road car exactly as in the photo, olive green body, canvas soft top, four doors, black front bumper"
-   ],
-   "timeout": 1800
-  },
-  {
-   "id": "g65b_wh_2",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "wh_2",
-    "--faces",
-    "4000",
-    "--tex",
-    "detailed",
-    "--geo",
-    "detailed",
-    "--pbr",
-    "--prompt",
-    "single reinforced heavy-duty off-road wheel, thick sidewall tire with very deep blocky tread, black steel beadlock rim with bolts, standing upright, realistic, single object, game asset"
-   ],
-   "timeout": 1800
-  },
-  {
-   "id": "g65b_wh_3",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "wh_3",
-    "--faces",
-    "4000",
-    "--tex",
-    "detailed",
-    "--geo",
-    "detailed",
-    "--pbr",
-    "--prompt",
-    "single huge military off-road wheel, very wide tire with massive lugs, reinforced dark steel rim, standing upright, realistic, single object, game asset"
-   ],
-   "timeout": 1800
-  },
-  {
-   "id": "g65b_bp_1",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "bp_1",
-    "--faces",
-    "6000",
-    "--tex",
-    "detailed",
-    "--geo",
-    "detailed",
-    "--pbr",
-    "--prompt",
-    "reinforced heavy steel front bumper for an off-road jeep, thick flat black steel beam with two tow hooks, realistic, single object, game asset"
-   ],
-   "timeout": 1800
-  },
-  {
-   "id": "g65b_bp_2",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "bp_2",
-    "--faces",
-    "6000",
-    "--tex",
-    "detailed",
-    "--geo",
-    "detailed",
-    "--pbr",
-    "--prompt",
-    "off-road jeep front bumper with a tubular steel guard bar above it to protect the grille and headlights, black painted steel, realistic, single object, game asset"
-   ],
-   "timeout": 1800
-  },
-  {
-   "id": "g65b_bp_3",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "bp_3",
-    "--faces",
-    "6000",
-    "--tex",
-    "detailed",
-    "--geo",
-    "detailed",
-    "--pbr",
-    "--prompt",
-    "massive armored off-road front bull bar bumper with an electric winch, thick tubular guard frame and steel plates, dark painted metal, realistic, single object, game asset"
-   ],
-   "timeout": 1800
-  },
-  {
-   "id": "g65b_tr_rifle",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "tr_rifle",
+    "tr2_rifle",
     "--faces",
     "10000",
     "--tex",
@@ -134,16 +15,16 @@
     "detailed",
     "--pbr",
     "--prompt",
-    "small vehicle roof turret: assault rifle on a swivel ring mount with a small armored shield, military, realistic, single object, game asset"
+    "a single isolated vehicle weapon only, no vehicle: Kalashnikov assault rifle mounted on a swivel pintle post with a steel ammo box on the side and a small armored gun shield, round mounting base plate at the bottom, olive drab, military, realistic, single object, game asset"
    ],
    "timeout": 1800
   },
   {
-   "id": "g65b_tr_mg",
+   "id": "g67_tr2_mg",
    "py": "tools/tripo/chain.py",
    "args": [
     "--id",
-    "tr_mg",
+    "tr2_mg",
     "--faces",
     "10000",
     "--tex",
@@ -152,16 +33,16 @@
     "detailed",
     "--pbr",
     "--prompt",
-    "vehicle roof machine gun turret: heavy machine gun on a pintle ring mount with an ammo box and an armored shield, military, realistic, single object, game asset"
+    "a single isolated vehicle weapon only, no vehicle: belt-fed general purpose machine gun on a pintle post mount, metal ammunition box with a cartridge belt feeding into the gun, armored gun shield, round base plate, olive drab, military, realistic, single object, game asset"
    ],
    "timeout": 1800
   },
   {
-   "id": "g65b_tr_cannon",
+   "id": "g67_tr2_cannon",
    "py": "tools/tripo/chain.py",
    "args": [
     "--id",
-    "tr_cannon",
+    "tr2_cannon",
     "--faces",
     "10000",
     "--tex",
@@ -170,16 +51,16 @@
     "detailed",
     "--pbr",
     "--prompt",
-    "compact vehicle autocannon turret: small armored turret housing with a 30mm cannon barrel on a round ring base, military, realistic, single object, game asset"
+    "a single isolated vehicle weapon only, no vehicle: compact armored weapon station with a 30mm automatic cannon, boxy armored housing on a round rotating base, long barrel with a muzzle brake, olive drab, military, realistic, single object, game asset"
    ],
    "timeout": 1800
   },
   {
-   "id": "g65b_tr_rocket",
+   "id": "g67_tr2_rocket",
    "py": "tools/tripo/chain.py",
    "args": [
     "--id",
-    "tr_rocket",
+    "tr2_rocket",
     "--faces",
     "10000",
     "--tex",
@@ -188,138 +69,70 @@
     "detailed",
     "--pbr",
     "--prompt",
-    "vehicle roof rocket launcher turret: box pod with six rocket launch tubes on a rotating ring mount, military, realistic, single object, game asset"
+    "a single isolated vehicle weapon only, no vehicle: rocket launcher pod with six round launch tubes on a rotating pedestal mount with an elevation arm, olive drab, military, realistic, single object, game asset"
    ],
    "timeout": 1800
   },
   {
-   "id": "g65b_am_rifle",
+   "id": "g67_gr_platform",
    "py": "tools/tripo/chain.py",
    "args": [
     "--id",
-    "am_rifle",
+    "gr_platform",
     "--faces",
-    "3000",
-    "--prompt",
-    "metal military ammunition box for rifle cartridges, olive green with stenciled markings and a carry handle, realistic, single object, game asset"
-   ],
-   "timeout": 1800
-  },
-  {
-   "id": "g65b_am_mg",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "am_mg",
-    "--faces",
-    "3000",
-    "--prompt",
-    "metal ammunition can with a machine gun cartridge belt hanging out, olive drab, realistic, single object, game asset"
-   ],
-   "timeout": 1800
-  },
-  {
-   "id": "g65b_am_cannon",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "am_cannon",
-    "--faces",
-    "3000",
-    "--prompt",
-    "wooden military crate with large 30mm autocannon shells inside, lid open, realistic, single object, game asset"
-   ],
-   "timeout": 1800
-  },
-  {
-   "id": "g65b_am_rocket",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "am_rocket",
-    "--faces",
-    "3000",
-    "--prompt",
-    "dark green military transport case with four small rockets inside, lid open, realistic, single object, game asset"
-   ],
-   "timeout": 1800
-  },
-  {
-   "id": "g65b_en_0",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "en_0",
-    "--faces",
-    "5000",
-    "--prompt",
-    "old Soviet four-cylinder car engine block with carburetor and air filter, worn and greasy, isolated, realistic, single object, game asset"
-   ],
-   "timeout": 1800
-  },
-  {
-   "id": "g65b_en_1",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "en_1",
-    "--faces",
-    "5000",
-    "--prompt",
-    "rebuilt car engine with a new red valve cover and a new air filter, clean, isolated, realistic, single object, game asset"
-   ],
-   "timeout": 1800
-  },
-  {
-   "id": "g65b_en_2",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "en_2",
-    "--faces",
-    "5000",
-    "--prompt",
-    "tuned car engine with a turbocharger and shiny intake pipes, isolated, realistic, single object, game asset"
-   ],
-   "timeout": 1800
-  },
-  {
-   "id": "g65b_en_3",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "en_3",
-    "--faces",
-    "5000",
-    "--prompt",
-    "heavy-duty military diesel engine with a large intercooler and thick hoses, isolated, realistic, single object, game asset"
-   ],
-   "timeout": 1800
-  },
-  {
-   "id": "g65b_gr_fueltank",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "gr_fueltank",
-    "--faces",
-    "12000",
+    "10000",
     "--tex",
     "detailed",
     "--geo",
     "detailed",
     "--pbr",
     "--prompt",
-    "large rusty horizontal cylindrical fuel storage tank on two steel supports with a top hatch, pipes, a valve and a pressure gauge, red paint and rust, realistic, single object, game asset"
+    "garage vehicle service platform: low raised steel drive-on platform with two wide diamond-plate tracks, sloped ramps at both ends, yellow and black hazard stripes on the edges, worn and scratched, realistic, single object, game asset"
    ],
    "timeout": 1800
   },
   {
-   "id": "g65b_gr_terminal",
+   "id": "g67_gr_shelf",
    "py": "tools/tripo/chain.py",
    "args": [
     "--id",
-    "gr_terminal",
+    "gr_shelf",
+    "--faces",
+    "10000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "tall industrial metal shelving rack with four shelves full of paint cans, motor oil canisters, cardboard boxes and car parts, worn, garage, realistic, single object, game asset"
+   ],
+   "timeout": 1800
+  },
+  {
+   "id": "g67_gr_shelf2",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "gr_shelf2",
+    "--faces",
+    "10000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "wide metal garage shelf unit holding spare car tires, toolboxes, plastic crates and jerry cans, worn, post-apocalyptic, realistic, single object, game asset"
+   ],
+   "timeout": 1800
+  },
+  {
+   "id": "g67_gr_pegboard",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "gr_pegboard",
     "--faces",
     "8000",
     "--tex",
@@ -328,120 +141,170 @@
     "detailed",
     "--pbr",
     "--prompt",
-    "rugged industrial vehicle diagnostic computer station for a garage: metal cabinet with a monitor, keyboard and cables, post-apocalyptic, realistic, single object, game asset"
+    "garage tool wall: perforated pegboard panel with hanging wrenches, hammers, screwdrivers, saw and pliers above a low wooden work counter, realistic, single object, game asset"
    ],
    "timeout": 1800
   },
   {
-   "id": "g65b_gr_cabinet",
+   "id": "g67_gr_upbench",
    "py": "tools/tripo/chain.py",
    "args": [
     "--id",
-    "gr_cabinet",
+    "gr_upbench",
     "--faces",
-    "6000",
+    "10000",
     "--tex",
     "detailed",
     "--geo",
     "detailed",
     "--pbr",
     "--prompt",
-    "tall double-door metal storage cabinet locker, olive green, worn, industrial, realistic, single object, game asset"
+    "heavy vehicle upgrade workbench: steel work table with a car engine part on it, a welding machine, a vise, scattered tools and a lamp, post-apocalyptic garage, realistic, single object, game asset"
    ],
    "timeout": 1800
   },
   {
-   "id": "g65b_it_canister",
+   "id": "g67_gr_tyres",
    "py": "tools/tripo/chain.py",
    "args": [
     "--id",
-    "it_canister",
+    "gr_tyres",
     "--faces",
     "3000",
     "--prompt",
-    "single red metal jerry can fuel canister with a handle and a spout cap, realistic, single object, game asset"
+    "stack of four old worn car tires, realistic, single object, game asset"
    ],
    "timeout": 1800
   },
   {
-   "id": "g65b_gr_workbench",
+   "id": "g67_gr_barrels",
    "py": "tools/tripo/chain.py",
    "args": [
     "--id",
-    "gr_workbench",
-    "--faces",
-    "6000",
-    "--prompt",
-    "metal workbench with a vise and tools on top, garage, realistic, single object, game asset"
-   ],
-   "timeout": 1800
-  },
-  {
-   "id": "g65b_gr_toolchest",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "gr_toolchest",
+    "gr_barrels",
     "--faces",
     "4000",
     "--prompt",
-    "red rolling metal tool chest with drawers, realistic, single object, game asset"
+    "group of three dented rusty oil barrels, one blue and two red, realistic, single object, game asset"
    ],
    "timeout": 1800
   },
   {
-   "id": "g65c_bp_2",
+   "id": "g67_gr_lamp",
    "py": "tools/tripo/chain.py",
    "args": [
     "--id",
-    "bp_2",
+    "gr_lamp",
     "--faces",
-    "6000",
-    "--tex",
-    "detailed",
-    "--geo",
-    "detailed",
-    "--pbr",
+    "2000",
     "--prompt",
-    "a single isolated car part only, no vehicle, no wheels, no body: black steel front bumper beam with a tubular bull bar guard welded on top of it, realistic, game asset"
+    "industrial hanging ceiling lamp with a metal shade on a short chain, realistic, single object, game asset"
    ],
    "timeout": 1800
   },
   {
-   "id": "g65c_bp_3",
+   "id": "g67_gr_hoist",
    "py": "tools/tripo/chain.py",
    "args": [
     "--id",
-    "bp_3",
+    "gr_hoist",
     "--faces",
-    "6000",
-    "--tex",
-    "detailed",
-    "--geo",
-    "detailed",
-    "--pbr",
+    "4000",
     "--prompt",
-    "a single isolated car part only, no vehicle, no wheels, no body: heavy black steel winch bumper with an electric winch drum in the middle and a tall tubular bull bar frame, realistic, game asset"
+    "garage chain hoist with a hook hanging from a steel I-beam trolley, realistic, single object, game asset"
    ],
    "timeout": 1800
   },
   {
-   "id": "g66_fetch_uaz469",
-   "py": "tools/tripo/fetch_task.py",
+   "id": "g67_gr_jack",
+   "py": "tools/tripo/chain.py",
    "args": [
-    "3bbb44a9-39c5-40b4-a5cf-534d07764334",
-    "uaz469"
+    "--id",
+    "gr_jack",
+    "--faces",
+    "3000",
+    "--prompt",
+    "red hydraulic floor jack for cars with a long handle, realistic, single object, game asset"
    ],
-   "timeout": 600
+   "timeout": 1800
   },
   {
-   "id": "g66_fetch_toz",
-   "py": "tools/tripo/fetch_task.py",
+   "id": "g67_gr_welder",
+   "py": "tools/tripo/chain.py",
    "args": [
-    "b3ecbcd3-ad41-4a1e-ab50-3ea9b0b35e48",
-    "w_toz34"
+    "--id",
+    "gr_welder",
+    "--faces",
+    "4000",
+    "--prompt",
+    "gas welding cart with two tall gas cylinders, hoses and a torch, realistic, single object, game asset"
    ],
-   "timeout": 600
+   "timeout": 1800
+  },
+  {
+   "id": "g67_gr_engstand",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "gr_engstand",
+    "--faces",
+    "5000",
+    "--prompt",
+    "car engine mounted on a red engine repair stand on wheels, realistic, single object, game asset"
+   ],
+   "timeout": 1800
+  },
+  {
+   "id": "g67_gr_jerryrack",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "gr_jerryrack",
+    "--faces",
+    "4000",
+    "--prompt",
+    "metal floor rack holding six green and red jerry cans, realistic, single object, game asset"
+   ],
+   "timeout": 1800
+  },
+  {
+   "id": "g67_gr_parts",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "gr_parts",
+    "--faces",
+    "4000",
+    "--prompt",
+    "pile of old car parts: exhaust pipe, wheel rim, brake discs and a radiator, realistic, single object, game asset"
+   ],
+   "timeout": 1800
+  },
+  {
+   "id": "g67_it_canister_e",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "it_canister_e",
+    "--faces",
+    "3000",
+    "--prompt",
+    "single empty dented old grey-green metal jerry can with an open cap, realistic, single object, game asset"
+   ],
+   "timeout": 1800
+  },
+  {
+   "id": "g67_fx_rocket",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "fx_rocket",
+    "--faces",
+    "2000",
+    "--prompt",
+    "single small unguided rocket missile with tail fins, olive green, realistic, single object, game asset"
+   ],
+   "timeout": 1800
   }
  ],
  "archived": [
@@ -2471,6 +2334,35 @@
   "g64m_h_break_free",
   "g64m_h_pry_crate",
   "g65_wh_stock",
-  "g65_wh_1"
+  "g65_wh_1",
+  "g65b_fetch_toz",
+  "g65b_uaz469",
+  "g65b_wh_2",
+  "g65b_wh_3",
+  "g65b_bp_1",
+  "g65b_bp_2",
+  "g65b_bp_3",
+  "g65b_tr_rifle",
+  "g65b_tr_mg",
+  "g65b_tr_cannon",
+  "g65b_tr_rocket",
+  "g65b_am_rifle",
+  "g65b_am_mg",
+  "g65b_am_cannon",
+  "g65b_am_rocket",
+  "g65b_en_0",
+  "g65b_en_1",
+  "g65b_en_2",
+  "g65b_en_3",
+  "g65b_gr_fueltank",
+  "g65b_gr_terminal",
+  "g65b_gr_cabinet",
+  "g65b_it_canister",
+  "g65b_gr_workbench",
+  "g65b_gr_toolchest",
+  "g65c_bp_2",
+  "g65c_bp_3",
+  "g66_fetch_uaz469",
+  "g66_fetch_toz"
  ]
 }
