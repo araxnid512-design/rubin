@@ -1,9 +1,10 @@
 {
 	"_": "УАЗ героя (docs/PLANS.md, п. 5, этап 1). Числа — предложение, не утверждённый баланс: правятся здесь.",
-	"model": "res://assets/world/ul_uaz.glb",
+	"model": "res://assets/world/car_uaz.glb",
 	"model_front": "x",
 	"length": 4.0,
-	"tint": [0.72, 0.74, 0.68],
+	"tint": [0.6, 0.62, 0.58],
+	"specular": 0.25,
 	"hp": 600,
 	"trunk_cells": 30,
 	"trunk_cols": 6,

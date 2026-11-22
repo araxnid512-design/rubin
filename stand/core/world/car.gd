@@ -36,7 +36,7 @@ static func c(key: String, def: float) -> float:
 func setup() -> void:
 	hp_max = c("hp", 600.0)
 	hp = clampf(hp, 0.0, hp_max)
-	var path := String(cfg().get("model", "res://assets/world/ul_uaz.glb"))
+	var path := String(cfg().get("model", "res://assets/world/car_uaz.glb"))
 	model = (load(path) as PackedScene).instantiate()
 	add_child(model)
 	# модели Tripo смотрят передом вдоль +X; у машины перёд — +Z (как у героя: курс = atan2(x, z))
@@ -52,6 +52,11 @@ func setup() -> void:
 			if mat is BaseMaterial3D:
 				var mm := (mat as BaseMaterial3D).duplicate() as BaseMaterial3D
 				mm.albedo_color = mm.albedo_color * tint
+				# сверху солнце бьёт почти отвесно: блик на брезенте и крыше (глянец из карты шероховатости)
+				# выбеливал машину — кузов матовый, не металл
+				mm.metallic = 0.0
+				mm.metallic_specular = c("specular", 0.25)
+				mm.roughness = 1.0
 				m.set_surface_override_material(si, mm)
 	var box := _model_box()
 	var k := c("length", 4.0) / maxf(box.size.z, 0.01)
