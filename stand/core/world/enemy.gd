@@ -66,6 +66,16 @@ var _rock_cd := 0.0               ## через сколько возможен 
 var _rock_t := 0.0                ## сколько прошло с появления метки
 var _rock_step := 0               ## 0 — вырывает камень, 1 — держит, 2 — замах броска, 3 — бросил
 var _rock_plan := {}              ## по секундам: grab — камень в руках, swing — начало броска, rel — бросок, end — конец
+static var hear_k := 1.0             ## дар «Тихий шаг» (ULGifts): во сколько раз ближе слышат шаги и бег героя
+static var luck_k := 1.0             ## дар «Фарт»: спораны в телах ×k, шанс гороха ×k (при появлении врага)
+## Голод (world.gd: _evo_tick, data/evolve.json): голодный пустыш идёт к телу (feed_at), ест feed_need секунд и
+## перерождается — превращение делает мир (видит fed). Заметил героя, услышал выстрел, ранен — бросает еду.
+var feed_at := Vector3.INF
+var feed_t := 0.0
+var feed_need := 20.0
+var fed := false
+var _feeding := false
+var _feed_go := 0.0
 static var rock_next_ms := 0      ## раньше этого времени никто из Руберов новый бросок не начинает (два круга сразу — нечестно)
 
 
@@ -198,6 +208,10 @@ static func roll_loot(k: String, seed_n: int) -> Array:
 	for l in KINDS[k].loot:
 		var chance := float(l[3]) if l.size() > 3 else 1.0
 		var n := r.randi_range(int(l[1]), int(l[2]))
+		if luck_k != 1.0 and String(l[0]) == "spore":
+			n = roundi(float(n) * luck_k)
+		elif luck_k != 1.0 and String(l[0]) == "pea":
+			chance = minf(chance * luck_k, 1.0)
 		if r.randf() <= chance and n > 0:
 			ULInventory.put(out, ULItems.make(String(l[0]), n))
 	return out
@@ -219,11 +233,36 @@ func body_pos() -> Vector3:
 
 
 func _calm() -> bool:
-	return state == "idle" or state == "wander"
+	return state == "idle" or state == "wander" or state == "feed"
+
+
+## голод: идти к телу в точке at и есть need секунд
+func start_feed(at: Vector3, need: float) -> void:
+	state = "feed"
+	feed_at = at
+	feed_t = 0.0
+	feed_need = need
+	fed = false
+	_feed_go = 0.0
+	_path = PackedVector3Array()
+	_path_to = Vector3.INF
+
+
+## бросить еду (заметил героя, ранен, не дошёл)
+func end_feed() -> void:
+	if _feeding:
+		_feeding = false
+		rig.set_pose("")
+	feed_at = Vector3.INF
+	if state == "feed":
+		state = "idle"
+		_t = _rng.randf_range(1.0, 3.0)
 
 
 ## заметил героя: кричит (если виду положено) и только потом бежит — у игрока есть миг на решение
 func _notice(at: Vector3) -> void:
+	if state == "feed":
+		end_feed()
 	_last = at
 	_unseen = 0.0
 	var wait := float(def.get("alert_s", 0.0))
@@ -249,6 +288,7 @@ func hear_steps(p: Vector3, speed: float) -> void:
 	if not alive() or not _calm():
 		return
 	var r := float(def.get("hear_run", 0.0)) if speed > 2.4 else (float(def.get("hear_walk", 0.0)) if speed > 0.4 else 0.0)
+	r *= hear_k
 	if r > 0.0 and global_position.distance_to(p) < r:
 		_notice(p)
 
@@ -267,6 +307,8 @@ func damage(d: float, from := Vector3.INF) -> void:
 		if v.length() > 0.05:
 			var a := absf(angle_difference(rotation.y, atan2(v.x, v.z)))
 			side = "front" if a < PI * 0.3 else ("back" if a > PI * 0.7 else "side")
+	if state == "feed":
+		end_feed()
 	if hp <= 0.0:
 		state = "dead"
 		dead_t = 0.0
@@ -358,6 +400,31 @@ func tick(delta: float, p: Vector3, can_see: bool, hero_alive: bool) -> void:
 				if _growl <= 0.0:
 					_growl = _rng.randf_range(7.0, 15.0)
 					noise.emit("growl", global_position)
+		"feed":
+			# голодный: идёт к телу (по карте проходимости), садится и ест; видит героя — бросает еду
+			if hero_alive and dist < float(def.see) and can_see:
+				_notice(p)
+			else:
+				var g := feed_at - global_position
+				g.y = 0.0
+				if g.length() > 0.8:
+					_feed_go += delta
+					if _feed_go > 40.0:
+						end_feed()                       # не дошёл за 40 с — дорогу не нашёл
+					else:
+						speed = float(def.walk) * 1.5
+						_face(_nav_dir(feed_at, delta) if g.length() > 3.0 else _steer(g, delta), delta, 5.0)
+				else:
+					_face(g, delta, 4.0)
+					if not _feeding:
+						_feeding = true
+						rig.set_pose("infected_feed" if rig.has_clip("infected_feed") else "")
+					feed_t += delta
+					if _growl <= 0.0:
+						_growl = _rng.randf_range(2.2, 3.8)
+						noise.emit("chew", global_position)
+					if feed_t >= feed_need:
+						fed = true
 		"alert":
 			var la := _last - global_position
 			la.y = 0.0

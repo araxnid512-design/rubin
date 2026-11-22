@@ -117,7 +117,7 @@ func _ready() -> void:
 			sc.lottery = [sc.lottery[1], sc.lottery[1]]
 			sc.ruber_chances = [0, 0, 1]                 # и два Рубера — всего 57
 			ULSanatorium._cfg = sc
-	if test == "gqview" or test == "mapbake" or test == "pmap" or test == "fldiag" or test == "shbake" or test == "shcheck" or test == "gbake" or test == "gcheck" or test == "gperf" or test == "lumtest" or test == "wperf":
+	if test == "gqview" or test == "mapbake" or test == "pmap" or test == "fldiag" or test == "shbake" or test == "shcheck" or test == "gbake" or test == "gcheck" or test == "gperf" or test == "lumtest" or test == "wperf" or test == "evo":
 		# сравнение чёткости (gqview), запекание карты локации (mapbake), проверка карты (pmap): место — --as-place=
 		ULSettings.arena = false
 		for a in OS.get_cmdline_user_args():
@@ -591,6 +591,174 @@ func barn_floor_loot(rng: RandomNumberGenerator) -> Array:
 	return out
 
 
+# ---------------- голод: заражённые растут, пока герой в кластере ----------------
+## Время кластера — три стадии (data/evolve.json: stage_at). С 2-й голодные пустыши поблизости от тела (убитого
+## врага или останков) идут к нему, садятся и едят feed_s секунд — и перерождаются в лотерейщика; тело съедено.
+## В 3-й едят быстрее, ищут дальше, и раз в unseen_every_s секунд один пустыш вдали от героя (которого герой не
+## видит) перерождается сам. Всего перерождений за посещение — не больше max_share доли пустышей (от max_min до
+## max_max). Заметил героя, услышал выстрел, ранен — бросает еду. Под таймером — «заражённые отъедаются / звереют».
+const EVO_CFG := "res://data/evolve.json"
+var evo := {}
+var evo_n := 0                       ## сколько переродилось в это посещение
+var evo_max := 0
+var _evo_stage := 0
+var _evo_pulse := 0.0
+var _evo_unseen := -1.0
+var _evo_taken := {}                 ## еда → кто её ест: тело врага (id тела) или останки («r<номер>») → id едока
+var _evo_used := {}                  ## съеденные останки
+var _evo_rng := RandomNumberGenerator.new()
+
+
+func evo_cfg() -> Dictionary:
+	if evo.is_empty():
+		var d = JSON.parse_string(FileAccess.get_file_as_string(EVO_CFG))
+		evo = d if d is Dictionary else {"stage_at": [0.3, 0.6]}
+	return evo
+
+
+## стадия голода: 0 — не временный кластер, 1 — сытые, 2 — отъедаются, 3 — звереют
+func evo_stage() -> int:
+	if not temp() or _cs_end <= 0.0 or cs_start <= 0.0:
+		return 0
+	var fr := clampf(1.0 - cs_left() / maxf(_cs_end - cs_start, 1.0), 0.0, 1.0)
+	var sa: Array = evo_cfg().get("stage_at", [0.3, 0.6])
+	return 1 if fr < float(sa[0]) else (2 if fr < float(sa[1]) else 3)
+
+
+func _evo_tick(delta: float) -> void:
+	var st := evo_stage()
+	if st != _evo_stage:
+		var was := _evo_stage
+		_evo_stage = st
+		if was > 0 and st == 2:
+			say("Заражённые проголодались: едят тела и перерождаются")
+		elif was > 0 and st == 3:
+			say("Заражённые звереют: перерождаются и без тел")
+		if st == 3:
+			_evo_unseen = float(evo_cfg().get("unseen_every_s", 70.0)) * 0.5
+	if st < 2:
+		return
+	var c := evo_cfg()
+	var si := st - 2
+	var from := String(c.get("from", "infected"))
+	if evo_max <= 0:
+		var n := 0
+		for e in enemies:
+			if e.kind == from:
+				n += 1
+		evo_max = clampi(roundi(float(n) * float(c.get("max_share", 0.35))), int(c.get("max_min", 3)), int(c.get("max_max", 12)))
+		_evo_rng.seed = hash([cs_seed, "evo"])
+	# едоки: наелся — перерождается; бросил еду — она свободна; тело, которое едят, не исчезает
+	var feeding := 0
+	for e in enemies.duplicate():
+		if e.alive() and e.state == "feed":
+			if e.fed:
+				_evolve(e, true)
+			else:
+				feeding += 1
+	for key in _evo_taken.keys():
+		var fe = instance_from_id(int(_evo_taken[key]))
+		if fe == null or not is_instance_valid(fe) or not (fe as ULEnemy).alive() or (fe as ULEnemy).state != "feed":
+			_evo_taken.erase(key)
+		elif key is int:
+			var body = instance_from_id(int(key))
+			if body != null and is_instance_valid(body) and not (body as ULEnemy).alive():
+				(body as ULEnemy).dead_t = minf((body as ULEnemy).dead_t, ULEnemy.CORPSE_S - 15.0)
+	_evo_pulse -= delta
+	if _evo_pulse <= 0.0:
+		_evo_pulse = float((c.get("pulse_s", [14.0, 9.0]) as Array)[si])
+		_evo_feeders(si, feeding)
+	if st >= 3:
+		_evo_unseen -= delta
+		if _evo_unseen <= 0.0:
+			_evo_unseen = float(c.get("unseen_every_s", 70.0))
+			if evo_n + feeding < evo_max:
+				var cand: Array = []
+				for e in enemies:
+					if e.alive() and e.kind == from and (e.state == "idle" or e.state == "wander") \
+							and e.global_position.distance_to(player.global_position) > float(c.get("unseen_min_d", 45.0)) and not bool(e.get_meta("sees", false)):
+						cand.append(e)
+				if not cand.is_empty():
+					_evolve(cand[_evo_rng.randi() % cand.size()], false)
+
+
+## отправить голодных к свободной еде (тела убитых и останки локации)
+func _evo_feeders(si: int, feeding: int) -> void:
+	var c := evo_cfg()
+	var from := String(c.get("from", "infected"))
+	var want := int((c.get("feeders", [1, 2]) as Array)[si])
+	var r := float((c.get("feed_r", [24.0, 34.0]) as Array)[si])
+	var food: Array = []
+	for e in enemies:
+		if not e.alive() and e.dead_t < ULEnemy.CORPSE_S - 12.0 and not _evo_taken.has(e.get_instance_id()):
+			food.append([e.body_pos(), e.get_instance_id()])
+	if zone != null and "cows" in zone:
+		for i in (zone.cows as Array).size():
+			var key := "r%d" % i
+			if not _evo_taken.has(key) and not _evo_used.has(key):
+				food.append([zone.cows[i], key])
+	for i in range(food.size() - 1, 0, -1):
+		var j := _evo_rng.randi_range(0, i)
+		var tmp = food[i]
+		food[i] = food[j]
+		food[j] = tmp
+	var started := 0
+	for f in food:
+		if started >= want or evo_n + feeding + started >= evo_max:
+			break
+		var fp: Vector3 = f[0]
+		var best: ULEnemy = null
+		var bd := r
+		for e in enemies:
+			if e.alive() and e.kind == from and (e.state == "idle" or e.state == "wander") and absf(e.global_position.y - fp.y) < 1.6:
+				var d := e.global_position.distance_to(fp)
+				if d < bd:
+					best = e
+					bd = d
+		if best != null:
+			best.start_feed(fp, float((c.get("feed_s", [22.0, 14.0]) as Array)[si]))
+			best.set_meta("evo_food", f[1])
+			_evo_taken[f[1]] = best.get_instance_id()
+			started += 1
+
+
+## переродить пустыша в лотерейщика на том же месте; seen — на глазах (крик, кровь, сообщение рядом с героем)
+func _evolve(e: ULEnemy, seen: bool) -> ULEnemy:
+	var c := evo_cfg()
+	var at := e.global_position
+	if e.has_meta("evo_food"):
+		var key = e.get_meta("evo_food")
+		_evo_taken.erase(key)
+		if key is int:
+			var body = instance_from_id(int(key))
+			if body != null and is_instance_valid(body) and not (body as ULEnemy).alive():
+				(body as ULEnemy).dead_t = ULEnemy.CORPSE_S             # съеден — исчезает в этот же кадр
+		else:
+			_evo_used[key] = true
+	var ne := spawn_enemy(String(c.get("into", "lottery")), at)
+	ne.rotation.y = e.rotation.y
+	ne.home = e.home
+	ne.wander_r = e.wander_r
+	ne.set_meta("evolved", true)
+	if _evo_rng.randf() < float(c.get("pearl", 0.0)):
+		ULInventory.put(ne.loot, ULItems.make("pearl_black", 1))
+	if _mark_t == e:
+		_mark_t = null
+	targets.erase(e)
+	enemies.erase(e)
+	_dmg_lb.erase(e)
+	e.queue_free()
+	evo_n += 1
+	if seen:
+		_blood(at + Vector3.UP * 0.9, Vector3.UP, 18)
+		if ne.rig.has_clip("scream"):
+			ne.rig.play("scream")
+		_enemy_noise("roar", at, ne)
+		if at.distance_to(player.global_position) < 26.0:
+			say("Пустыш отъелся и переродился в лотерейщика")
+	return ne
+
+
 ## сколько секунд осталось до перезагрузки кластера
 func cs_left() -> float:
 	return maxf(_cs_end - Time.get_unix_time_from_system(), 0.0) if _cs_end > 0.0 else 0.0
@@ -611,6 +779,8 @@ func _cs_tick(delta: float) -> void:
 		if _quest_t <= 0.0:
 			_quest_t = 0.4
 			quest_tick()
+	if cs_ready and _dead_t <= 0.0 and (test == "" or test == "evo"):
+		_evo_tick(delta)
 	var left := cs_left()
 	var c := zone_cfg()
 	for wv in c.get("warn_s", [300, 120]):
@@ -801,6 +971,15 @@ func _cs_hud(vs: Vector2, font0: Font) -> void:
 	_hud.draw_string_outline(font0, Vector2(vs.x * 0.5 - tw * 0.5, 44), t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, 6, Color(0, 0, 0, 0.8))
 	_hud.draw_string(font0, Vector2(vs.x * 0.5 - tw * 0.5, 44), t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, col)
 	_hud.draw_string(font0, Vector2(vs.x * 0.5 - cw * 0.5, 62), cap, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(0.85, 0.85, 0.8))
+	# голод заражённых (data/evolve.json): со второй трети времени — «отъедаются», с последней — «звереют»
+	var est := evo_stage()
+	if est >= 2:
+		var et := "заражённые отъедаются" if est == 2 else "заражённые звереют"
+		var ec := Color(1.0, 0.72, 0.32) if est == 2 else Color(1.0, 0.38, 0.32)
+		# ниже строки сообщений (она — под таймером), на тёмной плашке
+		var ew := font0.get_string_size(et, HORIZONTAL_ALIGNMENT_LEFT, -1, 15).x
+		_hud.draw_rect(Rect2(vs.x * 0.5 - ew * 0.5 - 10, 100, ew + 20, 21), Color(0.05, 0.03, 0.02, 0.6))
+		_hud.draw_string(font0, Vector2(vs.x * 0.5 - ew * 0.5, 116), et, HORIZONTAL_ALIGNMENT_LEFT, -1, 15, ec)
 	_quest_hud(vs, font0)
 
 
@@ -2390,6 +2569,11 @@ func _process(delta: float) -> void:
 		if en >= 25.0:
 			_tired = false
 	water = maxf(0.0, water - delta * 0.04)
+	# дар «Живучесть»: если REGEN_WAIT секунд никто не бил — здоровье само прибывает
+	_calm_t += delta
+	var rg := ULGifts.val("regen", "hps", 0.0)
+	if rg > 0.0 and _calm_t >= REGEN_WAIT and _dead_t <= 0.0 and hp > 0.0:
+		hp = minf(HP_MAX, hp + rg * delta)
 	# Прицельное движение: пока герой стреляет (кнопка удержана или после выстрела прошло меньше секунды),
 	# он стоит лицом к цели, а идёт туда, куда ведёт джойстик, — вперёд, боком или пятясь. Ноги шагают в ту
 	# сторону, куда он на самом деле движется: тело и ноги не расходятся. Пятится и идёт боком он медленнее.
@@ -2418,6 +2602,7 @@ func _process(delta: float) -> void:
 			speed = minf(speed, lerpf(2.2, 3.4, clampf((cos(deg_to_rad(rel)) - 0.2) / 0.7, 0.0, 1.0)))
 	else:
 		_aim_yaw = player.rotation.y
+	speed *= ULGifts.val("swift", "k", 1.0)             # дар «Скороход»
 	var want := dir.normalized() * speed if mag > 0.12 else Vector3.ZERO
 	var hv := Vector3(player.velocity.x, 0, player.velocity.z)
 	# отклик без «плавания»: до полного бега — за десятую секунды, остановка — ещё быстрее
@@ -3594,6 +3779,7 @@ func _draw_hud() -> void:
 		_hud.draw_polygon(PackedVector2Array([Vector2(0, vs.y), Vector2(bw, vs.y - bh), Vector2(vs.x - bw, vs.y - bh), vs]), PackedColorArray([c0, c1, c1, c0]))
 		_hud.draw_polygon(PackedVector2Array([Vector2.ZERO, Vector2(bw, bh), Vector2(bw, vs.y - bh), Vector2(0, vs.y)]), PackedColorArray([c0, c1, c1, c0]))
 		_hud.draw_polygon(PackedVector2Array([Vector2(vs.x, 0), vs, Vector2(vs.x - bw, vs.y - bh), Vector2(vs.x - bw, bh)]), PackedColorArray([c0, c0, c1, c1]))
+	_sense_draw()
 	if _dead_t > 0.0:
 		_hud.draw_rect(Rect2(Vector2.ZERO, vs), Color(0.1, 0.0, 0.0, 0.6))
 		var dt := "Вы погибли"
@@ -3759,7 +3945,7 @@ func _hud_press(k: String) -> void:
 		"map":
 			open_place_map()
 		"name":
-			open_name_panel()
+			open_char_panel()
 
 
 # ---------------- карта локации ----------------
@@ -6275,6 +6461,289 @@ func _wait_drawn() -> void:
 ## «Опасный коровник» (--as-test=cs; --as-out=папка — снимки): размер, коровники и останки коров, сколько врагов
 ## и где, разные посещения, враги видят и бьют, таймер 10:00, уход за край с добычей, перезагрузка кластера с
 ## потерей того, что при себе (вещи базы целы), маршрут после посещения закрыт и покупается снова.
+func _test_done() -> void:
+	print("[inv] итог: ошибок %d" % _fails)
+	get_tree().quit()
+
+
+## голод заражённых (коровник): стадии по времени, едок идёт к телу, ест (поза, чавканье), перерождается
+## в лотерейщика — тело съедено; прерывание раной и взглядом героя; предел перерождений; в 3-й стадии — без тел
+func _evo_test() -> void:
+	var t0 := Time.get_ticks_msec()
+	while not cs_ready and Time.get_ticks_msec() - t0 < 15000:
+		await get_tree().process_frame
+	hp_lock = true
+	hero_unseen = true
+	if not cs_ready or zone == null or not temp():
+		_ok("локация с голодом (временный кластер) загрузилась", false, place)
+		_test_done()
+		return
+	var c := evo_cfg()
+	var dur := 600.0
+	var set_frac := func(fr: float) -> void:
+		var now := Time.get_unix_time_from_system()
+		cs_start = now - dur * fr
+		_cs_end = cs_start + dur
+	set_frac.call(0.05)
+	for i in 30:
+		await get_tree().process_frame
+	var feeding0 := 0
+	for e in enemies:
+		if e.state == "feed":
+			feeding0 += 1
+	_ok("в начале посещения заражённые сыты: стадия 1, к телам никто не идёт", evo_stage() == 1 and feeding0 == 0 and evo_n == 0)
+	# тело рядом со спокойным пустышом; останки коров на время — «съедены», чтобы еда была одна
+	var a: ULEnemy = null
+	var b: ULEnemy = null
+	var bd := 99.0
+	for e1 in enemies:
+		if e1.kind != "infected" or not (e1.state == "idle" or e1.state == "wander"):
+			continue
+		for e2 in enemies:
+			if e2 != e1 and e2.kind == "infected" and absf(e2.global_position.y - e1.global_position.y) < 1.0:
+				var d := e1.global_position.distance_to(e2.global_position)
+				if d > 3.0 and d < bd:
+					bd = d
+					a = e1
+					b = e2
+	if "cows" in zone:
+		for i in (zone.cows as Array).size():
+			_evo_used["r%d" % i] = true
+	_ok("есть пара пустышей для проверки (%.1f м)" % bd, a != null and b != null and bd < float((c.feed_r as Array)[0]))
+	if a == null:
+		_test_done()
+		return
+	var body_at := b.body_pos()
+	b.damage(9999.0)
+	# остальные пустыши — далеко от тела не помешают: едок — ближайший спокойный
+	set_frac.call(0.45)
+	_evo_pulse = 0.0
+	var fe: ULEnemy = null
+	for i in 90:
+		await get_tree().process_frame
+		for e in enemies:
+			if e.alive() and e.state == "feed":
+				fe = e
+		if fe != null:
+			break
+	_ok("2-я стадия (%.0f %% времени): голодный пустыш пошёл к телу" % 45.0, evo_stage() == 2 and fe != null and fe.kind == "infected" and fe.feed_at.distance_to(body_at) < 0.5)
+	if fe == null:
+		_test_done()
+		return
+	_ok("тело, к которому идут, занято одним едоком", _evo_taken.size() == 1 and _evo_taken.has(b.get_instance_id()))
+	# быстрее: ставим едока к телу и укорачиваем трапезу
+	fe.global_position = fe.feed_at + Vector3(0.6, 0.0, 0.0)
+	fe.feed_need = 2.5
+	var fe_id := fe.get_instance_id()
+	var fe_at := fe.global_position
+	var posed := false
+	var chewed := false
+	var clip_ok := false
+	b.dead_t = ULEnemy.CORPSE_S - 5.0                    # тело почти исчезло — пока его едят, оно лежит
+	var t1 := Time.get_ticks_msec()
+	while is_instance_valid(fe) and Time.get_ticks_msec() - t1 < 8000:
+		await get_tree().process_frame
+		if is_instance_valid(fe) and fe._feeding:
+			posed = true
+			clip_ok = fe.rig.has_clip("infected_feed")
+			chewed = chewed or fe.feed_t > 0.5
+			if fe.feed_t > 1.2 and not has_meta("evo_snap"):
+				# снимок: герой встаёт в 3 м от едока (его не замечают), камера — за героем
+				set_meta("evo_snap", true)
+				var hp0 := player.global_position
+				player.global_position = fe.global_position + Vector3(-2.2, 0.05, 2.2)
+				for k in 6:
+					await get_tree().process_frame
+				await _snap("evo_feed")
+				print("[evo] поза едока: %s вес %.2f действие «%s» активен %s дерево %s подробно %s" % [fe.rig._pose, fe.rig._pose_w, fe.rig._action, str(fe.active), str(fe.rig.tree.active), str(fe.rig._detail)])
+				player.global_position = hp0
+	_ok("едок сел у тела и ел (поза «infected_feed» есть у пустыша, время трапезы шло)", posed and chewed and clip_ok)
+	var ne: ULEnemy = null
+	for e in enemies:
+		if e.alive() and e.kind == "lottery" and e.has_meta("evolved"):
+			ne = e
+	_ok("наевшись — переродился в лотерейщика на том же месте, пустыш убран", not is_instance_valid(instance_from_id(fe_id)) and ne != null and ne.global_position.distance_to(fe_at) < 2.0 and evo_n == 1)
+	await get_tree().process_frame
+	_ok("тело съедено — его больше нет", not is_instance_valid(b) or not enemies.has(b))
+	_ok("еда освобождена, счёт перерождений 1 из %d" % evo_max, _evo_taken.is_empty() and evo_max >= int(c.max_min) and evo_max <= int(c.max_max))
+	# прерывание: ранен — бросает еду
+	var k2: ULEnemy = null
+	for e in enemies:
+		if e.alive() and e.kind == "infected" and (e.state == "idle" or e.state == "wander"):
+			k2 = e
+			break
+	k2.start_feed(k2.global_position + Vector3(3, 0, 0), 20.0)
+	k2.damage(1.0, player.global_position)
+	_ok("ранен во время еды — бросил еду", k2.state != "feed" and k2.feed_at == Vector3.INF)
+	# прерывание: увидел героя
+	var k3: ULEnemy = null
+	for e in enemies:
+		if e.alive() and e.kind == "infected" and (e.state == "idle" or e.state == "wander") and e != k2:
+			k3 = e
+			break
+	k3.start_feed(k3.global_position + Vector3(0.3, 0, 0), 20.0)
+	k3.tick(0.02, k3.global_position + Vector3(4, 0, 0), true, true)
+	_ok("увидел героя во время еды — бросил еду и заметил его", k3.state != "feed" and (k3.state == "alert" or k3.state == "chase"), k3.state)
+	# предел
+	var n_was := evo_n
+	evo_n = evo_max
+	for e in enemies:
+		if e.state == "feed":
+			e.end_feed()
+	_evo_taken.clear()
+	_evo_used.clear()
+	_evo_feeders(1, 0)
+	var fd := 0
+	for e in enemies:
+		if e.state == "feed":
+			fd += 1
+	_ok("на пределе (%d) новые едоки не идут" % evo_max, fd == 0)
+	evo_n = n_was
+	# 3-я стадия: далёкий пустыш, которого герой не видит, перерождается сам (с жемчужиной — проверка шанса)
+	set_frac.call(0.75)
+	for i in 3:
+		await get_tree().process_frame                  # смена стадии ставит свой отсчёт — ждём её
+	_evo_unseen = 0.01
+	var pearl0 := float(evo.get("pearl", 0.0))
+	evo["pearl"] = 1.0
+	var n3 := evo_n
+	for i in 20:
+		await get_tree().process_frame
+	evo["pearl"] = pearl0
+	var far: ULEnemy = null
+	for e in enemies:
+		if e.alive() and e.has_meta("evolved") and e != ne:
+			far = e
+	var pearl := false
+	if far != null:
+		for it in far.loot:
+			if it != null and String(it.id) == "pearl_black":
+				pearl = true
+	_ok("3-я стадия: вдали (дальше %d м) пустыш переродился сам, в нём чёрная жемчужина (шанс %.0f %% — тут поднят до 100)" % [int(c.unseen_min_d), float(evo_cfg().get("pearl", 0.0)) * 100.0], evo_stage() == 3 and evo_n == n3 + 1 and far != null and far.global_position.distance_to(player.global_position) > float(c.unseen_min_d) and pearl)
+	# надпись под таймером
+	_hud.queue_redraw()
+	await get_tree().process_frame
+	await _snap("evo_hud")
+	print("[evo] переродилось %d из %d" % [evo_n, evo_max])
+	_test_done()
+
+
+## дары: жемчужина будит и растит дары (ступени по цвету, предел 3 дара × 3 уровня), действие каждого дара,
+## окно персонажа с кнопкой «Съесть» (двойное нажатие), сохранение в профиле
+func _gifts_test() -> void:
+	await get_tree().create_timer(0.5).timeout
+	hero_unseen = true
+	_ok("в начале даров нет", ULGifts.owned.is_empty() and ULEnemy.hear_k == 1.0 and ULEnemy.luck_k == 1.0)
+	inv.wallet = {"spore": 0, "pea": 0, "pearl_black": 3, "pearl_red": 2, "pearl_white": 2}
+	var m1 := eat_pearl("pearl_black")
+	_ok("съедена чёрная: пробудился один дар 1-го уровня", ULGifts.owned.size() == 1 and int(ULGifts.owned.values()[0]) == 1 and int(inv.wallet.pearl_black) == 2 and m1.contains("пробудился"), m1)
+	var m2 := eat_pearl("pearl_red")
+	var sum := 0
+	for id in ULGifts.owned:
+		sum += int(ULGifts.owned[id])
+	_ok("красная — две ступени (всего 3)", sum == 3 and int(inv.wallet.pearl_red) == 1, m2)
+	eat_pearl("pearl_white")
+	sum = 0
+	for id in ULGifts.owned:
+		sum += int(ULGifts.owned[id])
+	_ok("белая — три ступени (всего 6), даров не больше 3", sum == 6 and ULGifts.owned.size() == 3, str(ULGifts.owned))
+	eat_pearl("pearl_white")
+	sum = 0
+	var top := true
+	for id in ULGifts.owned:
+		sum += int(ULGifts.owned[id])
+		top = top and int(ULGifts.owned[id]) == 3
+	_ok("ещё белая — все три дара на 3-м уровне (9 ступеней)", sum == 9 and top and not ULGifts.can_grow(), str(ULGifts.owned))
+	var m5 := eat_pearl("pearl_black")
+	_ok("на пределе жемчужина не съедается (остаётся в кошельке)", int(inv.wallet.pearl_black) == 2 and m5.contains("пределе"), m5)
+	# сохранение
+	var js = JSON.parse_string(JSON.stringify({"name": hero_name, "gifts": ULGifts.to_save()}))
+	var was := ULGifts.to_save()
+	ULGifts.from_save({})
+	ULGifts.from_save(js.gifts)
+	_ok("дары сохраняются в профиле и читаются обратно", ULGifts.to_save() == was)
+	# действие даров
+	ULGifts.owned = {"skin": 3, "quiet": 1, "luck": 2, "regen": 1, "swift": 3, "sense": 3}
+	_apply_gifts()
+	_ok("«Тихий шаг» 1 и «Фарт» 2 — множители у врагов 0,8 и 1,4", is_equal_approx(ULEnemy.hear_k, 0.8) and is_equal_approx(ULEnemy.luck_k, 1.4))
+	hp = 50.0
+	hurt(10.0)
+	_ok("«Крепкая кожа» 3: удар 10 снимает 7,8", is_equal_approx(hp, 42.2), str(hp))
+	_calm_t = 0.0
+	var h0 := hp
+	await get_tree().create_timer(1.0).timeout
+	_ok("«Живучесть»: сразу после удара здоровье не прибывает", is_equal_approx(hp, h0), str(hp))
+	_calm_t = REGEN_WAIT
+	h0 = hp
+	await get_tree().create_timer(1.0).timeout
+	_ok("«Живучесть» 1: через 6 с без ударов — около +0,4 в секунду", hp - h0 > 0.3 and hp - h0 < 0.6, "%.2f" % (hp - h0))
+	var lk := [0, 0]
+	for li in 2:
+		ULEnemy.luck_k = 1.0 if li == 0 else 1.6
+		for sd in 200:
+			for it in ULEnemy.roll_loot("infected", sd):
+				if it != null and String(it.id) == "spore":
+					lk[li] += int(it.n)
+	_apply_gifts()
+	_ok("«Фарт»: споранов в телах больше (%d → %d при ×1,6)" % [lk[0], lk[1]], float(lk[1]) > float(lk[0]) * 1.4)
+	# скорость: тот же бег — без дара и со «Скороходом» 3 (туда и обратно, чтобы не упереться в стену)
+	var vv := [0.0, 0.0]
+	for si in 2:
+		ULGifts.owned["swift"] = 0 if si == 0 else 3
+		if si == 0:
+			ULGifts.owned.erase("swift")
+		_joy_v = Vector2(0, -1) if si == 0 else Vector2(0, 1)
+		_joy_id = 99
+		for f in 40:
+			await get_tree().physics_frame
+		vv[si] = Vector3(player.velocity.x, 0, player.velocity.z).length()
+	_joy_v = Vector2.ZERO
+	_joy_id = -1
+	_ok("«Скороход» 3: бег быстрее на ~18 %% (%.2f → %.2f м/с)" % [vv[0], vv[1]], vv[0] > 1.0 and vv[1] / vv[0] > 1.12 and vv[1] / vv[0] < 1.24)
+	# чуйка: враг за 20 м (герой его не видит, он героя тоже) — метка; за 40 м — нет
+	var p := player.global_position
+	var near_e := spawn_enemy("infected", p + Vector3(20, 0, 0))
+	var far_e := spawn_enemy("infected", p + Vector3(0, 0, 40))
+	near_e.set_meta("sees", false)
+	far_e.set_meta("sees", false)
+	for i in 14:
+		await get_tree().process_frame
+	_ok("«Чуйка» 3 (30 м): метка над врагом за 20 м, над тем, что за 40 м, — нет", _sense.has(near_e) and not _sense.has(far_e), str(_sense.size()))
+	# снимок: враг в 7 м, который героя не видит (зрение выключено) — над ним красная метка
+	var shot_e := spawn_enemy("infected", p + Vector3(4.0, 0, -3.0))
+	shot_e.def = shot_e.def.duplicate()
+	shot_e.def.see = 0.0
+	shot_e.def.walk = 0.0
+	for i in 14:
+		await get_tree().process_frame
+	_ok("метка и над врагом рядом, который героя не видит", _sense.has(shot_e))
+	await _snap("sense")
+	ULGifts.owned.erase("sense")
+	for i in 14:
+		await get_tree().process_frame
+	_ok("без «Чуйки» меток нет", _sense.is_empty())
+	# окно персонажа
+	ULGifts.owned = {"sense": 1}
+	inv.wallet["pearl_black"] = 1
+	open_char_panel()
+	await get_tree().process_frame
+	_ok("окно персонажа: «Дары (1 из 3)», «Чуйка — уровень 1 из 3», что даёт сейчас и дальше", _find_label(_char_ui, "Дары (1 из 3)") != null and _find_label(_char_ui, "Чуйка — уровень 1 из 3") != null and _find_label(_char_ui, "Сейчас: метки до 15 м") != null and _find_label(_char_ui, "Следующий уровень: метки до 22 м") != null)
+	_ok("в окне — все 6 даров с описанием и где брать жемчужины", _find_label(_char_ui, "Скороход (не пробуждён)") != null and _find_label(_char_ui, "Фарт (не пробуждён)") != null and _find_label(_char_ui, "Где взять жемчужины") != null)
+	await _snap("char_panel")
+	var eb := _find_button(_char_ui, "Съесть")
+	_ok("кнопка «Съесть» у чёрной жемчужины доступна", eb != null and not eb.disabled)
+	eb.pressed.emit()
+	await get_tree().process_frame
+	_ok("первое нажатие — только вопрос «Точно съесть?», жемчужина на месте", int(inv.wallet.pearl_black) == 1 and _find_button(_char_ui, "Точно съесть?") != null and ULGifts.owned.size() == 1)
+	_find_button(_char_ui, "Точно съесть?").pressed.emit()
+	await get_tree().process_frame
+	_ok("второе нажатие — съедена: жемчужин 0, даров стало больше (2 дара или «Чуйка» 2)", int(inv.wallet.pearl_black) == 0 and (ULGifts.owned.size() == 2 or ULGifts.level("sense") == 2) and _find_label(_char_ui, "Съедена чёрная жемчужина") != null, str(ULGifts.owned))
+	await _snap("char_panel_eat")
+	_ok("окно персонажа модальное: джойстик не двигает героя", _modal())
+	_char_ui.queue_free()
+	_test_done()
+
+
 func _cs_test() -> void:
 	var t0 := Time.get_ticks_msec()
 	while not cs_ready and Time.get_ticks_msec() - t0 < 15000:
@@ -9044,9 +9513,14 @@ func _inv_test() -> void:
 	player.global_position = cr0.global_position + Vector3(-1.0, 0.05, 0.0)
 	await get_tree().create_timer(0.3).timeout
 	_ok("у ящика: кнопка есть, действие «Открыть» (значок ящика, не рукопожатие)", _target != null and String(_target.type) == "crate" and _action_label() == "Открыть")
-	_ok("три точки у имени открывают панель имени", _hud_hit(_name_dots()) == "name")
+	_ok("три точки у имени открывают окно персонажа", _hud_hit(_name_dots()) == "name")
 	_hud_press("name")
-	_ok("панель имени открыта, в поле — текущее имя", _name_ui.visible and _name_edit.text == "Сталкер" and _modal())
+	var cb := _find_button(_char_ui, "Сменить имя")
+	_ok("окно персонажа открыто, в нём кнопка «Сменить имя» и раздел даров", _char_ui != null and is_instance_valid(_char_ui) and _modal() and cb != null and _find_label(_char_ui, "Дары (") != null)
+	if cb != null:
+		cb.pressed.emit()
+	await get_tree().process_frame
+	_ok("«Сменить имя» → панель имени открыта, в поле — текущее имя", _name_ui.visible and _name_edit.text == "Сталкер" and _modal())
 	_name_edit.text = "  Бродяга  "
 	_name_ok()
 	_ok("имя сменилось на «Бродяга», панель закрылась", hero_name == "Бродяга" and not _name_ui.visible)
@@ -10330,6 +10804,9 @@ var enemies: Array[ULEnemy] = []
 var _open_corpse: ULEnemy = null
 var _respawn: Array = []          ## [точка, сколько осталось ждать]
 var _hurt_t := 0.0
+var hero_unseen := false           ## проверки: враги не замечают героя (он стоит среди них и смотрит)
+var _calm_t := 99.0                ## сколько секунд героя никто не бил (дар «Живучесть»)
+const REGEN_WAIT := 6.0
 var _hurt_amp := 1.0
 var _knock := Vector3.ZERO
 var _dead_t := 0.0
@@ -10415,7 +10892,7 @@ func _enemy_noise(what: String, at: Vector3, e: ULEnemy = null) -> void:
 		return
 	# у крупного мутанта голос ниже и громче (voice в data/enemies.json: [высота тона, прибавка громкости])
 	var voice: Array = e.def.get("voice", [1.0, 0.0]) if e != null else [1.0, 0.0]
-	snd.play(what, at + Vector3.UP * 1.5, float({"growl": -7.0, "roar": -2.0, "zdeath": -3.0}.get(what, -5.0)) + float(voice[1]), 0.08, 0.0, float(voice[0]))
+	snd.play(what, at + Vector3.UP * (0.6 if what == "chew" else 1.5), float({"growl": -7.0, "roar": -2.0, "zdeath": -3.0, "chew": -8.0}.get(what, -5.0)) + float(voice[1]), 0.08, 0.0, float(voice[0]))
 
 
 var flinch: BCFlinch
@@ -10509,6 +10986,8 @@ var hp_lock := false               ## проверки: удары видны, �
 func hurt(dmg: float, from := Vector3.INF) -> void:
 	if _dead_t > 0.0:
 		return
+	dmg *= ULGifts.val("skin", "k", 1.0)              # дар «Крепкая кожа»
+	_calm_t = 0.0
 	if not lvl and not hp_lock:
 		hp = maxf(0.0, hp - dmg)                # в тесте уровня герой бессмертен (удар виден, здоровье не тратится)
 	_hurt_t = 0.35
@@ -10558,7 +11037,7 @@ func _enemies_tick(delta: float) -> void:
 				say("Вы очнулись у дома")
 				_save()
 	var p := player.global_position
-	var hero_ok := _dead_t <= 0.0
+	var hero_ok := _dead_t <= 0.0 and not hero_unseen
 	var hero_v := Vector3(player.velocity.x, 0, player.velocity.z).length() if hero_ok else 0.0
 	var fr := Engine.get_process_frames()
 	for i in range(enemies.size() - 1, -1, -1):
@@ -10618,6 +11097,8 @@ func _enemies_tick(delta: float) -> void:
 		prof_full_n += 1
 	if temp() and fr % 8 == 0:
 		_enemy_shadows(p)
+	if fr % 6 == 0:
+		_sense_scan(p)
 	for i in range(_respawn.size() - 1, -1, -1):
 		_respawn[i][1] = float(_respawn[i][1]) - delta
 		if float(_respawn[i][1]) <= 0.0 and (_respawn[i][0] as Vector3).distance_to(p) > 16.0:
@@ -10921,14 +11402,23 @@ var _name_edit: LineEdit
 
 
 func _modal() -> bool:
-	return (inv_ui != null and inv_ui.visible) or (_name_ui != null and _name_ui.visible) or (_talk_ui != null and _talk_ui.visible) or (_set_ui != null and is_instance_valid(_set_ui)) or (_book_ui != null and is_instance_valid(_book_ui)) or (_shop_ui != null and is_instance_valid(_shop_ui)) or (_term_ui != null and is_instance_valid(_term_ui)) or (_dealer_ui != null and is_instance_valid(_dealer_ui)) or _dead_t > 0.0 or (_map_ui != null and is_instance_valid(_map_ui))
+	return (inv_ui != null and inv_ui.visible) or (_name_ui != null and _name_ui.visible) or (_char_ui != null and is_instance_valid(_char_ui)) or (_talk_ui != null and _talk_ui.visible) or (_set_ui != null and is_instance_valid(_set_ui)) or (_book_ui != null and is_instance_valid(_book_ui)) or (_shop_ui != null and is_instance_valid(_shop_ui)) or (_term_ui != null and is_instance_valid(_term_ui)) or (_dealer_ui != null and is_instance_valid(_dealer_ui)) or _dead_t > 0.0 or (_map_ui != null and is_instance_valid(_map_ui))
 
 
 func _load_profile() -> void:
+	ULGifts.from_save({})
 	if test == "" and FileAccess.file_exists(PROFILE):
 		var d = JSON.parse_string(FileAccess.get_file_as_string(PROFILE))
 		if d is Dictionary:
 			set_hero_name(String(d.get("name", "")), false)
+			ULGifts.from_save(d.get("gifts", {}))
+	_apply_gifts()
+
+
+## профиль героя на диск: имя и дары (не теряются при гибели и сбросе добычи)
+func _profile_write() -> void:
+	if test == "":
+		ULBase.write_json(PROFILE, {"name": hero_name, "gifts": ULGifts.to_save()})
 
 
 ## сменить имя: до 16 знаков, пустое не принимается
@@ -10937,10 +11427,8 @@ func set_hero_name(n: String, save := true) -> bool:
 	if n == "":
 		return false
 	hero_name = n.substr(0, 16)
-	if save and test == "":
-		var f := FileAccess.open(PROFILE, FileAccess.WRITE)
-		if f:
-			f.store_string(JSON.stringify({"name": hero_name}))
+	if save:
+		_profile_write()
 	return true
 
 
@@ -11004,6 +11492,254 @@ func _name_ok() -> void:
 		say("Имя: " + hero_name)
 	else:
 		say("Имя не может быть пустым")
+
+
+# ---------------- дары героя и окно персонажа ----------------
+## Дары — core/world/gifts.gd, числа и описания — data/gifts.json. Здесь: как они действуют (скорость — в _process,
+## «Живучесть» — в _enemies_tick, «Крепкая кожа» — в hurt, «Тихий шаг» и «Фарт» — через ULEnemy, «Чуйка» — метки
+## ниже) и окно персонажа (кнопка «три точки» у имени): имя, здоровье, дары, жемчужины и кнопка «Съесть».
+
+var _char_ui: Control
+var _sense: Array = []             ## «Чуйка»: враги рядом, которых герой не видит (метки на экране)
+var _gift_rng := RandomNumberGenerator.new()
+var _gift_seeded := false
+var _eat_arm := ""                 ## первое нажатие «Съесть» — подтвердить вторым
+
+
+func _apply_gifts() -> void:
+	ULEnemy.hear_k = ULGifts.val("quiet", "k", 1.0)
+	ULEnemy.luck_k = ULGifts.val("luck", "k", 1.0)
+
+
+func _sense_scan(p: Vector3) -> void:
+	_sense.clear()
+	var r := ULGifts.val("sense", "r", 0.0)
+	if r <= 0.0 or _dead_t > 0.0:
+		return
+	for e in enemies:
+		if e.alive() and e.global_position.distance_to(p) < r and (not bool(e.get_meta("sees", false)) or not e.visible):
+			_sense.append(e)
+
+
+func _sense_draw() -> void:
+	if _sense.is_empty() or cam == null:
+		return
+	# на экране — треугольник остриём вниз над головой; за краем экрана — стрелка у края в сторону врага
+	var inv_xf := get_viewport().get_final_transform().affine_inverse()
+	var vs := get_viewport().get_visible_rect().size
+	var pulse := 0.7 + 0.3 * sin(Time.get_ticks_msec() * 0.006)
+	var mid := vs * 0.5
+	var box := Rect2(Vector2(30, 120), vs - Vector2(60, 150))
+	for e in _sense:
+		if not is_instance_valid(e) or not (e as ULEnemy).alive():
+			continue
+		var at: Vector3 = (e as Node3D).global_position + Vector3.UP * 2.05
+		var c := inv_xf * cam.unproject_position(at)
+		if cam.is_position_behind(at):
+			c = mid + (mid - c) * 100.0
+		var dir := Vector2.DOWN
+		if not box.has_point(c):
+			var v := c - mid
+			var k := 1e9
+			if absf(v.x) > 0.01:
+				k = minf(k, (box.size.x * 0.5) / absf(v.x))
+			if absf(v.y) > 0.01:
+				k = minf(k, (box.size.y * 0.5) / absf(v.y))
+			c = box.get_center() + v * k
+			dir = v.normalized()
+		var side := Vector2(-dir.y, dir.x)
+		var pts := PackedVector2Array([c + dir * 13.0, c - dir * 8.0 + side * 11.0, c - dir * 8.0 - side * 11.0])
+		_hud.draw_colored_polygon(pts, Color(1.0, 0.16, 0.1, 0.9 * pulse))
+		_hud.draw_polyline(PackedVector2Array([pts[0], pts[1], pts[2], pts[0]]), Color(0.12, 0.0, 0.0, 0.85), 2.0)
+
+
+## съесть жемчужину из кошелька: дары пробуждаются и растут. → строка о том, что вышло ("" — не съедено)
+func eat_pearl(id: String) -> String:
+	if ULGifts.steps(id) <= 0 or int(inv.wallet.get(id, 0)) <= 0:
+		return ""
+	if not ULGifts.can_grow():
+		return "Все дары уже на пределе — жемчужину лучше обменять"
+	if not _gift_seeded:
+		_gift_seeded = true
+		if test == "":
+			_gift_rng.randomize()
+		else:
+			_gift_rng.seed = 4242
+	inv.wallet[id] = int(inv.wallet[id]) - 1
+	var got := ULGifts.eat(id, _gift_rng)
+	_apply_gifts()
+	_profile_write()
+	_save()
+	var parts: Array = []
+	for g in got:
+		parts.append(("пробудился дар «%s»" if int(g[1]) == 0 else "«%s» вырос до %d-го уровня") % ([ULGifts.name_of(g[0])] if int(g[1]) == 0 else [ULGifts.name_of(g[0]), int(g[2])]))
+	var msg := "Съедена %s: %s" % [String(ULItems.get_def(id).get("n", id)).to_lower(), ", ".join(parts)]
+	return msg
+
+
+func open_char_panel() -> void:
+	if _char_ui != null and is_instance_valid(_char_ui):
+		_char_ui.queue_free()
+	_menu_bar.visible = false
+	_eat_arm = ""
+	var shade := ColorRect.new()
+	shade.color = Color(0, 0, 0, 0.6)
+	_hud.get_parent().add_child(shade)
+	shade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_char_ui = shade
+	var pn := PanelContainer.new()
+	pn.add_theme_stylebox_override("panel", ULSettings._box(ULSettings.C_BG))
+	shade.add_child(pn)
+	pn.anchor_left = 0.5
+	pn.anchor_right = 0.5
+	pn.anchor_top = 0.5
+	pn.anchor_bottom = 0.5
+	pn.offset_left = -430
+	pn.offset_right = 430
+	pn.offset_top = -290
+	pn.offset_bottom = 290
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 10)
+	pn.add_child(vb)
+	var top := HBoxContainer.new()
+	top.add_theme_constant_override("separation", 12)
+	vb.add_child(top)
+	var tl := Label.new()
+	tl.text = "Персонаж — " + hero_name
+	tl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	tl.add_theme_font_size_override("font_size", 24)
+	tl.add_theme_color_override("font_color", C_TEXT)
+	top.add_child(tl)
+	var rename := func() -> void:
+		shade.queue_free()
+		open_name_panel()
+	top.add_child(ULSettings.button("Сменить имя", rename, 170.0))
+	var hl := Label.new()
+	hl.text = "Здоровье %d из %d   ·   энергия %d   ·   вода %d" % [int(round(hp)), int(HP_MAX), int(round(en)), int(round(water))]
+	hl.add_theme_font_size_override("font_size", 16)
+	hl.add_theme_color_override("font_color", Color(0.75, 0.85, 0.8))
+	vb.add_child(hl)
+	var sc := ScrollContainer.new()
+	sc.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	vb.add_child(sc)
+	var list := VBoxContainer.new()
+	list.name = "List"
+	list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	list.add_theme_constant_override("separation", 8)
+	sc.add_child(list)
+	var info := Label.new()
+	info.name = "Info"
+	info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	info.add_theme_font_size_override("font_size", 16)
+	info.add_theme_color_override("font_color", Color(1.0, 0.86, 0.5))
+	_char_fill(list, info)
+	vb.add_child(info)
+	var hb := HBoxContainer.new()
+	hb.alignment = BoxContainer.ALIGNMENT_END
+	vb.add_child(hb)
+	hb.add_child(ULSettings.button("Закрыть", func() -> void: shade.queue_free(), 140.0))
+	_joy_id = -1
+	_joy_v = Vector2.ZERO
+	_hud_touch.clear()
+
+
+func _char_head(list: Control, t: String) -> void:
+	var l := Label.new()
+	l.text = t
+	l.add_theme_font_size_override("font_size", 20)
+	l.add_theme_color_override("font_color", Color(0.55, 0.85, 1.0))
+	list.add_child(l)
+
+
+func _char_line(list: Control, t: String, sz := 16, col := C_TEXT) -> Label:
+	var l := Label.new()
+	l.text = t
+	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	l.add_theme_font_size_override("font_size", sz)
+	l.add_theme_color_override("font_color", col)
+	list.add_child(l)
+	return l
+
+
+## содержимое окна персонажа: дары героя, жемчужины с кнопкой «Съесть», все дары и как их получить
+func _char_fill(list: VBoxContainer, info: Label) -> void:
+	for ch in list.get_children():
+		list.remove_child(ch)
+		ch.queue_free()
+	var mx := ULGifts.max_lv()
+	_char_head(list, "Дары (%d из %d)" % [ULGifts.owned.size(), ULGifts.max_n()])
+	if ULGifts.owned.is_empty():
+		_char_line(list, "Даров пока нет. Дар пробуждается, если съесть жемчужину.", 16, Color(0.7, 0.75, 0.8))
+	for id in ULGifts.owned:
+		var lv := ULGifts.level(id)
+		var box := VBoxContainer.new()
+		box.add_theme_constant_override("separation", 2)
+		list.add_child(box)
+		_char_line(box, "%s — уровень %d из %d" % [ULGifts.name_of(id), lv, mx], 19, Color(1.0, 0.86, 0.5))
+		_char_line(box, ULGifts.desc(id))
+		_char_line(box, "Сейчас: " + ULGifts.effect(id, lv), 16, Color(0.6, 0.95, 0.6))
+		if lv < mx:
+			_char_line(box, "Следующий уровень: " + ULGifts.effect(id, lv + 1), 15, Color(0.7, 0.75, 0.8))
+	_char_head(list, "Жемчужины")
+	_char_line(list, "Съеденная жемчужина будит новый дар или растит уже пробуждённый: чёрная — на одну ступень, красная — на две, белая — на три. Даров не больше %d, у каждого до %d уровней." % [ULGifts.max_n(), mx], 15, Color(0.7, 0.75, 0.8))
+	for id: String in ["pearl_black", "pearl_red", "pearl_white"]:
+		var n := int(inv.wallet.get(id, 0))
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 12)
+		list.add_child(row)
+		var ic := TextureRect.new()
+		ic.texture = _tex("res://assets/icons/loot_%s.png" % id)
+		ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		ic.custom_minimum_size = Vector2(40, 40)
+		row.add_child(ic)
+		var l := _char_line(row, "%s: %d   (+%d ступ.)" % [String(ULItems.get_def(id).get("n", id)), n, ULGifts.steps(id)], 17)
+		l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		var arm: bool = _eat_arm == id
+		var tap := func() -> void:
+			if _eat_arm != id:
+				_eat_arm = id
+				info.text = "Нажмите ещё раз, чтобы съесть: жемчужина пропадёт из кошелька"
+			else:
+				_eat_arm = ""
+				var r := eat_pearl(id)
+				info.text = r
+				if r != "":
+					say(r)
+			_char_fill.call_deferred(list, info)
+		var b := ULSettings.button("Точно съесть?" if arm else "Съесть", tap, 170.0)
+		b.disabled = n <= 0 or not ULGifts.can_grow()
+		row.add_child(b)
+	_char_head(list, "Все дары")
+	for id in ULGifts.ids():
+		var got := ULGifts.level(id) > 0
+		var col := C_TEXT if got else Color(0.55, 0.58, 0.62)
+		_char_line(list, "%s%s — %s" % [ULGifts.name_of(id), "" if got else " (не пробуждён)", ULGifts.desc(id)], 16, col)
+		var steps: Array = []
+		for k in mx:
+			steps.append(ULGifts.effect(id, k + 1))
+		_char_line(list, "    по уровням: " + "  →  ".join(steps), 14, Color(0.6, 0.65, 0.7))
+	_char_line(list, "Где взять жемчужины: чёрная бывает в Рубере, у переродившегося лотерейщика (заражённые отъедаются, пока вы в кластере) и в сейфе главаря муров. Красную и белую можно выменять в компьютере базы: 3 чёрные = 1 красная, 3 красные = 1 белая.", 15, Color(0.7, 0.75, 0.8))
+
+
+## проверки: кнопка / надпись в окне по началу текста
+func _find_button(root: Node, t: String) -> Button:
+	if root == null or not is_instance_valid(root):
+		return null
+	for n in root.find_children("*", "Button", true, false):
+		if (n as Button).text.begins_with(t):
+			return n
+	return null
+
+
+func _find_label(root: Node, t: String) -> Label:
+	if root == null or not is_instance_valid(root):
+		return null
+	for n in root.find_children("*", "Label", true, false):
+		if (n as Label).text.begins_with(t):
+			return n
+	return null
 
 
 # ---------------- жители (NPC) ----------------
@@ -12451,6 +13187,12 @@ func _run_test() -> void:
 		return
 	if test == "cs":
 		await _cs_test()
+		return
+	if test == "evo":
+		await _evo_test()
+		return
+	if test == "gifts":
+		await _gifts_test()
 		return
 	if test == "sn":
 		await _sn_test()

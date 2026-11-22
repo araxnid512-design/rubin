@@ -423,6 +423,25 @@ func install_extra(lib: AnimationLibrary, info: Dictionary, kind: String) -> voi
 		var sw := sin(TAU * t / idle_len * 2.0)
 		return over(p, {"chest": {"lean": float(p.chest.lean) - 1.1 * br}, "hip": {"off": [float(p.hip.off[0]) + 0.004 * sw, float(p.hip.off[1]) + 0.003 * br, p.hip.off[2]]},
 			"handR": {"pos": [float(p.handR.pos[0]) + 0.012 * sw, p.handR.pos[1], p.handR.pos[2]]}}), 6.0), lib, info, 0.35)
+	# ---- ест (голод, data/evolve.json): сидит на корточках над телом, сильно склонившись; руки по очереди рвут
+	# внизу и тянут ко рту, голова ныряет к рукам и дёргается; плечи ходят. Цикл 1,6 с ----
+	var z_feed := over(NEUTRAL, {"hip": {"off": [-0.06, -0.46, 0.0], "lean": 34.0}, "chest": {"lean": 40.0}, "head": {"pitch": 28.0},
+		"footL": {"pos": [0.17, -0.13], "yaw": -12.0, "heel": 0.06}, "footR": {"pos": [-0.05, 0.13], "yaw": 16.0, "heel": 0.1},
+		"handL": {"hang": 0.0, "pos": [0.4, -0.42, -0.13], "F": [0.45, -0.85, 0.05], "P": [0.0, -0.2, 1.0], "curl": "relax"},
+		"handR": {"hang": 0.0, "pos": [0.42, -0.44, 0.14], "F": [0.45, -0.85, -0.05], "P": [0.0, -0.2, -1.0], "curl": "relax"}})
+	var feed_len := 1.6
+	_add("infected_feed", clip(feed_len, true, func(t: float) -> Dictionary:
+		var ph := t / feed_len
+		# левая тянет ко рту в первой половине цикла, правая — во второй
+		var uL := pow(maxf(sin(TAU * ph), 0.0), 1.5)
+		var uR := pow(maxf(-sin(TAU * ph), 0.0), 1.5)
+		var bite := maxf(uL, uR)
+		var jerk := 0.5 + 0.5 * sin(TAU * ph * 4.0)
+		return over(z_feed, {
+			"chest": {"lean": 40.0 - 6.0 * bite + 1.5 * jerk, "yaw": 9.0 * (uL - uR)},
+			"head": {"pitch": 28.0 + 10.0 * bite - 4.0 * jerk, "yaw": 12.0 * (uR - uL)},
+			"handL": {"pos": [0.4 - 0.16 * uL, -0.42 + 0.26 * uL, -0.13 + 0.06 * uL]},
+			"handR": {"pos": [0.42 - 0.17 * uR, -0.44 + 0.27 * uR, 0.14 - 0.06 * uR]}}), 20.0), lib, info, 0.45)
 	# ---- бег за целью: тяжёлый, с сильным наклоном; под скорость 2,9 м/с (цикл 0,7 с, шаг ~1 м): опорная стопа
 	# идёт по земле ровно со скоростью тела (не скользит), маховая — по дуге с подъёмом пятки и выносом колена;
 	# таз проседает на опоре и доворачивается за ногой, грудь — навстречу; руки — разные: правая машет шире и
