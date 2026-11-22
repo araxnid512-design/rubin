@@ -325,6 +325,24 @@
     "full body game character in T-pose, same person and outfit as in the image, realistic detailed PBR textures"
    ],
    "timeout": 2400
+  },
+  {
+   "id": "g64_car_uaz",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "car_uaz",
+    "--faces",
+    "18000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "Soviet UAZ-469 off-road jeep, boxy military 4x4 with soft canvas top, four doors, spare wheel on the rear door, olive green paint worn with rust and mud, round headlights, separate black off-road wheels, closed windows, realistic, single object, game asset"
+   ],
+   "timeout": 1800
   }
  ],
  "archived": [
