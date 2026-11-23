@@ -176,7 +176,8 @@ func _flush() -> void:
 	for key in _st:
 		var parts := String(key).split("|")
 		var st: SurfaceTool = _st[key]
-		st.generate_normals()
+		# нормали — свои у каждой коробки и цилиндра (generate_normals сглаживал их через рёбра: плоская плита темнела к
+		# одному краю, стены выглядели «мыльными»)
 		var mi := MeshInstance3D.new()
 		mi.mesh = st.commit()
 		mi.material_override = _mats[parts[1]]
@@ -204,6 +205,17 @@ func _pad() -> void:
 		for sx in [-1.0, 1.0]:
 			for sz in [-1.0, 1.0]:
 				_box("base", "wood", Vector3(0.08, 0.9, 0.08), Vector3(sx * (W * 0.5 + 0.1), 0.45, sz * (D * 0.5 + 0.1)), true)
+		# заброшенная площадка, а не гладкая плита: по дальним углам — покрышки, бочки, ящик, лом и мусор
+		# (середина и сторона ворот свободны — здесь встанет гараж)
+		var lx := -W * 0.5
+		var bz := -D * 0.5
+		_prop("gr_tyres", Vector3(lx + 1.0, 0.04, bz + 1.0), 0.4, 1.2)
+		_prop("ph_barrel", Vector3(lx + 2.3, 0.04, bz + 0.8), 0.0, 0.95, true)
+		_prop("ph_barrel", Vector3(lx + 3.0, 0.04, bz + 1.3), 1.1, 0.95, true)
+		_prop("ph_crate", Vector3(-lx - 1.0, 0.04, bz + 1.1), 0.3, 0.9)
+		_prop("qi_scrap", Vector3(-lx - 2.0, 0.04, bz + 2.3), 0.8, 0.9, false, false)
+		_prop("ph_trash", Vector3(lx + 1.2, 0.04, 1.6), 2.0, 0.8, false, false)
+		_prop("ph_tyre", Vector3(2.1, 0.04, -3.2), 0.5, 0.8, false, false)
 
 
 func _build() -> void:

@@ -18074,6 +18074,16 @@ func _garview_test() -> void:
 	player.global_position = garage.to_global(Vector3(0.5, 0.05, 0.5))
 	await get_tree().create_timer(0.6).timeout
 	await _snap("gv_lot")
+	var cam0 := Camera3D.new()
+	add_child(cam0)
+	cam0.fov = 50.0
+	cam0.current = true
+	cam0.look_at_from_position(garage.to_global(Vector3(-8.0, 7.0, -3.0)), garage.to_global(Vector3(-5.0, 0, -6.0)))
+	for i in 3:
+		await get_tree().process_frame
+	await _snap("gv_lot_corner")
+	cam0.current = false
+	cam0.queue_free()
 	player.global_position = HOUSE_AT + Vector3(-1.2, 0.05, ULHouse.D * 0.5 + 2.2)
 	await get_tree().create_timer(0.6).timeout
 	await _snap("gv_bunker")
