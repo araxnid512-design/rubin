@@ -2141,7 +2141,6 @@ func _base_props() -> void:
 	var hd := ULHouse.D * 0.5
 	var items := [
 		["hm_generator", HOUSE_AT + Vector3(-hw - 1.3, 0, -1.0), PI * 0.5, 1.6, false],
-		["hm_rack", HOUSE_AT + Vector3(hw + 0.55, 0, 1.2), PI, 1.2, false],
 		["hm_raintank", HOUSE_AT + Vector3(hw - 0.5, 0, hd + 0.6), 0.0, 1.1, true],
 	]
 	for it in items:
@@ -13070,6 +13069,47 @@ func _paint(c: Color, metal := 0.0, rough := 0.7) -> StandardMaterial3D:
 var _armory_root: Node3D
 
 
+## Мебель комнат бункера не выходит за стены: всё, что рамкой заходит за внутреннюю грань наружной стены (стойка с
+## ружьями, сейфы, стеллажи торчали сквозь бетон наружу), сдвигается внутрь ровно на вылет. root — узел комнаты.
+func _fit_inside(root: Node3D) -> int:
+	if house == null or root == null:
+		return 0
+	var lim := Vector2(ULHouse.W * 0.5 - 0.05, ULHouse.D * 0.5 - 0.05)
+	var inv := house.global_transform.affine_inverse()
+	var moved := 0
+	for ch in root.get_children():
+		var n := ch as Node3D
+		if n == null or n is StaticBody3D or n is Light3D:
+			continue
+		var bb := AABB()
+		var first := true
+		var list: Array = n.find_children("*", "MeshInstance3D", true, false)
+		if n is MeshInstance3D:
+			list.append(n)
+		for mi in list:
+			var m := mi as MeshInstance3D
+			if m.mesh == null:
+				continue
+			var a: AABB = (inv * m.global_transform) * m.get_aabb()
+			bb = a if first else bb.merge(a)
+			first = false
+		if first:
+			continue
+		var sh := Vector3.ZERO
+		if bb.end.x > lim.x:
+			sh.x = lim.x - bb.end.x
+		elif bb.position.x < -lim.x:
+			sh.x = -lim.x - bb.position.x
+		if bb.end.z > lim.y:
+			sh.z = lim.y - bb.end.z
+		elif bb.position.z < -lim.y:
+			sh.z = -lim.y - bb.position.z
+		if sh != Vector3.ZERO:
+			n.global_position += house.global_transform.basis * sh
+			moved += 1
+	return moved
+
+
 ## Мебель оружейной из модели Tripo: name — файл в assets/world, at — точка на полу (система дома), yaw — поворот,
 ## size — длина (by "len": наибольший размер по полу) или высота (by "h"), м; col — коробка столкновения (0 — нет).
 ## Возвращает false, если модели нет.
@@ -13189,6 +13229,7 @@ func _armory() -> void:
 		var guns := MeshInstance3D.new()
 		guns.mesh = load(MODELS + "ul_armory_guns.res")
 		root.add_child(guns)
+	_fit_inside.call_deferred(_armory_root)
 
 
 # ---------------- хранилище ----------------
@@ -13366,6 +13407,7 @@ func _storage() -> void:
 			fl.rotation.x = -PI * 0.5
 			fl.position = at + Vector3(0, 0.035, 0)
 			root.add_child(fl)
+	_fit_inside.call_deferred(_storage_root)
 
 
 const SAFE_YAW := -PI * 0.5                ## у модели Tripo дверца смотрит к +x — поворот к +z (к герою)
@@ -14282,6 +14324,64 @@ func _run_test() -> void:
 		return
 	if test == "wallwalk":
 		await _wallwalk_test()
+		return
+	if test == "poke":
+		# что торчит сквозь стены бункера: рамки всех сеток у дома, пересекающие наружную грань стены
+		ULBase.memory_only = true
+		ULBase.load_state(true)
+		ULBase.data.upgrades["gunsmith"] = 1
+		ULBase.data.staff["gunsmith"] = true
+		ULBase.data.upgrades["storage"] = 6
+		ULBase.data.storage["level"] = 6
+		_armory()
+		_storage()
+		await get_tree().create_timer(0.8).timeout
+		var hw := ULHouse.W * 0.5
+		var hd := ULHouse.D * 0.5
+		var bad := {}
+		for mi in find_children("*", "MeshInstance3D", true, false):
+			var m := mi as MeshInstance3D
+			if m.mesh == null:
+				continue
+			var bb: AABB = m.global_transform * m.get_aabb()
+			var l0 := bb.position - HOUSE_AT
+			var l1 := bb.end - HOUSE_AT
+			if bb.size.length() > 8.0 or l1.y < 0.1 or l0.y > 2.6:
+				continue
+			var c := (l0 + l1) * 0.5
+			var inside := absf(c.x) < hw and absf(c.z) < hd
+			var out_x := maxf(l1.x - hw, -hw - l0.x)
+			var out_z := maxf(l1.z - hd, -hd - l0.z)
+			var in_x := l0.x < hw and l1.x > -hw
+			var in_z := l0.z < hd and l1.z > -hd
+			# центр внутри дома, а рамка выходит за линию стены; или центр снаружи, а рамка заходит внутрь
+			var poke := 0.0
+			if inside:
+				poke = maxf(out_x, out_z)
+			else:
+				# снаружи: рамка заходит в бетон бункера (наружная грань — на 0,34 м дальше линии стен)
+				var ex := hw + 0.34
+				var ez := hd + 0.34
+				if l0.x < ex and l1.x > -ex and l0.z < ez and l1.z > -ez:
+					poke = minf(minf(ex - l0.x, l1.x + ex), minf(ez - l0.z, l1.z + ez))
+			if poke > 0.03:
+				var top: Node = m
+				while top.get_parent() != self and top.get_parent() != null:
+					top = top.get_parent()
+				var key := "%s/%s" % [top.name, m.get_parent().name]
+				if not bad.has(key) or float(bad[key][0]) < poke:
+					bad[key] = [poke, c.snapped(Vector3.ONE * 0.01), inside]
+		for k in bad:
+			print("[poke] %s: на %.2f м, центр %s, %s" % [k, float(bad[k][0]), str(bad[k][1]), "изнутри наружу" if bool(bad[k][2]) else "снаружи внутрь"])
+		DirAccess.make_dir_recursive_absolute(out)
+		cam_dist = 9.0
+		for v in [["in_st", Vector3(-3.7, 0.05, 3.4)], ["in_ar", Vector3(4.6, 0.05, 3.3)], ["in_c", Vector3(0.0, 0.05, 0.0)], ["in_bk", Vector3(-3.0, 0.05, -2.5)], ["in_bk2", Vector3(3.0, 0.05, -2.5)], ["fr", Vector3(hw - 0.5, 0.05, hd + 2.0)], ["r", Vector3(hw + 2.0, 0.05, 2.0)], ["l", Vector3(-hw - 2.0, 0.05, 0.0)], ["fl", Vector3(-hw + 1.0, 0.05, hd + 2.0)], ["b", Vector3(0.0, 0.05, -hd - 4.0)]]:
+			player.global_position = HOUSE_AT + (v[1] as Vector3)
+			_cam_ready = false
+			await get_tree().create_timer(0.7).timeout
+			await _snap("poke_" + String(v[0]))
+		_ok("сквозь стены бункера ничего не торчит (%d)" % bad.size(), bad.is_empty())
+		_test_done()
 		return
 	if test == "garage":
 		await _garage_test()
