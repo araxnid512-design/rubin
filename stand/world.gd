@@ -1639,7 +1639,7 @@ func _vegetation() -> void:
 		var hp := p - HOUSE_AT
 		if absf(hp.x) < ULHouse.W * 0.5 + 1.0 and absf(hp.z) < ULHouse.D * 0.5 + 1.0:
 			return 0.0
-		if p.distance_to(HOUSE_AT + Vector3(0, 0, ULHouse.D * 0.5 + 2.2)) < 3.5 or _trail_dist(p) < 1.5 or _garage_lot(p, 0.4):
+		if p.distance_to(HOUSE_AT + Vector3(0, 0, ULHouse.D * 0.5 + 2.2)) < 3.5 or _trail_dist(p) < 1.5 or _segs_dist(p, FOOT) < 1.0 or absf(_segs_dist(p, DRIVE) - 0.8) < 0.6 or _garage_lot(p, 0.4):
 			return 0.0
 		var m := mask_at(p)
 		return clampf(m.r * 1.2 - m.g * 0.9 - 0.1, 0.0, 1.0) * (0.45 if _in_yard(p) else 1.0), func(p: Vector3, r: RandomNumberGenerator) -> Color:
@@ -1650,6 +1650,14 @@ func _vegetation() -> void:
 		var d := Vector2(maxf(hp.x, 0.0), maxf(hp.z, 0.0)).length()
 		if hp.x < 0.0 and hp.z < 0.0 or p.distance_to(HOUSE_AT + Vector3(0, 0, ULHouse.D * 0.5 + 2.2)) < 3.0:
 			return 0.0
+		# бурьян и вдоль стен гаража (кроме стороны ворот и двери)
+		var gat: Array = ULBase.garage_cfg().get("at", [-14.6, 0.0, -12.0])
+		var gl := p - Vector3(float(gat[0]), 0, float(gat[2]))
+		var gq := gl.abs() - Vector3(ULGarage.W * 0.5, 0, ULGarage.D * 0.5)
+		if gq.x < 0.0 and gq.z < 0.0:
+			return 0.0
+		if gl.z < ULGarage.D * 0.5 - 0.5 and not (gl.x > 0.0 and absf(gl.z - ULGarage.DOOR_Z) < 1.6):
+			d = minf(d, Vector2(maxf(gq.x, 0.0), maxf(gq.z, 0.0)).length())
 		return (1.0 - smoothstep(0.3, 2.5, d)) * 0.8, func(_p: Vector3, r: RandomNumberGenerator) -> Color:
 		return Color(0.86, 0.9, 0.76) * r.randf_range(0.82, 1.05), Vector2(0.35, 0.6), 1.2, 910, rng_m)
 	ULVegetation.scatter(self, "flower", SIZE, 0.06 * q + 0.01, func(p: Vector3) -> float:
@@ -1666,14 +1674,21 @@ const TRAIL := [
 	[Vector2(-2.5, 17.0), Vector2(-0.5, 31.0)], [Vector2(-0.5, 31.0), Vector2(3.0, 50.0)],
 	[Vector2(0.6, 6.0), Vector2(15.0, 9.5)], [Vector2(15.0, 9.5), Vector2(31.0, 6.0)], [Vector2(31.0, 6.0), Vector2(50.0, 11.0)],
 ]
+## накатанный проезд к воротам гаража (две колеи, между ними трава) и тропинка от двери гаража к крыльцу бункера
+const DRIVE := [[Vector2(-14.6, -2.6), Vector2(-14.3, 2.0)], [Vector2(-14.3, 2.0), Vector2(-9.0, 6.4)], [Vector2(-9.0, 6.4), Vector2(0.6, 6.0)]]
+const FOOT := [[Vector2(-9.2, -8.4), Vector2(-7.6, -6.0)], [Vector2(-7.6, -6.0), Vector2(-2.6, -3.8)]]
 var _noise_img: Image
 var _noise_tex: ImageTexture
 
 
 func _trail_dist(p: Vector3) -> float:
+	return _segs_dist(p, TRAIL)
+
+
+func _segs_dist(p: Vector3, segs: Array) -> float:
 	var q := Vector2(p.x, p.z)
 	var d := 1000.0
-	for sg in TRAIL:
+	for sg in segs:
 		var a: Vector2 = sg[0]
 		var ab: Vector2 = sg[1] - a
 		var h := clampf((q - a).dot(ab) / ab.length_squared(), 0.0, 1.0)
@@ -1762,6 +1777,9 @@ func _bake_mask() -> Image:
 	var worn_r := 4.2
 	var house_c := Vector2(HOUSE_AT.x, HOUSE_AT.z)
 	var house_half := Vector2(ULHouse.W * 0.5, ULHouse.D * 0.5)
+	var gat: Array = ULBase.garage_cfg().get("at", [-14.6, 0.0, -12.0])
+	var gar_c := Vector2(float(gat[0]), float(gat[2]) + 1.0)                    # гараж вместе с площадкой перед воротами
+	var gar_half := Vector2(ULGarage.W * 0.5, ULGarage.D * 0.5 + 1.0)
 	var y0 := Vector2(HOUSE_AT.x + YARD[0], HOUSE_AT.z + YARD[1])
 	var y1 := Vector2(HOUSE_AT.x + YARD[2], HOUSE_AT.z + YARD[3])
 	for iy in n:
@@ -1775,7 +1793,15 @@ func _bake_mask() -> Image:
 			var q := (p - house_c).abs() - house_half
 			var lq := Vector2(maxf(q.x, 0.0), maxf(q.y, 0.0)).length()
 			var ring := 1.0 - smoothstep(0.2, 1.4, lq)
-			var bare := maxf(trail, maxf(porch, ring * 0.8))
+			var p3 := Vector3(p.x, 0, p.y)
+			# колеи: голая земля на 0,8 м по обе стороны от оси проезда, между ними — трава
+			var rut := (1.0 - smoothstep(0.28, 0.7, absf(_segs_dist(p3, DRIVE) - 0.8))) * 0.9
+			var foot := (1.0 - smoothstep(0.3, 1.0, _segs_dist(p3, FOOT))) * 0.85
+			var gq := (p - gar_c).abs() - gar_half
+			var glq := Vector2(maxf(gq.x, 0.0), maxf(gq.y, 0.0)).length()
+			var gring := (1.0 - smoothstep(0.2, 1.3, glq)) * 0.7
+			trail = maxf(trail, maxf(rut, foot))
+			var bare := maxf(trail, maxf(porch, maxf(ring * 0.8, gring)))
 			var gw := smoothstep(0.26, 0.5, n1 * 0.4 + n2 * 0.35 + n3 * 0.25) * 0.82 + 0.18
 			var yq := Vector2(maxf(maxf(y0.x - p.x, p.x - y1.x), 0.0), maxf(maxf(y0.y - p.y, p.y - y1.y), 0.0))
 			var in_yard := 1.0 - smoothstep(0.0, 1.2, yq.length())
@@ -2286,6 +2312,26 @@ func _yard() -> void:
 			continue                                               # не в доме, не на крыльце, не в гараже
 		var s := rng.randf_range(0.08, 0.32)
 		stones.append(Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3(s * rng.randf_range(0.8, 1.4), s * 0.5, s)), p - Vector3.UP * s * 0.12))
+	# камни и битый кирпич под стенами бункера и гаража (не у дверей и ворот)
+	var wrng := RandomNumberGenerator.new()
+	wrng.seed = 77
+	var gat2: Array = ULBase.garage_cfg().get("at", [-14.6, 0.0, -12.0])
+	for bx in [[HOUSE_AT, ULHouse.W * 0.5 + 0.35, ULHouse.D * 0.5 + 0.35, 46], [Vector3(float(gat2[0]), 0, float(gat2[2])), ULGarage.W * 0.5 + 0.1, ULGarage.D * 0.5 + 0.1, 34]]:
+		var wc: Vector3 = bx[0]
+		for i in int(bx[3]):
+			var side := wrng.randi() % 4
+			var off := wrng.randf_range(0.12, 0.75)
+			var p := wc
+			if side < 2:
+				p += Vector3(wrng.randf_range(-float(bx[1]), float(bx[1])), 0, (float(bx[2]) + off) * (1.0 if side == 0 else -1.0))
+			else:
+				p += Vector3((float(bx[1]) + off) * (1.0 if side == 2 else -1.0), 0, wrng.randf_range(-float(bx[2]), float(bx[2])))
+			if side == 0 and (wc != HOUSE_AT or absf(p.x - wc.x) < 2.6):
+				continue                                           # крыльцо бункера, ворота гаража
+			if wc != HOUSE_AT and side == 2 and absf(p.z - wc.z - ULGarage.DOOR_Z) < 1.4:
+				continue                                           # дверь гаража
+			var s := wrng.randf_range(0.07, 0.22)
+			stones.append(Transform3D(Basis(Vector3.UP, wrng.randf() * TAU).scaled(Vector3(s * wrng.randf_range(0.8, 1.5), s * 0.5, s)), p - Vector3.UP * s * 0.12))
 	# несколько валунов у тропы
 	for i in 26:
 		var sgm: Array = TRAIL[rng.randi() % TRAIL.size()]
@@ -11733,6 +11779,7 @@ func _blobs_build() -> void:
 			blobs.add_static(b[0], b[1], float(b[2]), float(b[3]))
 	if place == "home" and not arena:
 		_blobs_home()
+		_glows_home()
 	blobs.build()
 
 
@@ -11774,6 +11821,37 @@ func _blobs_home() -> void:
 				continue
 			var p := cs.global_position + sd * minf(sz.y, 1.5) * 0.25
 			blobs.add_static(Vector3(p.x, 0.05, p.z), Vector2(sz.x, sz.z), cs.global_rotation.y, 0.6)
+
+
+## комнаты бункера: [середина (x, z), половины сторон] — относительно HOUSE_AT (по стенам ULHouse.WALLS)
+const HOME_ROOMS := [[Vector2(0, 3.25), Vector2(1.5, 1.75)], [Vector2(-3.75, 3.25), Vector2(2.25, 1.75)], [Vector2(3.75, 3.25), Vector2(2.25, 1.75)],
+	[Vector2(-2.25, -1.75), Vector2(3.75, 3.25)], [Vector2(3.75, -1.75), Vector2(2.25, 3.25)]]
+var glows: ULGlows
+
+
+## Интерьеры базы: под каждой лампой — лужа тёплого света на полу, в углах комнат — темнота; в гараже — свет под
+## подвесными лампами. Плафонов в бункере нет: под срезанными стенами они висели бы над головой героя и закрывали его.
+func _glows_home() -> void:
+	if glows == null:
+		glows = ULGlows.new()
+		glows.name = "Glows"
+		add_child(glows)
+	glows.clear()
+	for r in HOME_ROOMS:
+		var c: Vector2 = r[0]
+		var h: Vector2 = r[1]
+		glows.add(HOUSE_AT + Vector3(c.x, ULHouse.FLOOR_Y + 0.04, c.y), h * 2.3, Color(1.0, 0.72, 0.4), 0.34)
+		for sx in [-1.0, 1.0]:
+			for sz in [-1.0, 1.0]:
+				var k := HOUSE_AT + Vector3(c.x + sx * (h.x - 0.3), 0.07, c.y + sz * (h.y - 0.3))
+				blobs.add_static(k, Vector2(1.1, 1.1), 0.0, 0.62)
+	if garage != null and garage.built:
+		for lp in garage.lamp_spots():
+			glows.add(garage.to_global(lp) + Vector3.UP * 0.07, Vector2(5.2, 5.2), Color(1.0, 0.78, 0.48), 0.26)
+		for sx in [-1.0, 1.0]:
+			for sz in [-1.0, 1.0]:
+				blobs.add_static(garage.to_global(Vector3(sx * (ULGarage.W * 0.5 - 0.5), 0.07, sz * (ULGarage.D * 0.5 - 0.5))), Vector2(1.8, 1.8), 0.0, 0.6)
+	glows.build()
 
 
 func _blobs_tick() -> void:
@@ -17091,6 +17169,7 @@ func _garage_build() -> void:
 	garage.setup(ULBase.garage_cfg(), ULBase.garage_level() >= 1 or test == "bake")
 	if blobs != null:
 		_blobs_home()
+		_glows_home()
 		blobs.build()
 
 
@@ -18028,6 +18107,21 @@ func _garview_test() -> void:
 	_hud.visible = true
 	await get_tree().create_timer(0.5).timeout
 	await _snap("gv_game")
+	# земля: колеи к воротам, тропинка от гаража к бункеру, камни под стенами
+	_hud.visible = false
+	cam.current = true
+	for v in [["drive", Vector3(-12.0, 15.0, 6.0), Vector3(-12.0, 0, 0.5)], ["path", Vector3(-6.5, 11.0, 0.5), Vector3(-6.5, 0, -6.5)]]:
+		cam.look_at_from_position(v[1], v[2])
+		for i in 3:
+			await get_tree().process_frame
+		await _snap("gv_" + String(v[0]))
+	cam.current = false
+	_hud.visible = true
+	# интерьер бункера: тёплый свет под лампами, тёмные углы
+	for v in [["in_hall", Vector3(-2.25, 0.05, -1.75)], ["in_armory", Vector3(3.2, 0.05, 3.0)]]:
+		player.global_position = HOUSE_AT + (v[1] as Vector3)
+		await get_tree().create_timer(1.2).timeout
+		await _snap("gv_" + String(v[0]))
 	_test_done()
 
 

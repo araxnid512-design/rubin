@@ -29,6 +29,8 @@ CC-BY, NC, с неясной лицензией и вырезанных из ч�
 | `mag_drop` | магазин упал | — | BMacZero / rubberduck | CC0 |
 | `hit_wood` | попадание в мишень | — | rubberduck «75 CC0 breaking / falling / hit sfx» | CC0 |
 | `step` | шаги по бетону | `footstep_concrete_000…004` | Kenney «Impact Sounds» | CC0 |
+| `step_concrete`, `step_wood`, `step_metal` | шаги по бетону, дереву, металлу | — | собственный синтез, `tools/make_sfx.py` | своё |
+| `door_creak`, `gate_open` | скрип двери, лязг ворот гаража | — | собственный синтез, `tools/make_sfx.py` | своё |
 | `cloth` | ткань, снаряжение | — | HaelDB «Footsteps Leather, Cloth, Armor», Fantozzi/qubodup | CC0 |
 | `zip` | молния рюкзака | — | AntumDeluge «Zipper», Kenney | CC0 |
 | `swoosh`, `swing` | взмах рукой, ногой, мачете | — | artisticdude «Swishes Sound Pack» | CC0 |

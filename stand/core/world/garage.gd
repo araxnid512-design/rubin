@@ -655,6 +655,11 @@ func _lights() -> void:
 
 # ---------------- в игре ----------------
 
+## где висят лампы (в системе гаража, на полу) — под ними лужи света
+func lamp_spots() -> Array:
+	return [Vector3(-2.15, 0, PLAT_Z - 1.2), Vector3(2.15, 0, PLAT_Z + 1.6), Vector3(-2.15, 0, PLAT_Z + 2.6), Vector3(2.15, 0, PLAT_Z - 2.2)]
+
+
 ## точка внутри гаража (мир)?
 func contains(p: Vector3) -> bool:
 	var l := to_local(p)
