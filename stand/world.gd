@@ -3072,6 +3072,8 @@ func stealth(k: String, d: float) -> float:
 
 
 func set_sneak(v: bool) -> void:
+	if v and stealth("enabled", 0.0) <= 0.0:
+		return                                   # скрытность выключена (data/stealth.json)
 	if v == sneak:
 		return
 	sneak = v
@@ -4460,6 +4462,8 @@ func _draw_hud() -> void:
 		var active := true
 		if car_in and k in CAR_HIDE:
 			continue                                       # за рулём не стреляют и оружие не меняют
+		if k == "sneak" and stealth("enabled", 0.0) <= 0.0:
+			continue                                       # скрытность выключена — кнопки нет
 		match k:
 			"take":
 				if _target == null:
@@ -4567,6 +4571,8 @@ func _hud_hit(p: Vector2) -> String:
 		if k == "take" and _target == null:
 			continue
 		if car_in and k in CAR_HIDE:
+			continue
+		if k == "sneak" and stealth("enabled", 0.0) <= 0.0:
 			continue
 		if k == "map" and not map_exists():
 			continue
@@ -17001,6 +17007,9 @@ func _run_test() -> void:
 		hp_lock = true
 		for e0 in enemies.duplicate():
 			e0.damage(1000000.0)
+		set_sneak(true)
+		_ok("0. скрытность выключена в настройках: режим не включается, кнопки с глазом на экране нет", not sneak and _hud_hit(_hud_pos("sneak")) != "sneak")
+		_stealth_cfg["enabled"] = 1               # дальше проверяется сам режим (на случай, если его вернут)
 		var zp := Vector3(20.0, 0.0, 40.0)
 		var z := spawn_enemy("infected", zp)
 		z.def = z.def.duplicate(true)
