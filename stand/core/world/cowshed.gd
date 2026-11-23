@@ -754,6 +754,7 @@ func _model(path: String, at: Vector3, yaw: float, size: float, by_height := fal
 	if not _scenes.has(path):
 		_scenes[path] = load(path)
 	var n: Node3D = (_scenes[path] as PackedScene).instantiate()
+	ULSanatorium.mute(n)
 	var bb: AABB = w._aabb(n)
 	n.scale = Vector3.ONE * (size / maxf(bb.size.y if by_height else maxf(bb.size.x, bb.size.z), 0.01))
 	n.position = at
@@ -826,6 +827,7 @@ func _vehicles(_rng: RandomNumberGenerator) -> void:
 		if not _scenes.has(path):
 			_scenes[path] = load(path)
 		var n: Node3D = (_scenes[path] as PackedScene).instantiate()
+		ULSanatorium.mute(n)
 		var bb: AABB = w._aabb(n)
 		var k := float(vm[1]) / maxf(maxf(bb.size.x, bb.size.z), 0.01)
 		n.scale = Vector3.ONE * k

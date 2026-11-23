@@ -1304,6 +1304,7 @@ func _long_x(path: String) -> bool:
 		if not _scenes.has(path):
 			_scenes[path] = load(path)
 		var n: Node3D = (_scenes[path] as PackedScene).instantiate()
+		ULSanatorium.mute(n)
 		var bb: AABB = w._aabb(n)
 		n.free()
 		_lx[path] = bb.size.x > bb.size.z
@@ -1463,6 +1464,7 @@ func _q_conveyor(g: Node3D, a: Vector3, b: Vector3) -> void:
 			if not _scenes.has(path):
 				_scenes[path] = load(path)
 			var m: Node3D = (_scenes[path] as PackedScene).instantiate()
+			ULSanatorium.mute(m)
 			var bb: AABB = w._aabb(m)
 			var long_x := bb.size.x > bb.size.z
 			var k := (d.length() / n) / maxf(maxf(bb.size.x, bb.size.z), 0.01)

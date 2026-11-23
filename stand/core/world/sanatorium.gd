@@ -544,6 +544,7 @@ func open_near(p: Vector3, r: float) -> bool:
 ## две лампы без теней — у ближайших к герою светильников его этажа (на телефоне каждый источник света дорог)
 func _light_pool() -> void:
 	_door_glows()
+	_door_wear()
 	for i in light_n:
 		var l := OmniLight3D.new()
 		l.light_color = Color(0.86, 0.94, 1.0) if i == 0 else Color(1.0, 0.86, 0.66)
@@ -994,6 +995,7 @@ func _model(path: String, at: Vector3, yaw: float, size: float, by_height := fal
 	if not _scenes.has(path):
 		_scenes[path] = load(path)
 	var n: Node3D = (_scenes[path] as PackedScene).instantiate()
+	mute(n)
 	var bb: AABB = w._aabb(n)
 	n.scale = Vector3.ONE * (size / maxf(bb.size.y if by_height else maxf(bb.size.x, bb.size.z), 0.01))
 	n.position = at
@@ -1001,6 +1003,27 @@ func _model(path: String, at: Vector3, yaw: float, size: float, by_height := fal
 	add_child(n)
 	_cull(n, 60.0)
 	return n
+
+
+## Единая палитра предметов локаций: модели (Tripo, Poly Haven) приходят со своими яркими красками — синие бочки,
+## красные ящики выбиваются из выцветшего мира. Цвет материала подводится к общему тёплому приглушённому тону
+## (один раз на материал: он общий у всех копий модели). Текстуры не трогаются.
+const MUTE := Color(0.86, 0.82, 0.74)
+static var muted_n := 0
+
+
+static func mute(n: Node3D) -> void:
+	for mi in n.find_children("*", "MeshInstance3D", true, false):
+		var m := mi as MeshInstance3D
+		if m.mesh == null:
+			continue
+		for si in m.mesh.get_surface_count():
+			var mat := m.mesh.surface_get_material(si) as BaseMaterial3D
+			if mat == null or mat.has_meta("muted"):
+				continue
+			mat.albedo_color = mat.albedo_color * MUTE
+			mat.set_meta("muted", true)
+			muted_n += 1
 
 
 # ---------------- площадь, фонтан, беседки, площадка, фонари ----------------
@@ -1238,6 +1261,7 @@ func _vehicles() -> void:
 		if not _scenes.has(path):
 			_scenes[path] = load(path)
 		var n: Node3D = (_scenes[path] as PackedScene).instantiate()
+		ULSanatorium.mute(n)
 		var bb: AABB = w._aabb(n)
 		var k := float(vm[1]) / maxf(maxf(bb.size.x, bb.size.z), 0.01)
 		n.scale = Vector3.ONE * k
@@ -1477,6 +1501,7 @@ func _place_models(b: ULBlock) -> void:
 		if not _scenes.has(path):
 			_scenes[path] = load(path)
 		var n: Node3D = (_scenes[path] as PackedScene).instantiate()
+		ULSanatorium.mute(n)
 		var bb: AABB = w._aabb(n)
 		var sz: Vector3 = m[3]
 		# лицо модели — в комнату (m[2] — поворот, при котором +Z смотрит от стены); модели с лицом по ±X
@@ -1788,7 +1813,7 @@ func _door_glows() -> void:
 		var along := Vector3(-n.z, 0, n.x)
 		var wd := maxf(d.width * 2.8, 3.8)
 		# плоскость: x — вдоль стены, z — наружу; UV.y = 0 у двери
-		xs.append([Transform3D(Basis(along * wd, Vector3.UP, n * 5.6), Vector3(c.x, gy + 0.04, c.z) + n * 2.9), Color(1.0, 0.62, 0.26, 1.0) * Color(0.62, 0.62, 0.62, 1.0)])
+		xs.append([Transform3D(Basis(along * wd, Vector3.UP, n * 5.6), Vector3(c.x, gy + 0.04, c.z) + n * 2.9), Color(1.0, 0.62, 0.26, 1.0) * Color(0.4, 0.4, 0.4, 1.0)])
 		lamps.append(Transform3D(Basis(along, Vector3.UP, n), Vector3(c.x, c.y + 2.42, c.z) + n * 0.2))
 	xs.append_array(extra_glows())
 	print("[glow] пятна света: %d (у входов %d, прочих %d)" % [xs.size(), lamps.size(), xs.size() - lamps.size()])
@@ -1835,6 +1860,129 @@ func _door_glows() -> void:
 		mi2.multimesh = mm2
 		mi2.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		add_child(mi2)
+
+
+const WEAR_SHADER := """shader_type spatial;
+render_mode unshaded, blend_mix, depth_draw_never, cull_disabled, shadows_disabled;
+// вытоптанная земля у входа: бурое пятно с рваным краем (край ломает шум по мировым координатам)
+varying vec3 wp;
+void vertex() { wp = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz; }
+float h(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float n2(vec2 p) {
+	vec2 i = floor(p); vec2 f = fract(p); f = f * f * (3.0 - 2.0 * f);
+	return mix(mix(h(i), h(i + vec2(1.0, 0.0)), f.x), mix(h(i + vec2(0.0, 1.0)), h(i + vec2(1.0, 1.0)), f.x), f.y);
+}
+void fragment() {
+	vec2 p = vec2((UV.x - 0.5) * 2.0, UV.y);
+	float r = length(p * vec2(1.0, 0.9)) + (n2(wp.xz * 1.7) - 0.5) * 0.5 + (n2(wp.xz * 6.0) - 0.5) * 0.18;
+	float a = 1.0 - smoothstep(0.35, 0.95, r);
+	ALBEDO = vec3(0.2, 0.15, 0.1) * (0.8 + 0.4 * n2(wp.xz * 9.0));
+	ALPHA = a * 0.72;
+}
+"""
+var wear_n := 0                   ## сколько вытоптанных пятен у входов и камней под стенами (для проверки)
+var wall_stones_n := 0
+
+
+## Обжитость построек (общая для всех локаций): у каждой наружной двери — вытоптанное бурое пятно на земле, под
+## стенами — мелкие камни и обломки (не у дверей). Две сетки-множества на локацию, столкновений нет.
+func _door_wear() -> void:
+	var xs: Array[Transform3D] = []
+	var door_pts: Array = []
+	for dd in doors:
+		var d := dd as ULDoor
+		if not d.has_meta("ext") or d.floor_i != 0:
+			continue
+		var n: Vector3 = d.basis.z.normalized()
+		var c := d.center
+		if bld_dist(Vector2(c.x + n.x * 1.3, c.z + n.z * 1.3)) < bld_dist(Vector2(c.x - n.x * 1.3, c.z - n.z * 1.3)):
+			n = -n
+		var gy := ground_y(Vector2(c.x + n.x * 1.5, c.z + n.z * 1.5))
+		if absf(c.y - gy) > 0.9:
+			continue
+		door_pts.append(Vector2(c.x, c.z))
+		var along := Vector3(-n.z, 0, n.x)
+		var wd := maxf(d.width * 2.4, 3.0)
+		xs.append(Transform3D(Basis(along * wd, Vector3.UP, n * 4.6), Vector3(c.x, gy + 0.03, c.z) + n * 2.3))
+	wear_n = xs.size()
+	if not xs.is_empty():
+		var qm := QuadMesh.new()
+		qm.size = Vector2(1, 1)
+		qm.orientation = PlaneMesh.FACE_Y
+		var sh := Shader.new()
+		sh.code = WEAR_SHADER
+		var wm := ShaderMaterial.new()
+		wm.shader = sh
+		wm.render_priority = 1
+		qm.material = wm
+		var mm := MultiMesh.new()
+		mm.transform_format = MultiMesh.TRANSFORM_3D
+		mm.mesh = qm
+		mm.instance_count = xs.size()
+		for i in xs.size():
+			mm.set_instance_transform(i, xs[i])
+		var mi := MultiMeshInstance3D.new()
+		mi.name = "DoorWear"
+		mi.multimesh = mm
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(mi)
+	# камни под стенами
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 4711
+	var st: Array[Transform3D] = []
+	for b in blds:
+		if String(b.style) == "tent" or String(b.style) == "cellar":
+			continue
+		for bk in b.blocks:
+			var hl := float(bk.hl)
+			var hw := float(bk.hw)
+			var c2: Vector2 = bk.c
+			var n_st := int((hl + hw) * 4.0 / 1.6)
+			for i in n_st:
+				var side := rng.randi() % 4
+				var off := rng.randf_range(0.12, 0.6)
+				var l := Vector2(rng.randf_range(-hl, hl), (hw + off) * (1.0 if side == 0 else -1.0)) if side < 2 else Vector2((hl + off) * (1.0 if side == 2 else -1.0), rng.randf_range(-hw, hw))
+				var q := Vector2(c2.x + l.x, c2.y + l.y) if String(bk.axis) == "x" else Vector2(c2.x + l.y, c2.y + l.x)
+				if bld_dist(q) < 0.08:
+					continue                               # попало внутрь соседнего блока
+				var near_door := false
+				for dp in door_pts:
+					if q.distance_to(dp) < 2.2:
+						near_door = true
+						break
+				if near_door or st.size() >= 700:
+					continue
+				var sz := rng.randf_range(0.07, 0.2)
+				st.append(Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3(sz * rng.randf_range(0.8, 1.5), sz * 0.5, sz)), Vector3(q.x, ground_y(q) + sz * 0.1, q.y)))
+	wall_stones_n = st.size()
+	if st.is_empty():
+		return
+	var sm := SphereMesh.new()
+	sm.radius = 1.0
+	sm.height = 2.0
+	sm.radial_segments = 6
+	sm.rings = 3
+	var rm := StandardMaterial3D.new()
+	rm.albedo_color = Color(0.42, 0.4, 0.37)
+	rm.roughness = 0.95
+	if ResourceLoader.exists("res://assets/world/tex/rock_boulder_dry_c.jpg"):
+		rm.albedo_texture = load("res://assets/world/tex/rock_boulder_dry_c.jpg")
+		rm.uv1_triplanar = true
+		rm.albedo_color = Color(0.5, 0.48, 0.44)
+	sm.material = rm
+	var mm2 := MultiMesh.new()
+	mm2.transform_format = MultiMesh.TRANSFORM_3D
+	mm2.mesh = sm
+	mm2.instance_count = st.size()
+	for i in st.size():
+		mm2.set_instance_transform(i, st[i])
+	var mi2 := MultiMeshInstance3D.new()
+	mi2.name = "WallStones"
+	mi2.multimesh = mm2
+	mi2.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	mi2.visibility_range_end = 45.0
+	add_child(mi2)
+	print("[wear] вытоптано у входов: %d, камней под стенами: %d" % [wear_n, wall_stones_n])
 
 
 ## хлам в постройках: в каждой — несколько кучек (точки — ULBlock.junk)

@@ -142,7 +142,7 @@ func _ready() -> void:
 			sc.lottery = [sc.lottery[1], sc.lottery[1]]
 			sc.ruber_chances = [0, 0, 1]                 # и два Рубера — всего 57
 			ULSanatorium._cfg = sc
-	if test == "gqview" or test == "mapbake" or test == "pmap" or test == "fldiag" or test == "shbake" or test == "shcheck" or test == "gbake" or test == "gcheck" or test == "gperf" or test == "lumtest" or test == "wperf" or test == "evo" or test == "reload" or test == "look" or test == "traces" or test == "car" or test == "turfx" or test == "exitflow" or test == "enterview" or test == "colaudit":
+	if test == "glowview" or test == "gqview" or test == "mapbake" or test == "pmap" or test == "fldiag" or test == "shbake" or test == "shcheck" or test == "gbake" or test == "gcheck" or test == "gperf" or test == "lumtest" or test == "wperf" or test == "evo" or test == "reload" or test == "look" or test == "traces" or test == "car" or test == "turfx" or test == "exitflow" or test == "enterview" or test == "colaudit":
 		# сравнение чёткости (gqview), запекание карты локации (mapbake), проверка карты (pmap): место — --as-place=
 		ULSettings.arena = false
 		for a in OS.get_cmdline_user_args():
@@ -16928,6 +16928,33 @@ func _run_test() -> void:
 		await get_tree().create_timer(0.5).timeout
 		await _snap("s3_inventory")
 		get_tree().quit()
+		return
+	if test == "glowview":
+		# вид у входа в постройку: со светом у двери и без него (--as-place=…)
+		var tg := Time.get_ticks_msec()
+		while not cs_ready and Time.get_ticks_msec() - tg < 40000:
+			await get_tree().process_frame
+		hp_lock = true
+		for e0 in enemies.duplicate():
+			e0.visible = false
+			e0.process_mode = Node.PROCESS_MODE_DISABLED
+		var gl := san.get_node_or_null("Glows") as MultiMeshInstance3D
+		_ok("у входов вытоптано (%d пятен), под стенами камни (%d)" % [san.wear_n, san.wall_stones_n], san.wear_n > 0 and san.wall_stones_n > 20 and san.get_node_or_null("DoorWear") != null and san.get_node_or_null("WallStones") != null)
+		_ok("палитра: материалы моделей локации приглушены (%d)" % ULSanatorium.muted_n, ULSanatorium.muted_n > 3)
+		var gi := 0
+		for k in 3:
+			gi = (k * 7) % gl.multimesh.instance_count
+			var gx := gl.multimesh.get_instance_transform(gi)
+			player.global_position = gl.to_global(gx.origin - gx.basis.z.normalized() * 1.2) + Vector3.UP * 0.1
+			await get_tree().create_timer(1.2).timeout
+			await _snap("glow%d_on" % k)
+			for nm in ["DoorWear", "WallStones"]:
+				(san.get_node(nm) as Node3D).visible = false
+			await get_tree().process_frame
+			await _snap("glow%d_off" % k)
+			for nm in ["DoorWear", "WallStones"]:
+				(san.get_node(nm) as Node3D).visible = true
+		_test_done()
 		return
 	if test == "impactfx":
 		# попадания: в землю — пыль и выбоина, по железу — искры

@@ -471,6 +471,7 @@ func _c_model_box(path: String, at: Vector3, yaw: float, length: float, tint: Co
 	if not _scenes.has(path):
 		_scenes[path] = load(path)
 	var n: Node3D = (_scenes[path] as PackedScene).instantiate()
+	ULSanatorium.mute(n)
 	var bb: AABB = w._aabb(n)
 	var k := length / maxf(bb.size.y if by_height else maxf(bb.size.x, bb.size.z), 0.01)
 	n.scale = Vector3.ONE * k
