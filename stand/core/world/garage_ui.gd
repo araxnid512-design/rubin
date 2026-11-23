@@ -806,9 +806,9 @@ func _use_kit() -> void:
 # ---------------- верстак ----------------
 
 func _build_craft() -> void:
-	_body.add_child(_lbl("ВЕРСТАК — собрать из хлама", 22, Color(0.97, 0.97, 0.94)))
+	_body.add_child(_lbl("ВЕРСТАК", 22, Color(0.97, 0.97, 0.94)))
 	var grid := GridContainer.new()
-	grid.columns = 2
+	grid.columns = 1
 	grid.add_theme_constant_override("h_separation", 8)
 	grid.add_theme_constant_override("v_separation", 8)
 	grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL

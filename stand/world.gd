@@ -18334,12 +18334,9 @@ func _garage_test() -> void:
 	open_garage_ui("g_bench")
 	await get_tree().process_frame
 	ui = _car_ui as ULGarageUI
-	var a9: int = inv.count("a9x19")
-	var rb: Dictionary = ULCraft.recipes().filter(func(x): return String(x.id) == "a9x19")[0]
-	ui._craft(rb)
-	_ok("26а. верстак: окно на вкладке «Верстак»; 10 патронов 9×19 собраны, хлам списан", ui != null and ui.tab == "craft" and inv.count("a9x19") == a9 + int(rb.n) and inv.count("junk") == j0 + 20 - int(rb.need.junk), "патронов %d → %d, хлама %d" % [a9, inv.count("a9x19"), inv.count("junk")])
 	var rk: Dictionary = ULCraft.recipes().filter(func(x): return String(x.id) == "car_kit")[0]
 	ui._craft(rk)
+	_ok("26а. верстак: окно на вкладке «Верстак», рецепт один — ремкомплект; собран, хлам списан", ui != null and ui.tab == "craft" and ULCraft.recipes().size() == 1 and inv.count("car_kit") == 1 and inv.count("junk") == j0 + 20 - int(rk.need.junk), "ремкомплектов %d, хлама %d" % [inv.count("car_kit"), inv.count("junk")])
 	await get_tree().process_frame
 	await _snap("gar_craft")
 	inv.consume("junk", 999)
