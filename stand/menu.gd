@@ -44,6 +44,17 @@ func _ready() -> void:
 	rl.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT)
 	rl.position = Vector2(10, get_viewport_rect().size.y - 26)
 	add_child(rl)
+	# прошлый запуск закрылся не сам (вылет): где именно — строкой над подписью отрисовщика (для снимка экрана)
+	var prev := ULSettings.step_prev()
+	if prev != "" and test == "":
+		var cl := Label.new()
+		cl.name = "LastStep"
+		cl.text = "Прошлый раз игра закрылась на шаге: " + prev
+		cl.add_theme_font_size_override("font_size", 15)
+		cl.add_theme_color_override("font_color", Color(1.0, 0.8, 0.5, 0.9))
+		cl.position = Vector2(10, get_viewport_rect().size.y - 50)
+		add_child(cl)
+	ULSettings.step_ok()
 	if test != "":
 		_run_test.call_deferred()
 

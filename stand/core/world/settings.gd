@@ -59,6 +59,36 @@ static var gfx := 1
 static var dev_force := false               ## проверки: вести себя как собранная игра (без отладочных кнопок) — false
 
 
+## Метки хода игры (user://last_step.txt): на каком шаге игра была в последний раз. Если игру «выкинуло», при
+## следующем запуске в главном меню видно, где это случилось (вход на локацию, выход, загрузка базы …).
+## Чистый выход и благополучная загрузка стирают метку.
+const STEP_FILE := "user://last_step.txt"
+static var last_crash := ""                ## что осталось от прошлого запуска (читается один раз при старте)
+static var _step_read := false
+
+
+static func step(text: String) -> void:
+	step_prev()
+	var f := FileAccess.open(STEP_FILE, FileAccess.WRITE)
+	if f != null:
+		f.store_string(text)
+		f.close()
+
+
+static func step_ok() -> void:
+	step_prev()
+	if FileAccess.file_exists(STEP_FILE):
+		DirAccess.remove_absolute(STEP_FILE)
+
+
+static func step_prev() -> String:
+	if not _step_read:
+		_step_read = true
+		if FileAccess.file_exists(STEP_FILE):
+			last_crash = FileAccess.get_file_as_string(STEP_FILE).strip_edges()
+	return last_crash
+
+
 ## Отрисовщик: false — «Совместимость» (OpenGL ES 3, сборка А), true — «Мобильный» (Vulkan, сборка Б). Поправки
 ## яркости, подобранные под OpenGL (солнце без теней ярче, тон «быстрой земли»), нужны только в первом.
 static func vulkan() -> bool:

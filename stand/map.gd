@@ -73,6 +73,8 @@ func _ready() -> void:
 			test = a.substr(10)
 		if a.begins_with("--as-out="):
 			out = a.substr(9)
+	if test == "":
+		ULSettings.step("карта мира")
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	ULSettings.apply(get_viewport())
 	Music.play_menu()
@@ -322,6 +324,7 @@ func enter(id: String) -> void:
 		return
 	await get_tree().process_frame
 	await get_tree().process_frame
+	ULSettings.step("вход на локацию: " + id)
 	get_tree().change_scene_to_file(String(PLACES[id].scene))
 
 
@@ -330,7 +333,9 @@ func open_settings() -> void:
 		return
 	_set_ui = ULSettings.panel(self, func() -> void: ULSettings.apply(get_viewport()), [
 		["Главное меню", func() -> void: get_tree().change_scene_to_file("res://menu.tscn")],
-		["Выйти из игры", func() -> void: get_tree().quit()],
+		["Выйти из игры", func() -> void:
+			ULSettings.step_ok()
+			get_tree().quit()],
 	])
 
 
@@ -440,3 +445,13 @@ func _run_test() -> void:
 	await get_tree().create_timer(0.5).timeout
 	await _snap("p2_settings")
 	get_tree().quit()
+
+
+## игру свернули или закрыли из списка приложений — это не вылет: метка шага стирается, при возврате — ставится снова
+func _notification(what: int) -> void:
+	if test != "":
+		return
+	if what == NOTIFICATION_APPLICATION_PAUSED or what == NOTIFICATION_WM_CLOSE_REQUEST:
+		ULSettings.step_ok()
+	elif what == NOTIFICATION_APPLICATION_RESUMED:
+		ULSettings.step("карта мира")

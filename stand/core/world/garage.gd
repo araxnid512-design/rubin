@@ -92,8 +92,13 @@ func _materials() -> void:
 	(_mats.wall as StandardMaterial3D).albedo_color = Color(0.68, 0.68, 0.66)
 	_mats["plinth"] = ULHouse._mat(TEX + "damaged_concrete_floor", 1.6)
 	(_mats.plinth as StandardMaterial3D).albedo_color = Color(0.55, 0.55, 0.54)
-	_mats["floor"] = ULHouse._mat(TEX + "concrete_floor_worn_001", 3.0)
-	(_mats.floor as StandardMaterial3D).albedo_color = Color(0.62, 0.62, 0.6)
+	# пол: в гараже — потёртый бетон с трещинами, площадка до постройки — бетонные плиты с травой в швах
+	if built:
+		_mats["floor"] = ULHouse._mat(TEX + "damaged_concrete_floor", 2.6)
+		(_mats.floor as StandardMaterial3D).albedo_color = Color(0.66, 0.7, 0.74)
+	else:
+		_mats["floor"] = ULHouse._mat(TEX + "overgrown_concrete_pavers", 2.4)
+		(_mats.floor as StandardMaterial3D).albedo_color = Color(0.6, 0.6, 0.57)
 	_mats["roof"] = ULHouse._mat(TEX + "rusty_corrugated_iron", 2.0)
 	_mats["gate"] = ULHouse._mat(TEX + "worn_corrugated_iron", 1.4)
 	(_mats.gate as StandardMaterial3D).albedo_color = Color(0.42, 0.5, 0.42)

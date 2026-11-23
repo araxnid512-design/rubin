@@ -95,6 +95,8 @@ func _ready() -> void:
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--as-test="):
 			test = a.substr(10)
+		if a == "--as-test=enterview":
+			_enterview.call_deferred()                 # снимки первых секунд после входа (как видит игрок)
 		if a.begins_with("--as-out="):
 			out = a.substr(9)
 		if a.begins_with("--as-gfx="):
@@ -140,7 +142,7 @@ func _ready() -> void:
 			sc.lottery = [sc.lottery[1], sc.lottery[1]]
 			sc.ruber_chances = [0, 0, 1]                 # и два Рубера — всего 57
 			ULSanatorium._cfg = sc
-	if test == "gqview" or test == "mapbake" or test == "pmap" or test == "fldiag" or test == "shbake" or test == "shcheck" or test == "gbake" or test == "gcheck" or test == "gperf" or test == "lumtest" or test == "wperf" or test == "evo" or test == "reload" or test == "look" or test == "traces" or test == "car" or test == "turfx" or test == "colaudit":
+	if test == "gqview" or test == "mapbake" or test == "pmap" or test == "fldiag" or test == "shbake" or test == "shcheck" or test == "gbake" or test == "gcheck" or test == "gperf" or test == "lumtest" or test == "wperf" or test == "evo" or test == "reload" or test == "look" or test == "traces" or test == "car" or test == "turfx" or test == "exitflow" or test == "enterview" or test == "colaudit":
 		# сравнение чёткости (gqview), запекание карты локации (mapbake), проверка карты (pmap): место — --as-place=
 		ULSettings.arena = false
 		for a in OS.get_cmdline_user_args():
@@ -206,6 +208,10 @@ func _ready() -> void:
 	arena = ULSettings.arena
 	place = ULSettings.place if not arena and ULSettings.place in ["cowshed", "sanatorium", "convoy", "khutor", "lair", "quarry"] else "home"
 	ULSettings.apply(get_viewport())
+	if test == "" or test == "enterview":
+		ULSettings.step("загрузка: " + place)
+		_cover_show("Загрузка…")
+		_cover_wait.call_deferred()
 	if test != "" and not test.ends_with("view") and test != "gfxdiag" and test != "st" and test != "dl":
 		# автоматические проверки идут на программной отрисовке (без видеокарты): в полном разрешении со
 		# сглаживанием — 2–3 кадра/с, шаг кадра в треть секунды ломает проверки ходьбы по лестницам; поэтому
@@ -549,6 +555,8 @@ func _cowshed_enter() -> void:
 		k += 1
 		if k % 6 == 0:
 			await get_tree().process_frame          # по нескольку за кадр — без долгой заминки на входе
+			if not is_inside_tree() or _leaving:
+				return                              # ушли с локации, пока она заселялась
 	if test == "car" or test == "turfx":
 		ULBase.memory_only = true                  # проверка машины: гараж куплен — в памяти, файл не трогается
 		ULBase.load_state(true)
@@ -960,7 +968,89 @@ func cs_finish(why: String) -> void:
 	ULSettings.arrival_note = (note % zone_name() if note.contains("%s") else note) + quest_note
 	ULSettings.arrival_title = zone_name()
 	if test == "":
-		get_tree().change_scene_to_file({"left": "res://map.tscn", "menu": "res://menu.tscn"}.get(why, "res://world.tscn"))
+		_leave_to({"left": "res://map.tscn", "menu": "res://menu.tscn"}.get(why, "res://world.tscn"), "выход с локации %s (%s)" % [place, why])
+
+
+# ---------------- экран загрузки и уход со сцены ----------------
+
+## игру свернули или закрыли из списка приложений — это не вылет: метка шага стирается, при возврате — ставится снова
+func _notification(what: int) -> void:
+	if test != "":
+		return
+	if what == NOTIFICATION_APPLICATION_PAUSED or what == NOTIFICATION_WM_CLOSE_REQUEST:
+		ULSettings.step_ok()
+	elif what == NOTIFICATION_APPLICATION_RESUMED:
+		ULSettings.step("игра: " + place)
+
+
+var _cover: CanvasLayer
+var _leaving := false
+
+
+## Чёрный экран с надписью поверх всего: прикрывает первые секунды на локации (постройка, первая закраска,
+## камера встаёт на место — на телефоне в это время картинка дёргалась и искажалась) и уход со сцены
+func _cover_show(text: String) -> void:
+	if _cover != null and is_instance_valid(_cover):
+		return
+	_cover = CanvasLayer.new()
+	_cover.layer = 120
+	add_child(_cover)
+	var bg := ColorRect.new()
+	bg.name = "Bg"
+	bg.color = Color(0.03, 0.035, 0.03)
+	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	bg.mouse_filter = Control.MOUSE_FILTER_STOP
+	_cover.add_child(bg)
+	var lb := Label.new()
+	lb.text = text
+	lb.add_theme_font_size_override("font_size", 30)
+	lb.add_theme_color_override("font_color", Color(0.9, 0.86, 0.72))
+	lb.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	lb.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lb.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	bg.add_child(lb)
+
+
+## экран загрузки уходит, когда локация готова и отрисовалось несколько кадров (не дольше 20 с)
+func _cover_wait() -> void:
+	var t0 := Time.get_ticks_msec()
+	while is_inside_tree() and temp() and not cs_ready and Time.get_ticks_msec() - t0 < 20000:
+		await get_tree().process_frame
+	if not is_inside_tree():
+		return
+	for i in 12:
+		await get_tree().process_frame
+		if not is_inside_tree():
+			return
+	await get_tree().create_timer(0.5).timeout
+	if _leaving or _cover == null or not is_instance_valid(_cover):
+		return
+	_res_warm = maxf(_res_warm, 2.0)
+	ULSettings.step("игра: " + place)
+	var bg := _cover.get_node("Bg") as ColorRect
+	var c := _cover
+	_cover = null
+	var tw := create_tween()
+	tw.tween_property(bg, "modulate:a", 0.0, 0.35)
+	tw.tween_callback(c.queue_free)
+
+
+## Уход со сцены: экран закрывается, физика тел (падающие враги) сворачивается, кадр — и только потом смена сцены.
+## Так движок не разбирает сцену посреди расчёта физики и отрисовки.
+func _leave_to(scene: String, why := "") -> void:
+	if _leaving:
+		return
+	_leaving = true
+	ULSettings.step(why if why != "" else "уход со сцены " + place)
+	_cover_show("Загрузка…")
+	for e in enemies:
+		if is_instance_valid(e) and e.rig != null and e.rig.ragdoll != null and e.rig.ragdoll.running:
+			e.rig.ragdoll.bake()
+	set_physics_process(false)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	ULSettings.step("смена сцены после: " + (why if why != "" else place))
+	get_tree().change_scene_to_file(scene)
 
 
 ## во временном кластере на диск пишется только то, что при себе; ящики и вещи на базе остаются как были
@@ -2847,7 +2937,7 @@ func _process(delta: float) -> void:
 			else:
 				_save()
 				if test == "":
-					get_tree().change_scene_to_file("res://map.tscn")
+					_leave_to("res://map.tscn")
 	else:
 		_leave_t = 0.0
 	var _pz := Time.get_ticks_usec()
@@ -4014,7 +4104,7 @@ func _ui() -> void:
 	if not arena and not temp():
 		bar.add_child(_btn("Карта", func():
 			_save()
-			get_tree().change_scene_to_file("res://map.tscn"), 90))
+			_leave_to("res://map.tscn"), 90))
 	bar.add_child(_btn("Настройки", open_settings, 120))
 	if ULSettings.dev():
 		bar.add_child(_btn("Тест FPS", fps_test, 110))
@@ -4024,7 +4114,7 @@ func _ui() -> void:
 		bar.add_child(_btn("3D", func():
 			_save()
 			ULSettings.stand_back = "res://world.tscn"
-			get_tree().change_scene_to_file("res://stand.tscn"), 70))
+			_leave_to("res://stand.tscn"), 70))
 	_toast = Label.new()
 	ui.add_child(_toast)
 	_toast.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
@@ -5810,7 +5900,7 @@ func _lvl_exit() -> void:
 	ULBase.memory_only = false
 	ULBase.load_state(true)
 	if test == "":
-		get_tree().change_scene_to_file("res://menu.tscn")
+		_leave_to("res://menu.tscn")
 
 
 ## Вид карьера с нескольких точек (снимки в --as-out): общий вид, бровка, съезд, уступы, дно, дробилка, посёлок,
@@ -12178,9 +12268,10 @@ func open_settings() -> void:
 				cs_finish("menu")
 				return
 			_save()
-			get_tree().change_scene_to_file("res://menu.tscn")],
+			_leave_to("res://menu.tscn")],
 		["Выйти из игры", func() -> void:
 			_save()
+			ULSettings.step_ok()
 			get_tree().quit()],
 	])
 	_joy_id = -1
@@ -14164,8 +14255,33 @@ func _run_test() -> void:
 	if test == "turfx":
 		await _turfx_test()
 		return
+	if test == "exitflow":
+		# как на телефоне: вошёл в кластер, убил врага (тело падает на физике), ушёл на карту; --as-exit=left|dead|menu
+		var why := "left"
+		var kill := true
+		for a in OS.get_cmdline_user_args():
+			if a.begins_with("--as-exit="):
+				why = a.substr(10)
+			if a == "--as-kill=0":
+				kill = false
+		await get_tree().create_timer(2.0).timeout
+		if kill:
+			for e in enemies.slice(0, 4):
+				e.global_position = player.global_position + Vector3(2.0 + randf(), 0, 2.0)
+				e.set_active(true)
+			await get_tree().create_timer(0.3).timeout
+			for e in enemies.slice(0, 4):
+				e.damage(9999.0, player.global_position)
+			await get_tree().create_timer(0.6).timeout
+		print("[exitflow] ухожу: ", why)
+		test = ""
+		cs_finish(why)
+		return
 	if test == "garview":
 		await _garview_test()
+		return
+	if test == "wallwalk":
+		await _wallwalk_test()
 		return
 	if test == "garage":
 		await _garage_test()
@@ -17582,10 +17698,97 @@ func _car_test() -> void:
 ## покупка, замена без бесплатных копий; боеприпасы у оружейника и загрузка; топливо канистрами (барахольщик →
 ## резервуар → канистра → бак); выбор машины; грузовой шкаф; выезд из гаража и заезд задом; огонь турели;
 ## всё — в сохранении базы
+## Стены базы держат героя: бункер и гараж обходятся по кругу, в каждую стену герой «давит» джойстиком снаружи
+## 1,2 с (и изнутри — наружу). Частота кадров низкая, как на слабом телефоне (--as-fps=N, по умолчанию 12).
+## Прошёл — если оказался по другую сторону стены (или внутри бетона).
+func _wallwalk_test() -> void:
+	ULBase.memory_only = true
+	ULBase.load_state(true)
+	ULBase.data.garage.level = 1
+	ULBase._garage_norm()
+	_car_free_node()
+	_garage_build()
+	var fps := 12
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--as-fps="):
+			fps = int(a.substr(9))
+	await get_tree().create_timer(0.8).timeout
+	Engine.max_fps = fps
+	hp_lock = true
+	var boxes := [["бункер", HOUSE_AT, ULHouse.W * 0.5 + ULHouse.B_T - 0.11, ULHouse.D * 0.5 + ULHouse.B_T - 0.11, 0.45],
+		["гараж", garage.global_position, ULGarage.W * 0.5, ULGarage.D * 0.5, ULGarage.T]]
+	var leaks := []
+	var tries := 0
+	for bx in boxes:
+		var c: Vector3 = bx[1]
+		var hx := float(bx[2])
+		var hz := float(bx[3])
+		var th := float(bx[4])
+		for side in 4:
+			var along := hx if side < 2 else hz
+			var n := Vector3(0, 0, 1) if side == 0 else (Vector3(0, 0, -1) if side == 1 else (Vector3(1, 0, 0) if side == 2 else Vector3(-1, 0, 0)))
+			var tng := Vector3(1, 0, 0) if side < 2 else Vector3(0, 0, 1)
+			var face := hz if side < 2 else hx
+			var u := -along + 0.3
+			while u <= along - 0.3:
+				for inside in [false, true]:
+					# снаружи — в стену; изнутри — наружу
+					var start := c + n * (face + (-th - 0.9 if inside else 0.9)) + tng * u
+					var dirv := n if inside else -n
+					player.global_position = start + Vector3.UP * 0.1
+					player.velocity = Vector3.ZERO
+					await get_tree().process_frame
+					if player.global_position.distance_to(start) > 0.5:
+						continue                              # место занято (мебель, насыпь) — выталкивает сразу
+					var p0 := player.global_position
+					_auto = [start + dirv * 3.0]
+					var t0 := Time.get_ticks_msec()
+					while Time.get_ticks_msec() - t0 < 1100:
+						await get_tree().process_frame
+					_auto = []
+					tries += 1
+					var moved := (player.global_position - p0).dot(dirv)
+					# между стартом и другой стороной стены — 0,9 м до грани и толщина; прошёл больше — сквозь стену
+					if moved > 0.9 + th * 0.5 + 0.25:
+						leaks.append("%s сторона %d u=%.1f %s: прошёл %.2f м" % [bx[0], side, u, "изнутри" if inside else "снаружи", moved])
+				u += 0.5
+	Engine.max_fps = 0
+	for l in leaks.slice(0, 40):
+		print("[wallwalk]   ", l)
+	_ok("стены бункера и гаража держат героя при %d кадрах/с: попыток %d, проходов сквозь стену %d" % [fps, tries, leaks.size()], leaks.is_empty())
+	_test_done()
+
+
+func _enterview() -> void:
+	var dir := "user://"
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--as-out="):
+			dir = a.substr(9)
+	DirAccess.make_dir_recursive_absolute(dir)
+	var t0 := Time.get_ticks_msec()
+	for i in 14:
+		await RenderingServer.frame_post_draw
+		get_viewport().get_texture().get_image().save_png("%s/ev_%02d_%04dms.png" % [dir, i, Time.get_ticks_msec() - t0])
+		await get_tree().create_timer(0.3).timeout
+	get_tree().quit()
+
+
 ## Обзор гаража: построен (в памяти), крыша убрана, снимки сверху под углом с четырёх сторон и вид игровой камерой
 func _garview_test() -> void:
 	ULBase.memory_only = true
 	ULBase.load_state(true)
+	_car_free_node()
+	_garage_build()
+	await get_tree().create_timer(0.6).timeout
+	player.global_position = garage.to_global(Vector3(0.5, 0.05, 0.5))
+	await get_tree().create_timer(0.6).timeout
+	await _snap("gv_lot")
+	player.global_position = HOUSE_AT + Vector3(-1.2, 0.05, ULHouse.D * 0.5 + 2.2)
+	await get_tree().create_timer(0.6).timeout
+	await _snap("gv_bunker")
+	player.global_position = HOUSE_AT + Vector3(ULHouse.W * 0.5 + 2.5, 0.05, 1.0)
+	await get_tree().create_timer(0.6).timeout
+	await _snap("gv_bunker_side")
 	ULBase.data.garage.level = 1
 	ULBase._garage_norm()
 	_car_free_node()

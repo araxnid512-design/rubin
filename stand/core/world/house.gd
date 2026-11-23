@@ -152,6 +152,48 @@ func _bunker_shell(noise: Texture2D) -> Node3D:
 	conc.set_shader_parameter("streaks", 0.9)
 	# стены: фасад — с проёмом под портал
 	var dw := 1.5                                              # ширина проёма в бетоне снаружи
+	# Бетон не гладкой плоскостью: тёмный цоколь у земли, швы опалубки (горизонтальный пояс и вертикальные через
+	# 2 м), ржавые закладные пластины — стена читается как литой бетон, а не серая коробка
+	var dark := StandardMaterial3D.new()
+	dark.albedo_color = Color(0.2, 0.2, 0.19)
+	dark.roughness = 0.95
+	var plinth := _mat("res://assets/world/tex/damaged_concrete_floor", 1.8)
+	plinth.albedo_color = Color(0.5, 0.5, 0.48)
+	var rust := StandardMaterial3D.new()
+	rust.albedo_color = Color(0.36, 0.22, 0.14)
+	rust.roughness = 0.8
+	rust.metallic = 0.3
+	var ox := hw + B_T - 0.11                                  # наружная грань по x
+	var oz := hd + B_T - 0.11
+	for sd in 4:
+		var along_x := sd < 2
+		var sgn := 1.0 if sd % 2 == 0 else -1.0
+		var ln := (W + B_T * 2.0) if along_x else (D + B_T * 2.0)
+		var face := (oz if along_x else ox) * sgn
+		var mk := func(size: Vector3, u: float, y: float, m: Material) -> void:
+			# size: вдоль стены, по высоте, толщина наружу; u — место вдоль стены
+			var sz := Vector3(size.x, size.y, size.z) if along_x else Vector3(size.z, size.y, size.x)
+			var at := Vector3(u, y, face + sgn * size.z * 0.5) if along_x else Vector3(face + sgn * size.z * 0.5, y, u)
+			if sd == 0 and absf(u) < dw * 0.5 + 0.5 + size.x * 0.5:
+				return                                     # у портала — без накладок
+			_bx(root, sz, at, m)
+		if sd == 0:
+			for sx in [-1.0, 1.0]:
+				var pl := (ln - dw - 1.0) * 0.5
+				_bx(root, Vector3(pl, 0.42, 0.05), Vector3(sx * (dw * 0.5 + 0.5 + pl * 0.5), 0.21, face + 0.025), plinth)
+				_bx(root, Vector3(pl, 0.03, 0.02), Vector3(sx * (dw * 0.5 + 0.5 + pl * 0.5), 1.5, face + 0.008), dark)
+		else:
+			mk.call(Vector3(ln, 0.42, 0.05), 0.0, 0.21, plinth)
+			mk.call(Vector3(ln, 0.03, 0.02), 0.0, 1.5, dark)
+		var u := -ln * 0.5 + 1.0
+		var k := 0
+		while u < ln * 0.5 - 0.5:
+			mk.call(Vector3(0.03, B_WALL_H - 0.42, 0.02), u, 0.42 + (B_WALL_H - 0.42) * 0.5, dark)
+			if k % 2 == 1:
+				mk.call(Vector3(0.16, 0.16, 0.025), u + 1.0, 2.05, rust)
+				mk.call(Vector3(0.16, 0.16, 0.025), u + 1.0, 0.95, rust)
+			u += 2.0
+			k += 1
 	_bx(root, Vector3(W + B_T * 2.0, B_WALL_H, B_T), Vector3(0, B_WALL_H * 0.5, -hd - B_T * 0.5 + 0.11), conc)
 	_bx(root, Vector3(B_T, B_WALL_H, D + B_T * 2.0), Vector3(-hw - B_T * 0.5 + 0.11, B_WALL_H * 0.5, 0), conc)
 	_bx(root, Vector3(B_T, B_WALL_H, D + B_T * 2.0), Vector3(hw + B_T * 0.5 - 0.11, B_WALL_H * 0.5, 0), conc)
