@@ -187,8 +187,9 @@ func _flush() -> void:
 
 ## площадка (и пол гаража): бетонная плита вровень с землёй, перед воротами — отмостка
 func _pad() -> void:
-	_box("base", "floor", Vector3(W + 0.6, 0.06, D + 0.6), Vector3(0, -0.015, 0))
-	_box("base", "floor", Vector3(GATE_W + 1.6, 0.05, 3.2), Vector3(0, -0.02, D * 0.5 + 1.9))
+	# плита чуть выше земли (4 см): вровень с ней край плиты «рвался» о неровности земли зубчатой тёмной кромкой
+	_box("base", "floor", Vector3(W + 0.6, 0.08, D + 0.6), Vector3(0, 0.0, 0))
+	_box("base", "floor", Vector3(GATE_W + 1.6, 0.07, 3.2), Vector3(0, 0.0, D * 0.5 + 1.9))
 	if not built:
 		var lb := Label3D.new()
 		lb.text = "Место под гараж\n(компьютер базы → улучшения)"
@@ -312,12 +313,12 @@ func _stains() -> void:
 		var pm := PlaneMesh.new()
 		var k := float(sp[1])
 		pm.size = Vector2(k * rng.randf_range(1.0, 1.5), k)
-		st.append_from(pm, 0, Transform3D(Basis(Vector3.UP, rng.randf() * TAU), (sp[0] as Vector3) + Vector3(0, 0.014, 0)))
+		st.append_from(pm, 0, Transform3D(Basis(Vector3.UP, rng.randf() * TAU), (sp[0] as Vector3) + Vector3(0, 0.052, 0)))
 	# след шин: две полосы от ворот к помосту
 	for sx in [-0.75, 0.75]:
 		var pm := PlaneMesh.new()
 		pm.size = Vector2(0.32, 2.2)
-		st.append_from(pm, 0, Transform3D(Basis(), Vector3(sx, 0.013, D * 0.5 - 1.4)))
+		st.append_from(pm, 0, Transform3D(Basis(), Vector3(sx, 0.05, D * 0.5 - 1.4)))
 	var mi := MeshInstance3D.new()
 	mi.mesh = st.commit()
 	mi.material_override = m

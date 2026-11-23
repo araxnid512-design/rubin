@@ -1421,6 +1421,22 @@ func _env() -> void:
 			# ярче — и светлая штукатурка с бетоном «выгорают» в белое)
 			sun.light_color = Color(1.0, 0.9, 0.76)
 			e.fog_light_color = Color(0.64, 0.63, 0.57)
+	# Свет «как в мобильных выживалках» (Dawn of Zombies, Last Day): тёплое солнце и холодные синеватые тени вместо
+	# ровного белого света — предметы получают объём, картинка — настроение. Направление солнца прежнее (под него
+	# запечены тени на земле); меняются только цвет и соотношение «солнце / рассеянный свет». data/grade.json: style.
+	var stl: Dictionary = ULGrade.cfg().get("style", {})
+	if bool(stl.get("on", true)) and not arena:
+		var sc: Array = stl.get("sun", [1.0, 0.86, 0.68])
+		var ac: Array = stl.get("ambient", [0.56, 0.64, 0.8])
+		sun.light_color = Color(sc[0], sc[1], sc[2])
+		sun.light_energy *= float(stl.get("sun_k", 1.22))
+		e.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+		e.ambient_light_color = Color(ac[0], ac[1], ac[2])
+		e.ambient_light_energy *= float(stl.get("ambient_k", 0.82))
+		e.adjustment_contrast *= float(stl.get("contrast_k", 1.06))
+		e.adjustment_saturation *= float(stl.get("sat_k", 1.08))
+		var fc: Array = stl.get("fog", [0.62, 0.6, 0.52])
+		e.fog_light_color = Color(fc[0], fc[1], fc[2])
 	_sun_e0 = sun.light_energy
 	_sun_c0 = sun.light_color
 	# тени солнца — на всех локациях (и на базе) по настройкам графики: одна карта теней на 34 м (камера видит
@@ -11664,7 +11680,49 @@ func _blobs_build() -> void:
 	if san != null:
 		for b in san.blob_pts:
 			blobs.add_static(b[0], b[1], float(b[2]), float(b[3]))
+	if place == "home" and not arena:
+		_blobs_home()
 	blobs.build()
+
+
+## База: мягкие тени «сажают» постройки и вещи на землю (как в Dawn of Zombies / Last Day) — тёмная полоса вдоль
+## каждой стены бункера и гаража (со стороны тени — шире и темнее) и пятно под каждой вещью во дворе. Всё это —
+## те же пятна одной сеткой (один вызов отрисовки), настоящих теней не требуется.
+func _blobs_home() -> void:
+	blobs._static.clear()
+	var sd := Vector3(0.6, 0, -0.8)
+	if sun != null:
+		var d := -sun.global_transform.basis.z
+		if Vector2(d.x, d.z).length() > 0.05:
+			sd = Vector3(d.x, 0, d.z).normalized()
+	var boxes := [[HOUSE_AT, ULHouse.W * 0.5 + 0.34, ULHouse.D * 0.5 + 0.34]]
+	if garage != null and garage.built:
+		boxes.append([garage.global_position, ULGarage.W * 0.5, ULGarage.D * 0.5])
+	for bx in boxes:
+		var c: Vector3 = bx[0]
+		var hx := float(bx[1])
+		var hz := float(bx[2])
+		for sdn in [[Vector3(0, 0, 1), hx, hz], [Vector3(0, 0, -1), hx, hz], [Vector3(1, 0, 0), hz, hx], [Vector3(-1, 0, 0), hz, hx]]:
+			var n: Vector3 = sdn[0]
+			var shade := maxf(n.dot(sd), 0.0)               # 1 — стена смотрит в сторону тени
+			var wid := lerpf(1.5, 3.6, shade)
+			var at := c + n * (float(sdn[2]) + wid * 0.12)
+			var along := float(sdn[1]) * 2.0 + 0.6
+			blobs.add_static(Vector3(at.x, 0.05, at.z), Vector2(along, wid) if absf(n.z) > 0.5 else Vector2(wid, along), 0.0, lerpf(0.62, 1.0, shade))
+	# вещи двора: по коробкам столкновений (бочки, генератор, ящики, манекен, поленница)
+	for body_name in ["BaseProps", "Yard"]:
+		var body := get_node_or_null(body_name)
+		if body == null:
+			continue
+		for ch in body.get_children():
+			var cs := ch as CollisionShape3D
+			if cs == null or not (cs.shape is BoxShape3D):
+				continue
+			var sz: Vector3 = (cs.shape as BoxShape3D).size
+			if sz.x > 6.0 or sz.z > 6.0:
+				continue
+			var p := cs.global_position + sd * minf(sz.y, 1.5) * 0.25
+			blobs.add_static(Vector3(p.x, 0.05, p.z), Vector2(sz.x, sz.z), cs.global_rotation.y, 0.6)
 
 
 func _blobs_tick() -> void:
@@ -16980,6 +17038,9 @@ func _garage_build() -> void:
 	garage.name = "Garage"
 	add_child(garage)
 	garage.setup(ULBase.garage_cfg(), ULBase.garage_level() >= 1 or test == "bake")
+	if blobs != null:
+		_blobs_home()
+		blobs.build()
 
 
 ## Новый гараж — с канистрами у топливной станции: одна с бензином, две пустые (один раз; дальше — свои вещи)
