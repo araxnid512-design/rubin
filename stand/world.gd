@@ -5143,6 +5143,8 @@ func _shoot(it: Dictionary, d: Dictionary) -> void:
 		var end: Vector3 = hit.position if not hit.is_empty() else from + dir * reach
 		var col: Object = hit.collider if not hit.is_empty() else null
 		_fly_bullet(String(d.ammo), vis_from, end, col, float(d.dmg) / pellets)
+	# отдача видна и камерой: дробовик и одиночные — толчок, очередь — мелкая дрожь
+	shake(0.35 if pellets > 1 else (0.1 if bool(d.get("auto", false)) else 0.2), 0.1)
 	# вспышка у ствола
 	_flash.global_position = vis_from + f * 0.12
 	_flash.visible = true
@@ -12134,8 +12136,15 @@ func _bullet_hole(a: Vector3, b: Vector3) -> void:
 	if hit.is_empty():
 		return
 	var n: Vector3 = hit.normal
+	if hit.collider is ULCar or (hit.collider as Node).has_meta("metal"):
+		_impact_fx(hit.position + n * 0.04, n, "spark")          # по железу — сноп искр
+		return
 	if absf(n.y) > 0.85:
-		return                                   # в пол и в землю — без дырки (там пыль от шага и так)
+		# в землю и в пол: фонтанчик пыли и комьев, тёмная выбоина
+		_impact_fx(hit.position + n * 0.04, n, "dirt")
+		if n.y > 0.0:
+			_stick(hit.position, n, randf_range(0.12, 0.18), 0)
+		return
 	_stick(hit.position, n, randf_range(0.15, 0.2), 0)          # сверху камера далеко: дырка с выщербленным краем крупнее настоящей
 	_puff(hit.position + n * 0.05, n)
 
@@ -12154,6 +12163,53 @@ func _wall_splat(at: Vector3, d: Vector3) -> void:
 var _puff_mat: StandardMaterial3D
 
 
+var fx_n := {}                          ## сколько каких вспышек попаданий было (для проверки)
+
+
+## Попадание по земле (dirt — бурая пыль клубом и комья) и по железу (spark — яркие искры веером)
+func _impact_fx(at: Vector3, n: Vector3, kind: String) -> void:
+	fx_n[kind] = int(fx_n.get(kind, 0)) + 1
+	if _puff_mat == null:
+		_puff(at, n)                             # первый раз: общий материал частиц заводит _puff
+		return
+	var spark := kind == "spark"
+	var p := CPUParticles3D.new()
+	var qm := QuadMesh.new()
+	qm.size = Vector2(0.09, 0.09) if spark else Vector2(0.34, 0.34)
+	qm.material = _puff_mat
+	p.mesh = qm
+	p.amount = 14 if spark else 10
+	p.one_shot = true
+	p.explosiveness = 0.95
+	p.lifetime = 0.35 if spark else 0.7
+	p.direction = n
+	p.spread = 55.0 if spark else 28.0
+	p.initial_velocity_min = 2.5 if spark else 0.6
+	p.initial_velocity_max = 6.5 if spark else 2.2
+	p.gravity = Vector3(0, -9.0 if spark else -2.5, 0)
+	p.scale_amount_min = 0.6
+	p.scale_amount_max = 1.5 if spark else 2.2
+	var g := Gradient.new()
+	if spark:
+		g.set_color(0, Color(1.0, 0.97, 0.75, 1.0))
+		g.add_point(0.4, Color(1.0, 0.7, 0.25, 0.95))
+		g.set_color(g.get_point_count() - 1, Color(0.9, 0.3, 0.1, 0.0))
+	else:
+		g.set_color(0, Color(0.42, 0.34, 0.25, 0.85))
+		g.add_point(0.3, Color(0.52, 0.45, 0.36, 0.6))
+		g.set_color(g.get_point_count() - 1, Color(0.56, 0.5, 0.42, 0.0))
+	p.color_ramp = g
+	p.local_coords = false
+	p.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(p)
+	p.global_position = at
+	p.emitting = true
+	get_tree().create_timer(1.2).timeout.connect(p.queue_free)
+	if spark and _hit_snd_t <= 0.0:
+		snd.play("step_metal", at, -6.0, 0.25, 0.0, 1.5)
+		_hit_snd_t = 0.12
+
+
 ## облачко пыли и пара искр из стены
 func _puff(at: Vector3, n: Vector3) -> void:
 	if _puff_mat == null:
@@ -12162,9 +12218,10 @@ func _puff(at: Vector3, n: Vector3) -> void:
 		_puff_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 		_puff_mat.vertex_color_use_as_albedo = true
 		_puff_mat.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
+		_puff_mat.albedo_texture = BCShotFx._blob()        # мягкое круглое пятно, а не квадрат
 	var p := CPUParticles3D.new()
 	var qm := QuadMesh.new()
-	qm.size = Vector2(0.06, 0.06)
+	qm.size = Vector2(0.09, 0.09)
 	qm.material = _puff_mat
 	p.mesh = qm
 	p.amount = 9
@@ -16830,6 +16887,34 @@ func _run_test() -> void:
 		await get_tree().create_timer(0.5).timeout
 		await _snap("s3_inventory")
 		get_tree().quit()
+		return
+	if test == "impactfx":
+		# попадания: в землю — пыль и выбоина, по железу — искры
+		hp_lock = true
+		player.global_position = Vector3(20.0, 0.05, 40.0)
+		await get_tree().create_timer(0.5).timeout
+		var gp := Vector3(21.5, 0.0, 41.0)
+		_puff(gp + Vector3.UP, Vector3.UP)
+		Engine.time_scale = 0.08                 # снимок на медленной машине: частицы должны успеть разлететься, но не погаснуть
+		for k in 3:
+			_bullet_hole(gp + Vector3(k * 0.5, 1.3, -1.0), gp + Vector3(k * 0.5, 0.0, 0.0))
+		for k in 3:
+			_impact_fx(gp + Vector3(-1.5 + k * 0.3, 0.8, 0.5), Vector3(0, 0.3, -1).normalized(), "spark")
+		if out != "":
+			# снимок: те же частицы, но непрерывным потоком (на медленной машине разовый всплеск гаснет между кадрами)
+			for ch in get_children():
+				if ch is CPUParticles3D:
+					(ch as CPUParticles3D).one_shot = false
+					(ch as CPUParticles3D).explosiveness = 0.0
+					(ch as CPUParticles3D).preprocess = 0.3
+					(ch as CPUParticles3D).restart()
+			Engine.time_scale = 1.0
+			for k in 2:
+				await get_tree().process_frame
+			await _snap("impact_fx")
+		Engine.time_scale = 1.0
+		_ok("три пули в землю — три фонтанчика пыли; три попадания по железу — три снопа искр", int(fx_n.get("dirt", 0)) == 3 and int(fx_n.get("spark", 0)) == 3, str(fx_n))
+		_test_done()
 		return
 	if test == "stealth":
 		# скрытность: крадущегося со спины не видят и не слышат, спереди — замечают ближе; удар по не заметившему —
