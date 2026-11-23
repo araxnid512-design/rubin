@@ -6465,8 +6465,18 @@ func _bench_run() -> void:
 		txt += "%-30s %5.1f к/с · худший кадр %5.1f мс · вызовов %d · треугольников %d тыс.\n" % [r[0], r[1], r[2], r[3], int(r[4]) / 1000]
 		min_fps = minf(min_fps, float(r[1]))
 		worst_all = maxf(worst_all, float(r[2]))
-	txt += "Итог: меньше всего %.1f к/с, худший кадр %.1f мс, текстуры %d МБ" % [min_fps, worst_all, int(RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TEXTURE_MEM_USED) / 1048576)]
+	var avg := 0.0
+	for r in rows:
+		avg += float(r[1]) / float(rows.size())
+	# оценка простыми словами — по самому тяжёлому месту
+	bench_verdict = "ПЛАВНО" if min_fps >= 50.0 else ("НОРМАЛЬНО" if min_fps >= 30.0 else ("ПОДТОРМАЖИВАЕТ" if min_fps >= 20.0 else "ТОРМОЗИТ"))
+	txt += "Итог: %s — в среднем %.0f к/с, меньше всего %.1f к/с, худший кадр %.1f мс, текстуры %d МБ" % [bench_verdict, avg, min_fps, worst_all, int(RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TEXTURE_MEM_USED) / 1048576)]
+	var fl := FileAccess.open("user://bench_last.txt", FileAccess.WRITE)
+	if fl:
+		fl.store_string("%s, графика %s — %s, в среднем %.0f к/с, меньше всего %.0f" % [zone_name() if temp() else ("Полигон" if arena else "Дом"), gfx_names[clampi(ULSettings.gfx, 0, 3)], bench_verdict, avg, min_fps])
+		fl.close()
 	bench_text = txt
+	ULSettings.bench = false                 # следующий вход в локацию — уже обычный
 	print("[bench] " + txt.replace("\n", "\n[bench] "))
 	DisplayServer.clipboard_set(txt)
 	var f := FileAccess.open("user://bench_%s.txt" % place, FileAccess.WRITE)
@@ -6477,6 +6487,7 @@ func _bench_run() -> void:
 
 
 var bench_text := ""                    ## последний результат «Замера FPS»
+var bench_verdict := ""                 ## оценка словами: ПЛАВНО / НОРМАЛЬНО / ПОДТОРМАЖИВАЕТ / ТОРМОЗИТ
 
 
 func _bench_panel(txt: String) -> void:
@@ -6492,13 +6503,24 @@ func _bench_panel(txt: String) -> void:
 	pn.position = Vector2(20, 40)
 	var vb := VBoxContainer.new()
 	pn.add_child(vb)
+	var vd := Label.new()
+	vd.name = "verdict"
+	vd.text = "Оценка: " + bench_verdict
+	vd.add_theme_font_size_override("font_size", 30)
+	vd.add_theme_color_override("font_color", {"ПЛАВНО": Color(0.5, 0.95, 0.45), "НОРМАЛЬНО": Color(0.8, 0.9, 0.4), "ПОДТОРМАЖИВАЕТ": Color(1.0, 0.75, 0.3)}.get(bench_verdict, Color(1.0, 0.4, 0.35)))
+	vb.add_child(vd)
 	var lb := Label.new()
-	lb.text = txt + "\n\nТаблица скопирована в буфер обмена — её можно вставить в сообщение."
+	lb.text = txt + "\n\nСделайте снимок экрана и пришлите его. Таблица также скопирована — её можно вставить в сообщение."
 	lb.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	lb.add_theme_font_size_override("font_size", 15)
 	lb.add_theme_color_override("font_color", ULSettings.C_TEXT)
 	vb.add_child(lb)
-	vb.add_child(ULSettings.button("Закрыть", func() -> void: layer.queue_free(), 300.0))
+	var hb := HBoxContainer.new()
+	hb.add_theme_constant_override("separation", 10)
+	vb.add_child(hb)
+	hb.add_child(ULSettings.button("Скопировать ещё раз", func() -> void: DisplayServer.clipboard_set(bench_text), 260.0))
+	hb.add_child(ULSettings.button("В главное меню", func() -> void: _leave_to("res://menu.tscn", "замер окончен"), 240.0))
+	hb.add_child(ULSettings.button("Закрыть", func() -> void: layer.queue_free(), 200.0))
 
 
 ## Проверка «Теста уровней» (--as-test=lvl --as-place=khutor): пулемёт, бессмертие, патроны без конца, таймер не
@@ -14517,7 +14539,7 @@ func _run_test() -> void:
 			await get_tree().process_frame
 		var lines := bench_text.split("\n")
 		var n_pts := _perf_points().size()
-		_ok("замер FPS: обошёл %d мест, таблица на экране, в буфере обмена и в файле" % (lines.size() - 2), lines.size() - 2 == n_pts and get_node_or_null("BenchPanel") != null and FileAccess.file_exists("user://bench_%s.txt" % place) and DisplayServer.clipboard_get() == bench_text, bench_text.left(400))
+		_ok("замер FPS: обошёл %d мест, таблица на экране, в буфере обмена и в файле" % (lines.size() - 2), lines.size() - 2 == n_pts and get_node_or_null("BenchPanel") != null and FileAccess.file_exists("user://bench_%s.txt" % place) and DisplayServer.clipboard_get() == bench_text and bench_verdict != "" and FileAccess.file_exists("user://bench_last.txt"), bench_text.left(400))
 		if out != "":
 			await _snap("bench")
 		print("[inv] итог: ошибок %d" % _fails)

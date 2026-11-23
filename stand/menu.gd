@@ -71,7 +71,7 @@ func _on_tap(id: String) -> void:
 		"mp":
 			_multiplayer()
 		"set":
-			ULSettings.panel(self, func() -> void: ULSettings.apply(get_viewport()), [["Лаборатория", _lab]] if ULSettings.dev() else [])
+			ULSettings.panel(self, func() -> void: ULSettings.apply(get_viewport()), [["Замер FPS", _levels.bind(true)]] + ([["Лаборатория", _lab]] if ULSettings.dev() else []))
 		"quit":
 			get_tree().quit()
 
@@ -183,7 +183,7 @@ const LEVELS := [["home", "Дом (стабильный стаб)"], ["cowshed",
 var _lv_panel: Control
 
 
-func _levels() -> void:
+func _levels(bench_only := false) -> void:
 	if _lv_panel != null and is_instance_valid(_lv_panel):
 		_lv_panel.queue_free()
 	var shade := ColorRect.new()
@@ -206,29 +206,43 @@ func _levels() -> void:
 	vb.add_theme_constant_override("separation", 8)
 	pn.add_child(vb)
 	var t := Label.new()
-	t.text = "Тест уровней"
+	t.text = "Замер FPS" if bench_only else "Тест уровней"
 	t.add_theme_font_size_override("font_size", 26)
 	t.add_theme_color_override("font_color", Color(0.95, 0.85, 0.6))
 	vb.add_child(t)
 	var d := Label.new()
 	d.text = "Выберите локацию: герой появится там с пулемётом, бессмертный, патроны без конца. Сохранение не меняется. Выход — за край поля или «Главное меню»."
+	if bench_only:
+		# замер из «Настроек» (есть и в собранной игре): выбрать место — герой сам обойдёт его за минуту, в конце — оценка
+		# и таблица; прошлый результат — строкой ниже
+		d.text = "Выберите место. Герой сам обойдёт его примерно за минуту — ничего нажимать не нужно. В конце появится оценка и таблица: сделайте снимок экрана и пришлите. Сохранение не меняется."
+		ULSettings.bench = true
+		var last := ""
+		if FileAccess.file_exists("user://bench_last.txt"):
+			last = FileAccess.get_file_as_string("user://bench_last.txt")
+		if last != "":
+			d.text += "\n\nПрошлый замер: " + last
 	d.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	d.add_theme_font_size_override("font_size", 15)
 	d.add_theme_color_override("font_color", ULSettings.C_TEXT)
 	vb.add_child(d)
 	# замер: герой сам обходит локацию, в конце — таблица кадров в секунду по местам (и копия в буфер обмена)
-	var bm := CheckButton.new()
-	bm.name = "bench"
-	bm.text = "Замер FPS: обойти локацию и показать кадры в секунду"
-	bm.button_pressed = ULSettings.bench
-	bm.add_theme_font_size_override("font_size", 16)
-	bm.toggled.connect(func(v: bool) -> void: ULSettings.bench = v)
-	vb.add_child(bm)
+	if not bench_only:
+		var bm := CheckButton.new()
+		bm.name = "bench"
+		bm.text = "Замер FPS: обойти локацию и показать кадры в секунду"
+		bm.button_pressed = ULSettings.bench
+		bm.add_theme_font_size_override("font_size", 16)
+		bm.toggled.connect(func(v: bool) -> void: ULSettings.bench = v)
+		vb.add_child(bm)
 	for lv in LEVELS:
 		var b := ULSettings.button(String(lv[1]), _start_level.bind(String(lv[0])), 560.0)
 		b.name = "lv_" + String(lv[0])
 		vb.add_child(b)
-	vb.add_child(ULSettings.button("Отмена", func() -> void: shade.queue_free(), 560.0))
+	vb.add_child(ULSettings.button("Отмена", func() -> void:
+		if bench_only:
+			ULSettings.bench = false
+		shade.queue_free(), 560.0))
 
 
 func _start_level(id: String) -> void:
@@ -338,6 +352,28 @@ func _run_test() -> void:
 		print("[menu] выбран второй персонаж: сохранён (%s), на картинке его модель со скелетом — %s" % [ULHeroes.current(), "верно" if ULHeroes.current() == "hero2" and shown else "ОШИБКА"])
 		mp._pick_char(was)
 		mp.queue_free()
+	await get_tree().process_frame
+	# «Настройки» → «Замер FPS» — есть и в собранной игре (без «Лаборатории»)
+	ULSettings.dev_force = true
+	_on_tap("set")
+	await get_tree().process_frame
+	var bb: Button = null
+	var has_lab := false
+	for b in find_children("*", "Button", true, false):
+		if (b as Button).text == "Замер FPS":
+			bb = b
+		if (b as Button).text == "Лаборатория":
+			has_lab = true
+	if bb:
+		bb.pressed.emit()
+	await get_tree().create_timer(0.4).timeout
+	get_viewport().get_texture().get_image().save_png(out + "/m2a_bench.png")
+	print("[menu] в настройках собранной игры есть «Замер FPS» (без «Лаборатории»): окно со списком мест, замер включён — ", "верно" if bb != null and not has_lab and _lv_panel != null and _lv_panel.find_child("lv_quarry", true, false) != null and _lv_panel.find_child("bench", true, false) == null and ULSettings.bench else "ОШИБКА")
+	ULSettings.dev_force = false
+	ULSettings.bench = false
+	for c in get_children():
+		if c is CanvasLayer or (c is Control and c != bd):
+			c.queue_free()
 	await get_tree().process_frame
 	_levels()
 	await get_tree().create_timer(0.4).timeout
