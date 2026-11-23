@@ -18,9 +18,9 @@ const ITEMS := {
 	"ak74m": {"n": "АК-74М", "kind": "primary", "weapon": "rifle", "ammo": "a545", "mag": 30, "dmg": 26, "rate": 9.0, "auto": true, "range": 11, "dur": 1000, "fix": 30, "d": "Автомат, 5,45×39, магазин на 30 патронов."},
 	"mp5": {"n": "MP5", "kind": "primary", "weapon": "mp5", "ammo": "a9x19", "mag": 30, "dmg": 16, "rate": 11.0, "auto": true, "range": 9, "dur": 800, "fix": 16, "d": "Пистолет-пулемёт, 9×19, магазин на 30 патронов."},
 	"fnfal": {"n": "FN FAL", "kind": "primary", "weapon": "fnfal", "ammo": "a762x51", "mag": 20, "dmg": 42, "rate": 3.0, "range": 13, "dur": 700, "fix": 44, "d": "Винтовка, 7,62×51, магазин на 20 патронов."},
-	"svd": {"n": "СВД", "kind": "primary", "weapon": "svd", "ammo": "a762x54", "mag": 10, "dmg": 70, "rate": 1.6, "range": 17, "dur": 500, "fix": 60, "d": "Снайперская винтовка, 7,62×54R, магазин на 10 патронов."},
+	"svd": {"n": "СВД", "kind": "primary", "weapon": "svd", "ammo": "a762x54", "mag": 10, "dmg": 70, "rate": 1.6, "range": 17, "dur": 500, "fix": 40, "d": "Снайперская винтовка, 7,62×54R, магазин на 10 патронов."},
 	"vss": {"n": "ВСС «Винторез»", "kind": "primary", "weapon": "vss", "ammo": "a9x39", "mag": 10, "dmg": 38, "rate": 4.0, "range": 13, "dur": 500, "fix": 38, "d": "Бесшумная винтовка, 9×39, магазин на 10 патронов."},
-	"pkp": {"n": "ПКП «Печенег»", "kind": "primary", "weapon": "pkp", "ammo": "a762x54", "mag": 100, "dmg": 34, "rate": 10.0, "auto": true, "range": 12, "dur": 1500, "fix": 90, "d": "Ручной пулемёт, 7,62×54R, короб на 100 патронов."},
+	"pkp": {"n": "ПКП «Печенег»", "kind": "primary", "weapon": "pkp", "ammo": "a762x54", "mag": 100, "dmg": 34, "rate": 10.0, "auto": true, "range": 12, "dur": 1500, "fix": 56, "d": "Ручной пулемёт, 7,62×54R, короб на 100 патронов."},
 	"spas12": {"n": "SPAS-12", "kind": "primary", "weapon": "spas12", "ammo": "a12", "mag": 8, "dmg": 80, "rate": 1.1, "range": 6, "dur": 400, "fix": 22, "d": "Дробовик, 12 калибр, 8 патронов."},
 	# рюкзаки
 	"pack_small": {"n": "Малый рюкзак", "kind": "pack", "pack": "small", "d": "+8 ячеек."},
