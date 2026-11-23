@@ -61,7 +61,7 @@ var out := "user://world"
 var _auto: Array = []             ## проверка: точки, к которым герой идёт сам
 var car: ULCar = null              ## УАЗ героя на временной локации (docs/PLANS.md, п. 5)
 var car_in := false                ## герой за рулём
-const CAR_HIDE := ["fire", "reload", "swap", "take", "inv", "heal", "build"]   ## кнопки, которых за рулём нет (свои — CAR_BTNS)
+const CAR_HIDE := ["fire", "reload", "swap", "take", "inv", "heal", "build", "sneak"]   ## кнопки, которых за рулём нет (свои — CAR_BTNS)
 var _trunk_open := false
 var _car_ui: Control = null         ## окно машины или гаража (ULVehUI, ULGarageUI)
 var garage: ULGarage = null         ## гараж на базе (после покупки в компьютере базы)
@@ -2919,6 +2919,11 @@ func _process(delta: float) -> void:
 	else:
 		_aim_yaw = player.rotation.y
 	speed *= ULGifts.val("swift", "k", 1.0)             # дар «Скороход»
+	if sneak:
+		if car_in or fire_held and gun:
+			sneak = false                             # за рулём и стреляя не крадутся
+		else:
+			speed = minf(speed, stealth("speed", 1.6))
 	var want := dir.normalized() * speed if mag > 0.12 else Vector3.ZERO
 	var hv := Vector3(player.velocity.x, 0, player.velocity.z)
 	# отклик без «плавания»: до полного бега — за десятую секунды, остановка — ещё быстрее
@@ -2944,7 +2949,7 @@ func _process(delta: float) -> void:
 		player.rotation.y = lerp_angle(player.rotation.y, yaw, 1.0 - exp(-delta * 24.0))
 	# прицельное движение — шаг в сторону относительно взгляда (вперёд, боком, назад и всё между ними)
 	rig.set_dir_move(local_dir if real > 0.2 else Vector2.ZERO, real, delta)
-	rig.set_motion(real, 0.0, delta)
+	rig.set_motion(real, 1.0 if sneak else 0.0, delta)
 	_body_pose(real)
 	_steps_sfx(real)
 	if car_in and car != null:
@@ -3048,6 +3053,40 @@ func _process(delta: float) -> void:
 
 var _cam_ready := false
 var _cam_d := 12.0
+## Скрытность: герой крадётся (кнопка «Красться») — идёт пригнувшись и медленно, шагов не слышно, спокойные враги
+## замечают его ближе (со спины — совсем вблизи), удар по не заметившему врагу — усиленный. Выстрел и бег
+## выводят из скрытности. Числа — data/stealth.json.
+var sneak := false
+var stealth_kills := 0             ## сколько тихих ударов нанесено (для проверки)
+var _stealth_cfg := {}
+
+
+func stealth(k: String, d: float) -> float:
+	if _stealth_cfg.is_empty():
+		var f := FileAccess.open("res://data/stealth.json", FileAccess.READ)
+		var j = JSON.parse_string(f.get_as_text()) if f != null else null
+		_stealth_cfg = j if j is Dictionary else {"_": ""}
+	return float(_stealth_cfg.get(k, d))
+
+
+func set_sneak(v: bool) -> void:
+	if v == sneak:
+		return
+	sneak = v
+	if v:
+		say("Крадётесь: шаги не слышны, со спины вас почти не видно")
+
+
+## насколько ближе спокойный враг e замечает крадущегося героя (1 — как обычно)
+func sneak_see_k(e: ULEnemy) -> float:
+	if not sneak:
+		return 1.0
+	var v := player.global_position - e.global_position
+	v.y = 0.0
+	var a := absf(angle_difference(e.rotation.y, atan2(v.x, v.z)))
+	return stealth("see_front", 0.55) if a < deg_to_rad(stealth("front_deg", 70.0)) else stealth("see_back", 0.3)
+
+
 var aiming := false               ## прицельное движение: герой лицом к цели
 var move_mode := ""               ## как он при этом идёт: forward — вперёд, walk_back — пятится, strafe_left / strafe_right — боком ("" — не в прицельном движении)
 var _aim_yaw := 0.0
@@ -4242,6 +4281,8 @@ const HUD_BTNS := {
 	"take": [Vector2(-284, -100), 46.0],
 	"reload": [Vector2(-250, -210), 40.0],
 	"heal": [Vector2(-224, -308), 38.0],
+	# красться: левее перезарядки
+	"sneak": [Vector2(-352, -244), 36.0],
 	# сверху справа (отсчёт от правого верхнего угла): постройка (поставить ящик) и меню
 	"build": [Vector2(-140, 52), 36.0, "top"],
 	"menu": [Vector2(-54, 52), 36.0, "top"],
@@ -4466,6 +4507,16 @@ func _draw_hud() -> void:
 						var tid := String(_target.g.item.id)
 						_hud_icon(ULItems.icon(tid), c, r * 1.5, ULItems.tint(tid))
 				_hud_text(c + Vector2(0, r - 10), _action_label(), 14, Color(1.0, 0.88, 0.55))
+			"sneak":
+				# глаз: открыт — идёт в рост, перечёркнут — крадётся; подпись — заметили ли героя
+				var ec := Color(0.55, 1.0, 0.6) if sneak else Color(1, 1, 1, 0.85)
+				_hud.draw_arc(c + Vector2(0, 14), 24, PI * 1.2, PI * 1.8, 16, ec, 3.0)
+				_hud.draw_arc(c - Vector2(0, 14), 24, PI * 0.2, PI * 0.8, 16, ec, 3.0)
+				_hud.draw_circle(c, 6.0, ec)
+				if sneak:
+					_hud.draw_line(c + Vector2(-18, 16), c + Vector2(18, -16), ec, 3.0)
+					var seen := enemies.any(func(e): return is_instance_valid(e) and e.alive() and not e._calm())
+					_hud_text(c + Vector2(0, r + 12), "заметили" if seen else "скрытно", 14, Color(1.0, 0.45, 0.35) if seen else Color(0.6, 1.0, 0.65))
 			"heal":
 				_hud_icon(_art("heal"), c, r * 2.0, ic)
 				var n := inv.count("bandage") + inv.count("medkit")
@@ -4533,6 +4584,8 @@ func _hud_press(k: String) -> void:
 			cycle_weapon()
 		"heal":
 			heal()
+		"sneak":
+			set_sneak(not sneak)
 		"reload":
 			reload_weapon()
 		"build":
@@ -4989,6 +5042,13 @@ func _melee_hit(range_m: float, cone: float, dmg: float, sound: String) -> void:
 	var t = _nearest_target(range_m, cone)
 	if t != null:
 		snd.play(sound, t.global_position + Vector3.UP * 1.2, -2.0, 0.08)
+		if sneak and t is ULEnemy and (t as ULEnemy)._calm():
+			# удар по врагу, который героя не заметил: усиленный; обычного врага — насмерть
+			dmg *= stealth("backstab_k", 4.0)
+			if stealth("backstab_kill", 1.0) > 0.0 and not bool((t as ULEnemy).def.get("boss", false)):
+				dmg = maxf(dmg, float(t.get_meta("hp")) + 1.0)
+			stealth_kills += 1
+			say("Тихий удар")
 		_damage(t, dmg, t.global_position + Vector3.UP * 1.3)
 
 
@@ -5047,6 +5107,7 @@ func _shoot(it: Dictionary, d: Dictionary) -> void:
 	if not lvl:
 		it.mag = int(it.mag) - 1                # в тесте уровня патроны не кончаются
 	shots += 1
+	sneak = false                             # выстрел выдаёт: герой встаёт в рост
 	_atk_cd = minf(_atk_cd, 0.0) + 1.0 / float(d.rate)    # остаток прошлого кадра идёт в зачёт (темп не зависит от FPS)
 	_aim_t = 0.0
 	rig.hold.set_stance("aim")
@@ -12298,9 +12359,9 @@ func _enemies_tick(delta: float) -> void:
 			# спокойные стоят.
 			if temp() and (d < 80.0 or e.state == "chase" or e.state == "alert") and (fr + i) % 4 == 0:
 				if (fr + i) % 12 == 0 or not e.has_meta("sees"):
-					var vr2 := float(e.def.see) if e.state == "idle" or e.state == "wander" else float(e.def.lose)
+					var vr2 := float(e.def.see) * sneak_see_k(e) if e.state == "idle" or e.state == "wander" else float(e.def.lose)
 					e.set_meta("sees", d < vr2 and _sees(e))
-					e.hear_steps(p, hero_v)
+					e.hear_steps(p, 0.0 if sneak else hero_v)
 				e.step_k = 4.0
 				var _u0 := Time.get_ticks_usec()
 				e.tick(delta * 4.0, p, bool(e.get_meta("sees")), hero_ok)
@@ -12311,9 +12372,9 @@ func _enemies_tick(delta: float) -> void:
 		# видит ли героя — проверяется не каждый кадр (луч через стены и забор)
 		# (спокойный видит на свою дальность зрения; тот, кто уже гонится, — пока герой не уйдёт дальше «потери»)
 		if (fr + i) % 6 == 0 or not e.has_meta("sees"):
-			var vr := float(e.def.see) if e.state == "idle" or e.state == "wander" else float(e.def.lose)
+			var vr := float(e.def.see) * sneak_see_k(e) if e.state == "idle" or e.state == "wander" else float(e.def.lose)
 			e.set_meta("sees", d < vr and _sees(e))
-			e.hear_steps(p, hero_v)
+			e.hear_steps(p, 0.0 if sneak else hero_v)
 		var _u1 := Time.get_ticks_usec()
 		e.tick(delta, p, bool(e.get_meta("sees")), hero_ok)
 		prof_full += Time.get_ticks_usec() - _u1
@@ -16769,6 +16830,89 @@ func _run_test() -> void:
 		await get_tree().create_timer(0.5).timeout
 		await _snap("s3_inventory")
 		get_tree().quit()
+		return
+	if test == "stealth":
+		# скрытность: крадущегося со спины не видят и не слышат, спереди — замечают ближе; удар по не заметившему —
+		# насмерть; кнопка на экране; выстрел поднимает в рост
+		hp_lock = true
+		for e0 in enemies.duplicate():
+			e0.damage(1000000.0)
+		var zp := Vector3(20.0, 0.0, 40.0)
+		var z := spawn_enemy("infected", zp)
+		z.def = z.def.duplicate(true)
+		z.def["hear_walk"] = 6.0
+		var see := float(z.def.see)
+		var calm := func() -> void:
+			z.state = "idle"
+			z._t = 99.0
+			z.global_position = zp
+			z.rotation.y = 0.0                      # смотрит на +z
+			z.remove_meta("sees")
+		var settle := func(sec: float) -> void:
+			var t1 := Time.get_ticks_msec()
+			while Time.get_ticks_msec() - t1 < int(sec * 1000.0):
+				z.rotation.y = 0.0 if z._calm() else z.rotation.y
+				await get_tree().process_frame
+		# 1. в рост, со спины, на 0,45 дальности зрения — замечает
+		calm.call()
+		player.global_position = zp + Vector3(0, 0.05, -see * 0.45)
+		await settle.call(0.8)
+		_ok("1. в рост со спины за %.1f м (0,45 дальности зрения) — замечает" % (see * 0.45), not z._calm(), z.state)
+		# 2. крадётся там же — не замечает
+		set_sneak(true)
+		calm.call()
+		await settle.call(1.0)
+		_ok("2. крадётся там же — не замечает; герой пригнулся", z._calm() and rig._crouch > 0.8, "%s, присед %.2f" % [z.state, rig._crouch])
+		# 3. крадётся, шаги за 3 м — не слышит (в рост услышал бы: слух 6 м)
+		calm.call()
+		player.global_position = zp + Vector3(0, 0.05, -3.0)
+		z.hear_steps(player.global_position, 0.0 if sneak else 1.6)
+		var q3 := z._calm()
+		z.hear_steps(player.global_position, 1.6)
+		_ok("3. шагов крадущегося за 3 м не слышит; обычные шаги там же — слышит", q3 and not z._calm(), z.state)
+		# 4. крадётся спереди на 0,45 дальности — замечает (спереди видят на 0,55)
+		calm.call()
+		player.global_position = zp + Vector3(0, 0.05, see * 0.45)
+		await settle.call(1.0)
+		_ok("4. крадётся спереди за %.1f м — замечает" % (see * 0.45), not z._calm(), z.state)
+		# 5. скорость крадущегося — не выше заданной
+		calm.call()
+		player.global_position = zp + Vector3(-12, 0.05, -6)
+		_joy_v = Vector2(1, 0)
+		_joy_id = 77
+		var vmax := 0.0
+		var t5 := Time.get_ticks_msec()
+		while Time.get_ticks_msec() - t5 < 1200:
+			await get_tree().process_frame
+			vmax = maxf(vmax, Vector3(player.velocity.x, 0, player.velocity.z).length())
+		_joy_v = Vector2.ZERO
+		_joy_id = -1
+		_ok("5. крадётся не быстрее %.1f м/с" % stealth("speed", 1.6), vmax > 0.8 and vmax <= stealth("speed", 1.6) + 0.15, "%.2f м/с" % vmax)
+		if out != "":
+			await _snap("stealth_walk")
+		# 6. удар кулаком в рост по не заметившему — не убивает; крадучись — насмерть
+		calm.call()
+		set_sneak(false)
+		player.global_position = zp + Vector3(0, 0.05, -1.0)
+		player.rotation.y = 0.0
+		var hp0 := float(z.get_meta("hp"))
+		_melee_hit(1.8, 120.0, 5.0, "punch")
+		var hp1 := float(z.get_meta("hp"))
+		z.set_meta("hp", hp0)
+		z.hp = hp0
+		calm.call()
+		set_sneak(true)
+		_melee_hit(1.8, 120.0, 5.0, "punch")
+		_ok("6. удар на 5: в рост — здоровье %d → %d; крадучись по не заметившему — насмерть, «тихих ударов» 1" % [int(hp0), int(hp1)], hp1 == hp0 - 5.0 and not z.alive() and stealth_kills == 1, "жив %s, тихих %d" % [str(z.alive()), stealth_kills])
+		# 7. кнопка на экране и выстрел
+		_hud_press("sneak")
+		var off := not sneak
+		_hud_press("sneak")
+		_ok("7. кнопка «Красться» выключает и включает", off and sneak)
+		if out != "":
+			await get_tree().create_timer(0.4).timeout
+			await _snap("stealth_hud")
+		_test_done()
 		return
 	if test == "hitfx":
 		# попадание по заражённому: удар на замахе сбивает его удар, тело отбрасывает, фигура вспыхивает, над головой —
