@@ -9829,26 +9829,25 @@ func _pc_test() -> void:
 	if out != "":
 		await get_tree().create_timer(0.3).timeout
 		await _snap("pc_main")
-	# --- оружейник ---
-	inv.wallet.pea = 1
+	# --- оружейник --- (постройка — 50 споранов: указание пользователя 23.11)
+	inv.wallet.spore = 20
 	inv.changed.emit()
 	pc.ask_upgrade("gunsmith")
-	_ok("не хватает гороха: предупреждение и недостача (1 горошина), ничего не списано", pc.dialog_text().contains("1 горошин") and int(inv.wallet.pea) == 1 and int(inv.wallet.spore) == 130 and not ULBase.installed("gunsmith"), pc.dialog_text().replace("\n", " / "))
+	_ok("не хватает споранов: предупреждение и недостача (30 споранов), ничего не списано", pc.dialog_text().contains("30 споран") and int(inv.wallet.spore) == 20 and int(inv.wallet.pea) == 42 and not ULBase.installed("gunsmith"), pc.dialog_text().replace("\n", " / "))
 	if out != "":
 		await _snap("pc_nomoney")
 	pc.dialog_close()
 	var r0 := ULBase.buy_upgrade(inv, "gunsmith")
-	_ok("покупка без ресурсов отклонена логикой (не только окном)", not r0.ok and r0.err == "money" and int((r0.miss as Dictionary).get("pea", 0)) == 1)
-	inv.wallet.pea = 42
-	inv.wallet.spore = 80
+	_ok("покупка без ресурсов отклонена логикой (не только окном)", not r0.ok and r0.err == "money" and int((r0.miss as Dictionary).get("spore", 0)) == 30)
+	inv.wallet.spore = 130
 	inv.changed.emit()
 	pc.ask_upgrade("gunsmith")
-	_ok("хватает: окно подтверждения с ценой 2 горошины (стартовые 50 споранов меняются на них в «Обмене»)", pc.dialog_text().contains("2 горошины") and not pc.dialog_text().contains("споран"))
+	_ok("хватает: окно подтверждения с ценой 50 споранов (ровно стартовый запас), гороха не просит", pc.dialog_text().contains("50 споран") and not pc.dialog_text().contains("горош"), pc.dialog_text().replace("\n", " / "))
 	if out != "":
 		await _snap("pc_confirm")
 	pc.dialog_confirm()
 	pc.dialog_confirm()                     # второе нажатие — окна уже нет
-	_ok("оружейник куплен один раз: горох 42 → 40, спораны не тронуты", int(inv.wallet.pea) == 40 and int(inv.wallet.spore) == 80, str(inv.wallet))
+	_ok("оружейник куплен один раз: спораны 130 → 80, горох не тронут", int(inv.wallet.pea) == 42 and int(inv.wallet.spore) == 80, str(inv.wallet))
 	_ok("оружейник установлен и встал за прилавок оружейной", ULBase.installed("gunsmith") and ULBase.has_staff("gunsmith") and npc_by_role("оружейник") != null and npcs.size() == 2 and npc_by_role("оружейник").global_position.distance_to(house.to_global(ARMORY_NPC)) < 0.3)
 	_ok("после покупки в кладовой появилась вся оружейная (прилавок, шкафы, оружие)", _armory_root != null and _armory_root.get_child_count() > 10)
 	var gb := pc.find_child("up_gunsmith", true, false).find_child("buy", true, false) as Button
