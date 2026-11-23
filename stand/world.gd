@@ -971,6 +971,29 @@ func cs_finish(why: String) -> void:
 		_leave_to({"left": "res://map.tscn", "menu": "res://menu.tscn"}.get(why, "res://world.tscn"), "выход с локации %s (%s)" % [place, why])
 
 
+## По чему идёт герой — такой и звук шага: земля («step»), бетон (бункер, гараж, плита, корпуса), доски (избы и
+## сараи Хутора), металл (помост гаража). Звуки свои, синтезированные: tools/make_sfx.py.
+func _step_surface() -> String:
+	var p := player.global_position
+	if place == "home":
+		if garage != null:
+			var l := garage.to_local(p)
+			if garage.built and absf(l.x) < ULGarage.PLAT.x * 0.5 + ULGarage.SIDE and absf(l.z - ULGarage.PLAT_Z) < ULGarage.PLAT.z * 0.5 + ULGarage.RAMP:
+				return "step_metal"
+			if absf(l.x) < ULGarage.W * 0.5 + 0.3 and absf(l.z) < ULGarage.D * 0.5 + 0.3:
+				return "step_concrete"
+		return "step_concrete" if _in_house(p) else "step"
+	if san != null and san.hero_b >= 0 and san.hero_b < san.blds.size():
+		var st := String(san.blds[san.hero_b].style)
+		return "step_wood" if st == "wood" else ("step" if st == "tent" or st == "cellar" else "step_concrete")
+	return "step"
+
+
+func _door_sound(at: Vector3, opened: bool) -> void:
+	if snd != null and is_inside_tree() and (cs_ready or not temp()) and at.distance_to(player.global_position) < 14.0:
+		snd.play("door_creak", at + Vector3.UP, -9.0 if opened else -13.0, 0.1)
+
+
 # ---------------- экран загрузки и уход со сцены ----------------
 
 ## игру свернули или закрыли из списка приложений — это не вылет: метка шага стирается, при возврате — ставится снова
@@ -984,6 +1007,7 @@ func _notification(what: int) -> void:
 
 
 var _cover: CanvasLayer
+var _gate_was := false
 var _leaving := false
 
 
@@ -2745,6 +2769,7 @@ func _player() -> void:
 	blob.material_override = _blob_mat()
 	blob.position.y = 0.03
 	player.add_child(blob)
+	ULDoor.on_sound = _door_sound
 	snd = BCSound.new()
 	add_child(snd)
 	rig.hold.sfx.connect(_on_sfx)
@@ -2887,6 +2912,9 @@ func _process(delta: float) -> void:
 		house.update_walls(player.global_position, delta)
 	if garage != null:
 		garage.tick(delta, player.global_position, car, car_in, ULFarmBuilding.cam_dir)
+		if garage.built and garage._gate_want != _gate_was:
+			_gate_was = garage._gate_want
+			snd.play("gate_open", garage.to_global(Vector3(0, 1.2, ULGarage.D * 0.5)), -7.0, 0.05, 0.0, 1.0 if _gate_was else 1.12)
 	var dist_t := minf(cam_dist, 13.0) if ins else cam_dist
 	if car_in:
 		dist_t = cam_dist * 1.3                     # за рулём камера выше и дальше — видно, куда едешь
@@ -3046,7 +3074,8 @@ func _steps_sfx(speed: float) -> void:
 			st[1] = true
 		elif bool(st[1]) and h < float(st[0]) + 0.018:
 			st[1] = false
-			snd.play("step", rig.skel.global_transform * lp, -8.0 + clampf(speed, 0.0, 4.0) * 1.5, 0.08)
+			var sfc := _step_surface()
+			snd.play(sfc, rig.skel.global_transform * lp, (-8.0 if sfc == "step" else -11.0) + clampf(speed, 0.0, 4.0) * 1.5, 0.08)
 		_steps[b] = st
 
 
@@ -4385,7 +4414,7 @@ func _draw_hud() -> void:
 						_hud_icon(_tex("res://assets/icons/loot_spore.png"), c, r * 1.4, ic)
 					"terminal", "g_term", "g_sel":
 						_hud_icon(_art("terminal"), c, r * 2.0, ic)
-					"g_fuel", "g_cab":
+					"g_fuel", "g_cab", "g_bench":
 						_hud_icon(_tex("res://assets/icons/crate.png"), c, r * 1.5, ic)
 					_:
 						var tid := String(_target.g.item.id)
@@ -17071,7 +17100,7 @@ func open_garage_ui(zone: String) -> void:
 	if zone == "g_cab":
 		open_cabinet()
 		return
-	var tab: String = {"g_term": "up", "g_fuel": "fuel", "g_sel": "cars"}.get(zone, "up")
+	var tab: String = {"g_term": "up", "g_fuel": "fuel", "g_sel": "cars", "g_bench": "craft"}.get(zone, "up")
 	_car_ui = ULGarageUI.open(_hud.get_parent(), self, tab)
 	_joy_id = -1
 	_joy_v = Vector2.ZERO
@@ -18051,7 +18080,7 @@ func _garage_test() -> void:
 		for i in 4:
 			await get_tree().process_frame
 		labels[z] = "%s:%s" % [String(_target.type) if _target != null else "", _action_label()]
-	_ok("7. четыре места: компьютер модернизации, топливная станция, выбор машины, грузовой шкаф — у каждого «Открыть»", ULGarage.ZONES.keys().all(func(z): return String(labels[z]) == "%s:Открыть" % z), str(labels))
+	_ok("7. пять мест: компьютер модернизации, топливная станция, выбор машины, грузовой шкаф, верстак — у каждого «Открыть»", ULGarage.ZONES.keys().all(func(z): return String(labels[z]) == "%s:Открыть" % z), str(labels))
 	# «Улучшения»
 	player.global_position = garage.to_global(ULGarage.ZONES.g_term + Vector3(0, 0.05, 0))
 	for i in 4:
@@ -18173,6 +18202,33 @@ func _garage_test() -> void:
 	inv_ui._put_all()
 	close_inventory()
 	_ok("26. положил — вещи в шкафу гаража", ULBase.cabinet().any(func(x): return x != null and String(x.id) == "bandage"))
+	# верстак: сборка из хлама
+	var j0: int = inv.count("junk")
+	inv.add(ULItems.make("junk", 20))
+	open_garage_ui("g_bench")
+	await get_tree().process_frame
+	ui = _car_ui as ULGarageUI
+	var a9: int = inv.count("a9x19")
+	var rb: Dictionary = ULCraft.recipes().filter(func(x): return String(x.id) == "a9x19")[0]
+	ui._craft(rb)
+	_ok("26а. верстак: окно на вкладке «Верстак»; 10 патронов 9×19 собраны, хлам списан", ui != null and ui.tab == "craft" and inv.count("a9x19") == a9 + int(rb.n) and inv.count("junk") == j0 + 20 - int(rb.need.junk), "патронов %d → %d, хлама %d" % [a9, inv.count("a9x19"), inv.count("junk")])
+	var rk: Dictionary = ULCraft.recipes().filter(func(x): return String(x.id) == "car_kit")[0]
+	ui._craft(rk)
+	await get_tree().process_frame
+	await _snap("gar_craft")
+	inv.consume("junk", 999)
+	var res_no := ULCraft.make(inv, rk)
+	_ok("26б. без хлама сборка не проходит, ничего не списано и не выдано", not bool(res_no.ok) and inv.count("car_kit") == 1)
+	var cdk := ULBase.car_data()
+	var hv0 := ULGarageOps.part_hp(cdk, "body")
+	cdk.parts["body"]["hp"] = hv0.y * 0.4
+	var rkit := ULGarageOps.use_kit(inv, cdk)
+	var hv1 := ULGarageOps.part_hp(cdk, "body")
+	_ok("26в. ремкомплект чинит самую побитую деталь на четверть и тратится", bool(rkit.ok) and String(rkit.cat) == "body" and absf(hv1.x - hv0.y * 0.65) < 1.0 and inv.count("car_kit") == 0, "кузов %.0f → %.0f из %.0f" % [hv0.y * 0.4, hv1.x, hv0.y])
+	cdk.parts["body"]["hp"] = hv0.x
+	inv.add(ULItems.make("junk", j0))
+	ui.close()
+	await get_tree().process_frame
 	# выезд из гаража и заезд задом
 	player.global_position = car.door_pos() + Vector3.UP * 0.1
 	for i in 4:

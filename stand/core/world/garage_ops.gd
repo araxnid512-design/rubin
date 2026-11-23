@@ -285,3 +285,23 @@ static func err_text(r: Dictionary) -> String:
 		"no_turret":
 			return "Оружейный модуль не установлен"
 	return "Нельзя"
+
+
+## ремкомплект (предмет car_kit): чинит самую побитую деталь на долю heal её прочности. Вернёт {ok, cat, err}
+static func use_kit(inv: ULInventory, cd: Dictionary) -> Dictionary:
+	if inv.count("car_kit") <= 0:
+		return {"ok": false, "err": "none"}
+	var best := ""
+	var worst := 0.999
+	for k in ULCar.PARTS:
+		var hv := part_hp(cd, k)
+		if hv.y > 0.0 and hv.x / hv.y < worst:
+			worst = hv.x / hv.y
+			best = k
+	if best == "":
+		return {"ok": false, "err": "full"}
+	var hv2 := part_hp(cd, best)
+	inv.consume("car_kit", 1)
+	cd.parts[best]["hp"] = minf(hv2.y, hv2.x + hv2.y * float(ULItems.get_def("car_kit").get("heal", 0.25)))
+	ULBase.save_state()
+	return {"ok": true, "cat": best, "err": ""}

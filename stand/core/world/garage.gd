@@ -24,8 +24,8 @@ const PLAT := Vector3(3.2, 0.13, 5.6)     ## помост: ширина, выс�
 const PLAT_Z := 0.4
 const RAMP := 0.8                         ## заезды спереди и сзади
 const SIDE := 0.32                        ## пологий край по бокам (герой заходит на помост сбоку)
-const ZONE_N := {"g_term": "компьютер модернизации", "g_fuel": "топливная станция", "g_sel": "выбор машины", "g_cab": "грузовой шкаф"}
-const ZONES := {"g_term": Vector3(-3.45, 0, -1.0), "g_sel": Vector3(-3.45, 0, 1.6), "g_fuel": Vector3(-3.0, 0, -4.0), "g_cab": Vector3(3.45, 0, -1.6)}
+const ZONE_N := {"g_term": "компьютер модернизации", "g_fuel": "топливная станция", "g_sel": "выбор машины", "g_cab": "грузовой шкаф", "g_bench": "верстак"}
+const ZONES := {"g_term": Vector3(-3.45, 0, -1.0), "g_sel": Vector3(-3.45, 0, 1.6), "g_fuel": Vector3(-3.0, 0, -4.0), "g_cab": Vector3(3.45, 0, -1.6), "g_bench": Vector3(1.35, 0, -4.75)}
 const MODELS := "res://assets/world/"
 const TEX := "res://assets/world/tex/"
 

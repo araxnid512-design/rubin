@@ -62,6 +62,7 @@ static func setup_rig(rig: BCCharacter, id := "") -> void:
 		id = current()
 	rig.height = height(id)
 	rig.setup(model(id), ANIM)
+	ULEnemy.outline(rig.model)             # тёмный контур: герой читается сверху на любой земле
 
 
 static func _cfg() -> Dictionary:

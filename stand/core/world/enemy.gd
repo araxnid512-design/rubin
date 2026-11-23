@@ -208,7 +208,39 @@ func setup(k: String, at: Vector3, seed_n: int) -> void:
 static var rim_k := 0.35
 
 
+## Тёмный контур фигуры (как в Dawn of Zombies / Last Day): персонаж читается сверху на любой земле. Второй проход
+## по той же сетке — она чуть раздута вдоль нормалей и рисуется изнанкой тёмным цветом. Материал общий у всех
+## персонажей этого вида — проход добавляется один раз; на «Низкой» графике контура нет.
+static var outline_w := 0.0045           ## толщина в единицах сетки (модель ~1 ед. ростом → ~8 мм при росте 1,8 м)
+static var _outline_mat: ShaderMaterial
+
+
+static func outline(model: Node) -> void:
+	if model == null or outline_w <= 0.0 or ULSettings.gfx < 1:
+		return
+	if _outline_mat == null:
+		var sh := Shader.new()
+		sh.code = """shader_type spatial;
+render_mode unshaded, cull_front, shadows_disabled, fog_disabled;
+uniform float w = 0.0045;
+void vertex() { VERTEX += NORMAL * w; }
+void fragment() { ALBEDO = vec3(0.035, 0.03, 0.028); }
+"""
+		_outline_mat = ShaderMaterial.new()
+		_outline_mat.shader = sh
+		_outline_mat.set_shader_parameter("w", outline_w)
+	for mi in model.find_children("*", "MeshInstance3D", true, false):
+		var m := mi as MeshInstance3D
+		if m.mesh == null or m.skin == null:
+			continue                              # только тело (сетка на скелете); оружие и вещи — без контура
+		for si in m.mesh.get_surface_count():
+			var mt := m.get_active_material(si) as BaseMaterial3D
+			if mt != null and mt.next_pass == null:
+				mt.next_pass = _outline_mat
+
+
 static func _rim(model: Node) -> void:
+	outline(model)
 	if model == null or rim_k <= 0.0 or ULSettings.gfx < 1:
 		return
 	for mi in model.find_children("*", "MeshInstance3D", true, false):

@@ -159,7 +159,7 @@ func _build() -> void:
 	vb.add_child(top)
 	top.add_child(_icon("ui/terminal" if not veh else "crate", 34))
 	top.add_child(_lbl("Гараж" if not veh else w.car_name(), 24, Color(0.97, 0.97, 0.94)))
-	var tl: Array = [["up", "Улучшения"], ["fuel", "Заправка"], ["cars", "Автомобили"], ["trunk", "Багажник"]]
+	var tl: Array = [["up", "Улучшения"], ["fuel", "Заправка"], ["cars", "Автомобили"], ["craft", "Верстак"], ["trunk", "Багажник"]]
 	if veh:
 		tl = [["trunk", "Багажник"], ["ammo", "Боеприпасы"], ["tank", "Бак"], ["state", "Состояние"]]
 	for t in tl:
@@ -214,6 +214,8 @@ func refresh() -> void:
 			_build_fuel()
 		"cars":
 			_build_cars()
+		"craft":
+			_build_craft()
 		"ammo":
 			_build_ammo()
 		"tank":
@@ -784,4 +786,71 @@ func _build_state() -> void:
 	if tt != "":
 		var st: Dictionary = d.turrets[tt]
 		v.add_child(_lbl("Турель — %s: %d / %d, боезапас %d" % [String(ULCar.turret_cfg(tt).n), int(round(float(st.get("hp", 0)))), int(ULCar.turret_cfg(tt).hp), int(st.get("ammo", 0))], 17, C_TEXT))
-	v.add_child(_lbl("Ремонт и замена деталей — в гараже базы, у компьютера модернизации.", 15, C_DIM, true))
+	var kits: int = w.inv.count("car_kit")
+	var kb := _btn("Починить ремкомплектом (есть %d)" % kits, "tab", _use_kit, 420.0, 52.0, 18)
+	kb.name = "kit"
+	kb.disabled = kits <= 0
+	v.add_child(kb)
+	v.add_child(_lbl("Ремкомплект собирается на верстаке в гараже и чинит самую побитую деталь на четверть. Полный ремонт и замена деталей — в гараже базы, у компьютера модернизации.", 15, C_DIM, true))
+
+
+func _use_kit() -> void:
+	var r := ULGarageOps.use_kit(w.inv, cd())
+	if bool(r.ok):
+		say("Починено: %s" % String(ULCar.part_cfg(String(r.cat)).n))
+	else:
+		say("Все детали целы" if String(r.err) == "full" else "Ремкомплектов нет", true)
+	refresh()
+
+
+# ---------------- верстак ----------------
+
+func _build_craft() -> void:
+	_body.add_child(_lbl("ВЕРСТАК — собрать из хлама", 22, Color(0.97, 0.97, 0.94)))
+	var grid := GridContainer.new()
+	grid.columns = 2
+	grid.add_theme_constant_override("h_separation", 8)
+	grid.add_theme_constant_override("v_separation", 8)
+	grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_body.add_child(grid)
+	for r in ULCraft.recipes():
+		var miss := ULCraft.missing(w.inv, r)
+		var card := _card(Color(0.55, 0.9, 0.35) if miss.is_empty() else C_LINE)
+		card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		grid.add_child(card)
+		var h := HBoxContainer.new()
+		h.add_theme_constant_override("separation", 10)
+		card.add_child(h)
+		var ic := TextureRect.new()
+		ic.texture = ULItems.icon(String(r.out))
+		ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		ic.custom_minimum_size = Vector2(64, 64)
+		h.add_child(ic)
+		var v := VBoxContainer.new()
+		v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		h.add_child(v)
+		var nm := String(ULItems.get_def(String(r.out)).n)
+		v.add_child(_lbl("%s × %d   (у героя %d)" % [nm, int(r.get("n", 1)), w.inv.count(String(r.out))], 18, Color(0.97, 0.97, 0.94)))
+		var parts: Array = []
+		var need: Dictionary = r.get("need", {})
+		for id in need:
+			parts.append("%s %d/%d" % [String(ULItems.get_def(String(id)).n), w.inv.count(String(id)), int(need[id])])
+		v.add_child(_lbl("Нужно: " + ", ".join(parts), 15, C_GOLD if miss.is_empty() else C_RED))
+		v.add_child(_lbl(String(r.get("d", "")), 14, C_DIM, true))
+		var b := _btn("Собрать", "tab", _craft.bind(r), 130.0, 60.0, 18)
+		b.name = "make_" + String(r.id)
+		b.disabled = not miss.is_empty()
+		h.add_child(b)
+	_body.add_child(_lbl("Хлам лежит кучками в постройках кластеров. Собранное кладётся в карманы и рюкзак.", 15, C_DIM, true))
+
+
+func _craft(r: Dictionary) -> void:
+	var res := ULCraft.make(w.inv, r)
+	if bool(res.ok):
+		say("Собрано: %s × %d" % [String(ULItems.get_def(String(r.out)).n), int(r.get("n", 1))])
+		if w.get("snd") != null:
+			w.snd.play("click", w.player.global_position, -8.0)
+	else:
+		say("Нет места в карманах и рюкзаке" if String(res.err) == "room" else "Не хватает материалов", true)
+	refresh()

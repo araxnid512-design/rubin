@@ -9,6 +9,7 @@ var pivot: Node3D
 var panel: MeshInstance3D
 var shape: CollisionShape3D
 var open := false
+static var on_sound: Callable     ## кому сообщить, что дверь открылась или закрылась (мир играет скрип)
 var center := Vector3.ZERO        ## середина проёма (мир)
 var width := 1.0
 var bld := -1                     ## корпус и этаж (для видимости и срезки стен)
@@ -61,6 +62,8 @@ func set_open(v: bool) -> void:
 	if v == open:
 		return
 	open = v
+	if on_sound.is_valid() and is_inside_tree():
+		on_sound.call(global_position, v)             # скрип петель (звук играет мир)
 	_target = _swing * deg_to_rad(95.0) if v else 0.0
 	shape.set_deferred("disabled", v)
 
