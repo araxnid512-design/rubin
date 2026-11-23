@@ -193,6 +193,7 @@ func setup(k: String, at: Vector3, seed_n: int) -> void:
 					mt.albedo_color = Color(0.62, 0.74, 0.6)
 					m.set_surface_override_material(si, mt)
 	_rim(rig.model)
+	_outline_init()
 	for mi in rig.model.find_children("*", "MeshInstance3D", true, false):
 		_meshes.append(mi)
 	if not def.has("gun"):
@@ -216,7 +217,7 @@ static var _outline_mat: ShaderMaterial
 
 
 static func outline(model: Node) -> void:
-	if model == null or outline_w <= 0.0 or ULSettings.gfx < 1:
+	if outline_w <= 0.0 or ULSettings.gfx < 1:
 		return
 	if _outline_mat == null:
 		var sh := Shader.new()
@@ -229,6 +230,8 @@ void fragment() { ALBEDO = vec3(0.035, 0.03, 0.028); }
 		_outline_mat = ShaderMaterial.new()
 		_outline_mat.shader = sh
 		_outline_mat.set_shader_parameter("w", outline_w)
+	if model == null:
+		return                                 # только завести общий материал контура
 	for mi in model.find_children("*", "MeshInstance3D", true, false):
 		var m := mi as MeshInstance3D
 		if m.mesh == null or m.skin == null:
@@ -239,8 +242,36 @@ void fragment() { ALBEDO = vec3(0.035, 0.03, 0.028); }
 				mt.next_pass = _outline_mat
 
 
+## Контур у врага — отдельным проходом поверх своей сетки (material_overlay), а не в общем материале модели:
+## так он включается только у тех, кто рядом с героем (set_active), — у дальних второй вызов отрисовки не нужен.
+var _ol_meshes: Array = []
+var _ol_on := false
+
+
+func _outline_init() -> void:
+	if outline_w <= 0.0 or ULSettings.gfx < 1 or rig == null or rig.model == null:
+		return
+	if _outline_mat == null:
+		outline(null)
+	if _outline_mat == null:
+		return
+	for mi in rig.model.find_children("*", "MeshInstance3D", true, false):
+		var m := mi as MeshInstance3D
+		if m.mesh != null and m.skin != null:
+			_ol_meshes.append(m)
+	_outline_set(active)
+
+
+func _outline_set(on: bool) -> void:
+	_ol_on = on and not _ol_meshes.is_empty()
+	if _flash_t > 0.0:
+		return                                 # вспышка попадания вернёт контур сама
+	for m in _ol_meshes:
+		if is_instance_valid(m):
+			(m as GeometryInstance3D).material_overlay = _outline_mat if _ol_on else null
+
+
 static func _rim(model: Node) -> void:
-	outline(model)
 	if model == null or rim_k <= 0.0 or ULSettings.gfx < 1:
 		return
 	for mi in model.find_children("*", "MeshInstance3D", true, false):
@@ -929,6 +960,7 @@ func set_active(on: bool) -> void:
 	active = on
 	rig.set_active(on)
 	set_shadow(on)
+	_outline_set(on)
 
 
 ## настоящая тень от солнца: у дальних (не считаются) её нет — под ними мягкое пятно, а карта теней не рисует тело
@@ -1024,7 +1056,7 @@ func _process(delta: float) -> void:
 		if _flash_t <= 0.0:
 			for m in _meshes:
 				if is_instance_valid(m):
-					(m as GeometryInstance3D).material_overlay = null
+					(m as GeometryInstance3D).material_overlay = _outline_mat if (_ol_on and m in _ol_meshes) else null
 	if _flash_t <= 0.0:
 		set_process(false)
 

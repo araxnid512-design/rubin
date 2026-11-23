@@ -1960,8 +1960,8 @@ func _door_wear() -> void:
 	var sm := SphereMesh.new()
 	sm.radius = 1.0
 	sm.height = 2.0
-	sm.radial_segments = 6
-	sm.rings = 3
+	sm.radial_segments = 5
+	sm.rings = 2
 	var rm := StandardMaterial3D.new()
 	rm.albedo_color = Color(0.42, 0.4, 0.37)
 	rm.roughness = 0.95

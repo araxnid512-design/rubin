@@ -10868,7 +10868,7 @@ func _inv_test() -> void:
 	var sp1 := inv.count("spore")
 	var band0 := inv.count("bandage")
 	inv.pockets[7] = null
-	_ok("покупка бинта: спораны списаны, бинт получен", buy("supplies", 0) and inv.count("spore") == sp1 - 1 and inv.count("bandage") == band0 + 1, "спораны %d → %d" % [sp1, inv.count("spore")])
+	_ok("покупка бинта: спораны списаны, бинт получен", buy("supplies", 0) and inv.count("spore") == sp1 - int(SHOP.supplies[0][2].spore) and inv.count("bandage") == band0 + 1, "спораны %d → %d" % [sp1, inv.count("spore")])
 	inv.wallet["pea"] = 0
 	var sp2 := inv.count("spore")
 	_ok("не хватает горошин — покупки нет, ничего не списано", not buy("supplies", 7) and inv.count("spore") == sp2 and inv.count("pack_medium") == 0)
@@ -10889,7 +10889,7 @@ func _inv_test() -> void:
 	ULInventory.put(inv.pack.items, ULItems.make("rusk", 2))
 	ULInventory.put(inv.pack.items, ULItems.make("water"))
 	ULInventory.put(inv.pack.items, ULItems.make("a545", 30))
-	inv.wallet = {"pea": 3}
+	inv.wallet = {"pea": 12}
 	var pi_m := -1
 	var pi_l := -1
 	for k in SHOP.supplies.size():
@@ -10899,10 +10899,10 @@ func _inv_test() -> void:
 			pi_l = k
 	var bm := buy("supplies", pi_m)
 	var small_in_pocket: int = inv.pockets.filter(func(x): return x != null and String(x.id) == "pack_small").size()
-	_ok("купил средний рюкзак (1 горошина) с вещами в малом: средний надет сразу, сухари, вода и патроны — в нём, малый (пустой) — в кармане",
-		bm and String(inv.pack.id) == "pack_medium" and inv.count("rusk") == 2 and inv.count("water") == 1 and inv.count("a545") == 30 and small_in_pocket == 1 and int(inv.wallet.get("pea", 0)) == 2 and inv.slot_count() == 20, "надет %s, в кармане малых %d" % [String(inv.pack.id), small_in_pocket])
+	_ok("купил средний рюкзак (4 горошины) с вещами в малом: средний надет сразу, сухари, вода и патроны — в нём, малый (пустой) — в кармане",
+		bm and String(inv.pack.id) == "pack_medium" and inv.count("rusk") == 2 and inv.count("water") == 1 and inv.count("a545") == 30 and small_in_pocket == 1 and int(inv.wallet.get("pea", 0)) == 8 and inv.slot_count() == 20, "надет %s, в кармане малых %d" % [String(inv.pack.id), small_in_pocket])
 	var bl := buy("supplies", pi_l)
-	_ok("купил большой (2 горошины): надет, вещи переложены, средний — в кармане", bl and String(inv.pack.id) == "pack_large" and inv.count("rusk") == 2 and inv.count("a545") == 30 and inv.slot_count() == 28 and inv.pockets.filter(func(x): return x != null and String(x.id) == "pack_medium").size() == 1 and int(inv.wallet.get("pea", 0)) == 0)
+	_ok("купил большой (8 горошин): надет, вещи переложены, средний — в кармане", bl and String(inv.pack.id) == "pack_large" and inv.count("rusk") == 2 and inv.count("a545") == 30 and inv.slot_count() == 28 and inv.pockets.filter(func(x): return x != null and String(x.id) == "pack_medium").size() == 1 and int(inv.wallet.get("pea", 0)) == 0)
 	var psi := -1
 	for k in inv.pockets.size():
 		if inv.pockets[k] != null and String(inv.pockets[k].id) == "pack_small":
@@ -14111,20 +14111,29 @@ func pc_done(kind: String, id: String) -> void:
 
 ## Товар оружейника по разделам: предмет, сколько штук за раз, цена {ресурс: сколько}. Платят ресурсами из
 ## кошелька (спораны, горошины, жемчужины); купленное оружие встаёт в свободный слот, остальное — в карманы и рюкзак.
-const SHOP := {
-	"weapons": [["tt", 1, {"spore": 6}], ["beretta", 1, {"spore": 10}], ["machete", 1, {"spore": 8}], ["mp5", 1, {"spore": 24}],
-		["spas12", 1, {"spore": 30}], ["ak74m", 1, {"spore": 40}], ["vss", 1, {"spore": 50}], ["fnfal", 1, {"spore": 55}],
-		["svd", 1, {"pea": 2}], ["pkp", 1, {"pea": 3}]],
-	"ammo": [["a762x25", 16, {"spore": 1}], ["a9x19", 20, {"spore": 2}], ["a545", 30, {"spore": 3}], ["a12", 8, {"spore": 2}],
-		["a762x51", 20, {"spore": 3}], ["a762x54", 20, {"spore": 4}], ["a9x39", 20, {"spore": 4}]],
-	"supplies": [["bandage", 1, {"spore": 1}], ["medkit", 1, {"spore": 4}], ["tonic", 1, {"spore": 2}], ["water", 1, {"spore": 1}],
-		["rusk", 1, {"spore": 1}], ["can", 1, {"spore": 2}], ["pack_small", 1, {"spore": 8}], ["pack_medium", 1, {"pea": 1}],
-		["pack_large", 1, {"pea": 2}]],
-	# боеприпасы для турелей машины (ТЗ гаража): цены — предложение (урон за споран — около ручного оружия),
-	# не утверждённый баланс; покупка — в инвентарь, загрузка — в окне машины «Боеприпасы»
-	"veh_ammo": [["veh_am_rifle", 100, {"spore": 7}], ["veh_am_mg", 50, {"spore": 6}], ["veh_am_cannon", 10, {"spore": 6}],
-		["veh_am_rocket", 1, {"spore": 3}]],
-}
+var SHOP: Dictionary = _load_shop()
+
+
+## цены и состав товара — data/shop.json (правятся без кода)
+static func _load_shop() -> Dictionary:
+	var out_d := {}
+	var f := FileAccess.open("res://data/shop.json", FileAccess.READ)
+	var j = JSON.parse_string(f.get_as_text()) if f != null else null
+	if not (j is Dictionary):
+		return {"weapons": [], "ammo": [], "supplies": [], "veh_ammo": []}
+	for k in j:
+		if not (j[k] is Array):
+			continue
+		var rows: Array = []
+		for r in j[k]:
+			var price := {}
+			for res in r[2]:
+				price[String(res)] = int(r[2][res])
+			rows.append([String(r[0]), int(r[1]), price])
+		out_d[String(k)] = rows
+	return out_d
+
+
 const SHOP_TABS := [["weapons", "Оружие"], ["ammo", "Патроны"], ["supplies", "Припасы и снаряжение"], ["veh_ammo", "Боеприпасы для транспорта"], ["repair", "Ремонт"]]
 var _talk_trade: Button
 var _talk_sell: Button
@@ -17105,10 +17114,10 @@ func _run_test() -> void:
 		var hp0 := hp
 		z.damage(20.0, player.global_position)
 		var bar_on: bool = z._mini != null and z._mini.visible
-		var flash_on: bool = z._meshes.size() > 0 and (z._meshes[0] as GeometryInstance3D).material_overlay != null
+		var flash_on: bool = z._meshes.size() > 0 and (z._meshes[0] as GeometryInstance3D).material_overlay == ULEnemy._flash_mat
 		await get_tree().create_timer(0.25).timeout
 		var away := Vector2(z.global_position.x - p0.x, z.global_position.z - p0.z).dot(Vector2(p0.x - player.global_position.x, p0.z - player.global_position.z).normalized())
-		var flash_off: bool = (z._meshes[0] as GeometryInstance3D).material_overlay == null
+		var flash_off: bool = (z._meshes[0] as GeometryInstance3D).material_overlay != ULEnemy._flash_mat
 		_ok("заражённый начал удар с вытянутой руки (%.2f м между центрами), а не вплотную" % closest, wind and closest > 0.85)
 		_ok("удар на замахе сбил его удар (сбит %d раз), герой не ранен" % z.interrupts, z.interrupts == 1 and z._hit_due < 0.0 and hp >= hp0)
 		_ok("отброшен от удара на %.2f м" % away, away > 0.12)
@@ -18580,7 +18589,7 @@ func _garage_test() -> void:
 	# боеприпасы у оружейника
 	inv.wallet["spore"] = 400
 	var sp2 := int(inv.wallet.spore)
-	var vi := SHOP.veh_ammo.map(func(g): return String(g[0])).find("veh_am_rifle")
+	var vi: int = (SHOP.veh_ammo as Array).map(func(g): return String(g[0])).find("veh_am_rifle")
 	buy("veh_ammo", vi)
 	_ok("17. у оружейника раздел «Боеприпасы для транспорта»: патроны автоматной турели ×100 — в инвентаре", SHOP_TABS.any(func(t): return String(t[0]) == "veh_ammo" and String(t[1]) == "Боеприпасы для транспорта") and inv.count("veh_am_rifle") == 100 and int(inv.wallet.spore) == sp2 - 7)
 	open_veh_ui("ammo")
