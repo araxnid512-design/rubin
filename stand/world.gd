@@ -2855,6 +2855,7 @@ func _process(delta: float) -> void:
 				bodies.append(e.body_pos())
 		weather.tick(delta, player.global_position, bodies, snd)
 	_blobs_tick()
+	_loot_marks_tick(delta)
 	var iv := _input_vec()
 	# «вверх» на джойстике — от камеры вперёд (на север)
 	var fwd := Vector3(-sin(CAM_YAW), 0, -cos(CAM_YAW))
@@ -3057,6 +3058,7 @@ var _cam_d := 12.0
 ## замечают его ближе (со спины — совсем вблизи), удар по не заметившему врагу — усиленный. Выстрел и бег
 ## выводят из скрытности. Числа — data/stealth.json.
 var sneak := false
+var _dmg_big := false               ## следующая цифра урона — крупная и красная (тихий удар)
 var stealth_kills := 0             ## сколько тихих ударов нанесено (для проверки)
 var _stealth_cfg := {}
 
@@ -4397,6 +4399,9 @@ func _draw_hud() -> void:
 		var dt := "Вы погибли"
 		var dw := font0.get_string_size(dt, HORIZONTAL_ALIGNMENT_LEFT, -1, 40).x
 		_hud.draw_string(font0, Vector2(vs.x * 0.5 - dw * 0.5, vs.y * 0.45), dt, HORIZONTAL_ALIGNMENT_LEFT, -1, 40, Color(1.0, 0.75, 0.6))
+	# подложка шапки: тёмная плашка с тонкой рамкой — имя, здоровье и запасы читаются на любой земле
+	_hud.draw_rect(Rect2(8, 6, 300, 78), Color(0.03, 0.05, 0.06, 0.5))
+	_hud.draw_rect(Rect2(8, 6, 300, 78), Color(0.6, 0.85, 1.0, 0.35), false, 1.5)
 	_hud.draw_string_outline(font0, Vector2(18, 30), hero_name, HORIZONTAL_ALIGNMENT_LEFT, -1, 20, 6, Color(0, 0, 0, 0.85))
 	_hud.draw_string(font0, Vector2(18, 30), hero_name, HORIZONTAL_ALIGNMENT_LEFT, -1, 20, Color(0.95, 0.97, 1.0))
 	# три точки справа от имени — сменить имя
@@ -4406,8 +4411,14 @@ func _draw_hud() -> void:
 	for i in 3:
 		_hud.draw_circle(dc + Vector2((i - 1) * 7.0, 0), 2.4, Color(0.92, 0.96, 1.0))
 	var bw := 280.0
-	_hud.draw_rect(Rect2(16, 40, bw, 10), Color(0, 0, 0, 0.6))
-	_hud.draw_rect(Rect2(17, 41, (bw - 2) * clampf(hp / HP_MAX, 0.0, 1.0), 8), Color(0.85, 0.25, 0.22) if hp < 35.0 else Color(0.35, 0.8, 0.3))
+	_hud.draw_rect(Rect2(16, 39, bw, 12), Color(0, 0, 0, 0.7))
+	var hk := clampf(hp / HP_MAX, 0.0, 1.0)
+	var hc := Color(0.85, 0.25, 0.22) if hp < 35.0 else Color(0.35, 0.8, 0.3)
+	_hud.draw_rect(Rect2(17, 40, (bw - 2) * hk, 10), hc)
+	_hud.draw_rect(Rect2(17, 40, (bw - 2) * hk, 3), hc.lightened(0.35))            # блик по верху полоски
+	for q4 in 3:
+		_hud.draw_rect(Rect2(16 + bw * 0.25 * (q4 + 1), 39, 1.5, 12), Color(0, 0, 0, 0.55))    # деления по четверти
+	_hud.draw_rect(Rect2(16, 39, bw, 12), Color(0.8, 0.9, 1.0, 0.5), false, 1.0)
 	_hud_text(Vector2(16 + bw - 20, 24), "%d" % int(round(hp)), 18, Color(0.75, 1.0, 0.7))
 	var sx := 22.0
 	for st in [["stat_en", en, Color(1.0, 0.85, 0.35)], ["stat_water", water, Color(0.45, 0.75, 1.0)]]:
@@ -5048,6 +5059,7 @@ func _melee_hit(range_m: float, cone: float, dmg: float, sound: String) -> void:
 			if stealth("backstab_kill", 1.0) > 0.0 and not bool((t as ULEnemy).def.get("boss", false)):
 				dmg = maxf(dmg, float(t.get_meta("hp")) + 1.0)
 			stealth_kills += 1
+			_dmg_big = true
 			say("Тихий удар")
 		_damage(t, dmg, t.global_position + Vector3.UP * 1.3)
 
@@ -5417,11 +5429,12 @@ func _damage(t: Node3D, dmg: float, at: Vector3) -> void:
 	else:
 		var lb := Label3D.new()
 		lb.text = "−%d" % int(round(dmg))
-		lb.font_size = 56
+		lb.font_size = 84 if _dmg_big else 56
 		lb.pixel_size = 0.006
 		lb.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 		lb.no_depth_test = true
-		lb.modulate = Color(1.0, 0.85, 0.3)
+		lb.modulate = Color(1.0, 0.3, 0.22) if _dmg_big else Color(1.0, 0.85, 0.3)
+		_dmg_big = false
 		lb.outline_size = 10
 		add_child(lb)
 		lb.global_position = at + Vector3(randf_range(-0.2, 0.2), 0.4, 0)
@@ -11917,6 +11930,34 @@ func _glows_home() -> void:
 	glows.build()
 
 
+var loot_marks: ULLootMarks
+var _loot_t := 0.0
+const LOOT_MARK_R := 9.0                ## ближе этого предметы на земле подсвечены кольцом, м
+
+
+## подсветка предметов на земле рядом с героем (несколько раз в секунду)
+func _loot_marks_tick(delta: float) -> void:
+	_loot_t -= delta
+	if _loot_t > 0.0 or player == null:
+		return
+	_loot_t = 0.25
+	if loot_marks == null:
+		loot_marks = ULLootMarks.new()
+		loot_marks.name = "LootMarks"
+		add_child(loot_marks)
+	var pts: Array = []
+	var p := player.global_position
+	for g in ground:
+		var n := g.node as Node3D
+		if n == null or not is_instance_valid(n) or not n.is_visible_in_tree():
+			continue
+		var d := n.global_position.distance_to(p)
+		if d < LOOT_MARK_R and absf(n.global_position.y - p.y) < 1.6:
+			pts.append([Vector3(n.global_position.x, n.global_position.y, n.global_position.z), clampf(float(ULItems.get_def(String(g.item.id)).get("gs", 0.3)) * 2.2, 0.55, 1.3), d])
+	pts.sort_custom(func(a, b): return float(a[2]) < float(b[2]))
+	loot_marks.show_at(pts)
+
+
 func _blobs_tick() -> void:
 	if blobs == null:
 		if player == null:
@@ -16913,6 +16954,17 @@ func _run_test() -> void:
 				await get_tree().process_frame
 			await _snap("impact_fx")
 		Engine.time_scale = 1.0
+		# подсветка предметов на земле: рядом — кольцо, далеко — нет
+		_spawn_ground(ULItems.make("bandage", 1), Vector3(18.5, 0.0, 41.0), 0.0)
+		_spawn_ground(ULItems.make("ak74m", 1), Vector3(19.0, 0.0, 38.5), 0.6)
+		_spawn_ground(ULItems.make("medkit", 1), Vector3(40.0, 0.0, 40.0), 0.0)
+		_loot_t = 0.0
+		_loot_marks_tick(0.1)
+		_ok("подсветка: два предмета рядом — два кольца; предмет за 20 м не подсвечен", loot_marks != null and loot_marks.multimesh.visible_instance_count == 2, str(loot_marks.multimesh.visible_instance_count))
+		if out != "":
+			for k in 2:
+				await get_tree().process_frame
+			await _snap("loot_marks")
 		_ok("три пули в землю — три фонтанчика пыли; три попадания по железу — три снопа искр", int(fx_n.get("dirt", 0)) == 3 and int(fx_n.get("spark", 0)) == 3, str(fx_n))
 		_test_done()
 		return
