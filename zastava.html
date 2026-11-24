@@ -1,0 +1,627 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="claude:viewport-fit-sides" content="cover">
+<title>Рубеж. Застава</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;600&family=Oswald:wght@500;600&family=PT+Mono&display=swap">
+<style>
+/* Layout: a general's desk. Paper staff map on top (or left on wide screens), order book below (or right). */
+:root {
+  color-scheme: dark;
+  --desk: #1a1c16;
+  --panel: #23261d;
+  --panel-2: #2c3024;
+  --rule: #3b3f30;
+  --text: #e4dec8;
+  --dim: #9d987f;
+  --brass: #d9a441;
+  --red: #c9503a;
+  --blue: #6f9fcb;
+  --ok: #8fb061;
+  --f-head: "Oswald", "Arial Narrow", "Roboto Condensed", sans-serif;
+  --f-body: "Golos Text", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-mono: "PT Mono", ui-monospace, Menlo, Consolas, monospace;
+  --gl: max(16px, env(safe-area-inset-left, 0px));
+  --gr: max(16px, env(safe-area-inset-right, 0px));
+}
+[hidden] { display: none !important; }
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  background: var(--desk); color: var(--text); font-family: var(--f-body); font-size: 14px; line-height: 1.4;
+  display: grid; grid-template-rows: auto minmax(220px, 46fr) 54fr; grid-template-columns: 100%;
+  overflow: hidden; overscroll-behavior: none; -webkit-tap-highlight-color: transparent;
+}
+button { font: inherit; color: inherit; cursor: pointer; }
+button:focus-visible { outline: 2px solid var(--brass); outline-offset: 1px; }
+h2, h3 { font-family: var(--f-head); font-weight: 600; text-transform: uppercase; letter-spacing: .06em; margin: 0; }
+h2 { font-size: 18px; } h3 { font-size: 13px; color: var(--dim); margin-top: 16px; margin-bottom: 6px; }
+
+#hud {
+  display: flex; align-items: center; gap: 10px; padding: 8px var(--gr) 8px var(--gl);
+  border-bottom: 1px solid var(--rule); background: var(--panel);
+}
+#res { display: flex; gap: 12px; flex: 1; min-width: 0; flex-wrap: wrap; row-gap: 2px; }
+.cell { display: flex; flex-direction: column; }
+.cell small { font-family: var(--f-head); font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--dim); line-height: 1.2; }
+.cell b { font-family: var(--f-mono); font-weight: 400; font-size: 15px; font-variant-numeric: tabular-nums; }
+#speed { display: flex; border: 1px solid var(--rule); border-radius: 3px; overflow: hidden; flex: none; }
+#speed button { background: none; border: 0; padding: 8px 10px; font-family: var(--f-mono); font-size: 13px; color: var(--dim); min-width: 38px; }
+#speed button + button { border-left: 1px solid var(--rule); }
+#speed button[aria-pressed="true"] { background: var(--brass); color: #1a1c16; }
+
+#stage { position: relative; min-height: 0; background: #b9af8a; }
+#cv { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: manipulation; }
+#toast {
+  position: absolute; left: var(--gl); right: var(--gr); bottom: 10px; margin: 0 auto; width: fit-content; max-width: calc(100% - 32px);
+  background: rgba(26, 28, 22, .92); border-left: 3px solid var(--brass); padding: 7px 12px; font-size: 13px;
+  opacity: 0; transition: opacity .3s; pointer-events: none;
+}
+#toast.bad { border-color: var(--red); } #toast.good { border-color: var(--ok); } #toast.on { opacity: 1; }
+
+#panel { min-height: 0; display: flex; flex-direction: column; background: var(--panel); border-top: 1px solid var(--rule); }
+#tabs { display: flex; border-bottom: 1px solid var(--rule); padding: 0 var(--gr) 0 var(--gl); gap: 4px; flex: none; }
+#tabs button {
+  background: none; border: 0; border-bottom: 2px solid transparent; padding: 10px 12px 8px;
+  font-family: var(--f-head); font-size: 14px; letter-spacing: .08em; text-transform: uppercase; color: var(--dim);
+}
+#tabs button[aria-selected="true"] { color: var(--text); border-color: var(--brass); }
+#tabs button.alert { color: var(--red); animation: blink 1s steps(2) infinite; }
+@keyframes blink { 50% { opacity: .45; } }
+#body { flex: 1; overflow-y: auto; min-height: 0; padding: 12px var(--gr) calc(env(safe-area-inset-bottom, 0px) + 20px) var(--gl); }
+#body p { margin: 4px 0; } .dim { color: var(--dim); } .bad { color: var(--red); } .good { color: var(--ok); }
+.head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.tag { font-family: var(--f-head); font-size: 11px; letter-spacing: .1em; text-transform: uppercase; padding: 1px 7px; border: 1px solid currentColor; border-radius: 2px; }
+.tag.foe { color: var(--red); } .tag.ours { color: var(--blue); } .tag.cont { color: var(--brass); }
+.acts { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+.btn {
+  display: flex; justify-content: space-between; align-items: center; gap: 10px; text-align: left; width: 100%;
+  background: var(--panel-2); border: 1px solid var(--rule); border-radius: 3px; padding: 10px 12px; min-height: 44px;
+}
+.btn b { font-weight: 600; } .btn span { font-family: var(--f-mono); font-size: 12px; color: var(--dim); text-align: right; flex: none; }
+.btn.go { border-color: var(--brass); } .btn.go b { color: var(--brass); }
+.btn:disabled { opacity: .45; cursor: default; }
+.btn.small { width: auto; display: inline-flex; min-height: 36px; padding: 6px 10px; }
+.row { display: flex; gap: 6px; flex-wrap: wrap; }
+.card { border-top: 1px solid var(--rule); padding: 9px 0; display: flex; justify-content: space-between; gap: 10px; align-items: center; }
+.card > div { min-width: 0; }
+.card b { font-family: var(--f-head); font-weight: 600; letter-spacing: .05em; text-transform: uppercase; font-size: 15px; }
+.pips { display: flex; gap: 3px; margin-top: 4px; }
+.pips i { width: 16px; height: 5px; background: var(--rule); position: relative; display: block; }
+.pips i::after { content: ""; position: absolute; inset: 0 auto 0 0; width: var(--h); background: var(--ok); }
+.pips i.low::after { background: var(--red); }
+.lv { font-family: var(--f-mono); color: var(--brass); letter-spacing: 2px; }
+.bar { height: 6px; background: var(--rule); margin: 4px 0 2px; } .bar i { display: block; height: 100%; background: var(--brass); }
+.bar.hp i { background: var(--ok); }
+.log { display: grid; grid-template-columns: auto 1fr; gap: 3px 10px; }
+.log time { font-family: var(--f-mono); font-size: 12px; color: var(--dim); white-space: nowrap; padding-top: 1px; }
+
+#over {
+  position: fixed; inset: 0; z-index: 10; display: grid; place-items: center; overflow-y: auto;
+  padding: 24px var(--gr) 24px var(--gl); background: rgba(16, 17, 13, .93);
+}
+#over > div { max-width: 34em; }
+#over .stamp { font-family: var(--f-mono); font-size: 12px; color: var(--brass); letter-spacing: .08em; }
+#over h1 { font-family: var(--f-head); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; font-size: clamp(34px, 10vw, 60px); line-height: 1.05; margin: 8px 0 14px; text-wrap: balance; }
+#over p { color: var(--dim); font-size: 15px; line-height: 1.55; margin: 0 0 10px; }
+#over .acts { max-width: 20em; margin-top: 20px; }
+
+@media (min-width: 860px) {
+  body { grid-template-rows: auto 1fr; grid-template-columns: 1fr 400px; }
+  #hud { grid-column: 1 / -1; }
+  #panel { border-top: 0; border-left: 1px solid var(--rule); }
+}
+@media (prefers-reduced-motion: reduce) { #tabs button.alert { animation: none; } #toast { transition: none; } }
+</style>
+
+<header id="hud">
+  <div id="res"></div>
+  <div id="speed" role="group" aria-label="Скорость времени">
+    <button id="sp0" data-a="speed" data-i="0" aria-label="Пауза">II</button>
+    <button id="sp1" data-a="speed" data-i="1">1×</button>
+    <button id="sp3" data-a="speed" data-i="3">3×</button>
+  </div>
+</header>
+
+<div id="stage">
+  <canvas id="cv" aria-label="Карта района и план заставы"></canvas>
+  <div id="toast" role="status"></div>
+</div>
+
+<section id="panel">
+  <div id="tabs" role="tablist">
+    <button id="tab-ops" role="tab" data-a="tab" data-i="ops">Операции</button>
+    <button id="tab-base" role="tab" data-a="tab" data-i="base">Застава</button>
+    <button id="tab-log" role="tab" data-a="tab" data-i="log">Журнал</button>
+  </div>
+  <div id="body"></div>
+</section>
+
+<div id="over"></div>
+
+<script>
+(() => {
+'use strict';
+const $ = id => document.getElementById(id);
+const R = (a, b) => a + Math.random() * (b - a), pick = a => a[Math.floor(Math.random() * a.length)];
+const KEY = 'rubezh-zastava-v1';
+const NAMES = ['Сыч', 'Бурый', 'Гвоздь', 'Лис', 'Кремень', 'Тихий', 'Шмель', 'Корень', 'Дрозд', 'Маяк', 'Седло', 'Юла', 'Тополь', 'Жук', 'Сокол', 'Рыжий', 'Молот', 'Штиль', 'Цыган', 'Окунь', 'Варяг', 'Батя', 'Якорь', 'Мох', 'Ветер', 'Зуб', 'Грач', 'Полоз', 'Скиф', 'Хмурый'];
+const SQN = ['Гранит', 'Кедр', 'Барс', 'Вепрь'];
+const RANK = ['новобранцы', 'бойцы', 'ветераны', 'мастера'];
+const TYPES = { m: { n: 'Стая', l: 'С', who: 'стая мутантов' }, b: { n: 'Мародёры', l: 'М', who: 'банда мародёров' }, c: { n: 'Немые', l: 'Н', who: 'отряд Немых' } };
+const LOCS = [
+  { n: 'Застава', x: 50, y: 74 },
+  { n: 'Старый хутор', x: 30, y: 62, t: 'm', s: 45, inc: { s: 10 }, d: 'Брошенные дворы. В погребах завелась стая.' },
+  { n: 'Автобаза', x: 70, y: 64, t: 'b', s: 70, inc: { p: 8 }, d: 'Гаражи и ремзона. Мародёры разбирают технику на продажу.' },
+  { n: 'Элеватор', x: 46, y: 50, t: 'b', s: 110, inc: { s: 14 }, d: 'Высокая точка над всей долиной. Кто держит элеватор, тот видит дороги.' },
+  { n: 'Торфяники', x: 22, y: 40, t: 'm', s: 130, inc: { a: .5, s: 4 }, d: 'Болото с аномалиями. Артефакты есть, но и зверья хватает.' },
+  { n: 'Депо', x: 80, y: 44, t: 'b', s: 170, inc: { p: 14 }, d: 'Вагоны, станки, склад запчастей. Главная база мародёров.' },
+  { n: 'НИИ «Кварц»', x: 40, y: 30, t: 'm', s: 220, inc: { a: 1, p: 6 }, d: 'Лаборатории под землёй. Оттуда лезет то, что раньше держали в клетках.' },
+  { n: 'Радиополе', x: 72, y: 26, t: 'c', s: 260, inc: { s: 10, p: 10 }, d: 'Мачты и бункер связи. Немые до сих пор шлют отсюда свой сигнал.' },
+  { n: 'Мёртвый посёлок', x: 28, y: 15, t: 'c', s: 320, inc: { s: 18 }, d: 'Пятиэтажки на окраине. В каждом окне может сидеть стрелок.' },
+  { n: 'Станция «Зенит»', x: 58, y: 9, t: 'c', s: 480, inc: { a: 2, s: 10, p: 10 }, d: 'Последний оплот Немых. Здесь закончилась война, и здесь её надо добить.' }
+];
+const EDGES = [[0, 1], [0, 2], [1, 3], [2, 3], [1, 4], [2, 5], [3, 6], [4, 6], [5, 7], [6, 7], [6, 8], [7, 9], [8, 9]];
+const elen = (a, b) => Math.hypot(LOCS[a].x - LOCS[b].x, LOCS[a].y - LOCS[b].y);
+const BLD = {
+  hq: { n: 'Штаб', max: 3, c: [70, 60], pos: [50, 42, 16, 10], eff: l => `до ${l + 1} отрядов, прочность ${150 + l * 100}` },
+  bar: { n: 'Казарма', max: 3, c: [50, 30], pos: [31, 26, 14, 8], eff: l => `до ${4 + l * 4} бойцов` },
+  work: { n: 'Мастерская', max: 3, c: [40, 60], pos: [69, 26, 14, 8], eff: l => l ? `сила бойцов +${l * 40}%, потери −${l * 10}%` : 'снаряжение базовое' },
+  med: { n: 'Лазарет', max: 2, c: [40, 30], pos: [31, 58, 12, 7], eff: l => l ? `раненые встают в строй в ${1 + l} раза быстрее` : 'раненые лечатся медленно' },
+  tow: { n: 'Вышки', max: 3, c: [30, 50], eff: l => ['периметр без вышек', '2 вышки', '4 вышки', '4 вышки с пулемётами'][l] },
+  radio: { n: 'Радиоузел', max: 2, c: [30, 50], pos: [69, 58, 12, 7], eff: l => ['налёт виден за 5 часов', 'налёт виден за 12 часов, известна численность', 'то же, и контратаки на точки вдвое реже'][l] }
+};
+const TOWERS = [[18, 14], [82, 70], [82, 14], [18, 70]];
+const ENEMY = { m: { hp: 50, sp: 8, rg: 3, dm: 12, cd: .8, hit: 1 }, b: { hp: 38, sp: 4.5, rg: 17, dm: 8, cd: 1.1, hit: .6 }, c: { hp: 60, sp: 4.5, rg: 20, dm: 12, cd: 1, hit: .65 } };
+const PATROL = [[22, 18], [50, 18], [78, 18], [78, 42], [78, 66], [50, 66], [22, 66], [22, 42], [50, 52], [40, 36], [60, 36]];
+
+let G, tab = 'ops', sel = 0, dirty = true, shots = [], towerCd = [0, 0, 0, 0], confirmNew = false;
+
+/* ---------- state ---------- */
+function newFighter() {
+  const used = new Set(G.fighters.map(f => f.name)); const free = NAMES.filter(n => !used.has(n));
+  const p = pick(PATROL);
+  const f = { id: G.nid++, name: free.length ? pick(free) : pick(NAMES) + '-' + G.nid, hp: 100, xp: 0, sq: 0, x: p[0], y: p[1], tx: p[0], ty: p[1], w: 0, cd: 0 };
+  G.fighters.push(f); return f;
+}
+function newGame() {
+  G = { v: 1, h: 8, speed: 1, res: { s: 120, p: 60, a: 0 }, fighters: [], nid: 1, squads: [], sid: 1,
+    bld: { hq: 1, bar: 1, work: 0, med: 0, tow: 0, radio: 0 }, build: null, recruit: { n: 0, left: 0 },
+    locs: LOCS.map(L => ({ st: 'foe', enemy: L.s || 0, post: false, lost: 0 })), raid: null, plan: null, nextRaid: 62, warned: false,
+    hqhp: 250, log: [], over: false, won: false, started: false };
+  for (let i = 0; i < 8; i++) newFighter();
+  formSquad(true);
+  log('Генерал Гордеев принял командование заставой. В строю восемь человек.');
+}
+function save() { try { localStorage.setItem(KEY, JSON.stringify(G)); } catch (e) {} }
+function load() { try { const s = JSON.parse(localStorage.getItem(KEY)); if (s && s.v === 1 && s.fighters) { G = s; return true; } } catch (e) {} return false; }
+
+const clock = h => `д.${Math.floor(h / 24) + 1} ${String(Math.floor(h) % 24).padStart(2, '0')}:00`;
+function log(t, c) {
+  G.log.unshift({ h: Math.floor(G.h), t, c: c || '' }); if (G.log.length > 70) G.log.pop();
+  if (c) { const el = $('toast'); el.textContent = t; el.className = 'on ' + c; clearTimeout(log.tm); log.tm = setTimeout(() => el.className = c, 4200); }
+  dirty = true;
+}
+const members = q => G.fighters.filter(f => f.sq === q.id);
+const garrison = () => G.fighters.filter(f => f.sq === 0);
+const squad = id => G.squads.find(q => q.id === id);
+const atBase = f => f.sq === 0 || (squad(f.sq) || {}).state === 'base';
+const rank = f => Math.min(3, Math.floor(f.xp / 2));
+const power = f => (10 + 4 * G.bld.work) * (1 + .15 * rank(f)) * (f.hp < 35 ? .5 : 1);
+const sqPower = q => Math.round(members(q).reduce((a, f) => a + power(f), 0));
+const cap = () => 4 + G.bld.bar * 4;
+const hqMax = () => 150 + G.bld.hq * 100;
+const owned = () => G.locs.filter((l, i) => i && l.st !== 'foe').length;
+function cost(k) { const l = G.bld[k], c = BLD[k].c; return { s: c[0] * (l + 1), p: c[1] * (l + 1), a: (l >= 2 ? 2 : 0) + (k === 'work' && l >= 1 ? 1 : 0) }; }
+const afford = c => G.res.s >= (c.s || 0) && G.res.p >= (c.p || 0) && Math.floor(G.res.a) >= (c.a || 0);
+const pay = c => { G.res.s -= c.s || 0; G.res.p -= c.p || 0; G.res.a -= c.a || 0; };
+const costStr = c => [c.s ? c.s + ' прип.' : '', c.p ? c.p + ' дет.' : '', c.a ? c.a + ' арт.' : ''].filter(Boolean).join(' · ');
+
+function kill(f, where) {
+  G.fighters = G.fighters.filter(x => x !== f);
+  log(`${f.name} погиб: ${where}.`, 'bad');
+}
+function hurt(f, d, where) { f.hp -= d; if (f.hp <= 0) kill(f, where); }
+
+function formSquad(silent) {
+  const g = garrison().sort((a, b) => b.hp - a.hp);
+  if (g.length < 4 || G.squads.length >= G.bld.hq + 1) return;
+  const name = SQN.find(n => !G.squads.some(q => q.name === n));
+  const q = { id: G.sid++, name, state: 'base', node: 0, path: null, seg: 0, prog: 0, x: 50, y: 74 };
+  G.squads.push(q); g.slice(0, 4).forEach(f => f.sq = q.id);
+  if (!silent) log(`Сформирован отряд «${name}».`);
+}
+function path(from, to) {
+  const D = LOCS.map(() => Infinity), P = LOCS.map(() => -1), done = new Set(); D[from] = 0;
+  const ok = n => n === 0 || n === to || n === from || G.locs[n].st !== 'foe';
+  for (;;) {
+    let u = -1; D.forEach((d, i) => { if (!done.has(i) && d < Infinity && (u < 0 || d < D[u])) u = i; });
+    if (u < 0) return null; if (u === to) break; done.add(u);
+    EDGES.forEach(([a, b]) => { const v = a === u ? b : b === u ? a : -1; if (v < 0 || !ok(v)) return; const nd = D[u] + elen(u, v); if (nd < D[v]) { D[v] = nd; P[v] = u; } });
+  }
+  const p = [to]; while (p[0] !== from) p.unshift(P[p[0]]); return p;
+}
+function send(q, to) {
+  const p = path(q.node, to) || (to === 0 ? [q.node, 0] : null); if (!p || p.length < 2) return false;
+  q.state = 'move'; q.path = p; q.seg = 0; q.prog = 0; q.dest = to; dirty = true; return true;
+}
+function arrive(q) {
+  q.path = null;
+  if (q.node === 0) { q.state = 'base'; members(q).forEach(f => { f.x = 50 + R(-3, 3); f.y = 69; f.tx = f.x; f.ty = f.y; f.w = 0; }); log(`«${q.name}» вернулся на заставу.`); return; }
+  const l = G.locs[q.node], L = LOCS[q.node];
+  if (l.st === 'ours') { q.state = 'hold'; log(`«${q.name}» занял оборону: ${L.n}.`); }
+  else { q.state = 'fight'; log(`«${q.name}» вступил в бой: ${L.n}.`); }
+}
+function moveSquads(dh) {
+  G.squads.forEach(q => {
+    if (q.state !== 'move') { const L = LOCS[q.node]; q.x = L.x; q.y = L.y; return; }
+    q.prog += 5 * dh;
+    for (;;) {
+      const a = q.path[q.seg], b = q.path[q.seg + 1], len = elen(a, b);
+      if (q.prog < len) { const t = q.prog / len; q.x = LOCS[a].x + (LOCS[b].x - LOCS[a].x) * t; q.y = LOCS[a].y + (LOCS[b].y - LOCS[a].y) * t; break; }
+      q.prog -= len; q.seg++; q.node = b;
+      if (q.seg >= q.path.length - 1) { q.x = LOCS[b].x; q.y = LOCS[b].y; arrive(q); break; }
+    }
+  });
+}
+
+/* ---------- hourly simulation ---------- */
+function hourTick() {
+  // construction and recruits
+  if (G.build) { G.build.left--; if (G.build.left <= 0) { const k = G.build.k; G.bld[k]++; G.build = null; if (k === 'hq') G.hqhp = hqMax(); log(`Построено: ${BLD[k].n}, уровень ${G.bld[k]}.`, 'good'); } }
+  if (G.recruit.n > 0) { G.recruit.left--; if (G.recruit.left <= 0) { const f = newFighter(); f.x = 50; f.y = 70; G.recruit.n--; G.recruit.left = 5; log(`На заставу пришёл новичок: ${f.name}.`); } }
+  // healing
+  const fed = G.res.s > 0;
+  G.fighters.forEach(f => { if (f.hp >= 100) return; const q = f.sq ? squad(f.sq) : null; const home = !q || q.state === 'base';
+    if (home && !G.raid && fed) f.hp = Math.min(100, f.hp + 2 * (1 + G.bld.med)); else if (q && q.state === 'hold') f.hp = Math.min(100, f.hp + .5); });
+  if (!G.raid && G.hqhp < hqMax()) G.hqhp = Math.min(hqMax(), G.hqhp + 4);
+  // battles at locations
+  for (let i = 1; i < LOCS.length; i++) {
+    const l = G.locs[i], L = LOCS[i]; if (l.st === 'ours') continue;
+    const fs = G.squads.filter(q => q.state === 'fight' && q.node === i);
+    if (!fs.length) {
+      if (l.st === 'foe') { if (l.enemy < L.s) l.enemy = Math.min(L.s, l.enemy + L.s * .015); }
+      else if (++l.lost >= 30) { l.st = 'foe'; l.enemy = Math.round(L.s * .6); l.post = false; l.lost = 0; log(`Точка потеряна: ${L.n}. Помощь не пришла.`, 'bad'); }
+      continue;
+    }
+    let P = 0; fs.forEach(q => P += sqPower(q));
+    l.enemy -= P * R(.1, .18);
+    const dmg = Math.max(0, l.enemy) * R(.06, .11) * (1 - .1 * G.bld.work);
+    for (let k = 0; k < 3; k++) { const all = fs.flatMap(members); if (all.length) hurt(pick(all), dmg / 3, L.n); }
+    if (l.enemy <= 0) {
+      const first = l.st === 'foe'; l.st = 'ours'; l.enemy = 0; l.lost = 0;
+      fs.forEach(q => { q.state = 'hold'; members(q).forEach(f => f.xp++); });
+      if (first) {
+        const ls = Math.round(L.s * .5), lp = Math.round(L.s * .3), la = L.s >= 130 ? 1 : 0; G.res.s += ls; G.res.p += lp; G.res.a += la;
+        log(`${L.n}: точка взята. Трофеи: ${ls} прип., ${lp} дет.${la ? ', артефакт' : ''}.`, 'good');
+        if (i === 9 && !G.won) { G.won = true; G.speed = 0; overlay('win'); }
+      } else log(`${L.n}: контратака отбита.`, 'good');
+    } else fs.forEach(q => {
+      const m = members(q), hp = m.reduce((a, f) => a + f.hp, 0);
+      if (m.length && (hp < m.length * 32 || (m.length === 1 && hp < 60))) { log(`«${q.name}» отходит с тяжёлыми потерями: ${L.n}.`, 'bad'); send(q, 0); }
+    });
+  }
+  G.squads = G.squads.filter(q => { if (members(q).length) return true; log(`Отряд «${q.name}» погиб целиком.`, 'bad'); return false; });
+  // raid on the base
+  const lead = G.bld.radio >= 1 ? 12 : 5;
+  if (!G.warned && !G.raid && G.h >= G.nextRaid - lead) {
+    G.warned = true; const day = G.h / 24, o = owned();
+    G.plan = { t: o >= 6 && Math.random() < .5 ? 'c' : Math.random() < .55 ? 'm' : 'b', n: Math.min(20, Math.round(3 + day / 2.5 + o * .8)) };
+    log(G.bld.radio >= 1 ? `Радиоперехват: через ${lead} ч к заставе выйдет ${TYPES[G.plan.t].who}, до ${G.plan.n}.` : 'Дозор заметил движение у периметра. Через несколько часов ждите гостей.', 'bad');
+  }
+  if (!G.raid && G.h >= G.nextRaid) startRaid();
+  // midnight: income, upkeep, counterattacks
+  if (Math.floor(G.h) % 24 === 0) {
+    let is = 6, ip = 3, ia = 0;
+    G.locs.forEach((l, i) => { if (i && l.st === 'ours') { const c = LOCS[i].inc; is += c.s || 0; ip += c.p || 0; ia += c.a || 0; } });
+    const eat = Math.ceil(G.fighters.length * .5);
+    G.res.s = Math.max(0, G.res.s + is - eat); G.res.p += ip; G.res.a += ia;
+    log(`Сутки: +${is} прип., +${ip} дет.${ia ? `, +${ia} арт.` : ''} Паёк: −${eat} прип.`);
+    if (G.res.s <= 0) log('Припасы кончились. Раненые не лечатся.', 'bad');
+    G.locs.forEach((l, i) => {
+      if (!i || l.st !== 'ours' || Math.random() > .14 * (G.bld.radio >= 2 ? .5 : 1)) return;
+      const L = LOCS[i], str = Math.round(L.s * R(.35, .6)), hs = G.squads.filter(q => q.state === 'hold' && q.node === i);
+      if (hs.length) { l.st = 'cont'; l.enemy = str; l.lost = 0; hs.forEach(q => q.state = 'fight'); log(`${L.n}: контратака, отряд принял бой.`, 'bad'); }
+      else if (l.post && str < 120) log(`${L.n}: блокпост отбил нападение.`, 'good');
+      else { l.st = 'cont'; l.enemy = str; l.lost = 0; log(`${L.n} под ударом. Без помощи точка падёт через 30 часов.`, 'bad'); }
+    });
+  }
+  dirty = true;
+}
+
+/* ---------- base defence ---------- */
+function startRaid() {
+  const p = G.plan || { t: 'm', n: 4 }, side = Math.floor(Math.random() * 4), E = ENEMY[p.t], en = [];
+  for (let i = 0; i < p.n; i++) {
+    const k = R(15, 85), o = R(0, 6);
+    const pos = side === 0 ? [k, 1 + o] : side === 1 ? [99 - o, k * .84] : side === 2 ? [k, 83 - o] : [1 + o, k * .84];
+    en.push({ x: pos[0], y: pos[1], hp: E.hp + G.h / 24, cd: R(0, 1), d: R(0, 1.5) });
+  }
+  G.raid = { t: p.t, n: p.n, en }; G.plan = null;
+  log(`Нападение на заставу: ${TYPES[p.t].who}, ${p.n}. Гарнизон принял бой.`, 'bad');
+}
+const step = (o, tx, ty, d) => { const dx = tx - o.x, dy = ty - o.y, L = Math.hypot(dx, dy) || 1; if (L <= d) { o.x = tx; o.y = ty; return true; } o.x += dx / L * d; o.y += dy / L * d; return false; };
+const near = (o, arr, max) => { let b = null, bd = max; arr.forEach(e => { const d = Math.hypot(e.x - o.x, e.y - o.y); if (d < bd) { bd = d; b = e; } }); return b; };
+function baseSim(dt) {
+  const guards = G.fighters.filter(atBase);
+  shots.forEach(s => s.l -= dt); shots = shots.filter(s => s.l > 0);
+  if (!G.raid) {
+    guards.forEach(g => { if (step(g, g.tx, g.ty, 2.5 * dt)) { g.w -= dt; if (g.w <= 0) { const p = pick(PATROL); g.tx = p[0] + R(-3, 3); g.ty = p[1] + R(-2, 2); g.w = R(1, 6); } } });
+    return;
+  }
+  const en = G.raid.en, E = ENEMY[G.raid.t];
+  guards.forEach(g => {
+    const e = near(g, en, 1e9); if (!e) return; const d = Math.hypot(e.x - g.x, e.y - g.y);
+    if (d > 22) step(g, e.x, e.y, 7 * dt);
+    else if ((g.cd -= dt) <= 0) { g.cd = .7; shots.push({ a: g, b: { x: e.x, y: e.y }, l: .12, c: 0 }); if (Math.random() < .75) e.hp -= power(g) * R(.5, 1); }
+  });
+  const tn = [0, 2, 4, 4][G.bld.tow];
+  for (let i = 0; i < tn; i++) {
+    const T = { x: TOWERS[i][0], y: TOWERS[i][1] }, e = near(T, en, 32); if (!e) continue;
+    if ((towerCd[i] -= dt) <= 0) { towerCd[i] = .6; shots.push({ a: T, b: { x: e.x, y: e.y }, l: .12, c: 0 }); if (Math.random() < .8) e.hp -= G.bld.tow >= 3 ? 24 : 14; }
+  }
+  const HQ = { x: 50, y: 42 };
+  en.forEach(e => {
+    if (e.d > 0) { e.d -= dt; return; }
+    const g = near(e, G.fighters.filter(atBase), 30), t = g || HQ, d = Math.hypot(t.x - e.x, t.y - e.y), rg = g ? E.rg : Math.max(E.rg, 9);
+    if (d > rg) step(e, t.x, t.y, E.sp * dt);
+    else if ((e.cd -= dt) <= 0) {
+      e.cd = E.cd; if (E.rg > 5) shots.push({ a: { x: e.x, y: e.y }, b: { x: t.x, y: t.y }, l: .12, c: 1 });
+      if (Math.random() < E.hit) { if (g) hurt(g, E.dm * (1 - .1 * G.bld.work), 'при обороне заставы'); else G.hqhp -= E.dm * .6; }
+    }
+  });
+  G.raid.en = en.filter(e => e.hp > 0);
+  G.squads = G.squads.filter(q => members(q).length);
+  if (G.hqhp <= 0) { G.hqhp = 0; G.over = true; G.speed = 0; G.raid = null; overlay('lose'); save(); return; }
+  if (!G.raid.en.length) {
+    const loot = G.raid.n * 3; G.res.s += loot; G.fighters.filter(atBase).forEach(f => f.xp += .5);
+    log(`Нападение отбито. С тел собрали ${loot} прип.`, 'good');
+    G.raid = null; G.warned = false; G.nextRaid = G.h + R(44, 80);
+  }
+  dirty = true;
+}
+
+/* ---------- canvas ---------- */
+const cv = $('cv'), cx = cv.getContext('2d');
+let W = 0, H = 0, S = 1, OX = 0, OY = 0, DPR = 1, bgMap = null, bgBase = null;
+const INK = '#2b2a22', PAPER = '#cbc19c', RED = '#a8321f', BLUE = '#1f4f7d';
+const fH = px => `600 ${px}px Oswald, "Arial Narrow", sans-serif`;
+function srand(seed) { return () => { seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+function paper(c, w, h, r) {
+  c.fillStyle = PAPER; c.fillRect(0, 0, w, h);
+  for (let i = 0; i < w * h / 260; i++) { c.fillStyle = r() < .5 ? 'rgba(90,80,50,.07)' : 'rgba(255,250,225,.09)'; c.fillRect(r() * w, r() * h, 1 + r() * 2.5, 1 + r() * 2.5); }
+}
+function grid(c) {
+  c.strokeStyle = 'rgba(43,42,34,.16)'; c.lineWidth = .12; c.beginPath();
+  for (let x = 0; x <= 100; x += 10) { c.moveTo(x, 0); c.lineTo(x, 84); } for (let y = 4; y <= 84; y += 10) { c.moveTo(0, y); c.lineTo(100, y); } c.stroke();
+  c.fillStyle = 'rgba(43,42,34,.45)'; c.font = fH(1.9); c.textAlign = 'left'; c.textBaseline = 'top';
+  'АБВГДЕЖЗИК'.split('').forEach((ch, i) => c.fillText(ch, i * 10 + .7, .4));
+  for (let i = 1; i <= 8; i++) c.fillText(String(i), .7, i * 10 - 4.5);
+}
+function makeBg(kind) {
+  const o = document.createElement('canvas'); o.width = W * DPR; o.height = H * DPR; const c = o.getContext('2d'), r = srand(kind === 'map' ? 5 : 9);
+  paper(c, o.width, o.height, r);
+  c.setTransform(S * DPR, 0, 0, S * DPR, OX * DPR, OY * DPR);
+  if (kind === 'map') {
+    for (let k = 0; k < 30; k++) { const x = r() * 100, y = r() * 84; if (Math.hypot(x - 50, y - 74) < 9) continue; for (let j = 0; j < 12; j++) { c.fillStyle = 'rgba(98,116,70,.17)'; c.beginPath(); c.arc(x + (r() - .5) * 12, y + (r() - .5) * 9, 1.5 + r() * 3, 0, 7); c.fill(); } }
+    c.fillStyle = 'rgba(86,124,128,.22)'; for (let j = 0; j < 16; j++) { c.beginPath(); c.ellipse(22 + (r() - .5) * 16, 40 + (r() - .5) * 10, 3 + r() * 4, 1.5 + r() * 2, 0, 0, 7); c.fill(); }
+    c.strokeStyle = 'rgba(50,90,100,.5)'; c.lineWidth = .15; c.beginPath(); for (let j = 0; j < 40; j++) { const x = 13 + r() * 18, y = 34 + r() * 12; c.moveTo(x, y); c.lineTo(x + 1.6, y); } c.stroke();
+    c.strokeStyle = 'rgba(70,110,135,.55)'; c.lineWidth = 1.1; c.lineCap = 'round'; c.beginPath(); c.moveTo(-2, 22); c.bezierCurveTo(12, 30, 6, 50, 16, 56); c.bezierCurveTo(26, 62, 22, 76, 36, 86); c.stroke();
+    c.strokeStyle = 'rgba(120,96,56,.3)'; c.lineWidth = .14;
+    [[62, 36, 9], [88, 70, 8], [10, 12, 9], [86, 12, 7], [8, 74, 7]].forEach(h => { for (let k = 1; k <= 4; k++) { const ph = r() * 6; c.beginPath(); for (let a = 0; a <= 6.3; a += .15) { const rr = h[2] * k / 4 * (1 + .16 * Math.sin(a * 3 + ph) + .08 * Math.sin(a * 5 + ph * 2)); const x = h[0] + Math.cos(a) * rr * 1.2, y = h[1] + Math.sin(a) * rr; a ? c.lineTo(x, y) : c.moveTo(x, y); } c.closePath(); c.stroke(); } });
+    grid(c);
+    EDGES.forEach(([a, b]) => { const A = LOCS[a], B = LOCS[b]; c.strokeStyle = 'rgba(226,216,180,.9)'; c.lineWidth = 1.3; c.setLineDash([]); c.beginPath(); c.moveTo(A.x, A.y); c.lineTo(B.x, B.y); c.stroke(); c.strokeStyle = 'rgba(43,42,34,.6)'; c.lineWidth = .22; c.setLineDash([1.2, .8]); c.beginPath(); c.moveTo(A.x, A.y); c.lineTo(B.x, B.y); c.stroke(); });
+    c.setLineDash([]); c.fillStyle = 'rgba(43,42,34,.5)'; c.font = fH(1.7); c.textAlign = 'right'; c.textBaseline = 'bottom'; c.fillText('ЛИСТ М-36-12 · 1 : 50 000 · ДЛЯ СЛУЖЕБНОГО ПОЛЬЗОВАНИЯ', 99, 83.4);
+  } else {
+    grid(c);
+    c.strokeStyle = 'rgba(226,216,180,.9)'; c.lineWidth = 3; c.beginPath(); c.moveTo(50, 70); c.lineTo(50, 90); c.stroke();
+    c.strokeStyle = INK; c.lineWidth = .35; c.setLineDash([2.4, .8, .5, .8]); c.strokeRect(18, 14, 64, 56); c.setLineDash([]);
+    c.clearRect(0, 0, 0, 0); c.fillStyle = PAPER; c.fillRect(46, 69.4, 8, 1.2);
+    c.fillStyle = 'rgba(43,42,34,.5)'; c.font = fH(1.7); c.textAlign = 'center'; c.textBaseline = 'top'; c.fillText('КПП', 50, 71.2);
+    c.textAlign = 'right'; c.textBaseline = 'bottom'; c.fillText('ПЛАН ЗАСТАВЫ «РУБЕЖ» · 1 : 500', 99, 83.4);
+  }
+  return o;
+}
+function resize() {
+  const r = $('stage').getBoundingClientRect(); W = Math.max(50, r.width); H = Math.max(50, r.height); DPR = Math.min(window.devicePixelRatio || 1, 2);
+  cv.width = W * DPR; cv.height = H * DPR; S = Math.min(W / 100, H / 84); OX = (W - 100 * S) / 2; OY = (H - 84 * S) / 2;
+  bgMap = makeBg('map'); bgBase = makeBg('base');
+}
+function label(t, x, y, size, col, align) {
+  cx.font = fH(size); cx.textAlign = align || 'center'; cx.textBaseline = 'top'; cx.lineJoin = 'round';
+  cx.strokeStyle = 'rgba(203,193,156,.9)'; cx.lineWidth = size * .28; cx.strokeText(t, x, y); cx.fillStyle = col; cx.fillText(t, x, y);
+}
+function unitMark(x, y, w, h) {
+  cx.fillStyle = 'rgba(214,226,238,.95)'; cx.strokeStyle = BLUE; cx.lineWidth = .3; cx.fillRect(x - w / 2, y - h / 2, w, h); cx.strokeRect(x - w / 2, y - h / 2, w, h);
+  cx.beginPath(); cx.moveTo(x - w / 2, y - h / 2); cx.lineTo(x + w / 2, y + h / 2); cx.moveTo(x + w / 2, y - h / 2); cx.lineTo(x - w / 2, y + h / 2); cx.stroke();
+}
+function reachable(i) { return EDGES.some(([a, b]) => (a === i && (b === 0 || G.locs[b].st !== 'foe')) || (b === i && (a === 0 || G.locs[a].st !== 'foe'))); }
+function drawMap(t) {
+  const fs = Math.max(2.5, 11 / S), pulse = .5 + .5 * Math.sin(t * 5);
+  LOCS.forEach((L, i) => {
+    const l = G.locs[i];
+    if (i === sel && i) { cx.strokeStyle = INK; cx.lineWidth = .25; cx.setLineDash([.9, .7]); cx.beginPath(); cx.arc(L.x, L.y, 5.4, 0, 7); cx.stroke(); cx.setLineDash([]); }
+    if (i === 0) {
+      cx.fillStyle = G.raid ? `rgba(168,50,31,${.25 + pulse * .35})` : 'rgba(31,79,125,.22)'; cx.strokeStyle = BLUE; cx.lineWidth = .45;
+      cx.fillRect(L.x - 4, L.y - 2.6, 8, 5.2); cx.strokeRect(L.x - 4, L.y - 2.6, 8, 5.2); cx.lineWidth = .2; cx.strokeRect(L.x - 3.3, L.y - 1.9, 6.6, 3.8);
+      cx.fillStyle = BLUE; cx.beginPath(); cx.moveTo(L.x, L.y - 2.6); cx.lineTo(L.x, L.y - 6); cx.lineTo(L.x + 2.6, L.y - 5.1); cx.lineTo(L.x, L.y - 4.2); cx.fill(); cx.lineWidth = .25; cx.beginPath(); cx.moveTo(L.x, L.y - 2.6); cx.lineTo(L.x, L.y - 6); cx.stroke();
+      label('ЗАСТАВА', L.x, L.y + 3.3, fs, BLUE); return;
+    }
+    cx.globalAlpha = l.st === 'foe' && !reachable(i) ? .5 : 1;
+    if (l.st !== 'foe') {
+      cx.fillStyle = 'rgba(31,79,125,.2)'; cx.strokeStyle = BLUE; cx.lineWidth = .35; cx.fillRect(L.x - 3, L.y - 2, 6, 4); cx.strokeRect(L.x - 3, L.y - 2, 6, 4);
+      if (l.post) { cx.fillStyle = BLUE; cx.beginPath(); cx.moveTo(L.x - 1.3, L.y + 1.2); cx.lineTo(L.x, L.y - 1.4); cx.lineTo(L.x + 1.3, L.y + 1.2); cx.fill(); }
+    }
+    if (l.st !== 'ours') {
+      const k = l.st === 'cont' ? 3.6 + pulse * .8 : 3.2;
+      cx.fillStyle = l.st === 'cont' ? 'rgba(168,50,31,.1)' : 'rgba(168,50,31,.2)'; cx.strokeStyle = RED; cx.lineWidth = .4;
+      cx.beginPath(); cx.moveTo(L.x, L.y - k); cx.lineTo(L.x + k * 1.25, L.y); cx.lineTo(L.x, L.y + k); cx.lineTo(L.x - k * 1.25, L.y); cx.closePath(); cx.fill(); cx.stroke();
+      if (l.st === 'foe') { cx.fillStyle = RED; cx.font = fH(3); cx.textAlign = 'center'; cx.textBaseline = 'middle'; cx.fillText(TYPES[L.t].l, L.x, L.y + .2); }
+    }
+    label(L.n.toUpperCase(), L.x, L.y + 4, fs, l.st === 'foe' ? INK : BLUE);
+    if (l.st !== 'ours') label('сила ' + Math.ceil(l.enemy), L.x, L.y + 4 + fs * 1.15, fs * .8, RED);
+    cx.globalAlpha = 1;
+    if (G.squads.some(q => q.state === 'fight' && q.node === i)) for (let k = 0; k < 3; k++) { const a = t * 3 + k * 2.1, rr = 4 + Math.sin(t * 9 + k) * 1; cx.fillStyle = k % 2 ? RED : BLUE; cx.beginPath(); cx.arc(L.x + Math.cos(a) * rr, L.y + Math.sin(a) * rr * .7, .5 + pulse * .4, 0, 7); cx.fill(); }
+  });
+  const count = {};
+  G.squads.forEach(q => {
+    if (q.state === 'base') return;
+    let x = q.x, y = q.y;
+    if (q.state !== 'move') { const n = count[q.node] = (count[q.node] || 0) + 1; x += 5.2; y -= 4.6 - (n - 1) * 3.4; }
+    else if (q.path) { const D = LOCS[q.dest]; cx.strokeStyle = BLUE; cx.lineWidth = .3; cx.setLineDash([.8, .8]); cx.beginPath(); cx.moveTo(x, y); for (let k = q.seg + 1; k < q.path.length; k++) cx.lineTo(LOCS[q.path[k]].x, LOCS[q.path[k]].y); cx.stroke(); cx.setLineDash([]); cx.beginPath(); cx.arc(D.x, D.y, 1, 0, 7); cx.stroke(); }
+    unitMark(x, y, 4.4, 2.8); label(q.name.toUpperCase(), x, y - 1.6 - fs * .95, fs * .8, BLUE);
+  });
+}
+function drawBase(t) {
+  const fs = Math.max(2.2, 10 / S);
+  Object.keys(BLD).forEach(k => {
+    const B = BLD[k]; if (!B.pos) return; const [x, y, w, h] = B.pos, lv = G.bld[k], bu = G.build && G.build.k === k;
+    cx.lineWidth = .3; cx.strokeStyle = INK;
+    if (lv) { cx.fillStyle = 'rgba(43,42,34,.13)'; cx.fillRect(x - w / 2, y - h / 2, w, h); cx.strokeRect(x - w / 2, y - h / 2, w, h); cx.save(); cx.beginPath(); cx.rect(x - w / 2, y - h / 2, w, h); cx.clip(); cx.lineWidth = .12; cx.beginPath(); for (let d = -h; d < w; d += 1.6) { cx.moveTo(x - w / 2 + d, y + h / 2); cx.lineTo(x - w / 2 + d + h, y - h / 2); } cx.stroke(); cx.restore(); }
+    else { cx.setLineDash([.8, .8]); cx.globalAlpha = .5; cx.strokeRect(x - w / 2, y - h / 2, w, h); cx.setLineDash([]); }
+    label(B.n.toUpperCase() + (lv ? ' ' + 'I'.repeat(lv) : ''), x, y - fs * .5, fs, INK); cx.globalAlpha = 1;
+    if (bu) { cx.fillStyle = '#b07a1c'; cx.fillRect(x - w / 2, y + h / 2 + .6, w * (1 - G.build.left / G.build.total), .8); cx.strokeStyle = '#b07a1c'; cx.lineWidth = .15; cx.strokeRect(x - w / 2, y + h / 2 + .6, w, .8); }
+  });
+  const hq = BLD.hq.pos, k = Math.max(0, G.hqhp / hqMax());
+  cx.fillStyle = k > .5 ? '#4f7a36' : RED; cx.fillRect(hq[0] - hq[2] / 2, hq[1] - hq[3] / 2 - 1.8, hq[2] * k, .9); cx.strokeStyle = INK; cx.lineWidth = .15; cx.strokeRect(hq[0] - hq[2] / 2, hq[1] - hq[3] / 2 - 1.8, hq[2], .9);
+  const tn = [0, 2, 4, 4][G.bld.tow];
+  TOWERS.forEach((p, i) => { cx.lineWidth = .3; cx.strokeStyle = INK; if (i >= tn) { cx.globalAlpha = .35; cx.setLineDash([.6, .6]); } cx.fillStyle = PAPER; cx.beginPath(); cx.arc(p[0], p[1], 2.1, 0, 7); cx.fill(); cx.stroke(); cx.setLineDash([]); if (i < tn) { cx.beginPath(); cx.moveTo(p[0] - 1.5, p[1] - 1.5); cx.lineTo(p[0] + 1.5, p[1] + 1.5); cx.moveTo(p[0] + 1.5, p[1] - 1.5); cx.lineTo(p[0] - 1.5, p[1] + 1.5); cx.stroke(); } cx.globalAlpha = 1; });
+  shots.forEach(s => { cx.strokeStyle = s.c ? RED : '#e9d27a'; cx.lineWidth = .28; cx.beginPath(); cx.moveTo(s.a.x, s.a.y); cx.lineTo(s.b.x, s.b.y); cx.stroke(); });
+  G.fighters.forEach(f => { if (!atBase(f)) return; cx.fillStyle = f.hp < 35 ? '#7d6a8f' : BLUE; cx.strokeStyle = '#e8eef4'; cx.lineWidth = .25; cx.beginPath(); cx.arc(f.x, f.y, 1.05, 0, 7); cx.fill(); cx.stroke(); });
+  if (G.raid) G.raid.en.forEach(e => { cx.fillStyle = RED; cx.strokeStyle = '#f1dcd2'; cx.lineWidth = .2; cx.beginPath(); cx.moveTo(e.x, e.y - 1.3); cx.lineTo(e.x + 1.2, e.y + 1); cx.lineTo(e.x - 1.2, e.y + 1); cx.closePath(); cx.fill(); cx.stroke(); });
+}
+cv.addEventListener('click', e => {
+  if (!G.started) return;
+  const r = cv.getBoundingClientRect(), x = (e.clientX - r.left - OX) / S, y = (e.clientY - r.top - OY) / S;
+  if (tab !== 'ops') return;
+  let b = -1, bd = Math.max(7, 26 / S); LOCS.forEach((L, i) => { const d = Math.hypot(L.x - x, L.y + 1.5 - y); if (d < bd) { bd = d; b = i; } });
+  if (b === 0) { setTab('base'); return; }
+  sel = b < 0 ? 0 : b; dirty = true; render(true);
+});
+
+/* ---------- panel ---------- */
+function setTab(t) { tab = t; dirty = true; ['ops', 'base', 'log'].forEach(k => $('tab-' + k).setAttribute('aria-selected', k === t)); $('body').scrollTop = 0; render(true); }
+const stateText = q => q.state === 'base' ? 'на заставе, в охранении' : q.state === 'move' ? 'в пути → ' + LOCS[q.dest].n : q.state === 'fight' ? 'ведёт бой: ' + LOCS[q.node].n : 'удерживает: ' + LOCS[q.node].n;
+function sqCard(q, extra) {
+  const m = members(q), rk = m.length ? RANK[Math.round(m.reduce((a, f) => a + rank(f), 0) / m.length)] : '';
+  return `<div class="card"><div><b>«${q.name}»</b> <span class="dim">· ${m.length} чел., ${rk} · сила ${sqPower(q)}</span><div class="dim">${stateText(q)}</div>
+    <div class="pips">${m.map(f => `<i class="${f.hp < 35 ? 'low' : ''}" style="--h:${Math.max(4, f.hp)}%" title="${f.name}"></i>`).join('')}</div></div><div class="row">${extra || ''}</div></div>`;
+}
+function incStr(c) { return [c.s ? `+${c.s} прип.` : '', c.p ? `+${c.p} дет.` : '', c.a ? `+${c.a} арт.` : ''].filter(Boolean).join(', ') + ' в сутки'; }
+function opsHTML() {
+  let h = '';
+  if (sel) {
+    const L = LOCS[sel], l = G.locs[sel], T = TYPES[L.t];
+    h += `<div class="head"><h2>${L.n}</h2><span class="tag ${l.st}">${l.st === 'foe' ? T.n : l.st === 'ours' ? 'Наша' : 'Под ударом'}</span></div><p class="dim">${L.d}</p>`;
+    h += `<p>${l.st === 'ours' ? 'Даёт' : 'Даст'}: ${incStr(L.inc)}.${l.st !== 'ours' ? ` Противник: сила <b class="bad">${Math.ceil(l.enemy)}</b>.` : ''}${l.st === 'cont' ? ` <span class="bad">Падёт через ${30 - l.lost} ч без помощи.</span>` : ''}${l.post ? ' Стоит блокпост.' : ''}</p>`;
+    h += '<div class="acts">';
+    const ok = l.st !== 'foe' || reachable(sel);
+    if (!ok) h += '<p class="dim">Подхода нет. Сначала возьмите соседнюю точку на дороге.</p>';
+    else G.squads.forEach(q => {
+      if (q.state === 'move' || q.state === 'fight' || q.node === sel || !path(q.node, sel)) return;
+      h += `<button class="btn go" data-a="send" data-i="${q.id}"><b>${l.st === 'ours' ? 'Поставить в оборону' : 'Отправить на зачистку'}: «${q.name}»</b><span>сила ${sqPower(q)}</span></button>`;
+    });
+    G.squads.filter(q => q.node === sel && (q.state === 'hold' || q.state === 'fight')).forEach(q => h += `<button class="btn" data-a="home" data-i="${q.id}"><b>${q.state === 'fight' ? 'Отвести' : 'Вернуть'} «${q.name}» на заставу</b><span></span></button>`);
+    if (l.st === 'ours' && !l.post) { const c = { s: 30, p: 40 }; h += `<button class="btn" data-a="post" ${afford(c) ? '' : 'disabled'}><b>Поставить блокпост</b><span>${costStr(c)}</span></button><p class="dim">Блокпост сам отбивает слабые контратаки.</p>`; }
+    h += '</div>';
+  } else h += '<p class="dim">Нажмите точку на карте, чтобы отдать приказ. Красный ромб — противник, синий прямоугольник — наши.</p>';
+  h += '<h3>Отряды</h3>' + (G.squads.length ? G.squads.map(q => sqCard(q, q.state === 'hold' || q.state === 'fight' ? `<button class="btn small" data-a="home" data-i="${q.id}"><b>На базу</b></button>` : '')).join('') : '<p class="dim">Отрядов нет. Сформируйте отряд на вкладке «Застава».</p>');
+  return h;
+}
+function baseHTML() {
+  const g = garrison(), total = G.fighters.length + G.recruit.n, hp = G.hqhp / hqMax() * 100;
+  let h = `<div class="head"><h2>Застава «Рубеж»</h2><span class="tag ${G.raid ? 'foe' : 'ours'}">${G.raid ? 'Бой на периметре' : 'Спокойно'}</span></div>`;
+  h += `<div class="bar hp"><i style="width:${hp}%"></i></div><p class="dim">Штаб: ${Math.ceil(G.hqhp)} / ${hqMax()}. В гарнизоне ${g.length} чел.${G.squads.filter(q => q.state === 'base').length ? ' и отряды на отдыхе' : ''} — периметр они держат сами.</p>`;
+  if (G.raid) h += `<p class="bad">Противников на территории: ${G.raid.en.length}.</p>`;
+  else if (G.warned) h += `<p class="bad">Разведка: нападение через ${Math.max(1, Math.ceil(G.nextRaid - G.h))} ч${G.plan && G.bld.radio ? ` — ${TYPES[G.plan.t].who}, до ${G.plan.n}` : ''}.</p>`;
+  const rc = { s: 25 }, canR = afford(rc) && total < cap(), canF = g.length >= 4 && G.squads.length < G.bld.hq + 1;
+  h += `<div class="acts"><button class="btn" data-a="recruit" ${canR ? '' : 'disabled'}><b>Нанять бойца</b><span>${total >= cap() ? 'казарма полна' : costStr(rc)}${G.recruit.n ? ` · в пути ${G.recruit.n}` : ''}</span></button>
+    <button class="btn" data-a="form" ${canF ? '' : 'disabled'}><b>Сформировать отряд</b><span>${G.squads.length >= G.bld.hq + 1 ? 'нужен штаб выше' : g.length < 4 ? 'нужно 4 в гарнизоне' : '4 бойца'}</span></button></div>`;
+  const home = G.squads.filter(q => q.state === 'base');
+  if (home.length) h += '<h3>Отряды на заставе</h3>' + home.map(q => sqCard(q, `<button class="btn small" data-a="refill" data-i="${q.id}" ${members(q).length < 5 && g.length ? '' : 'disabled'}><b>Пополнить</b></button><button class="btn small" data-a="disband" data-i="${q.id}"><b>Распустить</b></button>`)).join('');
+  h += '<h3>Строительство</h3>';
+  Object.keys(BLD).forEach(k => {
+    const B = BLD[k], l = G.bld[k], bu = G.build && G.build.k === k;
+    let act = '';
+    if (bu) act = `<span class="dim">ещё ${G.build.left} ч</span>`;
+    else if (l >= B.max) act = '<span class="dim">предел</span>';
+    else { const c = cost(k); act = `<button class="btn small" data-a="up" data-i="${k}" ${!G.build && afford(c) ? '' : 'disabled'}><b>${l ? 'Улучшить' : 'Построить'}</b><span>${costStr(c)}</span></button>`; }
+    h += `<div class="card"><div><b>${B.n}</b> <span class="lv">${'■'.repeat(l)}${'□'.repeat(B.max - l)}</span><div class="dim">${B.eff(l)}${l < B.max ? ` → ${B.eff(l + 1)}` : ''}</div>${bu ? `<div class="bar"><i style="width:${(1 - G.build.left / G.build.total) * 100}%"></i></div>` : ''}</div><div class="row">${act}</div></div>`;
+  });
+  return h;
+}
+function logHTML() {
+  return `<div class="log">${G.log.map(e => `<time>${clock(e.h)}</time><div class="${e.c}">${e.t}</div>`).join('')}</div>
+    <div class="acts" style="margin-top:20px"><button class="btn" data-a="new"><b>${confirmNew ? 'Точно стереть всё и начать заново?' : 'Начать кампанию заново'}</b><span></span></button></div>`;
+}
+let lastHTML = '', lastRes = '', holding = false, lastRender = 0;
+function render(force) {
+  const res = `<div class="cell"><small>Припасы</small><b>${Math.floor(G.res.s)}</b></div><div class="cell"><small>Детали</small><b>${Math.floor(G.res.p)}</b></div><div class="cell"><small>Артефакты</small><b>${Math.floor(G.res.a)}</b></div><div class="cell"><small>Бойцы</small><b>${G.fighters.length}/${cap()}</b></div><div class="cell"><small>Время</small><b>${clock(G.h)}</b></div>`;
+  if (res !== lastRes) { $('res').innerHTML = lastRes = res; }
+  [0, 1, 3].forEach(v => $('sp' + v).setAttribute('aria-pressed', G.speed === v));
+  $('tab-base').classList.toggle('alert', !!G.raid && tab !== 'base');
+  if (holding && !force) return;
+  const h = tab === 'ops' ? opsHTML() : tab === 'base' ? baseHTML() : logHTML();
+  if (h !== lastHTML) { $('body').innerHTML = lastHTML = h; }
+  dirty = false;
+}
+$('panel').addEventListener('pointerdown', () => holding = true);
+addEventListener('pointerup', () => setTimeout(() => holding = false, 60)); addEventListener('pointercancel', () => holding = false);
+
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-a]'); if (!b || b.disabled) return;
+  const a = b.dataset.a, i = b.dataset.i;
+  if (a !== 'new') confirmNew = false;
+  if (a === 'tab') return setTab(i);
+  if (a === 'begin') { if (i === 'new') { newGame(); sel = 0; } G.started = true; G.speed = G.over ? 0 : 1; $('over').hidden = true; setTab('ops'); save(); return; }
+  if (a === 'cont') { $('over').hidden = true; G.speed = 1; return render(true); }
+  if (a === 'speed') G.speed = +i;
+  else if (a === 'send') { const q = squad(+i); if (q && send(q, sel)) log(`«${q.name}» выдвинулся: ${LOCS[sel].n}.`); }
+  else if (a === 'home') { const q = squad(+i); if (q && q.node && send(q, 0)) log(`«${q.name}» возвращается на заставу.`); }
+  else if (a === 'post') { const c = { s: 30, p: 40 }; if (afford(c) && G.locs[sel].st === 'ours') { pay(c); G.locs[sel].post = true; log(`${LOCS[sel].n}: поставлен блокпост.`); } }
+  else if (a === 'recruit') { if (afford({ s: 25 }) && G.fighters.length + G.recruit.n < cap()) { pay({ s: 25 }); if (!G.recruit.n) G.recruit.left = 5; G.recruit.n++; } }
+  else if (a === 'form') formSquad();
+  else if (a === 'refill') { const q = squad(+i), g = garrison().sort((x, y) => y.hp - x.hp); while (q && members(q).length < 5 && g.length) g.shift().sq = q.id; }
+  else if (a === 'disband') { const q = squad(+i); if (q && q.state === 'base') { members(q).forEach(f => f.sq = 0); G.squads = G.squads.filter(x => x !== q); log(`Отряд «${q.name}» распущен в гарнизон.`); } }
+  else if (a === 'up') { const c = cost(i); if (!G.build && G.bld[i] < BLD[i].max && afford(c)) { pay(c); const t = 8 * (G.bld[i] + 1); G.build = { k: i, left: t, total: t }; log(`Начато строительство: ${BLD[i].n}.`); } }
+  else if (a === 'new') { if (!confirmNew) confirmNew = true; else { confirmNew = false; try { localStorage.removeItem(KEY); } catch (e2) {} newGame(); sel = 0; overlay('intro'); } }
+  dirty = true; render(true);
+});
+
+function overlay(kind) {
+  const o = $('over'); o.hidden = false;
+  if (kind === 'intro') o.innerHTML = `<div><div class="stamp">ПРИКАЗ № 1 · ЗАСТАВА «РУБЕЖ»</div><h1>Рубеж. Застава</h1>
+    <p>Война с Немыми у станции «Зенит» выиграна, но от группировки «Рубеж» остались одна застава и восемь бойцов. Долина снова ничья: в хуторах стаи, на дорогах мародёры, а недобитые фанатики сидят на севере.</p>
+    <p>Вы — генерал Гордеев. Гарнизон охраняет периметр сам. Ваше дело — строить заставу, набирать людей и посылать отряды брать точки на карте. Возьмите «Зенит», и долина ваша.</p>
+    <div class="acts"><button class="btn go" data-a="begin" data-i="${G.h > 8 ? 'go' : 'new'}"><b>${G.h > 8 ? 'Продолжить кампанию' : 'Принять командование'}</b><span>${G.h > 8 ? clock(G.h) : ''}</span></button>${G.h > 8 ? '<button class="btn" data-a="begin" data-i="new"><b>Начать заново</b><span></span></button>' : ''}</div></div>`;
+  else if (kind === 'win') o.innerHTML = `<div><div class="stamp">ДОНЕСЕНИЕ · ${clock(G.h)}</div><h1>«Зенит» взят</h1><p>Сигнал Немых замолчал. Над станцией флаг «Рубежа», и по всей долине это видят. Группировка восстановлена, генерал.</p><p>Точек под контролем: ${owned()} из 9. Бойцов в строю: ${G.fighters.length}.</p><div class="acts"><button class="btn go" data-a="cont"><b>Продолжать службу</b><span></span></button><button class="btn" data-a="begin" data-i="new"><b>Новая кампания</b><span></span></button></div></div>`;
+  else o.innerHTML = `<div><div class="stamp">ПОСЛЕДНЯЯ ЗАПИСЬ · ${clock(G.h)}</div><h1>Застава пала</h1><p>Штаб разрушен, периметр прорван. «Рубеж» продержался ${Math.floor(G.h / 24) + 1} суток и взял точек: ${owned()}.</p><p>В следующий раз не уводите всех людей с базы и стройте вышки раньше.</p><div class="acts"><button class="btn go" data-a="begin" data-i="new"><b>Начать заново</b><span></span></button></div></div>`;
+}
+
+/* ---------- loop ---------- */
+let last = performance.now(), acc = 0, saveT = 0, T = 0;
+function frame(now) {
+  requestAnimationFrame(frame);
+  const real = Math.min(.1, (now - last) / 1000); last = now; T += real;
+  if (G.started && !G.over && G.speed > 0) {
+    const dt = real * G.speed;
+    G.h += dt; acc += dt; moveSquads(dt); baseSim(dt);
+    while (acc >= 1) { acc -= 1; hourTick(); }
+    if ((saveT += real) > 8) { saveT = 0; save(); }
+  }
+  if (bgMap) {
+    cx.setTransform(1, 0, 0, 1, 0, 0); cx.drawImage(tab === 'base' ? bgBase : bgMap, 0, 0);
+    cx.setTransform(S * DPR, 0, 0, S * DPR, OX * DPR, OY * DPR);
+    tab === 'base' ? drawBase(T) : drawMap(T);
+  }
+  if (dirty || now - lastRender > 500) { lastRender = now; render(); }
+}
+if (!load()) newGame();
+G.over = G.over && G.hqhp <= 0;
+window._rz = { G: () => G, tick: n => { for (let i = 0; i < n; i++) { G.h += 1; moveSquads(1); for (let k = 0; k < 10; k++) baseSim(.1); hourTick(); } } };
+new ResizeObserver(resize).observe($('stage')); resize();
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(resize);
+setTab('ops'); overlay(G.over ? 'lose' : 'intro');
+document.addEventListener('visibilitychange', () => { if (document.hidden) save(); last = performance.now(); });
+requestAnimationFrame(frame);
+})();
+</script>
