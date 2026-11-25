@@ -1,5 +1,5 @@
 {
- "stop": false,
+ "stop": true,
  "jobs": [
   {
    "id": "g68_pt_crane",
