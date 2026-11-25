@@ -13567,7 +13567,9 @@ func _lair_test() -> void:
 	var cv0 := ak.covers
 	var t_cv := 0.0
 	var crouched := false
-	while t_cv < 14.0 and (ak.covers == cv0 or not crouched):
+	# укрытие мур ищет случайно (после очереди — с вероятностью 0,55, не чаще раза в 2,5 с, 14 случайных точек):
+	# за 14 с он иногда не успевал найти годное и дойти — запас до 24 с
+	while t_cv < 24.0 and (ak.covers == cv0 or not crouched):
 		await get_tree().physics_frame
 		t_cv += get_physics_process_delta_time()
 		crouched = crouched or ak.crouch > 0.8
