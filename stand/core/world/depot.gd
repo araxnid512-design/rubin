@@ -27,19 +27,19 @@ const GAUGE := 1.52                     ## колея, м
 const D_BUILDINGS := [
 	# ремонтный ангар: зал с тремя воротами (ремонтная площадка), у северной стены — инструментальная, склад
 	# запчастей, технический участок, служебное помещение
-	{"id": "hangar", "n": "Ремонтный ангар", "kind": "workshop", "style": "wood", "skin": "planks", "int": "int_wood", "storey": 6.0, "te": 0.2,
+	{"id": "hangar", "n": "Ремонтный ангар", "kind": "workshop", "gates_open": true, "style": "wood", "skin": "planks", "int": "int_wood", "storey": 6.0, "te": 0.2,
 		"roof_mat": "q_rust", "gable": "planks", "rise": 0.3, "ov": 0.4, "shutters": false, "chimney": false,
 		"blocks": [{"c": Vector2(-43, -48), "L": 62.0, "W": 36.0, "axis": "x", "floors": 1, "layout": "hall", "row_side": -1, "row_d": 7.0,
 			"row": [["tech", 13.0], ["store", 16.0], ["tech", 13.0], ["staff", 10.0], ["store", 9.4]], "hall_type": "workshop",
 			"entr": [["s+", -15.0, 4.6, "plain"], ["s+", 2.0, 4.6, "plain"], ["s+", 19.0, 4.6, "plain"], ["e+", 6.0, 1.4, "plain"]], "win_w": 1.6, "win_h": 1.0, "sill": 3.0}]},
 	# локомотивное депо: три пути уходят в ворота; у северной стены — технические помещения
-	{"id": "loco", "n": "Локомотивное депо", "kind": "workshop", "style": "wood", "skin": "planks_brown", "int": "int_wood", "storey": 6.6, "te": 0.2,
+	{"id": "loco", "n": "Локомотивное депо", "kind": "workshop", "gates_open": true, "style": "wood", "skin": "planks_brown", "int": "int_wood", "storey": 6.6, "te": 0.2,
 		"roof_mat": "q_rust", "gable": "planks_brown", "rise": 0.34, "ov": 0.4, "shutters": false, "chimney": false,
 		"blocks": [{"c": Vector2(27.5, -55.5), "L": 36.0, "W": 27.0, "axis": "x", "floors": 1, "layout": "hall", "row_side": -1, "row_d": 5.0,
-			"row": [["tech", 12.0], ["staff", 10.0], ["store", 13.4]], "hall_type": "garage",
+			"row": [["tech", 12.0], ["staff", 10.0], ["store", 13.4]], "hall_type": "workshop",
 			"entr": [["s+", -11.0, 4.8, "plain"], ["s+", 0.0, 4.8, "plain"], ["s+", 11.0, 4.8, "plain"], ["e-", 4.0, 1.4, "plain"]], "win_w": 1.6, "win_h": 1.0, "sill": 3.2}]},
 	# основной склад: зал с рядами груза, кладовые у северной стены
-	{"id": "store", "n": "Склад депо", "kind": "warehouse", "style": "wood", "skin": "planks", "int": "int_wood", "storey": 4.8, "te": 0.18,
+	{"id": "store", "n": "Склад депо", "kind": "warehouse", "gates_open": true, "style": "wood", "skin": "planks", "int": "int_wood", "storey": 4.8, "te": 0.18,
 		"roof_mat": "q_rust", "gable": "planks", "rise": 0.36, "ov": 0.4, "shutters": false, "chimney": false,
 		"blocks": [{"c": Vector2(-54, 38.5), "L": 38.0, "W": 24.0, "axis": "x", "floors": 1, "layout": "hall", "row_side": -1, "row_d": 5.0,
 			"row": [["store", 12.0], ["store", 12.0], ["staff", 13.4]], "hall_type": "warehouse",

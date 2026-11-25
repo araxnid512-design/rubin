@@ -534,6 +534,14 @@ func open_near(p: Vector3, r: float) -> bool:
 					continue
 				var v := d.center - p
 				v.y = 0.0
+				# широкая створка ворот: расстояние считается до полотна, а не до его середины —
+				# иначе герой, идущий по оси ворот, не дотягивается ни до одной из двух створок
+				var ext := maxf(0.0, d.width * 0.5 - 0.5)
+				if ext > 0.0:
+					var ax := d.global_transform.basis.x
+					ax.y = 0.0
+					ax = ax.normalized()
+					v -= ax * clampf(v.dot(ax), -ext, ext)
 				if v.length() < r:
 					d.set_open(true)
 					_moving.append(d)

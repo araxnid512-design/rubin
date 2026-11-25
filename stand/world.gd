@@ -6311,6 +6311,269 @@ func _lvl_exit() -> void:
 
 ## Вид карьера с нескольких точек (снимки в --as-out): общий вид, бровка, съезд, уступы, дно, дробилка, посёлок,
 ## постройки внутри. Враги рядом стоят спокойно. Точка — [имя, x, z, высота над землёй, расстояние камеры].
+## Проверка железнодорожного депо (--as-test=rd): список проходимости из задания (22 пункта) — в настоящей игровой
+## сцене: герой идёт сам по карте проходимости (как заражённые) от въезда в каждое помещение и на каждую площадку;
+## плюс поле, время, враги, тайники, отсутствие надписей, маршрут.
+func _rd_test() -> void:
+	var t0 := Time.get_ticks_msec()
+	while not cs_ready and Time.get_ticks_msec() - t0 < 45000:
+		await get_tree().process_frame
+	var dp := san as ULDepot
+	var c := ULDepot.dcfg()
+	var map := get_world_3d().navigation_map
+	var snapf := func(p: Vector3) -> Vector3:
+		return NavigationServer3D.map_get_closest_point(map, p)
+	var space := get_world_3d().direct_space_state
+	var rt: Dictionary = ULBase.shop().routes.get("depot", {})
+	print("[inv] депо готово через %.1f с от запуска игры" % (sn_ready_ms / 1000.0))
+	_ok("депо: поле %d × %d м, вход на юге у КПП, время %d минут (2-й уровень опасности), маршрут %d споранов" % [int(size_m), int(size_z), int(ULBase.minutes_for("depot", 0.0)), int(rt.get("price", {}).get("spore", 0))],
+		size_m == 180.0 and size_z == 150.0 and place == "depot" and dp != null and ULDepot.D_ENTRY.z > 60.0 and int(rt.get("price", {}).get("spore", 0)) == 35
+		and cs_left() > 19.0 * 60.0 and cs_left() <= 20.0 * 60.0 and player.global_position.distance_to(ULDepot.D_ENTRY) < 6.0, str(player.global_position))
+	var by_id := {}
+	var names := []
+	for b in san.blds:
+		by_id[String(b.id)] = b
+		names.append(b.title)
+	_ok("постройки, куда можно зайти (%d): %s" % [san.blds.size(), ", ".join(names)], san.blds.size() == 11 and by_id.has("hangar") and by_id.has("loco") and by_id.has("store")
+		and by_id.has("plat") and by_id.has("guard") and by_id.has("shop") and by_id.has("pump") and by_id.has("wag1") and by_id.has("wag2"))
+	var hg: Rect2 = by_id.hangar.rect
+	var lc: Rect2 = by_id.loco.rect
+	var stq: Rect2 = by_id.store.rect
+	_ok("по схеме: ремонтный ангар — северо-запад (%.0f × %.0f м), локомотивное депо — север (%.0f × %.0f м), топливный узел — северо-восток, платформы — восток, склад — юго-запад (%.0f × %.0f м), хлам — юго-восток" % [hg.size.x, hg.size.y, lc.size.x, lc.size.y, stq.size.x, stq.size.y],
+		hg.get_center().x < -20.0 and hg.get_center().y < -30.0 and lc.get_center().x > 10.0 and lc.get_center().y < -40.0 and ULDepot.D_FUEL.get_center().x > 50.0 and ULDepot.D_FUEL.get_center().y < -30.0
+		and (by_id.plat.rect as Rect2).get_center().x > 40.0 and stq.get_center().x < -30.0 and stq.get_center().y > 25.0)
+	var mmiss := []
+	for m in ["rd_shunter", "rd_loco", "rd_boxcar", "rd_gondola", "rd_flatcar", "rd_tankcar", "rd_gantry", "rd_buffer", "rd_wheels", "rd_jack", "rd_bogie", "pt_tank_h", "pt_tank_v"]:
+		if not ResourceLoader.exists(ULSanatorium.MODELS + m + ".glb"):
+			mmiss.append(m)
+	_ok("отдельные модели депо на месте (тепловозы, вагоны, кран, цистерны): нет — %d" % mmiss.size(), mmiss.is_empty(), ", ".join(mmiss))
+	var labels := 0
+	for n in san.find_children("*", "Label3D", true, false):
+		labels += 1
+	_ok("поясняющих надписей в мире нет (Label3D: %d)" % labels, labels == 0)
+	# размеры: колея, ворота, двери, потолки
+	_ok("размеры: колея %.2f м, ворота ангара %.1f м, ворота депо %.1f м, высота зала ангара %.1f м, герой 1,8 м" % [ULDepot.GAUGE, 4.6, 4.8, 6.0], absf(ULDepot.GAUGE - 1.52) < 0.01)
+	for e in enemies:
+		e.state = "dead"
+		e.visible = false
+		e.process_mode = Node.PROCESS_MODE_DISABLED
+	hp_lock = true
+	# список проходимости: герой идёт по карте проходимости от точки к точке (так же ходят заражённые)
+	var e0: Vector3 = snapf.call(ULDepot.D_ENTRY)
+	var hb: ULBlock = by_id.hangar
+	var route := [
+		["1. вход на территорию депо", Vector3(2, 0, 62), ""],
+		["2. от КПП до середины сортировочного парка", Vector3(0, 0, -2), ""],
+		["3. вход в ремонтный ангар (ворота)", Vector3(-41, 0, -36), "hangar"],
+		["4. по ангару между ремонтными местами", Vector3(-62, 0, -44), "hangar"],
+		["5. инструментальная (комната ряда)", Vector3(-67.5, 0, -62.5), "hangar"],
+		["6. склад запчастей (комната ряда)", Vector3(-53, 0, -62.5), "hangar"],
+		["7. выход из ангара", Vector3(-24, 0, -24), ""],
+		["8. вход в локомотивное депо", Vector3(27.5, 0, -48), "loco"],
+		["9. между локомотивами", Vector3(27.5, 0, -57), "loco"],
+		["10. вдоль рельсов между составами", Vector3(-44, 0, -4.5), ""],
+		["11. грузовые платформы", Vector3(60, 0, 14), ""],
+		["11б. пакгауз платформ", Vector3(61, 0, 5.5), "plat"],
+		["12. основной склад", Vector3(-54, 0, 44), "store"],
+		["14. топливный узел", Vector3(54, 0, -40), ""],
+		["15. обход цистерн", Vector3(71, 0, -55), ""],
+		["16. площадка металлолома", Vector3(56, 0, 52), ""],
+		["17. открытый грузовой вагон", Vector3(-17, 0, 16.5), "wag1"],
+		["17б. второй открытый вагон", Vector3(38, 0, 33.5), "wag2"],
+		["22. возвращение к выходу", Vector3(2, 0, 64), ""],
+	]
+	player.global_position = e0 + Vector3.UP * 0.1
+	await get_tree().create_timer(0.3).timeout
+	var done := 0
+	var min_y := 0.0
+	var roofs_ok := 0
+	var roofs_n := 0
+	var fails := []
+	for st in route:
+		var tgt: Vector3 = snapf.call(st[1])
+		var path := NavigationServer3D.map_get_path(map, snapf.call(player.global_position), tgt, true)
+		var plen := 0.0
+		for i in path.size() - 1:
+			plen += path[i].distance_to(path[i + 1])
+		await _walk(Array(path), plen / 1.4 + 14.0)
+		await get_tree().create_timer(0.3).timeout
+		min_y = minf(min_y, player.global_position.y)
+		var near: bool = Vector2(player.global_position.x - tgt.x, player.global_position.z - tgt.z).length() < 1.2 and Vector2(tgt.x - (st[1] as Vector3).x, tgt.z - (st[1] as Vector3).z).length() < 2.0
+		var inside_ok := true
+		if String(st[2]) != "":
+			roofs_n += 1
+			var bb: ULBlock = by_id[String(st[2])]
+			inside_ok = san.hero_b == san.blds.find(bb)
+			if inside_ok and not bb._groups["b0/r"].visible:
+				roofs_ok += 1
+		else:
+			inside_ok = san.hero_b == -1
+		if near and inside_ok:
+			done += 1
+		else:
+			fails.append("%s: герой %s, цель %s, в постройке %d" % [String(st[0]), str(player.global_position), str(tgt), san.hero_b])
+		if out != "" and String(st[2]) in ["hangar", "loco", "store"] and String(st[0]).begins_with(["3", "8", "12"][["hangar", "loco", "store"].find(String(st[2]))]):
+			_cam_ready = false
+			await get_tree().create_timer(0.6).timeout
+			await _snap("rd_%s" % String(st[2]))
+	_ok("проходимость по списку задания (пункты 1–12, 14–17, 22): герой сам дошёл до %d точек из %d" % [done, route.size()], done == route.size(), "; ".join(fails))
+	_ok("18. провалов под карту нет (самая низкая точка пути героя %.2f м)" % min_y, min_y > -0.3)
+	_ok("20. крыша скрывается, когда герой внутри: %d из %d помещений" % [roofs_ok, roofs_n], roofs_ok == roofs_n)
+	await get_tree().create_timer(0.5).timeout
+	_ok("20б. вышел наружу — крыши и стены на месте", san.hero_b == -1 and hb._groups["b0/r"].visible)
+	# 19: невидимых стен в проходах нет — ворота и двери свободны (луч сквозь каждый вход), стены — преграда
+	var open_n := 0
+	var ent_n := 0
+	for b in san.blds:
+		for en in b.entrances:
+			ent_n += 1
+			var a0: Vector3 = (en[0] as Vector3) + Vector3.UP * 1.0
+			var a1: Vector3 = (en[1] as Vector3) + Vector3.UP * 1.0
+			var q := PhysicsRayQueryParameters3D.create(a0, a1)
+			q.collision_mask = 1
+			if space.intersect_ray(q).is_empty():
+				open_n += 1
+	_ok("19. невидимых стен в проходах нет: свободных входов %d из %d (ворота, двери, вагоны)" % [open_n, ent_n], open_n == ent_n)
+	var wall_hits := 0
+	var wall_rays := 0
+	for b in san.blds:
+		for bk in b.blocks:
+			for k in 5:
+				var u := (k - 2) * float(bk.hl) / 3.0
+				var w0: Vector3 = b._w(bk, u, 0.5, float(bk.hw) + 1.2)
+				var w1: Vector3 = b._w(bk, u, 0.5, float(bk.hw) - 0.5)
+				var q2 := PhysicsRayQueryParameters3D.create(w0, w1)
+				q2.collision_mask = 1 | ULDoor.LAYER
+				wall_rays += 1
+				if not space.intersect_ray(q2).is_empty():
+					wall_hits += 1
+	_ok("стены построек непроходимы (лучи в стену: %d из %d упёрлись — остальные во входы)" % [wall_hits, wall_rays], wall_hits >= wall_rays * 0.7)
+	# сквозь вагоны, локомотивы, цистерны не пройти
+	var solid := 0
+	var solid_pts := [Vector3(-58, 0, -10.6), Vector3(-45, 0, -10.6), Vector3(52, 0, -17.6), Vector3(30, 0, 25.6), Vector3(16.5, 0, -53), Vector3(38.5, 0, -54), ULDepot.D_TANKS_H[0], ULDepot.D_TANK_V, Vector3(-41, 0, -45)]
+	for sp in solid_pts:
+		var qv := PhysicsRayQueryParameters3D.create((sp as Vector3) + Vector3(0, 14, 0), (sp as Vector3) + Vector3(0, 0.4, 0))
+		qv.collision_mask = 1
+		if not space.intersect_ray(qv).is_empty():
+			solid += 1
+	_ok("вагоны, тепловозы, цистерны — преграды: %d из %d; по рельсам пройти можно (рельс 13 см, без столкновения)" % [solid, solid_pts.size()], solid >= solid_pts.size() - 1)
+	# 21: навигация заражённых внутри зданий — путь от середины парка в каждую постройку и в комнаты ангара
+	var yard: Vector3 = snapf.call(Vector3(0, 0, -2))
+	var reach := 0
+	var bad := []
+	for b in san.blds:
+		var got := false
+		for cand in [Vector3(b.rect.get_center().x, 0.1, b.rect.get_center().y), b.entrances[0][1]]:
+			var tg2: Vector3 = snapf.call(cand)
+			var pth := NavigationServer3D.map_get_path(map, yard, tg2, true)
+			if pth.size() > 1 and pth[pth.size() - 1].distance_to(tg2) < 0.6 and san.locate(tg2 + Vector3.UP * 0.3).x >= 0:
+				got = true
+				break
+		if got:
+			reach += 1
+		else:
+			bad.append(String(b.id))
+	_ok("21. навигация заражённых: путь из сортировочного парка внутрь каждой постройки — %d из %d" % [reach, san.blds.size()], reach == san.blds.size(), str(bad))
+	# враги
+	var cnt := {"infected": 0, "lottery": 0, "ruber": 0}
+	var near_entry := 0
+	var outside := 0
+	var rub_in := 0
+	for sp in cs_plan:
+		cnt[String(sp[0])] = int(cnt.get(String(sp[0]), 0)) + 1
+		var p: Vector3 = sp[1]
+		if p.distance_to(ULDepot.D_ENTRY) < float(c.safe_r) - 0.5:
+			near_entry += 1
+		if not ULDepot.in_depot(Vector2(p.x, p.z)):
+			outside += 1
+		if String(sp[0]) == "ruber" and san.locate(p + Vector3.UP * 0.3).x >= 0:
+			rub_in += 1
+	_ok("заражённые при входе: пустышей %d (25–45), лотерейщиков %d (5–10), руберов %d (0–1); у входа ближе %d м — %d, за оградой — %d, рубер в помещении — %d" % [int(cnt.infected), int(cnt.lottery), int(cnt.ruber), int(c.safe_r), near_entry, outside, rub_in],
+		int(cnt.infected) >= 25 and int(cnt.infected) <= 45 and int(cnt.lottery) >= 5 and int(cnt.lottery) <= 10 and int(cnt.ruber) <= 1 and near_entry == 0 and outside == 0 and rub_in == 0, str(cnt))
+	var zones := {}
+	var rub := 0
+	var rub_bad := 0
+	for sd in 40:
+		var pr := RandomNumberGenerator.new()
+		pr.seed = 9000 + sd * 53
+		for sp in zone.spawn_plan(pr, snapf):
+			if sp.size() > 2:
+				zones[String(sp[2])] = int(zones.get(String(sp[2]), 0)) + 1
+			if String(sp[0]) == "ruber":
+				rub += 1
+				if san.locate((sp[1] as Vector3) + Vector3.UP * 0.3).x >= 0:
+					rub_bad += 1
+	_ok("40 посещений: рубер — в %d, в помещении ни разу (%d); враги и снаружи, и в постройках: %s" % [rub, rub_bad, str(zones)], rub > 3 and rub < 30 and rub_bad == 0
+		and zones.has("tracks") and zones.has("hangar") and zones.has("loco") and zones.has("store") and zones.has("scrap") and zones.has("platforms"))
+	# 13: тайники и добыча
+	var kinds := {}
+	for ct in san.containers:
+		kinds[String(ct.kind)] = int(kinds.get(String(ct.kind), 0)) + 1
+	_ok("тайники: всего %d; вагоны %d, тепловозы %d, цистерны %d, ящики и паллеты %d, металлолом %d" % [san.containers.size(), int(kinds.get("wagon", 0)) + int(kinds.get("wagon_open", 0)) + int(kinds.get("flat", 0)), int(kinds.get("loco", 0)),
+		int(kinds.get("tank", 0)), int(kinds.get("crate", 0)) + int(kinds.get("pallet", 0)), int(kinds.get("scrap", 0))],
+		san.containers.size() >= 150 and int(kinds.get("wagon", 0)) >= 6 and int(kinds.get("loco", 0)) == 3 and int(kinds.get("scrap", 0)) >= 5)
+	var si := -1
+	for i in san.containers.size():
+		if String(san.containers[i].get("bld", "")) == "store":
+			si = i
+			break
+	var opened := false
+	if si >= 0:
+		var sct: Dictionary = san.containers[si]
+		player.global_position = snapf.call(sct.pos) + Vector3.UP * 0.1
+		await get_tree().create_timer(0.5).timeout
+		_target = {"type": "box", "i": si}
+		do_action()
+		await get_tree().create_timer(0.3).timeout
+		opened = inv_ui != null and inv_ui.visible
+		var n0 := 0
+		for it in sct.items:
+			if it != null:
+				n0 += 1
+		for k in (sct.items as Array).size():
+			var it2 = sct.items[k]
+			if it2 != null and inv.add(it2) == 0:
+				sct.items[k] = null
+		close_inventory()
+		_ok("13. складской тайник «%s» открыт, предметы (%d) перешли в ячейки инвентаря" % [String(sct.n), n0], opened)
+	else:
+		_ok("13. в складе есть тайники", false)
+	var loot := {}
+	for sd in 30:
+		var lr := RandomNumberGenerator.new()
+		lr.seed = 400 + sd * 11
+		san.roll_containers(lr)
+		for ct in san.containers:
+			for it in ct.items:
+				if it != null:
+					loot[String(it.id)] = int(loot.get(String(it.id), 0)) + int(it.n)
+	_ok("добыча за 30 посещений: металлолом, запчасти, кабель, электроника, инструмент — %s" % str(loot),
+		int(loot.get("scrap_metal", 0)) > 80 and int(loot.get("spare_parts", 0)) > 80 and int(loot.get("cable", 0)) > 20 and int(loot.get("electronics", 0)) > 20 and int(loot.get("tool_ind", 0)) > 3)
+	# маршрут
+	_ok("маршрут: карточка «Железнодорожное депо», 35 споранов, закреплён в компьютере; на карте мира — слева ниже дома; картинки на месте",
+		bool(rt.get("pin", false)) and ULBase.offers().has("depot") and ResourceLoader.exists(String(rt.get("pic", ""))) and ResourceLoader.exists(String(rt.get("route_pic", "")))
+		and ULMap.PLACES.has("depot") and (ULMap.PLACES.depot.rect as Rect2).get_center().x < (ULMap.PLACES.home.rect as Rect2).position.x and ResourceLoader.exists(String(ULMap.PLACES.depot.mark)))
+	var w_save: Dictionary = inv.wallet.duplicate()
+	inv.wallet = {"spore": 40}
+	ULBase.data.routes.erase("depot")
+	(ULBase.data.done as Array).erase("depot")
+	var b1 := ULBase.buy_route(inv, "depot")
+	var sp1 := int(inv.wallet.get("spore", 0))
+	var b2 := ULBase.buy_route(inv, "depot")
+	_ok("покупка: с 40 споранами маршрут куплен (осталось %d), повторно не списывается" % sp1, bool(b1.ok) and sp1 == 5 and not bool(b2.ok) and int(inv.wallet.get("spore", 0)) == 5)
+	inv.wallet = w_save
+	ULBase.data.routes.erase("depot")
+	# выход
+	player.global_position = Vector3(ULDepot.D_ENTRY.x, 0.1, ULDepot.DZ + 3.0)
+	var tl := 0.0
+	while not _cs_done and tl < LEAVE_S + 3.0:
+		await get_tree().create_timer(0.2).timeout
+		tl += 0.2
+	_ok("вышел за южный край — посещение закончено, герой возвращается на базу", _cs_done)
+	print("[inv] итог: ошибок %d" % _fails)
+	get_tree().quit()
+
+
 ## снимки депо с игровой камеры
 func _rd_view() -> void:
 	var t0 := Time.get_ticks_msec()
@@ -15474,6 +15737,46 @@ func _run_test() -> void:
 		return
 	if test == "qr":
 		await _qr_test()
+		return
+	if test == "rd":
+		await _rd_test()
+		return
+	if test == "rdgate":
+		# отладка прохода: герой идёт сквозь ворота (--as-from=x,z --as-to=x,z), печать — во что упёрся
+		var tg0 := Time.get_ticks_msec()
+		while not cs_ready and Time.get_ticks_msec() - tg0 < 45000:
+			await get_tree().process_frame
+		for e in enemies:
+			e.state = "dead"
+			e.visible = false
+			e.process_mode = Node.PROCESS_MODE_DISABLED
+		var fr := Vector2(16.5, -38.0)
+		var to := Vector2(16.5, -45.0)
+		for a in OS.get_cmdline_user_args():
+			if a.begins_with("--as-from="):
+				fr = Vector2(float(a.substr(10).get_slice(",", 0)), float(a.substr(10).get_slice(",", 1)))
+			if a.begins_with("--as-to="):
+				to = Vector2(float(a.substr(8).get_slice(",", 0)), float(a.substr(8).get_slice(",", 1)))
+		player.global_position = Vector3(fr.x, 0.1, fr.y)
+		await get_tree().create_timer(0.4).timeout
+		_auto = [Vector3(to.x, 0, to.y)]
+		var tw := 0.0
+		var last := ""
+		while not _auto.is_empty() and tw < 8.0:
+			await get_tree().process_frame
+			tw += get_process_delta_time()
+			for ci in player.get_slide_collision_count():
+				var kc := player.get_slide_collision(ci)
+				if absf(kc.get_normal().y) < 0.999 or kc.get_position().y > 0.05:
+					var sh = kc.get_collider_shape()
+					last = "упор %s нормаль %s тело %s форма %s размер %s" % [str(kc.get_position()), str(kc.get_normal()), str((kc.get_collider() as Node).name), str(sh.name) if sh != null else "?", str((sh as CollisionShape3D).shape.get("size")) if sh is CollisionShape3D else "?"]
+		_auto.clear()
+		print("[inv] проход %s → %s: герой %s; %s" % [str(fr), str(to), str(player.global_position), last if last != "" else "преград не было"])
+		_cam_ready = false
+		cam_dist = 12.0
+		await get_tree().create_timer(0.8).timeout
+		await _snap("rdgate")
+		get_tree().quit()
 		return
 	if test == "pt":
 		await _pt_test()
