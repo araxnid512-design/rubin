@@ -1,66 +1,48 @@
 {
- "stop": true,
+ "stop": false,
  "jobs": [
   {
-   "id": "g68_pt_crane",
+   "id": "g69_rd_shunter",
    "py": "tools/tripo/chain.py",
    "args": [
     "--id",
-    "pt_crane",
+    "rd_shunter",
     "--faces",
-    "16000",
+    "14000",
     "--tex",
     "detailed",
     "--geo",
     "detailed",
     "--pbr",
     "--prompt",
-    "old soviet harbor portal gantry crane, tall four-legged steel lattice portal base on rails, rotating machine house with operator cabin on top, long lattice jib boom raised at 45 degrees with cables and hook block, counterweight, ladders, orange-brown rusted paint, weathered, rusty, realistic PBR, single object, game asset"
+    "old soviet diesel shunting locomotive with a single offset cab and long narrow hood, walkways with handrails along the hood, two bogies with wheels, couplers and buffers at both ends, steps, faded orange-red paint with a yellow stripe, weathered, rusty, dirty, realistic PBR, no text, no logos, single object, game asset"
    ],
    "timeout": 1800
   },
   {
-   "id": "g68_pt_crane2",
+   "id": "g69_rd_loco",
    "py": "tools/tripo/chain.py",
    "args": [
     "--id",
-    "pt_crane2",
+    "rd_loco",
     "--faces",
-    "12000",
+    "14000",
     "--tex",
     "detailed",
     "--geo",
     "detailed",
     "--pbr",
     "--prompt",
-    "small old yellow harbor quay crane on a short square steel pedestal base, rotating cabin, short lattice boom with cables and hook, faded yellow paint with rust, weathered, rusty, realistic PBR, single object, game asset"
+    "old soviet mainline freight diesel locomotive, long boxy body with cab at the front, round headlight, two three-axle bogies with wheels, couplers, side louvres and doors, handrails, faded dark green paint with a red stripe, weathered, rusty, dirty, realistic PBR, no text, no logos, single object, game asset"
    ],
    "timeout": 1800
   },
   {
-   "id": "g68_pt_tug",
+   "id": "g69_rd_boxcar",
    "py": "tools/tripo/chain.py",
    "args": [
     "--id",
-    "pt_tug",
-    "--faces",
-    "12000",
-    "--tex",
-    "detailed",
-    "--geo",
-    "detailed",
-    "--pbr",
-    "--prompt",
-    "old small river tugboat, black and rust red steel hull with tyre fenders, white wheelhouse superstructure with funnel and mast, flat open deck with towing winch, complete boat including flat bottom hull, weathered, rusty, realistic PBR, single object, game asset"
-   ],
-   "timeout": 1800
-  },
-  {
-   "id": "g68_pt_barge",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "pt_barge",
+    "rd_boxcar",
     "--faces",
     "12000",
     "--tex",
@@ -69,16 +51,16 @@
     "detailed",
     "--pbr",
     "--prompt",
-    "old flat river cargo barge, long rectangular rusty steel hull with open cargo hold, flat walkable side decks, bollards, rust red and black, complete hull, weathered, rusty, realistic PBR, single object, game asset"
+    "old soviet covered freight railway boxcar, ribbed steel sides, large sliding door in the middle of the side, two bogies with wheels, couplers, ladders, faded brown-red paint, weathered, rusty, dirty, realistic PBR, no text, no logos, single object, game asset"
    ],
    "timeout": 1800
   },
   {
-   "id": "g68_pt_ship",
+   "id": "g69_rd_gondola",
    "py": "tools/tripo/chain.py",
    "args": [
     "--id",
-    "pt_ship",
+    "rd_gondola",
     "--faces",
     "12000",
     "--tex",
@@ -87,16 +69,16 @@
     "detailed",
     "--pbr",
     "--prompt",
-    "small old river dry cargo ship, long low dark hull, flat deck with closed cargo hatch covers, white superstructure with wheelhouse at the stern, mast, complete hull, weathered, rusty, realistic PBR, single object, game asset"
+    "old open-top railway gondola freight wagon, high ribbed steel sides, open top, two bogies with wheels, couplers, faded green paint with heavy rust, empty, weathered, rusty, dirty, realistic PBR, no text, no logos, single object, game asset"
    ],
    "timeout": 1800
   },
   {
-   "id": "g68_pt_forklift",
+   "id": "g69_rd_flatcar",
    "py": "tools/tripo/chain.py",
    "args": [
     "--id",
-    "pt_forklift",
+    "rd_flatcar",
     "--faces",
     "10000",
     "--tex",
@@ -105,87 +87,95 @@
     "detailed",
     "--pbr",
     "--prompt",
-    "old yellow warehouse forklift truck with raised mast and two forks, black tyres, overhead guard cage, worn paint, weathered, rusty, realistic PBR, single object, game asset"
+    "old railway flat wagon platform car, low flat wooden plank deck on a steel frame with short side stakes, two bogies with wheels, couplers, empty, weathered, rusty, dirty, realistic PBR, no text, no logos, single object, game asset"
    ],
    "timeout": 1800
   },
   {
-   "id": "g68_pt_tank_h",
+   "id": "g69_rd_tankcar",
    "py": "tools/tripo/chain.py",
    "args": [
     "--id",
-    "pt_tank_h",
+    "rd_tankcar",
     "--faces",
-    "10000",
+    "12000",
     "--tex",
     "detailed",
     "--geo",
     "detailed",
     "--pbr",
     "--prompt",
-    "large horizontal cylindrical fuel storage tank lying on two concrete saddle supports, white-grey paint with heavy rust streaks, access ladder and small platform on top, pipes and valves at one end, hazard sign, weathered, rusty, realistic PBR, single object, game asset"
+    "old railway tank wagon, long horizontal cylindrical tank on a steel underframe, dome with hatch on top, ladder and catwalk, two bogies with wheels, couplers, faded grey-black paint with rust streaks, weathered, rusty, dirty, realistic PBR, no text, no logos, single object, game asset"
    ],
    "timeout": 1800
   },
   {
-   "id": "g68_pt_tank_v",
+   "id": "g69_rd_gantry",
    "py": "tools/tripo/chain.py",
    "args": [
     "--id",
-    "pt_tank_v",
+    "rd_gantry",
     "--faces",
-    "10000",
+    "12000",
     "--tex",
     "detailed",
     "--geo",
     "detailed",
     "--pbr",
     "--prompt",
-    "vertical cylindrical steel fuel storage tank with a slightly conical roof, spiral ladder around the side with railing, light grey paint with rust streaks, pipe connections at the base, weathered, rusty, realistic PBR, single object, game asset"
+    "old industrial gantry crane on two A-frame legs with wheels on rails, long horizontal lattice bridge beam, trolley with hoist hook hanging in the middle, operator cabin, faded yellow paint with rust, weathered, rusty, dirty, realistic PBR, no text, no logos, single object, game asset"
    ],
    "timeout": 1800
   },
   {
-   "id": "g68_pt_container",
+   "id": "g69_rd_buffer",
    "py": "tools/tripo/chain.py",
    "args": [
     "--id",
-    "pt_container",
+    "rd_buffer",
     "--faces",
-    "8000",
-    "--tex",
-    "detailed",
-    "--geo",
-    "detailed",
-    "--pbr",
+    "4000",
     "--prompt",
-    "closed standard 20 foot intermodal shipping container, corrugated steel walls, double doors with locking bars at one end, corner castings, plain light grey paint with rust and scratches, no logos, no text, weathered, rusty, realistic PBR, single object, game asset"
+    "railway buffer stop at the end of a track, welded steel rail frame with a wooden beam and red-white striped board, weathered, rusty, dirty, realistic PBR, no text, no logos, single object, game asset"
    ],
    "timeout": 1800
   },
   {
-   "id": "g68_pt_bollard",
+   "id": "g69_rd_wheels",
    "py": "tools/tripo/chain.py",
    "args": [
     "--id",
-    "pt_bollard",
+    "rd_wheels",
     "--faces",
-    "3000",
+    "4000",
     "--prompt",
-    "cast iron mooring bollard on a concrete quay block with a thick coiled mooring rope lying next to it, weathered, rusty, realistic PBR, single object, game asset"
+    "pile of spare railway wheelsets, steel wheels on axles stacked on short rails, weathered, rusty, dirty, realistic PBR, no text, no logos, single object, game asset"
    ],
    "timeout": 1800
   },
   {
-   "id": "g68_pt_pump",
+   "id": "g69_rd_jack",
    "py": "tools/tripo/chain.py",
    "args": [
     "--id",
-    "pt_pump",
+    "rd_jack",
     "--faces",
-    "5000",
+    "4000",
     "--prompt",
-    "old industrial fuel pump unit on a steel skid frame with an electric motor, pipes, valves and a pressure gauge, weathered, rusty, realistic PBR, single object, game asset"
+    "heavy industrial mechanical lifting jack for railway wagons, tall steel column on a wide base with a lifting arm and a hand wheel, weathered, rusty, dirty, realistic PBR, no text, no logos, single object, game asset"
+   ],
+   "timeout": 1800
+  },
+  {
+   "id": "g69_rd_bogie",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "rd_bogie",
+    "--faces",
+    "4000",
+    "--prompt",
+    "spare railway wagon bogie truck, steel frame with two axles and four wheels, springs, standing on the ground, weathered, rusty, dirty, realistic PBR, no text, no logos, single object, game asset"
    ],
    "timeout": 1800
   }
@@ -2266,6 +2256,17 @@
   "g67_gr_jerryrack",
   "g67_gr_parts",
   "g67_it_canister_e",
-  "g67_fx_rocket"
+  "g67_fx_rocket",
+  "g68_pt_crane",
+  "g68_pt_crane2",
+  "g68_pt_tug",
+  "g68_pt_barge",
+  "g68_pt_ship",
+  "g68_pt_forklift",
+  "g68_pt_tank_h",
+  "g68_pt_tank_v",
+  "g68_pt_container",
+  "g68_pt_bollard",
+  "g68_pt_pump"
  ]
 }
