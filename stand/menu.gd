@@ -288,6 +288,7 @@ func _confirm_new() -> void:
 	hb.add_child(ULSettings.button("Начать заново", func() -> void:
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(SAVE))
 		# новая игра — и база с нуля: без оружейника, без купленных маршрутов, таймер маршрутов заново
+		ULBase.visits_wipe()
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(ULBase.path))
 		ULBase.load_state(true)
 		_go_map(), 190.0))

@@ -210,7 +210,92 @@ static func installed(id: String) -> bool:
 static func route_state(id: String) -> String:
 	load_state()
 	var r = data.routes.get(id)
-	return String(r.get("state", "")) if r is Dictionary else ""
+	if not (r is Dictionary):
+		return ""
+	if String(r.get("state", "")) == "active" and float(r.get("end", 0)) > 0.0 and Time.get_unix_time_from_system() >= float(r.end):
+		# срок кластера вышел, пока героя там не было (или игра была закрыта): локация пропадает с карты
+		if not (data.done as Array).has(id):
+			(data.done as Array).append(id)
+		data.routes.erase(id)
+		visit_clear(id)
+		save_state()
+		return ""
+	return String(r.get("state", ""))
+
+
+## Идущее посещение временного кластера. Маршрут «active» хранит срок перезагрузки кластера (end, unix-время),
+## начало (start) и случайность посещения (seed). Пока срок не вышел, локация остаётся на карте: можно уйти и
+## вернуться — таймер идёт, убитые не оживают, взятое не появляется заново (состояние — visit_*). Срок вышел —
+## маршрут закрывается сам (route_state).
+static var _visits := {}
+
+
+static func route_info(id: String) -> Dictionary:
+	return data.routes[id] if route_state(id) != "" else {}
+
+
+## сколько секунд до перезагрузки кластера идущего посещения (0 — срок не назначен или вышел)
+static func route_left(id: String) -> int:
+	var r := route_info(id)
+	if String(r.get("state", "")) != "active" or float(r.get("end", 0)) <= 0.0:
+		return 0
+	return maxi(int(ceil(float(r.end) - Time.get_unix_time_from_system())), 0)
+
+
+## посещение началось: срок, начало и случайность записаны при маршруте
+static func route_begin(id: String, seed_n: int, start: float, end: float) -> void:
+	load_state()
+	var keep_map := has_map(id)
+	data.routes[id] = {"state": "active", "at": int(start), "seed": seed_n, "start": start, "end": end}
+	if keep_map:
+		data.routes[id]["map"] = true
+	visit_clear(id)
+	save_state()
+
+
+## оставлять ли локацию на карте после ухода (why: left — ушёл за край, menu — вышел в меню, dead — погиб)
+static func route_keep(why: String) -> bool:
+	return bool((shop().get("route_keep", {}) as Dictionary).get(why, false))
+
+
+static func visit_path(id: String) -> String:
+	return "user://visit_%s.json" % id
+
+
+## состояние посещения (кто убит, что лежит, что в тайниках) — отдельным файлом на локацию; в проверках — в памяти,
+## но тем же путём через JSON (числа и ключи приходят такими же, как с диска)
+static func visit_save(id: String, st: Dictionary) -> void:
+	if memory_only:
+		_visits[id] = JSON.parse_string(JSON.stringify(st))
+		return
+	_visits.erase(id)
+	write_json(visit_path(id), st)
+
+
+static func visit_load(id: String) -> Dictionary:
+	if memory_only:
+		return _visits.get(id, {})
+	if FileAccess.file_exists(visit_path(id)):
+		var d = JSON.parse_string(FileAccess.get_file_as_string(visit_path(id)))
+		if d is Dictionary:
+			return d
+	return {}
+
+
+static func visit_clear(id: String) -> void:
+	_visits.erase(id)
+	if not memory_only and FileAccess.file_exists(visit_path(id)):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(visit_path(id)))
+
+
+## новая игра: состояния всех посещений — прочь
+static func visits_wipe() -> void:
+	_visits.clear()
+	if memory_only:
+		return
+	for id in route_pool():
+		if FileAccess.file_exists(visit_path(String(id))):
+			DirAccess.remove_absolute(ProjectSettings.globalize_path(visit_path(String(id))))
 
 
 static func set_route(id: String, state: String) -> void:
@@ -219,6 +304,9 @@ static func set_route(id: String, state: String) -> void:
 		if route_state(id) == "active" and not (data.done as Array).has(id):
 			(data.done as Array).append(id)      # посещение окончено — локация пройдена до следующего сброса
 		data.routes.erase(id)
+		visit_clear(id)
+	elif route_state(id) == state:
+		return                                     # уже так: срок и случайность идущего посещения не трогаются
 	else:
 		var keep_map := has_map(id)                # карта куплена вместе с маршрутом — остаётся с ним до конца посещения
 		data.routes[id] = {"state": state, "at": int(Time.get_unix_time_from_system())}
@@ -462,14 +550,18 @@ static func _reroll_all() -> void:
 			data.reload[String(id)] = ULReload.roll(String(id), _reload_rng())
 
 
+## Посещение, прерванное закрытием игры. Срок кластера ещё идёт — локация остаётся на карте, можно вернуться
+## (вышел срок — её закроет route_state). Вход не состоялся (игра закрылась на загрузке, срок не назначен) —
+## маршрут снова «куплен».
 static func close_interrupted() -> void:
 	load_state()
+	var dirty := false
 	for id in data.routes.keys():
-		if route_state(String(id)) == "active":
-			if not (data.done as Array).has(String(id)):
-				(data.done as Array).append(String(id))
-			data.routes.erase(id)
-	save_state()
+		if route_state(String(id)) == "active" and float((data.routes[id] as Dictionary).get("end", 0)) <= 0.0:
+			data.routes[id]["state"] = "bought"
+			dirty = true
+	if dirty:
+		save_state()
 
 
 static func clock(sec: int) -> String:

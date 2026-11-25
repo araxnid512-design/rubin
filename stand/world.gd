@@ -142,7 +142,7 @@ func _ready() -> void:
 			sc.lottery = [sc.lottery[1], sc.lottery[1]]
 			sc.ruber_chances = [0, 0, 1]                 # и два Рубера — всего 57
 			ULSanatorium._cfg = sc
-	if test == "glowview" or test == "gqview" or test == "mapbake" or test == "pmap" or test == "fldiag" or test == "shbake" or test == "shcheck" or test == "gbake" or test == "gcheck" or test == "gperf" or test == "lumtest" or test == "wperf" or test == "evo" or test == "reload" or test == "look" or test == "traces" or test == "car" or test == "turfx" or test == "exitflow" or test == "enterview" or test == "colaudit":
+	if test == "revisit" or test == "humanview" or test == "glowview" or test == "gqview" or test == "mapbake" or test == "pmap" or test == "fldiag" or test == "shbake" or test == "shcheck" or test == "gbake" or test == "gcheck" or test == "gperf" or test == "lumtest" or test == "wperf" or test == "evo" or test == "reload" or test == "look" or test == "traces" or test == "car" or test == "turfx" or test == "exitflow" or test == "enterview" or test == "colaudit":
 		# сравнение чёткости (gqview), запекание карты локации (mapbake), проверка карты (pmap): место — --as-place=
 		ULSettings.arena = false
 		for a in OS.get_cmdline_user_args():
@@ -201,7 +201,8 @@ func _ready() -> void:
 	if test != "" or lvl:
 		# проверки и тест уровней: база только в памяти; оружейник установлен (кроме проверки компьютера — там он покупается)
 		ULBase.memory_only = true
-		ULBase.load_state(true)
+		if not (test == "revisit" and int(ULSettings.test_data.get("phase", 1)) > 1):
+			ULBase.load_state(true)
 		if test != "pc":
 			ULBase.data.upgrades["gunsmith"] = 1
 			ULBase.data.staff["gunsmith"] = true
@@ -351,6 +352,12 @@ func _nav_load(path := NAV_MESH) -> void:
 ## маршрут закрывается и локация пропадает с карты. Уйти можно раньше — за край поля, с добычей. На диск во время
 ## посещения пишется только то, что при себе (ящики и вещи базы не трогаются).
 const NAV_COWSHED := "res://assets/world/nav_cowshed.res"
+## то же, когда локация остаётся на карте до перезагрузки кластера (data/base_shop.json — route_keep): %s — название, остаток
+const CS_NOTES_KEEP := {
+	"left": "Вы покинули кластер «%s» с добычей. Локация остаётся на карте, пока не вышло её время: до перезагрузки кластера — %s. Можно вернуться: убитые не оживут, взятое не появится заново.",
+	"dead": "Вы погибли в кластере «%s» и потеряли всё, что было при себе. Вещи на базе целы. Локация ещё на карте: до перезагрузки кластера — %s.",
+	"menu": "Вы покинули кластер «%s». Локация остаётся на карте: до перезагрузки кластера — %s.",
+}
 const CS_NOTES := {
 	"left": "Вы покинули кластер «%s» с добычей. Маршрут закрыт — для нового посещения купите его снова.",
 	"reset": "Кластер перезагрузился, пока вы были внутри. Вы погибли и потеряли всё, что было при себе. Вещи на базе целы.",
@@ -364,6 +371,9 @@ var size_z := SIZE                      ## поле по z (у карьера 14
 var cs_seed := 0                  ## случайность этого посещения (останки коров, враги)
 var reload_info := {}             ## итог перезагрузки кластера на этой локации (ULReload): люди, пустыши, лоторейщики, руберы
 var cs_plan: Array = []           ## кто и где появился в этот раз
+var cs_resumed := false           ## это возвращение на локацию: срок и случайность — прежние, состояние восстановлено
+var _cs_save_t := 0.0             ## когда состояние посещения писалось последний раз (с от запуска)
+var _cs_auto := 0.0
 var _cs_end := 0.0                ## когда кластер перезагрузится (unix-время, с)
 var cs_start := 0.0               ## когда начато посещение
 var _cs_warned := {}
@@ -492,15 +502,29 @@ func zone_changed() -> void:
 ## вход: отсчёт времени, останки коров и враги — по случайности этого посещения (каждый вход — по-новому)
 func _cowshed_enter() -> void:
 	var c := zone_cfg()
-	cs_start = Time.get_unix_time_from_system()
-	_cs_end = cs_start + float(c.get("minutes", 10)) * 60.0
-	if test == "" and ULBase.route_state(place) != "active":
+	# Возвращение: посещение этой локации уже идёт (маршрут хранит срок перезагрузки кластера и случайность) —
+	# срок прежний, всё расставляется по той же случайности, а затем приводится к тому, как было оставлено.
+	var track := (test == "" or test == "revisit") and not lvl
+	var vst := {}
+	if track and ULBase.route_left(place) > 0:
+		var ri := ULBase.route_info(place)
+		cs_seed = int(ri.get("seed", 0))
+		cs_start = float(ri.get("start", Time.get_unix_time_from_system()))
+		_cs_end = float(ri.end)
+		vst = ULBase.visit_load(place)
+		cs_resumed = true
+	else:
+		cs_start = Time.get_unix_time_from_system()
+		_cs_end = cs_start + float(c.get("minutes", 10)) * 60.0
+	if test == "" and lvl and ULBase.route_state(place) != "active":
 		ULBase.set_route(place, "active")
 	if cs_seed == 0:
 		cs_seed = 991 if test != "" else int(Time.get_unix_time_from_system() * 1000.0) % 2147483647
 	for a in OS.get_cmdline_user_args():
-		if a.begins_with("--as-seed="):
+		if a.begins_with("--as-seed=") and not cs_resumed:
 			cs_seed = int(a.substr(10))
+	if track and not cs_resumed:
+		ULBase.route_begin(place, cs_seed, cs_start, _cs_end)
 	var rng := RandomNumberGenerator.new()
 	rng.seed = cs_seed
 	if test == "shbake" or test == "shcheck":
@@ -510,7 +534,8 @@ func _cowshed_enter() -> void:
 			_static_geo[n.get_instance_id()] = true
 	zone.place_cows(rng)
 	if place == "lair":
-		lair_inst = ULCase.new_instance()
+		# возвращение в то же логово — тот же экземпляр: ключ главаря и сундук остаются действительными
+		lair_inst = String(ULCase.lair().get("inst", "")) if cs_resumed and String(ULCase.lair().get("inst", "")) != "" else ULCase.new_instance()
 	if san != null:
 		san.roll_containers(rng)
 	_spawn_junk(rng)
@@ -544,6 +569,7 @@ func _cowshed_enter() -> void:
 	var k := 0
 	for sp in cs_plan:
 		var en := spawn_enemy(String(sp[0]), sp[1])
+		en.set_meta("pi", k)                        # номер в расстановке — по нему при возвращении узнаётся, кто убит
 		if sp.size() > 2:
 			# санаторий: часть стоит на месте, часть бродит; в комнатах — в пределах комнаты
 			var outdoor := String(sp[2]) in ["yard", "plaza", "fence", "thicket", "boiler_out", "hozdvor", "behind_main", "road", "camp", "post", "supply", "heli", "tower", "forest"]
@@ -564,12 +590,127 @@ func _cowshed_enter() -> void:
 		ULBase._garage_norm()
 	if test == "" or test == "car" or test == "turfx":
 		_car_spawn()
+	if not vst.is_empty():
+		_cs_restore(vst)
 	cs_ready = true
 	sn_ready_ms = Time.get_ticks_msec()
 	_blobs_build()
 	if san != null:
 		zone_changed()
-	say("%s. До перезагрузки кластера — %d минут" % [zone_name(), int(c.get("minutes", 10))] + (" · ТЕСТ УРОВНЯ: бессмертие, патроны без конца" if lvl else ""))
+	if cs_resumed:
+		var lf := int(cs_left())
+		say("%s. Вы вернулись: до перезагрузки кластера — %d:%02d" % [zone_name(), lf / 60, lf % 60])
+	else:
+		say("%s. До перезагрузки кластера — %d минут" % [zone_name(), int(c.get("minutes", 10))] + (" · ТЕСТ УРОВНЯ: бессмертие, патроны без конца" if lvl else ""))
+
+
+## Состояние посещения — то, чем локация отличается от только что расставленной по своей случайности: кто из
+## расстановки убит (dead — номера), кто ранен (hp), кто появился сверх неё (extra — переродившиеся), что лежит на
+## земле (ground — всё целиком: находки, хлам, выброшенное героем), что в тайниках (cont), задание, перерождения.
+## Тела убитых не сохраняются (они и так исчезают через минуту) — необысканное с них пропадает.
+func cs_state() -> Dictionary:
+	var alive := {}
+	var hps := {}
+	var extra: Array = []
+	for e in enemies:
+		if not is_instance_valid(e) or not e.alive():
+			continue
+		if e.has_meta("pi"):
+			alive[int(e.get_meta("pi"))] = true
+			if e.hp < float(e.def.hp) - 0.5:
+				hps[str(int(e.get_meta("pi")))] = snappedf(e.hp, 0.1)
+		else:
+			extra.append({"k": e.kind, "p": [snappedf(e.global_position.x, 0.01), snappedf(e.global_position.y, 0.01), snappedf(e.global_position.z, 0.01)],
+				"hp": snappedf(e.hp, 0.1), "wr": e.wander_r})
+	var dead: Array = []
+	for i in cs_plan.size():
+		if not alive.has(i):
+			dead.append(i)
+	var gr: Array = []
+	for g in ground:
+		if g.item == null or not is_instance_valid(g.node):
+			continue
+		var n: Node3D = g.node
+		gr.append({"it": g.item, "p": [snappedf(n.global_position.x, 0.01), snappedf(n.global_position.y, 0.01), snappedf(n.global_position.z, 0.01)], "y": snappedf(n.rotation.y, 0.01)})
+	var cont: Array = []
+	if san != null:
+		for ct in san.containers:
+			var items: Array = ct.items
+			cont.append(items if items.any(func(x): return x != null) else [])
+	return {"v": 1, "seed": cs_seed, "dead": dead, "hp": hps, "extra": extra, "ground": gr, "cont": cont, "quest": quest,
+		"evo_n": evo_n, "evo_used": _evo_used.keys()}
+
+
+## записать состояние посещения (force — сейчас же; иначе не чаще раза в 8 с)
+func _cs_state_save(force := false) -> void:
+	if not temp() or lvl or not cs_ready or _cs_over or (test != "" and test != "revisit"):
+		return
+	if ULBase.route_left(place) <= 0:
+		return
+	var now := Time.get_ticks_msec() * 0.001
+	if not force and now - _cs_save_t < 8.0:
+		return
+	_cs_save_t = now
+	ULBase.visit_save(place, cs_state())
+
+
+static func _v3(a) -> Vector3:
+	return Vector3(float(a[0]), float(a[1]), float(a[2])) if a is Array and a.size() >= 3 else Vector3.ZERO
+
+
+## привести только что расставленную локацию к сохранённому состоянию посещения
+func _cs_restore(st: Dictionary) -> void:
+	if int(st.get("seed", cs_seed)) != cs_seed:
+		return                                     # состояние от другого посещения — не применять
+	# на земле — то, что было оставлено
+	for g in ground.duplicate():
+		_remove_ground(g)
+	for r in st.get("ground", []):
+		var it = ULInventory._fix(r.get("it"))
+		if it != null:
+			_spawn_ground(it, _v3(r.get("p")), float(r.get("y", 0.0)))
+	# тайники — как были оставлены
+	if san != null:
+		var cs: Array = st.get("cont", [])
+		for i in mini(cs.size(), san.containers.size()):
+			var cells := (san.containers[i].items as Array).size()
+			var arr: Array = []
+			arr.resize(cells)
+			var src: Array = cs[i] if cs[i] is Array else []
+			for j in mini(src.size(), cells):
+				arr[j] = ULInventory._fix(src[j])
+			san.containers[i].items = arr
+	# враги: убитые не оживают, раненые ранены, переродившиеся — на месте
+	var dead := {}
+	for d in st.get("dead", []):
+		dead[int(d)] = true
+	var hps: Dictionary = st.get("hp", {})
+	for e in enemies.duplicate():
+		if not e.has_meta("pi"):
+			continue
+		var pi := int(e.get_meta("pi"))
+		if dead.has(pi):
+			if boss == e:
+				boss = null
+			targets.erase(e)
+			enemies.erase(e)
+			e.queue_free()
+		elif hps.has(str(pi)):
+			e.hp = float(hps[str(pi)])
+			e.set_meta("hp", e.hp)
+	for x in st.get("extra", []):
+		var ne := spawn_enemy(String(x.get("k", "lottery")), _v3(x.get("p")))
+		ne.hp = minf(float(x.get("hp", ne.hp)), ne.hp)
+		ne.set_meta("hp", ne.hp)
+		ne.wander_r = float(x.get("wr", 0.0))
+		ne.set_meta("evolved", true)
+	var q = st.get("quest", {})
+	if q is Dictionary and not (q as Dictionary).is_empty():
+		quest = {"found": (q.get("found", {}) as Dictionary).duplicate(), "done": bool(q.get("done", false))}
+	evo_n = int(st.get("evo_n", 0))
+	for key in st.get("evo_used", []):
+		_evo_used[String(key)] = true
+	print("[visit] возвращение на «%s»: убитых %d, сверх расстановки %d, на земле %d, осталось %d с" % [place, dead.size(), (st.get("extra", []) as Array).size(), ground.size(), int(cs_left())])
 
 
 ## Находки на земле — только там, куда герой может подойти: лежит вне карты проходимости (у бровки над обрывом,
@@ -840,6 +981,11 @@ func _cs_tick(delta: float) -> void:
 			quest_tick()
 	if cs_ready and _dead_t <= 0.0 and (test == "" or test == "evo"):
 		_evo_tick(delta)
+	# состояние посещения пишется раз в 20 с: если игру закроют, при возвращении локация будет как оставлена
+	_cs_auto += delta
+	if _cs_auto >= 20.0:
+		_cs_auto = 0.0
+		_cs_state_save()
 	var left := cs_left()
 	var c := zone_cfg()
 	for wv in c.get("warn_s", [300, 120]):
@@ -955,17 +1101,27 @@ func cs_finish(why: String) -> void:
 		hp = 50.0
 	# задание карьера: всё найдено и ушёл до перезагрузки — награда в кошелёк (до записи того, что при себе)
 	var quest_note := ""
-	if place == "quarry" and why == "left" and not quest.is_empty() and quest_ready():
+	if place == "quarry" and why == "left" and not quest.is_empty() and quest_ready() and not bool(quest.get("done", false)):
 		quest.done = true
 		var rw: Dictionary = ULQuarry.qcfg().get("quest", {}).get("reward", {})
 		for k in rw:
 			inv.wallet[k] = int(inv.wallet.get(k, 0)) + int(rw[k])
 		quest_note = "\nЗадание «Последняя смена» выполнено: " + ULEconomy.list_text(rw) + "."
 	_save_carried()
-	ULBase.set_route(place, "")
-	ULSettings.place = "home"
+	# Локация остаётся на карте, пока не вышло её время (кроме перезагрузки кластера): состояние посещения
+	# записывается — при возвращении всё будет как оставлено.
+	var lf := ULBase.route_left(place)
+	var keep := why != "reset" and lf > 0 and ULBase.route_keep(why) and cs_ready
 	var note := String(CS_NOTES.get(why, ""))
-	ULSettings.arrival_note = (note % zone_name() if note.contains("%s") else note) + quest_note
+	if keep:
+		_cs_state_save(true)
+		note = String(CS_NOTES_KEEP.get(why, note))
+		note = note % [zone_name(), "%d:%02d" % [lf / 60, lf % 60]] if note.count("%s") == 2 else note
+	else:
+		ULBase.set_route(place, "")
+		note = note % zone_name() if note.contains("%s") else note
+	ULSettings.place = "home"
+	ULSettings.arrival_note = note + quest_note
 	ULSettings.arrival_title = zone_name()
 	if test == "":
 		_leave_to({"left": "res://map.tscn", "menu": "res://menu.tscn"}.get(why, "res://world.tscn"), "выход с локации %s (%s)" % [place, why])
@@ -1002,6 +1158,8 @@ func _notification(what: int) -> void:
 		return
 	if what == NOTIFICATION_APPLICATION_PAUSED or what == NOTIFICATION_WM_CLOSE_REQUEST:
 		ULSettings.step_ok()
+		if is_inside_tree() and temp() and not _cs_done:
+			_cs_state_save(true)                   # игру свернули или закрывают на локации: состояние посещения — на диск
 	elif what == NOTIFICATION_APPLICATION_RESUMED:
 		ULSettings.step("игра: " + place)
 
@@ -3948,6 +4106,7 @@ func _save() -> void:
 		return                                  # полигон, проверки и тест уровней сохранение не трогают
 	if temp():
 		_save_carried()                         # во временном кластере сохраняется только то, что при себе
+		_cs_state_save()                        # и состояние посещения (не чаще раза в 8 с)
 		return
 	var cr := []
 	for c in crates:
@@ -12621,6 +12780,7 @@ func open_settings() -> void:
 			_leave_to("res://menu.tscn")],
 		["Выйти из игры", func() -> void:
 			_save()
+			_cs_state_save(true)
 			ULSettings.step_ok()
 			get_tree().quit()],
 	])
@@ -13297,6 +13457,12 @@ func _npcs_tick(delta: float) -> void:
 		var r := b.get_node("Rig") as BCCharacter
 		# имя жителя в доме видно только из дома (иначе надпись висит поверх крыши)
 		(b.get_node("Label") as Label3D).visible = not _in_house(b.global_position) or house.inside
+		# Только что созданный житель сначала секунду играет стойку, даже если герой далеко: иначе он засыпал в
+		# позе модели (руки в стороны) и стоял так, пока герой не подойдёт на 24 м.
+		var lived := float(b.get_meta("lived", 0.0))
+		if lived < 1.0:
+			b.set_meta("lived", lived + delta)
+			near = true
 		if near != bool(b.get_meta("awake", true)):
 			b.set_meta("awake", near)
 			r.set_active(near)
@@ -16943,6 +17109,108 @@ func _run_test() -> void:
 		await _snap("s3_inventory")
 		get_tree().quit()
 		return
+	if test == "humanview":
+		# люди крупным планом (герой с разным оружием, жители базы; на локации — её враги): по три кадра подряд
+		# каждого состояния, чтобы видеть и позу, и движение. --as-place=lair — муры и главарь.
+		var th := Time.get_ticks_msec()
+		while temp() and not cs_ready and Time.get_ticks_msec() - th < 40000:
+			await get_tree().process_frame
+		hp_lock = true
+		_hud.visible = false
+		if info:
+			info.visible = false
+		var hc := Camera3D.new()
+		add_child(hc)
+		hc.fov = 30.0
+		var shot := func(nm: String, tg: Node3D, side := 0.55, n := 3, gap := 0.22) -> void:
+			# камера едет вместе с персонажем (его дочерний узел): в кадре он весь, даже на бегу
+			hc.get_parent().remove_child(hc)
+			tg.add_child(hc)
+			hc.position = Vector3(-3.9 * side, 1.5, 3.9)
+			hc.look_at(tg.global_position + Vector3.UP * 0.95, Vector3.UP)
+			hc.current = true
+			for k in n:
+				await get_tree().process_frame
+				await _snap("%s_%d" % [nm, k])
+				await get_tree().create_timer(gap).timeout
+			hc.current = false
+		if not temp():
+			for e0 in enemies.duplicate():
+				e0.visible = false
+				e0.process_mode = Node.PROCESS_MODE_DISABLED
+			player.global_position = Vector3(20.0, 0.05, 40.0)
+			player.rotation.y = 0.0
+			inv.primary = ULItems.make("ak74m")
+			inv.pistol = ULItems.make("tt")
+			inv.add(ULItems.make("a545", 90))
+			inv.add(ULItems.make("a762x25", 32))
+			var part := ""
+			for a9 in OS.get_cmdline_user_args():
+				if a9.begins_with("--as-part="):
+					part = a9.substr(10)
+			var hws: Array = [["none", ""], ["rifle", "primary"], ["pistol", "pistol"]]
+			if part == "npc":
+				hws = []
+			elif part == "lite":
+				hws = [["none", ""], ["rifle", "primary"]]
+			for hw in hws:
+				inv.hand = String(hw[1])
+				_apply_gear()
+				await get_tree().create_timer(2.2).timeout
+				await shot.call("h_%s_idle" % hw[0], player)
+				_joy_v = Vector2(0.45, 0)
+				_joy_id = 77
+				await get_tree().create_timer(1.2).timeout
+				await shot.call("h_%s_walk" % hw[0], player, 0.55, 4, 0.12)
+				_joy_v = Vector2(1, 0)
+				await get_tree().create_timer(1.0).timeout
+				await shot.call("h_%s_run" % hw[0], player, 0.55, 4, 0.12)
+				_joy_v = Vector2.ZERO
+				_joy_id = -1
+				await get_tree().create_timer(0.8).timeout
+				player.global_position = Vector3(20.0, 0.05, 40.0)
+				if String(hw[1]) != "":
+					_hud_touch[99] = "fire"
+					await get_tree().create_timer(0.7).timeout
+					await shot.call("h_%s_fire" % hw[0], player, 0.55, 3, 0.1)
+					_hud_touch.erase(99)
+					await get_tree().create_timer(0.6).timeout
+			inv.hand = ""
+			_apply_gear()
+			await get_tree().create_timer(1.5).timeout
+			if part == "":
+				_try_attack()
+				await shot.call("h_punch", player, 0.55, 4, 0.06)
+			# жители: герой стоит рядом (как в игре), подходит издали — житель «просыпается» и должен встать в стойку
+			if ULBase.has_staff("gunsmith") == false and part != "lite":
+				ULBase.memory_only = true
+				ULBase.data.upgrades["gunsmith"] = 1
+				ULBase.data.staff["gunsmith"] = true
+				_npcs_setup()
+			for n in (npcs if part != "lite" else []):
+				if is_instance_valid(n):
+					var nb := n as Node3D
+					await shot.call("npc_%s_far" % String(nb.get_meta("role")), nb, 0.4, 1, 0.3)
+					player.global_position = nb.global_position + Vector3(sin(nb.rotation.y), 0, cos(nb.rotation.y)) * 2.6 + Vector3.UP * 0.05
+					await get_tree().create_timer(1.5).timeout
+					await shot.call("npc_%s" % String(nb.get_meta("role")), nb, 0.4, 3, 0.5)
+		else:
+			var seen := {}
+			for e in enemies:
+				if not e.alive() or seen.has(e.kind):
+					continue
+				seen[e.kind] = true
+				e.set_active(true)
+				e.rig.set_detail(true)
+				player.global_position = e.global_position + Vector3(0, 0.05, 30.0)
+				await get_tree().create_timer(0.8).timeout
+				await shot.call("e_%s_idle" % e.kind, e, 0.5, 3, 0.4)
+				player.global_position = e.global_position + Vector3(sin(e.rotation.y), 0, cos(e.rotation.y)) * 7.0 + Vector3.UP * 0.05
+				e.hear(player.global_position)
+				await get_tree().create_timer(1.6).timeout
+				await shot.call("e_%s_act" % e.kind, e, 0.5, 5, 0.25)
+		_test_done()
+		return
 	if test == "glowview":
 		# вид у входа в постройку: со светом у двери и без него (--as-place=…)
 		var tg := Time.get_ticks_msec()
@@ -17007,6 +17275,119 @@ func _run_test() -> void:
 				await get_tree().process_frame
 			await _snap("loot_marks")
 		_ok("три пули в землю — три фонтанчика пыли; три попадания по железу — три снопа искр", int(fx_n.get("dirt", 0)) == 3 and int(fx_n.get("spark", 0)) == 3, str(fx_n))
+		_test_done()
+		return
+	if test == "revisit":
+		# Локация не исчезает, пока не вышло её время: уйти и вернуться (две загрузки сцены в одном запуске,
+		# --as-place=…). Первая: убить троих, ранить одного, взять находку, выбросить аптечку, опустошить тайник,
+		# уйти за край. Вторая: срок и расстановка прежние, убитые не ожили, взятого нет, выброшенное лежит.
+		var tr := Time.get_ticks_msec()
+		while not cs_ready and Time.get_ticks_msec() - tr < 90000:
+			await get_tree().process_frame
+		hp_lock = true
+		var td: Dictionary = ULSettings.test_data
+		var alive_now := func() -> int:
+			var n := 0
+			for e in enemies:
+				if is_instance_valid(e) and e.alive():
+					n += 1
+			return n
+		var cont_total := func() -> int:
+			var n := 0
+			if san != null:
+				for ct in san.containers:
+					for it in ct.items:
+						if it != null:
+							n += int(it.n)
+			return n
+		if int(td.get("phase", 1)) == 1:
+			_ok("1. первое посещение «%s»: срок кластера и случайность записаны при маршруте, посещение идёт" % zone_name(), not cs_resumed and ULBase.route_state(place) == "active" and ULBase.route_left(place) > 60 and int(ULBase.route_info(place).get("seed", 0)) == cs_seed, str(ULBase.route_info(place)))
+			var with_pi: Array = enemies.filter(func(e): return e.alive() and e.has_meta("pi"))
+			var killed: Array = []
+			for i in 3:
+				var ke: ULEnemy = with_pi[i * 2]
+				killed.append(int(ke.get_meta("pi")))
+				ke.damage(1000000.0)
+			var he: ULEnemy = with_pi[1]
+			he.damage(he.hp * 0.5)
+			var g_take: Dictionary = ground[0]
+			var take_id := String(g_take.item.id)
+			var take_p: Vector3 = (g_take.node as Node3D).global_position
+			_remove_ground(g_take)
+			var drop_p := zone_entry() + Vector3(1.0, 0.0, -2.0)
+			_spawn_ground(ULItems.make("medkit", 1), drop_p, 0.5)
+			var ci := -1
+			var c_slot := -1
+			if san != null:
+				for i in san.containers.size():
+					var items: Array = san.containers[i].items
+					for j in items.size():
+						if items[j] != null and ci < 0:
+							ci = i
+							c_slot = j
+				if ci >= 0:
+					san.containers[ci].items[c_slot] = null
+			await get_tree().create_timer(1.2).timeout
+			td["end"] = _cs_end
+			td["seed"] = cs_seed
+			td["alive"] = alive_now.call()
+			td["killed"] = killed
+			td["hurt_pi"] = int(he.get_meta("pi"))
+			td["hurt_hp"] = he.hp
+			td["ground_n"] = ground.size()
+			td["take_id"] = take_id
+			td["take_p"] = take_p
+			td["drop_p"] = drop_p
+			td["ci"] = ci
+			td["c_slot"] = c_slot
+			td["cont_total"] = cont_total.call()
+			td["cow0"] = zone.cows[0] if "cows" in zone and not (zone.cows as Array).is_empty() else Vector3.INF
+			td["plan"] = cs_plan.size()
+			td["zone"] = zone_name()
+			var pl := place
+			cs_finish("left")
+			var vs1 := ULBase.visit_load(pl)
+			_ok("2. ушёл за край: локация осталась на карте (маршрут идёт, осталось %d с), состояние посещения записано, герой — дома" % ULBase.route_left(pl),
+				ULBase.route_state(pl) == "active" and ULBase.route_left(pl) > 60 and ULSettings.place == "home" and (vs1.get("dead", []) as Array).size() >= 3 and ULSettings.arrival_note.contains("остаётся на карте"), ULSettings.arrival_note)
+			td["phase"] = 2
+			td["fails"] = _fails
+			ULSettings.place = pl
+			get_tree().change_scene_to_file("res://world.tscn")
+			return
+		_fails += int(td.get("fails", 0))
+		_ok("3. вернулся на «%s»: срок перезагрузки тот же (осталось %d с), случайность и расстановка те же" % [zone_name(), int(cs_left())], cs_resumed and absf(_cs_end - float(td.end)) < 0.01 and cs_seed == int(td.seed) and cs_plan.size() == int(td.plan) and cs_left() > 30.0,
+			"срок %.1f / %.1f, случайность %d / %d, расстановка %d / %d" % [_cs_end, float(td.end), cs_seed, int(td.seed), cs_plan.size(), int(td.plan)])
+		var back: Array = []
+		for e in enemies:
+			if e.has_meta("pi") and int(e.get_meta("pi")) in (td.killed as Array):
+				back.append(int(e.get_meta("pi")))
+		_ok("4. убитые не ожили: живых %d (уходил — %d), троих убитых нет" % [alive_now.call(), int(td.alive)], alive_now.call() == int(td.alive) and back.is_empty(), str(back))
+		var he2: ULEnemy = null
+		for e in enemies:
+			if e.has_meta("pi") and int(e.get_meta("pi")) == int(td.hurt_pi):
+				he2 = e
+		_ok("5. раненый остался раненым", he2 != null and absf(he2.hp - float(td.hurt_hp)) < 0.2 and absf(float(he2.get_meta("hp")) - he2.hp) < 0.01, "здоровье %.1f / %.1f" % [he2.hp if he2 != null else -1.0, float(td.hurt_hp)])
+		var taken_back := false
+		var dropped := false
+		for g in ground:
+			var gp: Vector3 = (g.node as Node3D).global_position
+			if String(g.item.id) == String(td.take_id) and gp.distance_to(td.take_p) < 0.05:
+				taken_back = true
+			if String(g.item.id) == "medkit" and Vector2(gp.x - (td.drop_p as Vector3).x, gp.z - (td.drop_p as Vector3).z).length() < 0.05:
+				dropped = true
+		_ok("6. на земле — как оставлено: предметов %d (уходил — %d), взятого («%s») нет, выброшенная аптечка лежит" % [ground.size(), int(td.ground_n), String(td.take_id)], ground.size() == int(td.ground_n) and not taken_back and dropped)
+		if san != null and int(td.ci) >= 0:
+			_ok("7. тайники — как оставлены: опустошённая ячейка пуста, всего в тайниках %d (уходил — %d)" % [cont_total.call(), int(td.cont_total)], san.containers[int(td.ci)].items[int(td.c_slot)] == null and cont_total.call() == int(td.cont_total))
+		if (td.cow0 as Vector3) != Vector3.INF:
+			_ok("7. останки коров — на тех же местах (та же случайность)", (zone.cows[0] as Vector3).distance_to(td.cow0) < 0.01)
+		# гибель: вещи теряются, локация остаётся до конца её времени
+		var pl2 := place
+		_cs_done = false
+		cs_finish("dead")
+		_ok("8. погиб: всё при себе потеряно, локация всё ещё на карте (осталось %d с)" % ULBase.route_left(pl2), inv.primary == null and ULBase.route_state(pl2) == "active" and ULSettings.arrival_note.contains("ещё на карте"), ULSettings.arrival_note)
+		# срок вышел, пока героя не было
+		ULBase.data.routes[pl2]["end"] = Time.get_unix_time_from_system() - 1.0
+		_ok("9. время локации вышло: она пропала с карты, состояние посещения стёрто, до сброса маршрутов её не купить", ULBase.route_state(pl2) == "" and ULBase.visit_load(pl2).is_empty() and ULBase.route_done(pl2))
 		_test_done()
 		return
 	if test == "stealth":

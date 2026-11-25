@@ -875,7 +875,9 @@ func _route_card(id: String, d: Dictionary, compact := false, dense := false) ->
 			b = _btn("МАРШРУТ КУПЛЕН", "", "gray", func() -> void: pass, bs, bf)
 			b.disabled = true
 		"active":
-			b = _btn("ИДЁТ ПОСЕЩЕНИЕ", "", "gray", func() -> void: pass, bs, bf)
+			# локация открыта, пока идёт её время: сколько осталось до перезагрузки кластера
+			var lf := ULBase.route_left(id)
+			b = _btn(("ОТКРЫТА ЕЩЁ %d:%02d" % [lf / 60, lf % 60]) if lf > 0 else "ИДЁТ ПОСЕЩЕНИЕ", "", "gray", func() -> void: pass, bs, bf)
 			b.disabled = true
 		_:
 			b = _btn(String(d.get("btn", "КУПИТЬ МАРШРУТ")), "pin_btn", "green", ask_route.bind(id), bs, bf)

@@ -226,7 +226,20 @@ func center_on(id: String) -> void:
 	set_pan(place_rect(id).get_center() - size * 0.5)
 
 
+var _tick_t := 0.0
+
+
 func _process(_d: float) -> void:
+	# идущее посещение: остаток времени на панели обновляется; кластер перезагрузился — локация пропала
+	_tick_t -= _d
+	if _tick_t <= 0.0:
+		_tick_t = 0.5
+		if sel != "" and PLACES[sel].get("route", false) and not entering:
+			if not place_shown(sel):
+				select("")
+				note.text = "Кластер перезагрузился — локации больше нет на карте"
+			elif p_x != null:
+				p_x.text = _route_text(sel)
 	var mr := map_rect()
 	mat.set_shader_parameter("view_pos", pan)
 	mat.set_shader_parameter("view_size", size)
@@ -250,6 +263,14 @@ func _draw_over() -> void:
 			var kk2 := 1.0 + 0.05 * sin(Time.get_ticks_msec() * 0.004)
 			over.draw_arc(c, r.size.x * 0.5 * kk2, 0, TAU, 56, Color(1.0, 0.6, 0.2, 0.35), 2.0)
 			over.draw_texture_rect(_marks[id], r, false)
+		var lf := ULBase.route_left(id) if PLACES[id].get("route", false) else 0
+		if lf > 0:
+			# идёт посещение: под меткой — сколько осталось до перезагрузки кластера
+			var tt := "%d:%02d" % [lf / 60, lf % 60]
+			var tw2 := f.get_string_size(tt, HORIZONTAL_ALIGNMENT_LEFT, -1, 18).x
+			var ta := Vector2(c.x - tw2 * 0.5, r.end.y + 18.0)
+			over.draw_string_outline(f, ta, tt, HORIZONTAL_ALIGNMENT_LEFT, -1, 18, 7, Color(0, 0, 0, 0.9))
+			over.draw_string(f, ta, tt, HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color(1.0, 0.45, 0.35) if lf < 60 else Color(1.0, 0.86, 0.5))
 		if id == sel:
 			over.draw_arc(c, r.size.x * 0.5, 0, TAU, 56, Color(1.0, 0.8, 0.3, 0.9), 3.0)
 		if id == here:
@@ -302,13 +323,27 @@ func select(id: String) -> void:
 		# временный кластер: описание, опасность и время — из data/base_shop.json (там же цена маршрута)
 		var r: Dictionary = ULBase.shop().get("routes", {}).get(id, {})
 		p_d.text = String(r.get("d", p_d.text))
-		p_x.text = "Опасность: %s\nВремя пребывания: %d минут · маршрут на одно посещение" % [String(r.get("danger", "высокая")).to_lower(), int(r.get("minutes", 10))]
+		p_x.text = _route_text(id)
 		var rl := ULBase.reload_of(id)
 		if not rl.is_empty():
-			p_x.text += "\nПосле перезагрузки: пустышей %d, лоторейщиков %d, руберов %d" % [int(rl.pustysh), int(rl.lottery), int(rl.ruber)]
 			p_d.text += "\n" + ULReload.story(rl)
 	tw.tween_method(_panel_x, panel.offset_left, 12.0, 0.25).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 	note.text = "«Войти» — зайти на локацию"
+
+
+## строки панели временного кластера: опасность, время (идёт посещение — сколько осталось до перезагрузки), кто там
+func _route_text(id: String) -> String:
+	var r: Dictionary = ULBase.shop().get("routes", {}).get(id, {})
+	var t := "Опасность: %s\n" % String(r.get("danger", "высокая")).to_lower()
+	var lf := ULBase.route_left(id)
+	if lf > 0:
+		t += "До перезагрузки кластера: %d:%02d — пока идёт время, сюда можно вернуться" % [lf / 60, lf % 60]
+	else:
+		t += "Время пребывания: %d минут · локация остаётся на карте, пока не выйдет её время" % int(r.get("minutes", 10))
+	var rl := ULBase.reload_of(id)
+	if not rl.is_empty():
+		t += "\nПосле перезагрузки: пустышей %d, лоторейщиков %d, руберов %d" % [int(rl.pustysh), int(rl.lottery), int(rl.ruber)]
+	return t
 
 
 func enter(id: String) -> void:
@@ -389,9 +424,23 @@ func _run_test() -> void:
 	enter("cowshed")
 	ok.call("вход в коровник: посещение началось (маршрут занят), место — коровник", ULBase.route_state("cowshed") == "active" and ULSettings.place == "cowshed")
 	ULBase.close_interrupted()
-	ok.call("прерванное посещение (игру закрыли) — маршрут закрыт, коровника нет", ULBase.route_state("cowshed") == "" and not place_shown("cowshed"))
+	ok.call("вход не состоялся (игру закрыли на загрузке, срок кластера не назначен) — маршрут снова «куплен», коровник на карте", ULBase.route_state("cowshed") == "bought" and place_shown("cowshed"))
 	ULSettings.place = "home"
 	entering = false
+	select("")
+	await get_tree().create_timer(0.4).timeout
+	# идущее посещение: срок назначен — локация на карте с остатком времени, панель показывает его; срок вышел — пропала
+	var now_s := Time.get_unix_time_from_system()
+	ULBase.route_begin("cowshed", 123, now_s - 100.0, now_s + 500.0)
+	ULBase.close_interrupted()
+	tap(cr.get_center() - pan)
+	await get_tree().create_timer(0.7).timeout
+	ok.call("идёт посещение (осталось 8 минут): после закрытия игры коровник остаётся на карте, на панели — остаток времени", ULBase.route_state("cowshed") == "active" and place_shown("cowshed") and sel == "cowshed" and p_x.text.contains("До перезагрузки кластера: 8:") and ULBase.route_left("cowshed") > 490, p_x.text)
+	await _snap("p4b_cowshed_open")
+	ULBase.data.routes["cowshed"]["end"] = now_s - 1.0
+	await get_tree().create_timer(0.8).timeout
+	ok.call("срок кластера вышел — коровник пропал с карты, панель закрылась, до сброса маршрутов его не купить", not place_shown("cowshed") and sel == "" and ULBase.route_state("cowshed") == "" and ULBase.route_done("cowshed"))
+	(ULBase.data.done as Array).erase("cowshed")
 	select("")
 	# санаторий: до покупки нет, после — слева выше дома, панель с описанием, 10 минут
 	var sr := place_rect("sanatorium")
