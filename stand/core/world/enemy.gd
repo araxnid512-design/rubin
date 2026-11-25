@@ -207,26 +207,11 @@ func setup(k: String, at: Vector3, seed_n: int) -> void:
 	add_child(cs)
 	rig = BCCharacter.new()
 	rig.name = "Rig"
-	var armed := def.has("gun")
-	rig.simple = true                # без поправок под оружие; движения — клипы как есть
-	rig.strike_ik = not armed        # лапа на ударе доводится до героя (_plan_strikes)
-	rig.built_poses = armed          # вооружённый (мур) — стойки с оружием, как у героя
-	rig.stand_clamp = not armed
-	rig.fx_cfg = def.get("fx", {})
-	rig.height = tall
-	rig.speed_k = float(def.get("stride_k", 1.0))    # рослый — шаг длиннее: темп клипов по росту, стопы не скользят
-	rig.alias = def.get("clips", {})                 # свои клипы вместо общих (главарь муров, пустыш)
-	rig.extra_build = String(def.get("build", ""))   # клипы по ключевым позам сверх набора (пустыш)
 	add_child(rig)
-	var path := String(def.model)
-	var own := ResourceLoader.exists(path)
-	# свой набор движений (снятых под эту модель) и своё описание клипов; чего в наборе нет — берётся у героя
-	rig.anim_cfg = String(def.get("anim_cfg", BCAnimSet.CONFIG))
-	rig.setup(path if own else "res://assets/models/hero.glb", String(def.get("anim", "res://assets/anim/hero")) if own else "res://assets/anim/hero")
-	if rig.ik != null and bool(def.get("no_foot_ik", false)):
-		# постановка стоп рассчитана на обутую ногу героя; босая стопа от неё встаёт на носок
-		rig.ik.queue_free()
-		rig.ik = null
+	var own := rig_setup(rig, def)
+	if rig.tree != null:
+		# у каждого своя фаза движений: толпа не дышит и не покачивается в такт
+		rig.tree.advance(float(absi(seed_n) % 997) / 997.0 * 4.0)
 	if not own:
 		# своей модели ещё нет — фигура героя в мертвенно-серых тонах
 		for mi in rig.model.find_children("*", "MeshInstance3D", true, false):
@@ -247,6 +232,31 @@ func setup(k: String, at: Vector3, seed_n: int) -> void:
 	_t = _rng.randf_range(1.0, 4.0)
 	_growl = _rng.randf_range(3.0, 9.0)
 	loot = roll_loot(k, seed_n)
+
+
+## Настройка тела врага по его описанию — одна на игру и на стенд 3D: на стенде враг стоит, ходит и бьёт
+## теми же клипами и с теми же поправками, что в игре. Возвращает false, если своей модели ещё нет.
+static func rig_setup(r: BCCharacter, d: Dictionary) -> bool:
+	var armed := d.has("gun")
+	r.simple = true                # без поправок под оружие; движения — клипы как есть
+	r.strike_ik = not armed        # лапа на ударе доводится до героя (_plan_strikes)
+	r.built_poses = armed          # вооружённый (мур) — стойки с оружием, как у героя
+	r.stand_clamp = not armed
+	r.fx_cfg = d.get("fx", {})
+	r.height = float(d.get("height", 1.78))
+	r.speed_k = float(d.get("stride_k", 1.0))    # рослый — шаг длиннее: темп клипов по росту, стопы не скользят
+	r.alias = d.get("clips", {})                 # свои клипы вместо общих (главарь муров, пустыш)
+	r.extra_build = String(d.get("build", ""))   # клипы по ключевым позам сверх набора (пустыш)
+	var path := String(d.model)
+	var own := ResourceLoader.exists(path)
+	# свой набор движений (снятых под эту модель) и своё описание клипов; чего в наборе нет — берётся у героя
+	r.anim_cfg = String(d.get("anim_cfg", BCAnimSet.CONFIG))
+	r.setup(path if own else "res://assets/models/hero.glb", String(d.get("anim", "res://assets/anim/hero")) if own else "res://assets/anim/hero")
+	if r.ik != null and bool(d.get("no_foot_ik", false)):
+		# постановка стоп рассчитана на обутую ногу героя; босая стопа от неё встаёт на носок
+		r.ik.queue_free()
+		r.ik = null
+	return own
 
 
 ## Подсветка контура: края фигуры чуть светлее (со стороны камеры сверху враг отделяется от земли и пола).

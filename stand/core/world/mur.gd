@@ -81,21 +81,27 @@ var _rk0 := 1.0                     ## отдача и вспышка оружи
 var _fk0 := 1.0
 
 
+## Оружие в руки и стойка с ним — одна настройка на игру и на стенд 3D.
+static func rig_arm(r: BCCharacter, d: Dictionary) -> void:
+	var g: Dictionary = d.get("gun", {})
+	if r.hold != null:
+		r.hold.draw_rate = 2.0
+		r.hold.reload_rate = 1.3
+		# у главаря оружие под его рост, вспышка и отдача — тяжёлого пистолета
+		r.hold.size_k = float(g.get("scale", 1.0))
+		r.hold.flash_k = float(g.get("flash", 1.0))
+		r.hold.recoil_k = float(g.get("recoil", 1.0))
+		r.hold.equip(String(g.get("weapon", "rifle")), true)
+		r.hold.set_stance("ready")
+	r.set_pose("armed_idle")
+
+
 func setup(k: String, at: Vector3, seed_n: int) -> void:
 	super.setup(k, at, seed_n)
 	gun = def.get("gun", {})
 	boss = bool(def.get("boss", false))
 	mag = int(gun.get("mag", 30))
-	if rig.hold != null:
-		rig.hold.draw_rate = 2.0
-		rig.hold.reload_rate = 1.3
-		# у главаря оружие под его рост, вспышка и отдача — тяжёлого пистолета
-		rig.hold.size_k = float(gun.get("scale", 1.0))
-		rig.hold.flash_k = float(gun.get("flash", 1.0))
-		rig.hold.recoil_k = float(gun.get("recoil", 1.0))
-		rig.hold.equip(String(gun.get("weapon", "rifle")), true)
-		rig.hold.set_stance("ready")
-	rig.set_pose("armed_idle")
+	rig_arm(rig, def)
 	_body_now = "armed_idle"
 	_sp_cd = float(def.get("special", {}).get("cd", 10.0)) * 0.5
 	_gr_cd = 2.0

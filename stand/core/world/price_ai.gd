@@ -13,6 +13,8 @@ extends RefCounted
 ##   Продажа     — по редкости предмета; и не дороже доли того, за сколько этот же предмет можно купить:
 ##                 «купил у оружейника — продал барахольщику с прибылью» невозможно.
 ##   Улучшения   — в долях выручки первой вылазки (коровник).
+##   Валюта      — по стоимости (coin.tiers): дешёвое — споранами, дорогое — горохом, самое дорогое — жемчугом;
+##                 цена, названная в данных старшей валютой, в младшую не переводится.
 ## Рынок барахольщика: первые free штук одного товара за период он берёт по полной цене, дальше — всё дешевле
 ## (рынок насыщен), но не ниже min_k; со сбросом маршрутов спрос возвращается.
 ## Правки применяются при загрузке (fix_*), файлы данных не переписываются: числа в них — предложение.
@@ -54,14 +56,66 @@ static func sp(price: Dictionary) -> float:
 	return v
 
 
-## спораны → цена: до pea_from — споранами, дороже — горохом (как принято у оружейника)
+## Ступени валюты: [[ресурс, с какой стоимости в споранах], …] — дешёвое называется в споранах, дорогое —
+## в горохе, самое дорогое — в жемчужинах (data/price_ai.json → coin.tiers).
+static func tiers() -> Array:
+	return cfg().get("coin", {}).get("tiers", [])
+
+
+## В какой валюте назвать цену стоимостью v споранов. like — прежняя цена: её старшая валюта — нижняя граница
+## (то, что в данных названо горохом, в спораны не переводится).
+static func coin_for(v: float, like: Dictionary = {}) -> String:
+	var ch: Array = ULEconomy.chain()
+	var best := ch.size() - 1
+	for t in tiers():
+		var i := ch.find(String(t[0]))
+		if i >= 0 and v >= float(t[1]):
+			best = mini(best, i)
+	for r in like:
+		var j := ch.find(String(r))
+		if j >= 0:
+			best = mini(best, j)
+	return String(ch[best])
+
+
+## спораны → цена в валюте своей ступени
 static func to_price(v: float, like: Dictionary = {}) -> Dictionary:
-	if like.has("pea") and not like.has("spore"):
-		return {"pea": maxi(1, roundi(v / unit("pea")))}
-	# крупные цены — круглые (до пяти споранов)
+	var c := coin_for(v, like)
+	if c != "spore":
+		return {c: maxi(1, roundi(v / unit(c)))}
+	# крупные цены в споранах — круглые (до пяти)
 	if v >= 40.0:
 		return {"spore": maxi(1, roundi(v / 5.0) * 5)}
 	return {"spore": maxi(1, roundi(v))}
+
+
+## Назвать цену в валюте её ступени (стоимость та же с точностью до округления). Цена уже в своей валюте —
+## возвращается как есть. what — подпись для отчёта.
+static func recoin(price: Dictionary, what := "") -> Dictionary:
+	if not on() or tiers().is_empty() or price.is_empty():
+		return price
+	var v := sp(price)
+	var c := coin_for(v, price)
+	if price.size() == 1 and price.has(c):
+		return price
+	var now := {c: maxi(1, roundi(v / unit(c)))}
+	if what != "":
+		_note(what, v, sp(now), "дорогое — не в споранах: %s" % ULEconomy.list_text(now))
+	return now
+
+
+## То же для любого описания (гараж, детали машины): каждая цена "price" внутри — в валюте своей ступени.
+static func recoin_tree(node, what := "") -> void:
+	if node is Dictionary:
+		if node.has("price") and node.price is Dictionary:
+			node.price = recoin(node.price, ("%s: %s" % [what, String(node.get("n", ""))]) if what != "" else "")
+		for k in node:
+			if node[k] is Dictionary or node[k] is Array:
+				recoin_tree(node[k], what)
+	elif node is Array:
+		for it in node:
+			if it is Dictionary or it is Array:
+				recoin_tree(it, what)
 
 
 # ---------------- ориентиры ----------------
@@ -225,6 +279,13 @@ static func fix_shop(shop: Dictionary, force := false) -> void:
 		if absf(now - was) >= 1.0:
 			row[2] = to_price(now * float(row[1]), row[2])
 			_note("оружейник: %s" % String(ULItems.get_def(String(row[0])).n), was, now, "цена за единицу здоровья в коридоре %.2f–%.2f" % [float(mc[0]), float(mc[1])])
+	# валюта — по стоимости: дорогое не называется в споранах
+	for sec in shop:
+		if not (shop[sec] is Array):
+			continue
+		for row in shop[sec]:
+			if row is Array and row.size() >= 3 and row[2] is Dictionary:
+				row[2] = recoin(row[2], "оружейник: %s" % String(ULItems.get_def(String(row[0])).get("n", row[0])))
 
 
 ## Компьютер базы (data/base_shop.json): маршруты и улучшения. Правит на месте.
@@ -270,6 +331,15 @@ static func fix_base(base: Dictionary, force := false) -> void:
 		if own > 0.0 and was < own * float(cfg().get("sale", {}).get("dealer_markup", 1.2)):
 			e.price = to_price(ceilf(own * float(cfg().get("sale", {}).get("dealer_markup", 1.2))), e.price)
 			_note("барахольщик продаёт: %s" % String(ULItems.get_def(String(e.id)).n), was, sp(e.price), "не дешевле, чем сам покупает")
+	# валюта — по стоимости: дорогое не называется в споранах
+	for id in routes:
+		if routes[id].has("price"):
+			routes[id].price = recoin(routes[id].price, "маршрут: %s" % String(routes[id].get("n", id)))
+	for uid in base.get("upgrades", {}):
+		if base.upgrades[uid].has("price"):
+			base.upgrades[uid].price = recoin(base.upgrades[uid].price, "улучшение: %s" % String(base.upgrades[uid].get("n", uid)))
+	for e in base.get("dealer", {}).get("stock", []):
+		e.price = recoin(e.price, "барахольщик продаёт: %s" % String(ULItems.get_def(String(e.id)).get("n", e.id)))
 
 
 ## За сколько барахольщик берёт предмет (за штуку, в споранах, без учёта рынка): базовая цена — в коридоре редкости

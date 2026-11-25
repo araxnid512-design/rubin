@@ -68,14 +68,75 @@ static func max_n(wallet: Dictionary, mode: String, hi: String) -> int:
 	return mini(n, max_deal())
 
 
-## чего не хватает на цену {ресурс: сколько}: {ресурс: недостача}; пусто — хватает
+## Чего не хватает на цену {ресурс: сколько}: {ресурс: недостача}; пусто — хватает. Младшие ресурсы идут в счёт
+## старших по курсу обмена (спораны → горох → жемчуг): цена в горохе, гороха нет, а споранов достаточно — хватает,
+## при оплате они обменяются сами (settle). Наоборот игра без спроса не меняет: жемчужину на горох не разобьёт.
 static func missing(wallet: Dictionary, price: Dictionary) -> Dictionary:
-	var out := {}
+	return settle(wallet, price).miss
+
+
+## Расчёт оплаты, кошелёк не трогает: {miss — чего не хватает, wallet — ресурсы после оплаты (если хватает),
+## swap — что при этом обменяно: [[что отдано, сколько, что получено, сколько], …]}.
+static func settle(wallet: Dictionary, price: Dictionary) -> Dictionary:
+	var ch := chain()
+	var w := {}
+	for id in ch:
+		w[String(id)] = int(wallet.get(String(id), 0))
+	var miss := {}
+	var swap: Array = []
+	for i in ch.size():
+		var id := String(ch[i])
+		var need := int(price.get(id, 0))
+		if need <= 0:
+			continue
+		if int(w[id]) >= need:
+			w[id] = int(w[id]) - need
+			continue
+		var lack := need - int(w[id])
+		var can := _raise_max(w, i, ch)
+		if can < lack:
+			miss[id] = lack - can
+			continue
+		_raise(w, i, lack, swap, ch)
+		w[id] = 0
 	for id in price:
-		var lack := int(price[id]) - int(wallet.get(String(id), 0))
-		if lack > 0:
-			out[String(id)] = lack
-	return out
+		if not ch.has(String(id)):
+			var lack2 := int(price[id]) - int(wallet.get(String(id), 0))
+			if lack2 > 0:
+				miss[String(id)] = lack2
+	return {"miss": miss, "wallet": w, "swap": swap}
+
+
+## сколько единиц ресурса ch[i] можно получить обменом из младших (кошелёк не меняется)
+static func _raise_max(w: Dictionary, i: int, ch: Array) -> int:
+	if i >= ch.size() - 1:
+		return 0
+	var r := rate(String(ch[i]))
+	if r <= 0:
+		return 0
+	return (int(w[String(ch[i + 1])]) + _raise_max(w, i + 1, ch)) / r
+
+
+## получить k единиц ch[i] обменом из младших (вызывать, когда _raise_max ≥ k): списывает младшие
+static func _raise(w: Dictionary, i: int, k: int, swap: Array, ch: Array) -> void:
+	var lo := String(ch[i + 1])
+	var need := k * rate(String(ch[i]))
+	if int(w[lo]) < need:
+		_raise(w, i + 1, need - int(w[lo]), swap, ch)       # своего младшего мало — добираем его из ещё младших
+		w[lo] = need
+	w[lo] = int(w[lo]) - need
+	swap.append([lo, need, String(ch[i]), k])
+
+
+static var last_swap := ""            ## что обменяно при последней оплате (окна покупок дописывают это к сообщению)
+
+
+## «120 споранов → 12 горошин»
+static func swap_text(swap: Array) -> String:
+	var t := ""
+	for s in swap:
+		t += ("" if t == "" else ", ") + "%s → %s" % [amount(String(s[0]), int(s[1])), amount(String(s[2]), int(s[3]))]
+	return t
 
 
 ## Провести обмен. Всё или ничего: сначала проверка условий и кошелька, затем одно изменение кошелька.

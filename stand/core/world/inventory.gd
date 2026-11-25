@@ -5,6 +5,7 @@ extends RefCounted
 ## или null. Хранилища (ящик, брошенный рюкзак) — такие же массивы ячеек.
 
 signal changed
+signal swapped(text: String)          ## при оплате младшие ресурсы обменяны на старшие: «120 споранов → 12 горошин»
 
 const POCKETS := 8
 
@@ -304,19 +305,22 @@ func consume(id: String, n: int) -> int:
 
 ## хватает ли ресурсов на цену {id: сколько}
 func can_pay(price: Dictionary) -> bool:
-	for id in price:
-		if int(wallet.get(String(id), 0)) < int(price[id]):
-			return false
-	return true
+	return ULEconomy.missing(wallet, price).is_empty()
 
 
-## заплатить цену из кошелька; не хватает — ничего не списывается
+## Заплатить цену из кошелька; не хватает — ничего не списывается. Не хватает старшего ресурса (гороха,
+## жемчуга), а младших достаточно — они обмениваются по курсу сами (ULEconomy.settle), о чём сообщает swapped.
 func pay(price: Dictionary) -> bool:
-	if not can_pay(price):
+	var s := ULEconomy.settle(wallet, price)
+	if not (s.miss as Dictionary).is_empty():
 		return false
-	for id in price:
-		wallet[String(id)] = int(wallet[String(id)]) - int(price[id])
+	for id in s.wallet:
+		if wallet.has(id) or int(s.wallet[id]) != 0:
+			wallet[id] = int(s.wallet[id])
 	changed.emit()
+	if not (s.swap as Array).is_empty():
+		ULEconomy.last_swap = ULEconomy.swap_text(s.swap)
+		swapped.emit(ULEconomy.last_swap)
 	return true
 
 

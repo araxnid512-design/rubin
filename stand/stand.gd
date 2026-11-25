@@ -84,6 +84,8 @@ const ENTRIES := [
 static func enemy_entries(kind: String) -> Array:
 	var d: Dictionary = ULEnemy.KINDS[kind]
 	var g := String(d.n)
+	if d.has("gun"):
+		return _armed_entries(d)
 	var out: Array = [
 		{"id": "z_idle", "g": g, "n": "Стоит, дышит"},
 		{"id": "z_alert", "g": g, "n": "Заметил героя", "action": "alert"},
@@ -102,6 +104,39 @@ static func enemy_entries(kind: String) -> Array:
 		{"id": "z_hit", "g": "Попадания", "n": "Попадание спереди", "action": "hit_front"},
 		{"id": "z_hit_b", "g": "Попадания", "n": "Попадание сзади", "action": "hit_back"},
 		{"id": "z_stagger", "g": "Попадания", "n": "Сбит с ног (сильное попадание)", "action": "stagger"},
+		{"id": "z_death", "g": "Гибель", "n": "Падает на спину", "action": "death", "post_pose": "dead", "voice": "zdeath"},
+		{"id": "z_death_f", "g": "Гибель", "n": "Падает лицом вперёд", "action": "death_front", "post_pose": "dead_front", "voice": "zdeath"},
+		{"id": "z_death_s", "g": "Гибель", "n": "Падает набок", "action": "death_side", "post_pose": "dead_side", "voice": "zdeath"},
+	]
+	return out
+
+
+## движения вооружённого врага (мур, главарь): стойки и шаг с оружием, прицел, огонь, перезарядка — как в игре
+static func _armed_entries(d: Dictionary) -> Array:
+	var g := String(d.n)
+	var wid := String((d.gun as Dictionary).get("weapon", "rifle"))
+	var boss := bool(d.get("boss", false))
+	var out: Array = [
+		{"id": "z_idle", "g": g, "n": "Стоит с оружием", "weapon": wid, "stance": "ready"},
+		{"id": "z_rest", "g": g, "n": "Покой (оружие поперёк груди)", "weapon": wid, "stance": "ready", "still": true},
+		{"id": "z_aim", "g": g, "n": "Целится", "weapon": wid, "stance": "aim"},
+		{"id": "z_walk", "g": g, "n": "Идёт дозором", "weapon": wid, "stance": "ready", "speed": float(d.walk)},
+		{"id": "z_run", "g": g, "n": "Бежит", "weapon": wid, "stance": "run" if boss else "ready", "speed": float(d.run)},
+		{"id": "z_cover", "g": g, "n": "Сидит за укрытием", "weapon": wid, "stance": "ready", "speed": 0.0, "crouch": 1.0},
+		{"id": "z_fire", "g": "Огонь", "n": "Стреляет", "weapon": wid, "stance": "aim", "proc": "burst"},
+		{"id": "z_reload", "g": "Огонь", "n": "Перезарядка", "weapon": wid, "stance": "ready", "proc": "reload"},
+	]
+	if boss:
+		out[2]["pose"] = "boss_pistol_aim"
+		out += [
+			{"id": "z_bfire", "g": "Огонь", "n": "Прицельный выстрел", "weapon": wid, "stance": "aim", "pose": "boss_pistol_aim", "action": "boss_pistol_fire"},
+			{"id": "z_kick", "g": "Удары", "n": "Удар ногой", "weapon": wid, "stance": "ready", "action": "kick"},
+			{"id": "z_gren", "g": "Удары", "n": "Граната: рука к подсумку", "weapon": wid, "stance": "ready", "action": "boss_grenade_prepare"},
+			{"id": "z_gren2", "g": "Удары", "n": "Граната: бросок", "weapon": wid, "stance": "ready", "action": "boss_grenade_throw"},
+		]
+	out += [
+		{"id": "z_hit", "g": "Попадания", "n": "Попадание спереди", "weapon": wid, "stance": "ready", "action": "hit_front"},
+		{"id": "z_stagger", "g": "Попадания", "n": "Сбит с ног (сильное попадание)", "weapon": wid, "stance": "ready", "action": "stagger"},
 		{"id": "z_death", "g": "Гибель", "n": "Падает на спину", "action": "death", "post_pose": "dead", "voice": "zdeath"},
 		{"id": "z_death_f", "g": "Гибель", "n": "Падает лицом вперёд", "action": "death_front", "post_pose": "dead_front", "voice": "zdeath"},
 		{"id": "z_death_s", "g": "Гибель", "n": "Падает набок", "action": "death_side", "post_pose": "dead_side", "voice": "zdeath"},
@@ -164,6 +199,11 @@ var ui: Control
 var test := ""
 var cam_free := false                 ## камерой управляет проверка
 var out := "user://sheets"
+var audit := BCPoseAudit.new()        ## проверка позы текущего движения (наклон, стопы, раскачка, поза лёжа)
+var audit_res := {}                   ## итог «Проверки поз»: движение → результат
+var audit_btn: Button
+var _audit_run := false
+var _audit_skip := 0.0                ## после смены движения — пауза: поза ещё переходит из прежней
 
 
 func _ready() -> void:
@@ -179,8 +219,9 @@ func _ready() -> void:
 			hero_id = a.substr(10)          # проверки стенда на другом персонаже
 	if test != "" and test != "enemy":
 		who = "hero"
-	elif test == "enemy":
+	if test == "enemy":
 		who = "infected"
+	if test == "enemy" or test == "poses":
 		for a in OS.get_cmdline_user_args():
 			if a.begins_with("--as-kind=") and ULEnemy.KINDS.has(a.substr(10)):
 				who = a.substr(10)
@@ -252,14 +293,10 @@ void fragment() {
 	if who == "hero":
 		ULHeroes.setup_rig(rig, hero_id)
 	else:
-		# враг — как в игре: упрощённый персонаж, клипы как есть (перенос на его скелет — BCAnimSet._rest_fix)
-		rig.simple = true
-		rig.built_poses = false
-		rig.stand_clamp = true
-		rig.fx_cfg = ULEnemy.KINDS[who].get("fx", {})
-		rig.height = float(ULEnemy.KINDS[who].get("height", 1.78))
-		rig.anim_cfg = String(ULEnemy.KINDS[who].get("anim_cfg", BCAnimSet.CONFIG))
-		rig.setup(String(ULEnemy.KINDS[who].model), String(ULEnemy.KINDS[who].get("anim", "res://assets/anim/hero")))
+		# враг — той же настройкой, что в игре (ULEnemy.rig_setup): свои клипы, шаг по росту, стопы, оружие
+		ULEnemy.rig_setup(rig, ULEnemy.KINDS[who])
+		if ULEnemy.KINDS[who].has("gun"):
+			ULMur.rig_arm(rig, ULEnemy.KINDS[who])
 	snd = BCSound.new()
 	add_child(snd)
 	rig.hold.sfx.connect(_on_sfx)
@@ -583,7 +620,20 @@ func select(i: int) -> void:
 	_timer = 0.5
 	_phase = 0
 	_burst = 0
+	audit.begin(rig, audit_mode(cur), "creature" if who != "hero" and not ULEnemy.KINDS[who].has("gun") else "human", float(cur.get("crouch", 0.0)) > 0.5)
+	_audit_skip = 0.8
 	_refresh()
+
+
+## вид замера позы для движения: стоит / идёт / разовое / лежит после падения
+static func audit_mode(en: Dictionary) -> String:
+	if en.has("post_pose"):
+		return "dead"
+	if float(en.get("speed", 0.0)) > 0.05:
+		return "move"
+	if en.has("action") or String(en.get("proc", "")).begins_with("swing:"):
+		return "action"
+	return "stand"
 
 
 func _process(delta: float) -> void:
@@ -599,6 +649,10 @@ func _process(delta: float) -> void:
 	_timer -= delta
 	if _timer <= 0.0:
 		_step()
+	# замер позы: лежащее тело — только когда уже упало и лежит; прочее — после перехода из прежнего движения
+	_audit_skip -= delta
+	if _audit_skip <= 0.0 and (audit.mode != "dead" or (_phase == 2 and _timer < 0.9)):
+		audit.sample(delta)
 	_steps_sfx(sp)
 	if info_lbl and Engine.get_process_frames() % 6 == 0:
 		_info()
@@ -934,6 +988,8 @@ func _build_ui() -> void:
 	sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	sp.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	bar.add_child(sp)
+	audit_btn = _btn("Проверка поз", _audit_all, 170)
+	bar.add_child(audit_btn)
 	ok_btn = _btn("Годится", _mark.bind("ok"), 120)
 	bar.add_child(ok_btn)
 	bad_btn = _btn("Брак", _mark.bind("bad"), 100)
@@ -1292,7 +1348,14 @@ func _refresh() -> void:
 		var m := String(marks.get(en.id, ""))
 		var b: Button = rows[en.id]
 		b.text = "%s  %s" % [{"ok": "✔", "bad": "✖", "": "·"}[m], en.n]
-		b.add_theme_color_override("font_color", {"ok": Color(0.55, 1.0, 0.6), "bad": Color(1.0, 0.5, 0.45), "": C_TEXT}[m])
+		var col: Color = {"ok": Color(0.55, 1.0, 0.6), "bad": Color(1.0, 0.5, 0.45), "": C_TEXT}[m]
+		if audit_res.has(en.id):
+			# итог автоматической проверки позы: ! — есть замечание
+			var a_ok := bool(audit_res[en.id].ok)
+			b.text = "%s %s" % [b.text, "" if a_ok else "  !"]
+			if m == "":
+				col = Color(0.7, 0.95, 0.75) if a_ok else Color(1.0, 0.78, 0.4)
+		b.add_theme_color_override("font_color", col)
 		b.add_theme_stylebox_override("normal", _style(Color(0.1, 0.26, 0.38, 0.95) if i == cur_i else Color(0.05, 0.1, 0.15, 0.92), 10, 2 if i == cur_i else 1))
 	title_lbl.text = "%s · %s" % [cur.g, cur.n]
 	if list_sc and rows.has(cur.id):
@@ -1320,6 +1383,7 @@ func _info() -> void:
 	if pack != "":
 		parts.append("%s, ячеек: %d" % [BCPackFit.PACKS[pack].n, BCPackFit.PACKS[pack].slots])
 	parts.append("%d кадров/с" % Engine.get_frames_per_second())
+	parts.append(audit.line())
 	if who != "hero":
 		var d: Dictionary = ULEnemy.KINDS[who]
 		parts.append("прочность %d, удар %d раз в %.1f с, шаг %.1f м/с, бег %.1f м/с, видит до %d м, слышит выстрел до %d м" % [int(d.hp), int(d.dmg), float(d.cd), float(d.walk), float(d.run), int(d.see), int(d.hear)])
@@ -1368,6 +1432,103 @@ func _summary() -> void:
 	modal = p
 
 
+# ---------------- проверка поз ----------------
+# «Проверка поз» проигрывает все движения по очереди и по замерам скелета отмечает те, где персонаж
+# заваливается, переваливается, висит над полом, проваливается или криво лежит после падения (BCPoseAudit).
+
+## сколько секунд смотреть движение, чтобы замер был полным
+func _audit_wait(en: Dictionary) -> float:
+	var m := audit_mode(en)
+	if en.has("proc"):
+		return {"draw": 5.2, "fire": 3.2, "burst": 3.6, "reload": 5.6}.get(String(en.proc), 3.4)
+	if en.has("action"):
+		var d := rig.clip_len(String(en.action)) / maxf(float(en.get("rate", 1.0)), 0.1)
+		if en.has("pre_pose"):
+			return 0.6 + 1.3 + d + 1.0
+		return 0.6 + d + (1.9 if m == "dead" else 1.1)
+	return 3.6 if m == "move" else 2.6
+
+
+func _audit_all() -> void:
+	if _audit_run:
+		_audit_run = false               # повторное нажатие — остановить
+		return
+	if modal:
+		modal.queue_free()
+		modal = null
+	_audit_run = true
+	audit_res.clear()
+	paused = false
+	if audit_btn:
+		audit_btn.text = "Стоп"
+	for i in entries.size():
+		if not _audit_run:
+			break
+		select(i)
+		await get_tree().create_timer(_audit_wait(entries[i])).timeout
+		if not is_inside_tree():
+			return
+		if cur_i != i:
+			break                           # пользователь сам выбрал другое движение — проверка остановлена
+		var r := audit.result()
+		audit_res[entries[i].id] = r
+		if test == "poses":
+			var en: Dictionary = entries[i]
+			var vs := []
+			for vk in r.vals:
+				vs.append("%s %.2f" % [vk, float(r.vals[vk])])
+			print("[poses] %s · %s «%s» (%s): %s | %s" % [who if who != "hero" else hero_id, en.id, en.n, audit.mode, "норма" if r.ok else "ЗАМЕЧАНИЯ: " + "; ".join(r.notes), ", ".join(vs)])
+			if not r.ok:
+				var y0 := yaw
+				for vw in [["f", 0.0], ["s", PI * 0.5]]:
+					yaw = vw[1]
+					await get_tree().process_frame
+					await _snap("%s/%s_%s_%s.png" % [out, who if who != "hero" else hero_id, en.id, vw[0]])
+				yaw = y0
+		_refresh()
+	_audit_run = false
+	if audit_btn:
+		audit_btn.text = "Проверка поз"
+	if test != "poses":
+		_audit_summary()
+
+
+func _audit_summary() -> void:
+	if modal:
+		modal.queue_free()
+		modal = null
+	var p := PanelContainer.new()
+	p.add_theme_stylebox_override("panel", _style(Color(0.02, 0.04, 0.07, 0.97), 18, 2))
+	p.position = Vector2(340, 60)
+	p.custom_minimum_size = Vector2(760, 520)
+	var v := VBoxContainer.new()
+	p.add_child(v)
+	var bad := []
+	var okn := 0
+	for en in entries:
+		if not audit_res.has(en.id):
+			continue
+		if bool(audit_res[en.id].ok):
+			okn += 1
+		else:
+			bad.append("%s: %s — %s" % [en.g, en.n, "; ".join(audit_res[en.id].notes)])
+	v.add_child(_lbl("ПРОВЕРКА ПОЗ — %s" % (ULHeroes.name_of(hero_id) if who == "hero" else String(ULEnemy.KINDS[who].n)), 20, Color(0.55, 0.9, 1.0)))
+	v.add_child(_lbl("В норме: %d · с замечаниями: %d" % [okn, bad.size()], 17, Color(0.6, 1.0, 0.65) if bad.is_empty() else Color(1.0, 0.78, 0.4)))
+	var sc := ScrollContainer.new()
+	sc.custom_minimum_size = Vector2(740, 380)
+	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	v.add_child(sc)
+	var l := _lbl("\n".join(bad) if not bad.is_empty() else "Все движения прошли проверку: никто не заваливается, стопы на полу, тела лежат ровно.", 15, C_TEXT)
+	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	l.custom_minimum_size = Vector2(720, 0)
+	sc.add_child(l)
+	v.add_child(_btn("Закрыть", func():
+		modal.queue_free()
+		modal = null, 160))
+	ui.add_child(p)
+	modal = p
+
+
 func _load_marks() -> void:
 	if FileAccess.file_exists(MARKS):
 		var d = JSON.parse_string(FileAccess.get_file_as_string(MARKS))
@@ -1390,6 +1551,17 @@ func _snap(path: String) -> void:
 
 func _run_test() -> void:
 	DirAccess.make_dir_recursive_absolute(out)
+	if test == "poses":
+		# проверка поз всех движений этого персонажа: замечания — в журнал, по два снимка на каждое замечание
+		await get_tree().create_timer(1.0).timeout
+		await _audit_all()
+		var bad_n := 0
+		for id in audit_res:
+			if not bool(audit_res[id].ok):
+				bad_n += 1
+		print("[poses] итог %s: движений %d, с замечаниями %d" % [who if who != "hero" else hero_id, audit_res.size(), bad_n])
+		get_tree().quit()
+		return
 	if test == "enemy":
 		# враг на стенде: по снимку на движение и общий вид с панелями; стойка — ещё и сбоку (как стоят стопы)
 		select(0)

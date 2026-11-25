@@ -95,6 +95,9 @@ func _ready() -> void:
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--as-test="):
 			test = a.substr(10)
+			# проверки идут на программной отрисовке (несколько кадров/с): без запаса шагов физика отстаёт от часов,
+			# и проверки «успел за N секунд» ложно не укладываются. На устройстве кадров хватает — там это не нужно.
+			Engine.max_physics_steps_per_frame = 30
 		if a == "--as-test=enterview":
 			_enterview.call_deferred()                 # снимки первых секунд после входа (как видит игрок)
 		if a.begins_with("--as-out="):
@@ -291,6 +294,7 @@ func _ready() -> void:
 			_enemies_setup()
 	_load_profile()
 	inv = ULInventory.new()
+	inv.swapped.connect(func(t: String) -> void: _swap_show.call_deferred("Обмен при оплате: " + t))
 	_weather_setup()
 	_ui()
 	_sun_shadow_apply()
@@ -4204,6 +4208,14 @@ func say(t: String) -> void:
 	_toast.modulate.a = 1.0
 
 
+## при оплате младшие ресурсы обменяны на старшие — дописать к сообщению о покупке (оно только что показано)
+func _swap_show(t: String) -> void:
+	ULEconomy.last_swap = ""
+	_toast.text = (_toast.text + " · " + t) if _toast_t > 1.9 else t
+	_toast_t = 3.6
+	_toast.modulate.a = 1.0
+
+
 # ---------------- сохранение ----------------
 
 func _save() -> void:
@@ -6321,12 +6333,19 @@ func _snap(name: String) -> void:
 
 func _walk(points: Array, limit := 30.0) -> void:
 	_auto = points.duplicate()
-	var t := 0.0
-	while not _auto.is_empty() and t < limit:
+	# предел — в игровом времени (кадры физики): при медленной отрисовке игра идёт медленнее часов, и по часам
+	# герой «не успевал» дойти, хотя шёл правильно; по часам — только запас от зависания
+	var f0 := Engine.get_physics_frames()
+	var t0 := Time.get_ticks_msec()
+	while not _auto.is_empty() and _game_s(f0) < limit and Time.get_ticks_msec() - t0 < int(limit * 8000.0):
 		await get_tree().process_frame
-		t += get_process_delta_time()
 	_auto.clear()
 	await get_tree().create_timer(0.5).timeout
+
+
+## сколько секунд игрового времени прошло с кадра физики f0
+func _game_s(f0: int) -> float:
+	return float(Engine.get_physics_frames() - f0) / float(Engine.physics_ticks_per_second)
 
 
 func _log(t: String) -> void:
@@ -6635,9 +6654,10 @@ func _ai_test() -> void:
 			(e as ULEnemy)._last = pb
 		var found := [-1.0, -1.0, -1.0]
 		var ts := 0.0
+		var f5 := Engine.get_physics_frames()
 		while ts < 40.0:
 			await get_tree().process_frame
-			ts += get_process_delta_time()
+			ts = _game_s(f5)
 			for i in 3:
 				var e: ULEnemy = es[i]
 				if float(found[i]) < 0.0 and e.global_position.distance_to(player.global_position) < 2.8:
@@ -8509,6 +8529,58 @@ func _price_test() -> void:
 	(loop_shop.supplies as Array).append(["electronics", 1, {"spore": 2}])
 	_ok("продать можно не дороже %d %% покупной цены: электроника при покупке за 2 спорана принималась бы по %d (обычно — по %d)" % [int(float(G.cfg().sale.resale_max) * 100.0), G.sale_unit("electronics", loop_shop), G.sale_unit("electronics", shop)],
 		G.sale_unit("electronics", loop_shop) <= 1 and G.sale_unit("electronics", shop) == 4 and G.loops(loop_shop).is_empty())
+	# валюта по стоимости: дорогое — не в споранах, самое дорогое — в жемчуге; дешёвое остаётся в споранах
+	var all_prices := []
+	for sec in shop:
+		if shop[sec] is Array:
+			for row in shop[sec]:
+				all_prices.append([String(ULItems.get_def(String(row[0])).get("n", row[0])), row[2]])
+	for id in base.routes:
+		if base.routes[id].has("price"):
+			all_prices.append(["маршрут " + String(base.routes[id].n), base.routes[id].price])
+	for uid in base.upgrades:
+		if base.upgrades[uid].has("price"):
+			all_prices.append([String(base.upgrades[uid].n), base.upgrades[uid].price])
+	for lv in ULBase.garage_cfg().get("levels", []):
+		if lv.has("price"):
+			all_prices.append([String(lv.n), lv.price])
+	for pk in ULCar.cfg().get("parts", {}):
+		for lv in ULCar.cfg().parts[pk].get("levels", []):
+			if lv is Dictionary and lv.has("price"):
+				all_prices.append([String(lv.get("n", pk)), lv.price])
+	var coin_bad := []
+	var coin_line := []
+	var n_pea := 0
+	var n_pearl := 0
+	for ap in all_prices:
+		var pr: Dictionary = ap[1]
+		var v := G.sp(pr)
+		var in_pearl := pr.has("pearl_black") or pr.has("pearl_red") or pr.has("pearl_white")
+		if (v >= 60.0 and pr.has("spore")) or (v >= 200.0 and not in_pearl) or pr.size() != 1:
+			coin_bad.append("%s: %s" % [String(ap[0]), ULEconomy.list_text(pr)])
+		if pr.has("pea"):
+			n_pea += 1
+		if in_pearl:
+			n_pearl += 1
+			coin_line.append("%s — %s" % [String(ap[0]), ULEconomy.list_text(pr)])
+	_ok("валюта по стоимости: до 60 споранов — спораны, дороже — горох (%d цен), от 200 — жемчуг (%d: %s)" % [n_pea, n_pearl, "; ".join(coin_line)], coin_bad.is_empty() and n_pea >= 8 and n_pearl >= 3, "; ".join(coin_bad))
+	_ok("сторож валюты: 300 споранов → %s, 90 → %s, 40 → %s; 4 горошины остаются горохом" % [ULEconomy.list_text(G.recoin({"spore": 300})), ULEconomy.list_text(G.recoin({"spore": 90})), ULEconomy.list_text(G.recoin({"spore": 40}))],
+		G.recoin({"spore": 300}) == {"pearl_black": 6} and G.recoin({"spore": 90}) == {"pea": 9} and G.recoin({"spore": 40}) == {"spore": 40} and G.recoin({"pea": 4}) == {"pea": 4})
+	# оплата: младшие ресурсы идут в счёт старших, старшие сами не размениваются
+	var wi := ULInventory.new()
+	wi.wallet = {"spore": 150, "pea": 0, "pearl_black": 0, "pearl_red": 0, "pearl_white": 0}
+	var p1 := wi.pay({"pea": 12})
+	var w1 := int(wi.wallet.spore)
+	wi.wallet = {"spore": 100, "pea": 0, "pearl_black": 0, "pearl_red": 0, "pearl_white": 0}
+	var m2 := ULEconomy.missing(wi.wallet, {"pea": 12})
+	var p2 := wi.pay({"pea": 12})
+	wi.wallet = {"spore": 0, "pea": 0, "pearl_black": 1, "pearl_red": 0, "pearl_white": 0}
+	var p3 := wi.pay({"pea": 5})
+	wi.wallet = {"spore": 130, "pea": 9, "pearl_black": 0, "pearl_red": 0, "pearl_white": 0}
+	var p4 := wi.pay({"pearl_black": 4})      # 4 чёрные = 20 горошин: 9 своих и 11 из 110 споранов
+	_ok("оплата: 12 горошин при 150 споранах — куплено, осталось %d; при 100 — отказ, не хватает: %s; чёрную жемчужину на горох игра сама не разбивает; 4 чёрные жемчужины при 9 горошинах и 130 споранах — куплено, осталось %d споранов и %d горошин" % [w1, ULEconomy.list_text(m2), int(wi.wallet.spore), int(wi.wallet.pea)],
+		p1 and w1 == 30 and not p2 and m2 == {"pea": 2} and not p3 and p4 and int(wi.wallet.spore) == 20 and int(wi.wallet.pea) == 0 and int(wi.wallet.pearl_black) == 0)
+	ULEconomy.last_swap = ""
 	# рынок барахольщика
 	ULBase.load_state()
 	ULBase.data.erase("dealer")
@@ -11323,10 +11395,10 @@ func _kh_test() -> void:
 	_auto_r = 0.15
 	var min_y := 99.0
 	_auto = Array(down)
-	var tw := 0.0
-	while not _auto.is_empty() and tw < 15.0:
+	var f_dn := Engine.get_physics_frames()
+	var t_dn := Time.get_ticks_msec()
+	while not _auto.is_empty() and _game_s(f_dn) < 15.0 and Time.get_ticks_msec() - t_dn < 120000:
 		await get_tree().process_frame
-		tw += get_process_delta_time()
 		min_y = minf(min_y, player.global_position.y)
 	_auto.clear()
 	_auto_r = 0.35
@@ -12719,8 +12791,11 @@ func _inv_test() -> void:
 	inv.pockets[7] = null
 	_ok("покупка бинта: спораны списаны, бинт получен", buy("supplies", 0) and inv.count("spore") == sp1 - int(SHOP.supplies[0][2].spore) and inv.count("bandage") == band0 + 1, "спораны %d → %d" % [sp1, inv.count("spore")])
 	inv.wallet["pea"] = 0
+	var sp_keep := inv.count("spore")
+	inv.wallet["spore"] = 30                 # на обмен в 4 горошины (40 споранов) тоже не хватает
 	var sp2 := inv.count("spore")
-	_ok("не хватает горошин — покупки нет, ничего не списано", not buy("supplies", 7) and inv.count("spore") == sp2 and inv.count("pack_medium") == 0)
+	_ok("не хватает ни горошин, ни споранов на обмен — покупки нет, ничего не списано", not buy("supplies", 7) and inv.count("spore") == sp2 and inv.count("pack_medium") == 0)
+	inv.wallet["spore"] = sp_keep
 	inv.wallet["pea"] = 2
 	var wsnap := JSON.stringify({"inv": inv.to_dict()})
 	var inv3 := ULInventory.new()
@@ -19651,6 +19726,13 @@ func _run_test() -> void:
 						hd = y
 			var rd: BCRagdoll = z.rig.ragdoll
 			var ok := z.ragdolled and rd != null and rd.done and top < 0.5 and hy > -0.05
+			# поза лёжа — тем же расчётом, что на стенде (BCPoseAudit): ничего не торчит вверх, тело не в полу
+			var pa := BCPoseAudit.new()
+			pa.begin(z.rig, "dead", "human" if z.def.has("gun") else "creature")
+			pa.sample(0.016, true)
+			var pr := pa.result()
+			ok = ok and bool(pr.ok)
+			print("[ragdoll]   поза лёжа: %s" % ("норма" if pr.ok else "; ".join(pr.notes)))
 			if not ok and rd != null:
 				var info := []
 				for it in rd._items:

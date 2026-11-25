@@ -254,6 +254,18 @@ func box_view(wid: String, pid: String, box: String) -> Dictionary:
 # ---------------- маршруты и улучшения базы ----------------
 
 ## купить маршрут: платит только покупатель; маршрут становится общим; повторно не списывается
+## Списать цену с кошелька игрока — по тем же правилам, что в одиночной игре (ULEconomy.settle): младшие
+## ресурсы идут в счёт старших по курсу. false — не хватает, кошелёк не тронут.
+func _pay(wl: Dictionary, price: Dictionary) -> bool:
+	var s := ULEconomy.settle(wl, price)
+	if not (s.miss as Dictionary).is_empty():
+		return false
+	for r in s.wallet:
+		if wl.has(r) or int(s.wallet[r]) != 0:
+			wl[r] = int(s.wallet[r])
+	return true
+
+
 func buy_route(wid: String, pid: String, route: String, price: Dictionary, op_id := "") -> Dictionary:
 	var seen = _seen(op_id)
 	if seen != null:
@@ -264,11 +276,8 @@ func buy_route(wid: String, pid: String, route: String, price: Dictionary, op_id
 	if routes.get(route, "") == "bought":
 		return _done(op_id, {"ok": false, "err": "have", "routes": routes})
 	var wl := _wallet(pid)
-	for r in price:
-		if int(wl.get(r, 0)) < int(price[r]):
-			return _done(op_id, {"ok": false, "err": "money"})
-	for r in price:
-		wl[r] = int(wl.get(r, 0)) - int(price[r])
+	if not _pay(wl, price):
+		return _done(op_id, {"ok": false, "err": "money"})
 	routes[route] = "bought"
 	return _done(op_id, {"ok": true, "routes": routes, "wallet": wl})
 
@@ -284,11 +293,8 @@ func install(wid: String, pid: String, what: String, price: Dictionary, op_id :=
 	if inst.get(what, false):
 		return _done(op_id, {"ok": false, "err": "have"})
 	var wl := _wallet(pid)
-	for r in price:
-		if int(wl.get(r, 0)) < int(price[r]):
-			return _done(op_id, {"ok": false, "err": "money"})
-	for r in price:
-		wl[r] = int(wl.get(r, 0)) - int(price[r])
+	if not _pay(wl, price):
+		return _done(op_id, {"ok": false, "err": "money"})
 	inst[what] = true
 	return _done(op_id, {"ok": true, "installed": inst, "wallet": wl})
 
@@ -486,11 +492,8 @@ func storage_upgrade(wid: String, pid: String, price: Dictionary, op_id := "") -
 	if int(st.level) >= STORAGE_MAX:
 		return _fin(op_id, {"ok": false, "err": "max", "level": int(st.level)})
 	var wl := _wallet(pid)
-	for r in price:
-		if int(wl.get(r, 0)) < int(price[r]):
-			return _fin(op_id, {"ok": false, "err": "money", "level": int(st.level)})
-	for r in price:
-		wl[r] = int(wl.get(r, 0)) - int(price[r])
+	if not _pay(wl, price):
+		return _fin(op_id, {"ok": false, "err": "money", "level": int(st.level)})
 	st.level = int(st.level) + 1
 	var key := "safe_%d" % int(st.level)
 	if not st.safes.has(key):

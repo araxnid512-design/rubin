@@ -72,6 +72,7 @@ static func cfg() -> Dictionary:
 	if _cfg.is_empty():
 		var d = JSON.parse_string(FileAccess.get_file_as_string(CFG))
 		_cfg = d if d is Dictionary else {}
+		ULPriceAI.recoin_tree(_cfg, "машина")          # валюта цены — по стоимости (координатор цен)
 	return _cfg
 
 

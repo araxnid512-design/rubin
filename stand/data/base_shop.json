@@ -133,7 +133,7 @@
    "kind": "Вражеский стаб",
    "danger": "2 уровень",
    "price": {
-    "spore": 75
+    "pea": 8
    },
    "minutes": 20,
    "pic": "res://assets/ui/place_lair.jpg",
@@ -217,7 +217,7 @@
    "danger_color": "red",
    "pin": true,
    "price": {
-    "spore": 120
+    "pea": 12
    },
    "minutes": 30,
    "pic": "res://assets/ui/place_airport.jpg",

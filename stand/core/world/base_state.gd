@@ -71,6 +71,7 @@ static func garage_cfg() -> Dictionary:
 	if _gcfg.is_empty():
 		var d = JSON.parse_string(FileAccess.get_file_as_string(GARAGE))
 		_gcfg = d if d is Dictionary else {}
+		ULPriceAI.recoin_tree(_gcfg, "гараж")          # валюта цены — по стоимости (координатор цен)
 	return _gcfg
 
 

@@ -1,0 +1,15 @@
+{
+  "_note": "Допуски проверки поз (стенд 3D → «Проверка поз», автопроверка --as-test=poses). Углы — градусы, длины — метры на рост 1,78 м. human — герой и муры, creature — заражённые (сутулятся, поэтому наклон вперёд шире). Это пороги проверки, а не игровой баланс.",
+  "human": {
+    "stand": {"fwd_max": 14, "fwd_min": -8, "side_max": 6, "hip_min": 0.42, "air_max": 0.04, "sink_max": 0.06, "jerk_max": 1.6, "knee_back": 0.07},
+    "move": {"fwd_max": 30, "fwd_min": -6, "side_max": 6, "roll_max": 14, "sway_max": 0.16, "hip_min": 0.38, "air_max": 0.05, "sink_max": 0.06, "knee_back": 0.08},
+    "action": {"sink_max": 0.08, "knee_back": 0.1},
+    "dead": {"body_max": 0.42, "limb_max": 0.6, "sink_max": 0.1}
+  },
+  "creature": {
+    "stand": {"fwd_max": 26, "fwd_min": -8, "side_max": 8, "hip_min": 0.36, "air_max": 0.04, "sink_max": 0.06, "jerk_max": 2.0, "knee_back": 0.08},
+    "move": {"fwd_max": 40, "fwd_min": -6, "side_max": 8, "roll_max": 20, "sway_max": 0.2, "hip_min": 0.32, "air_max": 0.05, "sink_max": 0.06, "knee_back": 0.09},
+    "action": {"sink_max": 0.08, "knee_back": 0.11},
+    "dead": {"body_max": 0.45, "limb_max": 0.65, "sink_max": 0.1}
+  }
+}

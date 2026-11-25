@@ -1364,6 +1364,10 @@ func dialog_confirm() -> void:
 
 
 func toast(t: String) -> void:
+	if ULEconomy.last_swap != "":
+		# при оплате спораны или горох сами обменялись на старшую валюту — сказать об этом
+		t += "\nОбмен при оплате: " + ULEconomy.last_swap
+		ULEconomy.last_swap = ""
 	_toast_lbl.text = t
 	_toast.visible = true
 	_toast.reset_size()
