@@ -473,6 +473,14 @@ static func offers() -> Array:
 	return data.offers
 
 
+## сколько минут живёт кластер: по уровню опасности маршрута (level_minutes в data/base_shop.json), иначе — def
+static func minutes_for(id: String, def: float) -> float:
+	var r: Dictionary = shop().get("routes", {}).get(id, {})
+	var lm: Dictionary = shop().get("level_minutes", {})
+	var key := str(int(r.get("level", 0)))
+	return float(lm[key]) if lm.has(key) else def
+
+
 ## закреплённые маршруты ("pin": true в data/base_shop.json) — всегда среди предложений компьютера
 static func pinned() -> Array:
 	return route_pool().filter(func(x): return bool(shop().routes[x].get("pin", false)))

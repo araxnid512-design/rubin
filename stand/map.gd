@@ -345,7 +345,7 @@ func _route_text(id: String) -> String:
 	if lf > 0:
 		t += "До перезагрузки кластера: %d:%02d — пока идёт время, сюда можно вернуться" % [lf / 60, lf % 60]
 	else:
-		t += "Время пребывания: %d минут · локация остаётся на карте, пока не выйдет её время" % int(r.get("minutes", 10))
+		t += "Время пребывания: %d минут · локация остаётся на карте, пока не выйдет её время" % int(ULBase.minutes_for(id, float(r.get("minutes", 10))))
 	var rl := ULBase.reload_of(id)
 	if not rl.is_empty():
 		t += "\nПосле перезагрузки: пустышей %d, лоторейщиков %d, руберов %d" % [int(rl.pustysh), int(rl.lottery), int(rl.ruber)]

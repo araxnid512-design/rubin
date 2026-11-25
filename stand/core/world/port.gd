@@ -259,13 +259,13 @@ func build(world: Node3D) -> void:
 	_c_forest(rng)
 	_p_ground()
 	_p_water(props)
+	_p_boats(props)
 	_p_quay(props)
 	ULGroundDetail.ruts(self, P_ROADS, _noise_tex, "stony_dirt_path", 1.8, func(q: Vector2) -> bool:
 		return bld_dist(q) > 2.0 and q.y > QUAY_Z + 3.0, 0.0, Color(0.66, 0.63, 0.58))
 	_p_fences(props)
 	_p_fuel(props)
 	_p_cranes(props)
-	_p_boats(props)
 	_p_stacks()
 	_p_things()
 	_p_piles(rng)
@@ -340,13 +340,12 @@ func _p_ground() -> void:
 		o.material_override = omat
 		o.position = s[0]
 		add_child(o)
-	# пол: суша и причалы — одна плита (в реку не пускают бортики набережной и причалов)
-	var cs := CollisionShape3D.new()
-	var bs := BoxShape3D.new()
-	bs.size = Vector3(420, 0.2, 420)
-	cs.shape = bs
-	cs.position.y = -0.1
-	body.add_child(cs)
+	# пол: суша и причалы (над рекой пола нет: палубы судов — свои, ниже и выше причала)
+	var z_land := QUAY_Z - 0.4
+	_col_xf(Vector3(420, 0.2, 210.0 - z_land), _at(Vector3(0, -0.1, (z_land + 210.0) * 0.5)))
+	for r in PIERS:
+		var rc: Rect2 = r
+		_col_xf(Vector3(rc.size.x, 0.2, rc.size.y), _at(Vector3(rc.get_center().x, -0.1, rc.get_center().y)))
 	# край кластера: за ним — туман (стены стоят дальше, чем граница выхода)
 	for s in [Vector3(1, 0, 0), Vector3(-1, 0, 0), Vector3(0, 0, 1)]:
 		var wc := CollisionShape3D.new()
@@ -487,7 +486,23 @@ func _p_quay(g: Node3D) -> void:
 		var along_x := absf(a.y - b.y) < 0.01
 		# низкий бетонный бортик виден, выше него — невидимая стенка (герой и заражённые в воду не сходят)
 		_bx(g, "plinth", Vector3(ln + 0.4, 0.3, 0.4) if along_x else Vector3(0.4, 0.3, ln + 0.4), _at(Vector3(mid.x, 0.15, mid.y)))
-		_col_xf(Vector3(ln + 0.6, 3.0, 0.5) if along_x else Vector3(0.5, 3.0, ln + 0.6), _at(Vector3(mid.x, 1.5, mid.y)))
+		# невидимая стенка — с проёмами у сходней судов
+		var cuts: Array = []
+		for sh in ships:
+			var gp: Vector3 = sh.gang
+			var q2 := Vector2(gp.x, gp.z)
+			if gp != Vector3.INF and _seg_dist(q2, a, b) < 0.9:
+				var tg := (q2 - a).dot((b - a) / ln)
+				cuts.append([tg - 1.0, tg + 1.0])
+		cuts.sort_custom(func(x, y): return float(x[0]) < float(y[0]))
+		cuts.append([ln + 0.3, ln + 0.3])
+		var t0 := -0.3
+		for cu in cuts:
+			var t1 := float(cu[0])
+			if t1 - t0 > 0.1:
+				var m2 := a.lerp(b, ((t0 + t1) * 0.5) / ln)
+				_col_xf(Vector3(t1 - t0, 3.0, 0.5) if along_x else Vector3(0.5, 3.0, t1 - t0), _at(Vector3(m2.x, 1.5, m2.y)))
+			t0 = float(cu[1])
 		# жёлто-чёрная полоса по бортику и тумбы через 8 м
 		var k := 4.0
 		var has_b := ResourceLoader.exists(MODELS + "pt_bollard.glb")
@@ -669,27 +684,272 @@ func _crane_box(g: Node3D, c: Vector3, k: float) -> void:
 
 # ---------------- суда ----------------
 
+## Суда с проходимыми палубами. Модель Tripo — цельный корпус с надстройкой; палубы, по которым ходят, заданы
+## поверх неё прямоугольниками (в долях длины модели: t — вдоль корпуса от кормового края модели, s — поперёк от
+## оси; высота — в % длины): настил, перила по краю, сходня с причала и трап на вторую палубу строятся здесь же,
+## поэтому пол ровный, а проходы — гарантированные. Запись: модель, середина корпуса (x, z), ось длинной стороны,
+## длина м, высоты палуб %, высота первой палубы над причалом м, начало сходни у кромки причала, тайник (название,
+## палуба), настилы [палуба, t0, t1, s0, s1, зеркалить к причалу], трап [t низа, t верха, s, зеркалить от причала].
+const P_SHIPS := [
+	# буксир: кормовая палуба (сходня — на неё), крыша рубки — верхняя палуба
+	{"id": "pt_tug", "c": Vector2(-56.5, -62), "axis": "z", "len": 16.0, "lv": [12.5, 30.5], "y0": 0.7, "gang": Vector2(-51.0, -67.5), "stash": ["Рубка буксира", 1],
+		"decks": [[0, 0.63, 0.94, -0.12, 0.12, false], [1, 0.385, 0.535, -0.09, 0.09, false]],
+		"stair": [0.81, 0.54, 0.0, false]},
+	# баржа: палуба кольцом вокруг открытого трюма, трап вниз в трюм
+	{"id": "pt_barge", "c": Vector2(62.0, -60), "axis": "z", "len": 26.0, "lv": [12.5, 8.5], "y0": 0.9, "gang": Vector2(57.0, -55.0), "stash": ["Трюм баржи", 1],
+		"decks": [[0, 0.06, 0.94, -0.145, 0.145, false], [1, 0.24, 0.735, -0.06, 0.06, false]],
+		"stair": [0.655, 0.742, 0.0, false]},
+	# грузовое судно: главная палуба вдоль трюмных крышек, крыша надстройки — верхняя палуба
+	{"id": "pt_ship", "c": Vector2(8, -52.5), "axis": "x", "len": 34.0, "lv": [11.0, 20.5], "y0": 1.0, "gang": Vector2(8.0, -44.0), "stash": ["Палуба грузового судна", 1],
+		"decks": [[0, 0.24, 0.86, -0.09, 0.09, false], [1, 0.105, 0.228, -0.07, 0.07, false]],
+		"stair": [0.36, 0.232, 0.062, true]},
+]
+var ships: Array = []                   ## {id, gang, deck, upper, stair0, stash, y} — сходня, точка на палубе, верх и низ трапа
+
+
 func _p_boats(g: Node3D) -> void:
-	# буксир — у западного причала с запада; баржа — у восточного с востока; грузовое судно — у набережной
-	var boats := [
-		["pt_tug", Vector3(-56.5, WATER_Y - 0.7, -62), 0.0, 16.0, Vector3(5.0, 4.0, 16.0), "Рубка буксира", Vector3(-52.0, 0, -62)],
-		["pt_barge", Vector3(61.5, WATER_Y - 2.2, -60), 0.0, 26.0, Vector3(7.5, 3.0, 26.0), "Трюм баржи", Vector3(58.0, 0, -60)],
-		["pt_ship", Vector3(8, WATER_Y - 1.0, -51.5), PI * 0.5, 34.0, Vector3(34.0, 5.0, 8.0), "Палуба грузового судна", Vector3(8, 0, -45.2)],
-	]
-	for b in boats:
-		var p: Vector3 = b[1]
-		var sz: Vector3 = b[4]
-		if ResourceLoader.exists(MODELS + String(b[0]) + ".glb"):
-			_pm(String(b[0]), p, float(b[2]), float(b[3]), false, true)
-			if get_child_count() > 0:
-				_cull(get_child(get_child_count() - 1), 300.0)
-		else:
-			_bx(g, "rust", Vector3(sz.x, 2.4, sz.z), _at(Vector3(p.x, WATER_Y + 0.9, p.z)))
-			_bx(g, "concrete", Vector3(sz.x * 0.6, 2.6, sz.z * 0.22), _at(Vector3(p.x, WATER_Y + 3.3, p.z + sz.z * 0.3)))
-		# груз у борта на причале — сходни судна закрыты, обыскивается с причала
-		var sp: Vector3 = b[6]
-		_pm("ul_crate", sp, 0.3, 1.1, false)
-		_p_stash(sp, Vector3(1.1, 0.9, 1.1), 0.3, "boat", String(b[5]))
+	for s in P_SHIPS:
+		_p_ship(g, s)
+
+
+func _p_ship(g: Node3D, s: Dictionary) -> void:
+	var id := String(s.id)
+	var c2: Vector2 = s.c
+	var along_z := String(s.axis) == "z"
+	var ln := float(s.len)
+	var levels: Array = s.lv
+	var gp: Vector2 = s.gang
+	var path := MODELS + id + ".glb"
+	var y_bot := float(s.y0) - float(levels[0]) * 0.01 * ln
+	var y_lv: Array = []
+	for lv in levels:
+		y_lv.append(y_bot + float(lv) * 0.01 * ln)
+	# система корпуса: t — вдоль (0…1), s — поперёк (в долях длины)
+	var yaw := PI * 0.5 if along_z else 0.0
+	var rot := Basis(Vector3.UP, yaw)
+	var wid := 0.25
+	if ResourceLoader.exists(path):
+		if not _scenes.has(path):
+			_scenes[path] = load(path)
+		var n: Node3D = (_scenes[path] as PackedScene).instantiate()
+		ULSanatorium.mute(n)
+		var bb: AABB = w._aabb(n)
+		var long_x := bb.size.x > bb.size.z
+		var k := ln / maxf(bb.size.x, bb.size.z)
+		var mrot := rot if long_x else rot * Basis(Vector3.UP, -PI * 0.5)
+		var cb := bb.get_center()
+		n.transform = Transform3D(mrot.scaled(Vector3.ONE * k), Vector3(c2.x, y_bot, c2.y) - mrot * (Vector3(cb.x, bb.position.y, cb.z) * k))
+		add_child(n)
+		_dirty(n, id, Color(0.86, 0.84, 0.8))
+		_cull(n, 300.0)
+		wid = minf(bb.size.x, bb.size.z) / maxf(bb.size.x, bb.size.z)
+	else:
+		_bx(g, "rust", Vector3(ln, 2.6, ln * wid), Transform3D(rot, Vector3(c2.x, float(y_lv[0]) - 1.3, c2.y)))
+	# точка корпуса (t, s) → мир
+	var to_w := func(t: float, sv: float) -> Vector2:
+		var l := rot * Vector3((t - 0.5) * ln, 0, sv * ln)
+		return Vector2(c2.x + l.x, c2.y + l.z)
+	var to_ts := func(q: Vector2) -> Vector2:
+		var l := rot.inverse() * Vector3(q.x - c2.x, 0, q.y - c2.y)
+		return Vector2(l.x / ln + 0.5, l.z / ln)
+	var ps := signf((to_ts.call(gp) as Vector2).y)          # с какой стороны корпуса причал
+	if ps == 0.0:
+		ps = 1.0
+	var rects: Array = []
+	for d in s.decks:
+		var s0 := float(d[3])
+		var s1 := float(d[4])
+		if bool(d[5]):
+			var a0 := s0 * ps
+			var a1 := s1 * ps
+			s0 = minf(a0, a1)
+			s1 = maxf(a0, a1)
+		rects.append([int(d[0]), float(d[1]), float(d[2]), s0, s1])
+	var level_at := func(q: Vector2) -> int:
+		var ts: Vector2 = to_ts.call(q)
+		var out := -1
+		for r in rects:
+			if ts.x >= float(r[1]) and ts.x <= float(r[2]) and ts.y >= float(r[3]) and ts.y <= float(r[4]):
+				out = int(r[0])                 # позже в списке — главнее (трюм вырезается из палубы)
+		return out
+	# сетка 0,5 м вокруг корпуса
+	var cs := 0.5
+	var hx := (ln * wid * 0.5 + 1.5) if along_z else (ln * 0.5 + 1.5)
+	var hz := (ln * 0.5 + 1.5) if along_z else (ln * wid * 0.5 + 1.5)
+	var nx := int(ceil(hx * 2.0 / cs))
+	var nz := int(ceil(hz * 2.0 / cs))
+	var ox := c2.x - nx * cs * 0.5
+	var oz := c2.y - nz * cs * 0.5
+	var lvl := PackedInt32Array()
+	lvl.resize(nx * nz)
+	for iz in nz:
+		for ix in nx:
+			lvl[ix + iz * nx] = level_at.call(Vector2(ox + (ix + 0.5) * cs, oz + (iz + 0.5) * cs))
+	var cell := func(ix: int, iz: int) -> int:
+		return lvl[ix + iz * nx] if ix >= 0 and iz >= 0 and ix < nx and iz < nz else -1
+	var ctr := func(ix: int, iz: int) -> Vector2:
+		return Vector2(ox + (ix + 0.5) * cs, oz + (iz + 0.5) * cs)
+	# сходня: клетка первой палубы, ближайшая к кромке причала
+	var best := Vector2i(-1, -1)
+	var bsc := 1e9
+	for iz in nz:
+		for ix in nx:
+			if lvl[ix + iz * nx] != 0:
+				continue
+			var q: Vector2 = ctr.call(ix, iz)
+			var sc := (absf(q.x - gp.x) + 0.15 * absf(q.y - gp.y)) if along_z else (absf(q.y - gp.y) + 0.15 * absf(q.x - gp.x))
+			if sc < bsc:
+				bsc = sc
+				best = Vector2i(ix, iz)
+	var dq: Vector2 = ctr.call(best.x, best.y)
+	var p0 := Vector3(gp.x, 0, dq.y) if along_z else Vector3(dq.x, 0, gp.y)
+	var p1 := Vector3(dq.x, float(y_lv[0]), dq.y)
+	var gdir := (Vector3(p1.x, 0, p1.z) - p0).normalized()
+	# сходня выходит на высоту палубы у самого её края (иначе у края настила — ступенька)
+	var g0 := p0 - gdir * 0.7
+	var g1 := p1 - gdir * (cs * 0.5 + 0.05)
+	g1.y += 0.03
+	# трап между палубами
+	var st: Array = s.stair
+	var ss := float(st[2]) * (-ps if bool(st[3]) else 1.0)
+	var b2: Vector2 = to_w.call(float(st[0]), ss)
+	var t2: Vector2 = to_w.call(float(st[1]), ss)
+	var lo_i := level_at.call(b2) as int
+	var hi_i := level_at.call(t2 + (t2 - b2).normalized() * 0.4) as int
+	var st0 := Vector3(b2.x, float(y_lv[maxi(lo_i, 0)]), b2.y)
+	var st1 := Vector3(t2.x, float(y_lv[maxi(hi_i, 0)]), t2.y)
+	if lo_i < 0 or hi_i < 0 or lo_i == hi_i:
+		push_warning("порт: трап судна %s не соединяет две палубы (%d → %d)" % [id, lo_i, hi_i])
+	var sa := Vector2(st0.x, st0.z)
+	var sb := Vector2(st1.x, st1.z)
+	var ga := Vector2(g0.x, g0.z)
+	var gb := Vector2(g1.x, g1.z)
+	# столкновения и настил: пол палуб и преграды вокруг (ряды вдоль длины — одним брусом), перила по краю
+	var y_base := 1e9
+	var y_top := -1e9
+	for yv in y_lv:
+		y_base = minf(y_base, float(yv) - 1.2)
+		y_top = maxf(y_top, float(yv) + 2.4)
+	var nbox := 0
+	var ncell := 0
+	var na := nz if along_z else nx
+	var nb := nx if along_z else nz
+	for bi in nb:
+		var run_a := -1
+		var run_top := 0.0
+		var run_floor := false
+		for ai in range(na + 1):
+			var top := -1e9
+			var is_floor := false
+			if ai < na:
+				var ix := bi if along_z else ai
+				var iz := ai if along_z else bi
+				var t: int = lvl[ix + iz * nx]
+				var q: Vector2 = ctr.call(ix, iz)
+				if t >= 0:
+					top = float(y_lv[t])
+					is_floor = true
+					ncell += 1
+					# перила: край настила, за которым нет палубы (кроме мест сходни и трапа)
+					for dd in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+						var nc: int = cell.call(ix + dd.x, iz + dd.y)
+						if nc == t:
+							continue
+						var eq := q + Vector2(dd.x, dd.y) * (cs * 0.5)
+						if _seg_dist(eq, ga, gb) < 1.15 or _seg_dist(eq, sa, sb) < 1.05:
+							continue
+						if nc >= 0 and float(y_lv[nc]) > top:
+							continue                    # выше — стенка надстройки, перила не нужны
+						var along := Vector3(cs, 0.05, 0.05) if dd.x == 0 else Vector3(0.05, 0.05, cs)
+						_bx(g, "rust", along, _at(Vector3(eq.x, top + 0.98, eq.y)))
+						_bx(g, "rust", along, _at(Vector3(eq.x, top + 0.52, eq.y)))
+						if (ix + iz) % 2 == 0:
+							_bx(g, "rust", Vector3(0.05, 1.0, 0.05), _at(Vector3(eq.x, top + 0.5, eq.y)))
+				else:
+					var near := false
+					for ddx in [-1, 0, 1]:
+						for ddz in [-1, 0, 1]:
+							if int(cell.call(ix + ddx, iz + ddz)) >= 0:
+								near = true
+					if near and _seg_dist(q, ga, gb) > 1.15 and _seg_dist(q, sa, sb) > 1.05:
+						top = y_top
+			if run_a >= 0 and (ai == na or absf(top - run_top) > 0.001):
+				var a_mid := (run_a + ai) * 0.5
+				var len_a := (ai - run_a) * cs
+				var cx := (ox + (bi + 0.5) * cs) if along_z else (ox + a_mid * cs)
+				var cz := (oz + a_mid * cs) if along_z else (oz + (bi + 0.5) * cs)
+				_col_xf(Vector3(cs, run_top - y_base, len_a) if along_z else Vector3(len_a, run_top - y_base, cs), _at(Vector3(cx, (run_top + y_base) * 0.5, cz)))
+				if run_floor:
+					_bx(g, "gmetal", Vector3(cs, 0.06, len_a) if along_z else Vector3(len_a, 0.06, cs), _at(Vector3(cx, run_top - 0.03, cz)))
+				nbox += 1
+				run_a = -1
+			if ai < na and top > -1e8 and run_a < 0:
+				run_a = ai
+				run_top = top
+				run_floor = is_floor
+	_p_ramp(g, g0, g1, 1.7, false)
+	_p_ramp(g, st0, st1, 1.5, true)
+	# тайник — ящик на своей палубе, ближе к её середине, не у трапа
+	var sl := int(s.stash[1])
+	var sum := Vector2.ZERO
+	var cnt := 0
+	for iz in nz:
+		for ix in nx:
+			if lvl[ix + iz * nx] == sl:
+				sum += ctr.call(ix, iz)
+				cnt += 1
+	var sp := p1
+	if cnt > 0:
+		var mid := sum / cnt
+		var bd := 1e9
+		for iz in nz:
+			for ix in nx:
+				if lvl[ix + iz * nx] != sl:
+					continue
+				var q: Vector2 = ctr.call(ix, iz)
+				var edge := 0
+				for dd in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+					if int(cell.call(ix + dd.x, iz + dd.y)) != sl:
+						edge += 1
+				# у края (у перил), но не на проходе к трапу и сходне
+				var dd2 := q.distance_to(mid) * 0.3 + (0.0 if edge == 1 else 4.0)
+				if _seg_dist(q, sa, sb) > 1.8 and _seg_dist(q, ga, gb) > 2.0 and dd2 < bd:
+					bd = dd2
+					sp = Vector3(q.x, float(y_lv[sl]), q.y)
+	_pm("ul_crate", sp, 0.3, 0.9, false)
+	_p_stash(sp, Vector3(1.0, 0.9, 1.0), 0.3, "boat", String(s.stash[0]))
+	ships.append({"id": id, "gang": p0, "deck": p1, "upper": st1, "stair0": st0, "stash": sp, "y": y_lv})
+	print("[port] судно %s: палубы на %s м, клеток настила %d, брусьев столкновения %d, сходня %s → %s, трап %s → %s" % [id, str(y_lv), ncell, nbox, str(p0), str(p1), str(st0), str(st1)])
+
+
+## наклонная плита с перилами: сходня (доски) или трап (сталь, ступени)
+func _p_ramp(g: Node3D, a: Vector3, b: Vector3, wd: float, steps: bool) -> void:
+	var d := b - a
+	var ln := d.length()
+	if ln < 0.3:
+		return
+	var yaw := atan2(d.x, d.z)
+	var bs := Basis(Vector3.UP, yaw) * Basis(Vector3.RIGHT, -asin(clampf(d.y / ln, -1.0, 1.0)))
+	var mid := (a + b) * 0.5
+	# плита — ровно от точки до точки: выступ за верхний конец был бы порожком на палубе
+	_col_xf(Vector3(wd, 0.16, ln), Transform3D(bs, mid - bs.y * 0.08))
+	_bx(g, "rust" if steps else "beam", Vector3(wd, 0.07, ln), Transform3D(bs, mid - bs.y * 0.035))
+	for sgn in [-1.0, 1.0]:
+		var side: Vector3 = bs.x * (wd * 0.5 * float(sgn))
+		_bx(g, "rust", Vector3(0.05, 0.05, ln + 0.3), Transform3D(bs, mid + side + bs.y * 0.95))
+		_bx(g, "rust", Vector3(0.04, 0.04, ln + 0.3), Transform3D(bs, mid + side + bs.y * 0.5))
+		# боковая преграда — вертикальная стенка (наклонная нависала бы над палубой у начала трапа)
+		var hl := Vector2(d.x, d.z).length()
+		var yb := Basis(Vector3.UP, yaw)
+		_col_xf(Vector3(0.1, absf(d.y) + 1.3, hl + 0.2), Transform3D(yb, Vector3(mid.x, mid.y + 0.65, mid.z) + yb.x * ((wd * 0.5 + 0.06) * float(sgn))))
+		for kk in 3:
+			var pp := a.lerp(b, 0.1 + kk * 0.4)
+			_bx(g, "rust", Vector3(0.05, 0.95, 0.05), Transform3D(Basis(Vector3.UP, yaw), pp + side + Vector3.UP * 0.48))
+	if steps:
+		var kx := 0.2
+		while kx < ln:
+			_bx(g, "rust", Vector3(wd - 0.12, 0.03, 0.24), Transform3D(Basis(Vector3.UP, yaw), a + d * (kx / ln) + Vector3.UP * 0.03))
+			kx += 0.32
 
 
 # ---------------- контейнеры, техника, штабеля ----------------

@@ -800,9 +800,9 @@ func _route_card(id: String, d: Dictionary, compact := false, dense := false) ->
 		tv.add_child(dl)
 	var size := int(cs.get("size", 150))
 	var size_z := int(cs.get("size_z", size))           # карьер — 180 × 140
-	var stats := [["st_size", "Размер: %d × %d м" % [size, size_z]], ["st_time", "Время на локации: %d мин" % int(d.get("minutes", 10))]]
+	var stats := [["st_size", "Размер: %d × %d м" % [size, size_z]], ["st_time", "Время на локации: %d мин" % int(ULBase.minutes_for(id, float(d.get("minutes", 10))))]]
 	if dense:
-		stats = [["st_size", "%d × %d м" % [size, size_z]], ["st_time", "%d мин" % int(d.get("minutes", 10))]]
+		stats = [["st_size", "%d × %d м" % [size, size_z]], ["st_time", "%d мин" % int(ULBase.minutes_for(id, float(d.get("minutes", 10))))]]
 	var rl := ULBase.reload_of(id)
 	if not rl.is_empty():
 		# после перезагрузки кластера (ULReload): сколько людей перенесло и кем они стали — до следующего обновления

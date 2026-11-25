@@ -551,7 +551,7 @@ func _cowshed_enter() -> void:
 		cs_resumed = true
 	else:
 		cs_start = Time.get_unix_time_from_system()
-		_cs_end = cs_start + float(c.get("minutes", 10)) * 60.0
+		_cs_end = cs_start + ULBase.minutes_for(place, float(c.get("minutes", 10))) * 60.0
 	if test == "" and lvl and ULBase.route_state(place) != "active":
 		ULBase.set_route(place, "active")
 	if cs_seed == 0:
@@ -637,7 +637,7 @@ func _cowshed_enter() -> void:
 		var lf := int(cs_left())
 		say("%s. Вы вернулись: до перезагрузки кластера — %d:%02d" % [zone_name(), lf / 60, lf % 60])
 	else:
-		say("%s. До перезагрузки кластера — %d минут" % [zone_name(), int(c.get("minutes", 10))] + (" · ТЕСТ УРОВНЯ: бессмертие, патроны без конца" if lvl else ""))
+		say("%s. До перезагрузки кластера — %d минут" % [zone_name(), int(ULBase.minutes_for(place, float(c.get("minutes", 10))))] + (" · ТЕСТ УРОВНЯ: бессмертие, патроны без конца" if lvl else ""))
 
 
 ## Состояние посещения — то, чем локация отличается от только что расставленной по своей случайности: кто из
@@ -1041,7 +1041,7 @@ func _cs_tick(delta: float) -> void:
 				say("ТРЕВОГА! Кластер перезагружается — уходите за край поля!")
 	if left <= 0.0 and lvl:
 		# тест уровня: кластер не убивает — таймер просто начинается заново
-		_cs_end = Time.get_unix_time_from_system() + float(c.get("minutes", 10)) * 60.0
+		_cs_end = Time.get_unix_time_from_system() + ULBase.minutes_for(place, float(c.get("minutes", 10))) * 60.0
 		_cs_warned.clear()
 		say("Тест уровня: таймер кластера начат заново")
 		return
@@ -6341,6 +6341,76 @@ func _rd_view() -> void:
 		await _snap(String(sp[0]))
 
 
+## Суда порта: герой заходит по сходне на палубу и по трапу — на вторую палубу. Возврат: [на палубе, путей по
+## карте проходимости, на второй палубе, трапов, журнал]. --as-test=ptship — только это, со снимками.
+func _pt_ships(pt: ULPort) -> Array:
+	var map := get_world_3d().navigation_map
+	var snapf := func(p: Vector3) -> Vector3:
+		return NavigationServer3D.map_get_closest_point(map, p)
+	var e0: Vector3 = snapf.call(ULPort.P_ENTRY)
+	var decks := 0
+	var navs := 0
+	var uppers := 0
+	var stairs_n := 0
+	var ship_log := []
+	hp_lock = true
+	for e in enemies:
+		if e.global_position.z < -30.0:
+			e.state = "dead"
+			e.visible = false
+			e.process_mode = Node.PROCESS_MODE_DISABLED
+	for sh in pt.ships:
+		if (sh.deck as Vector3) == Vector3.INF:
+			continue
+		var dk: Vector3 = sh.deck
+		var gk: Vector3 = sh.gang
+		var pth2 := NavigationServer3D.map_get_path(map, e0, snapf.call(dk), true)
+		if pth2.size() > 1 and pth2[pth2.size() - 1].distance_to(dk) < 1.3:
+			navs += 1
+		var back := Vector3(gk.x - dk.x, 0, gk.z - dk.z).normalized()
+		player.global_position = gk + back * 1.2 + Vector3.UP * 0.1
+		player.velocity = Vector3.ZERO
+		await get_tree().create_timer(0.3).timeout
+		await _walk([dk - back * 0.8], 8.0)
+		var on_deck: bool = Vector2(player.global_position.x - dk.x, player.global_position.z - dk.z).length() < 1.6 and absf(player.global_position.y - dk.y) < 0.4
+		if on_deck:
+			decks += 1
+		if test == "ptship":
+			cam_dist = 16.0
+			_cam_ready = false
+			await get_tree().create_timer(0.8).timeout
+			await _snap("ship_%s_deck" % String(sh.id))
+		if (sh.upper as Vector3) != Vector3.INF:
+			stairs_n += 1
+			var s0: Vector3 = sh.stair0
+			var s1: Vector3 = sh.upper
+			var from_lo := s0 if s0.y <= s1.y else s1
+			var to_hi := s1 if s0.y <= s1.y else s0
+			var first := from_lo if absf(dk.y - from_lo.y) < absf(dk.y - to_hi.y) else to_hi
+			var second := to_hi if first == from_lo else from_lo
+			var dir2 := Vector3(second.x - first.x, 0, second.z - first.z).normalized()
+			# к трапу — по палубе углом: сначала вдоль корпуса, потом поперёк (напрямик — через вырез трюма или надстройку)
+			var pre: Vector3 = first - dir2 * 0.9
+			var here := player.global_position
+			var corner := Vector3(here.x, 0, pre.z) if absf(dir2.z) > absf(dir2.x) else Vector3(pre.x, 0, here.z)
+			var npath := [corner, pre]
+			await _walk(npath, 16.0)
+			var at1 := player.global_position
+			var hits := ""
+			await _walk([first, second + dir2 * 0.9], 10.0)
+			var at2 := player.global_position
+			if absf(at2.y - second.y) < 0.45:
+				uppers += 1
+			ship_log.append("%s: палуба %.1f м → вторая %.1f м; трап %s → %s; перед трапом герой %s (цель %s, точек пути %d), после — %s" % [String(sh.id), dk.y, second.y, str(first), str(second), str(at1), str(pre), npath.size(), str(at2)] + hits)
+			if test == "ptship":
+				_cam_ready = false
+				await get_tree().create_timer(0.8).timeout
+				await _snap("ship_%s_upper" % String(sh.id))
+		else:
+			ship_log.append("%s: палуба %.1f м, трапа нет" % [String(sh.id), dk.y])
+	return [decks, navs, uppers, stairs_n, ship_log]
+
+
 ## Проверка порта (--as-test=pt): поле и вход, постройки и путь в каждую, стены, река и причалы, краны и суда,
 ## заражённые (число, места, не в воде и не у входа), тайники и добыча, задание «Последний груз» целиком,
 ## таймер, маршрут в компьютере и на карте мира, выход с наградой. --as-reset — время вышло с героем внутри.
@@ -6358,9 +6428,9 @@ func _pt_test() -> void:
 	var rt: Dictionary = ULBase.shop().routes.get("port", {})
 	# 1: поле, вход, время, маршрут
 	_ok("порт: поле %d × %d м, вход на юге у ворот, %d минут, маршрут %d споранов, опасность «%s»" % [int(size_m), int(size_z), int(c.minutes), int(rt.get("price", {}).get("spore", 0)), String(rt.get("danger", ""))],
-		size_m == 180.0 and size_z == 160.0 and place == "port" and pt != null and ULPort.P_ENTRY.z > 65.0 and absf(ULPort.P_ENTRY.x) < 8.0 and int(c.minutes) == 15
+		size_m == 180.0 and size_z == 160.0 and place == "port" and pt != null and ULPort.P_ENTRY.z > 65.0 and absf(ULPort.P_ENTRY.x) < 8.0 and int(c.minutes) == 20 and int(ULBase.minutes_for("port", 0.0)) == 20
 		and int(rt.get("price", {}).get("spore", 0)) == 35 and String(rt.get("danger", "")) == "2 уровень" and player.global_position.distance_to(ULPort.P_ENTRY) < 6.0, str(player.global_position))
-	_ok("таймер кластера идёт: %s" % _minutes_text(int(cs_left())), cs_left() > 14.0 * 60.0 and cs_left() <= 15.0 * 60.0)
+	_ok("таймер кластера идёт: %s (2-й уровень опасности — 20 минут)" % _minutes_text(int(cs_left())), cs_left() > 19.0 * 60.0 and cs_left() <= 20.0 * 60.0)
 	# 2: постройки по плану
 	var by_id := {}
 	var names := []
@@ -6455,6 +6525,10 @@ func _pt_test() -> void:
 	await get_tree().create_timer(0.3).timeout
 	await _walk([Vector3(-45, 0, -80.0)], 3.0)
 	_ok("на конце причала — тоже бортик (z = %.1f)" % player.global_position.z, player.global_position.z > -76.6 and player.global_position.y > -0.3)
+	# 5б: суда — по сходне на палубу, по трапу — на вторую палубу (верхнюю или в трюм); заражённые туда тоже дойдут
+	var sr: Array = await _pt_ships(pt)
+	_ok("суда: по сходне герой зашёл на палубу — %d из %d; по трапу на вторую палубу — %d из %d; путь по карте проходимости на палубу (для заражённых) — у %d судов" % [int(sr[0]), pt.ships.size(), int(sr[2]), int(sr[3]), int(sr[1])],
+		int(sr[0]) == 3 and int(sr[3]) == 3 and int(sr[2]) == 3 and int(sr[1]) >= 2, "; ".join(sr[4]))
 	# 6: склад — герой входит через ворота, крыша скрыта, ряды груза с проходами
 	var wb: ULBlock = by_id.wh1
 	var w_out: Vector3 = snapf.call(wb.entrances[0][0])
@@ -15403,6 +15477,16 @@ func _run_test() -> void:
 		return
 	if test == "pt":
 		await _pt_test()
+		return
+	if test == "ptship":
+		var tps := Time.get_ticks_msec()
+		while not cs_ready and Time.get_ticks_msec() - tps < 45000:
+			await get_tree().process_frame
+		var srr: Array = await _pt_ships(san as ULPort)
+		print("[inv] суда: на палубе %d, путей %d, на второй палубе %d из %d" % [int(srr[0]), int(srr[1]), int(srr[2]), int(srr[3])])
+		for l in srr[4]:
+			print("[inv]   ", l)
+		get_tree().quit()
 		return
 	if test == "lvl":
 		await _lvl_test()
