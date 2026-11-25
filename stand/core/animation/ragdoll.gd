@@ -111,7 +111,9 @@ func start(push: Vector3, hit := Vector3.INF) -> bool:
 		# скорость — какой была у этой части тела в клипе падения, плюс толчок (ближе к удару — сильнее)
 		var v := Vector3.ZERO
 		if _prev.has(bi):
-			v = (body.global_position - (_prev[bi] as Vector3)) / maxf(_prev_dt, 0.008)
+			# по началу кости сейчас и кадром раньше (не по середине тела: та сдвинута на полкости, и каждая часть
+			# получала лишний рывок вдоль себя — тело в миг гибели дёргалось и растягивалось)
+			v = (a - (_prev[bi] as Vector3)) / maxf(_prev_dt, 0.008)
 			v = v.limit_length(6.0)
 		var near := 1.0
 		if hit != Vector3.INF:
@@ -184,9 +186,8 @@ func remember(delta: float) -> void:
 		var bi := sk.find_bone(String(s[0]))
 		if bi < 0:
 			return
-		# середина части тела не нужна точно: скорость берётся по началу кости, этого хватает
+		# скорость части тела берётся по началу её кости (в start — та же точка)
 		_prev[bi] = skg * sk.get_bone_global_pose(bi).origin
-	# у тел середина сдвинута от начала кости — скорость считается по разности, сдвиг не важен
 
 
 func _process_modification() -> void:

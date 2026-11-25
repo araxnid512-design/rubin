@@ -26,6 +26,8 @@ extends SkeletonModifier3D
 @export var max_lock_yaw := deg_to_rad(40.0)
 @export var lock_in_time := 0.06
 @export var release_time := 0.14
+@export var settle_dist := 0.03             ## м: стоит на месте, а стопа дальше этого от своего места в клипе — переставить
+@export var settle_wait := 0.12             ## с: сколько тело должно простоять, прежде чем стопы переставляются
 @export_flags_3d_physics var mask := 1 | 32
 
 var body_speed := 0.0                       ## скорость тела, м/с (задаёт BCCharacter)
@@ -61,6 +63,8 @@ var _has_prev := [false, false]
 var _locked := [false, false]
 var _lock_p := [Vector3.ZERO, Vector3.ZERO]
 var _lock_j := [0, 0]
+var _still_t := 0.0                     ## сколько тело стоит на месте, с
+var _settle := -1                       ## стопа, которая сейчас переставляется на своё место (по одной), -1 — никакая
 
 
 func _skel_ready() -> void:
@@ -131,6 +135,12 @@ func _process_modification_with_delta(delta: float) -> void:
 	var yaw_rate := absf(angle_difference(_last_yaw, yaw)) / delta if delta > 0.0 else 0.0
 	_last_yaw = yaw
 	var spinning := yaw_rate > max_yaw_rate
+	# Тело остановилось (или сменило стойку стоя), а стопа осталась зафиксированной там, где её застала остановка:
+	# до 30 см от места из клипа — человек стоял, завалившись вперёд или назад, и так и оставался. Теперь, когда тело
+	# стоит, такая стопа переставляется на своё место коротким шагом — по одной, как человек переступает.
+	_still_t = _still_t + delta if (body_speed < 0.2 and yaw_rate < 1.0) else 0.0
+	if _still_t <= 0.0:
+		_settle = -1
 	var want: Array = _want
 	var nrm: Array = _nrmw
 	var ground: Array = _ground
@@ -212,8 +222,11 @@ func _process_modification_with_delta(delta: float) -> void:
 		var touchdown := h < contact_h and float(_h_prev[li]) >= contact_h and body_speed > 0.5 and not spinning and not skim
 		_h_prev[li] = h
 		var Pf := Vector3(P.x, 0.0, P.z)
+		var stepping: bool = _settle == li and (_rel_off[li] as Vector3).length() > 0.004
+		if _settle == li and not stepping and not _locked[li]:
+			_settle = -1                  # переставилась — очередь другой стопы
 		if not _locked[li]:
-			if planted or touchdown:
+			if (planted or touchdown) and not stepping:
 				# новая фиксация продолжает текущую поправку (иначе на один кадр стопа прыгала к клипу)
 				_locked[li] = true
 				_lock_p[li] = Pf + (_rel_off[li] as Vector3)
@@ -233,10 +246,13 @@ func _process_modification_with_delta(delta: float) -> void:
 			# далеко от клипа — отпустить, но пока подошва на полу, держать до жёсткого предела (иначе стопа
 			# уезжает прямо по полу)
 			var far := c.length() > (max_lock_dist_hard if h < contact_h else max_lock_dist)
-			if h > release_h or far or turned or spinning:
+			var settle: bool = _still_t > settle_wait and _settle < 0 and c.length() > settle_dist
+			if h > release_h or far or turned or spinning or settle:
 				# отпустить: поправка плавно уходит (стопа уже в воздухе), стопа догоняет клип
 				_rel_off[li] = c * _lock_w[li]
 				_locked[li] = false
+				if settle:
+					_settle = li
 			else:
 				_lock_w[li] = move_toward(_lock_w[li], 1.0, delta / lock_in_time)
 				lock_d[li] = c * _lock_w[li]
@@ -304,6 +320,8 @@ func reset_locks() -> void:
 	_has_prev = [false, false]
 	_lock_w = [0.0, 0.0]
 	_rel_off = [Vector3.ZERO, Vector3.ZERO]
+	_settle = -1
+	_still_t = 0.0
 
 
 ## двухзвенная цепь: бедро a, голень b, стопа c → стопа в target (пространство скелета)

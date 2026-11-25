@@ -1015,6 +1015,7 @@ func _cs_tick(delta: float) -> void:
 		if _dead_t <= 0.0:
 			hp = 0.0
 			_dead_t = 3.0
+			_hero_fall()
 			close_inventory()
 			_hud_touch.clear()
 			_joy_id = -1
@@ -3257,6 +3258,8 @@ var _pose_now := "?"
 
 ## стойка: с оружием в руках — стойка стрелка, иначе обычная; на ходу — клипы передвижения
 func _body_pose(speed: float) -> void:
+	if _dead_t > 0.0:
+		return                                   # погиб: тело лежит (см. _hero_fall), стойки не трогаем
 	var want := ""
 	# стоит и не целится — длинное оружие уходит в покой (поперёк груди стволом вниз-влево)
 	rig.hold.still = speed < 0.2 and not aiming
@@ -12549,10 +12552,35 @@ func hurt(dmg: float, from := Vector3.INF) -> void:
 			car_exit()                                  # погиб в сломанной машине — тело снаружи
 		# погиб: через три секунды — снова у дома, с половиной здоровья; враги расходятся
 		_dead_t = 3.0
+		_hero_fall()
 		close_inventory()
 		_hud_touch.clear()
 		_joy_id = -1
 		_joy_v = Vector2.ZERO
+
+
+## Гибель героя: он падает (клип падения, потом лежит), а не стоит столбом под надписью «Вы погибли».
+## Руки отпускают оружие (поправка хвата выключается — иначе кисти тянулись бы к автомату и в падении).
+func _hero_fall() -> void:
+	if rig == null:
+		return
+	if rig.hold != null:
+		rig.hold.active = false
+	var ln := rig.play("death")
+	if rig.info.has("dead"):
+		rig.set_pose("dead", maxf(ln - 0.25, 0.0))
+	_pose_now = "dead"
+
+
+## герой снова на ногах (после гибели на базе и на полигоне; из кластера он выходит сменой сцены)
+func _hero_rise() -> void:
+	if rig == null:
+		return
+	rig.stop_action()
+	rig.set_pose("")
+	_pose_now = "?"
+	if rig.hold != null:
+		rig.hold.active = true
 
 
 func _enemies_tick(delta: float) -> void:
@@ -12561,6 +12589,7 @@ func _enemies_tick(delta: float) -> void:
 		_dead_t -= delta
 		if _dead_t <= 0.0:
 			_dead_t = 0.0
+			_hero_rise()
 			player.velocity = Vector3.ZERO
 			_cam_ready = false
 			if arena:
@@ -17108,6 +17137,231 @@ func _run_test() -> void:
 		await get_tree().create_timer(0.5).timeout
 		await _snap("s3_inventory")
 		get_tree().quit()
+		return
+	if test == "humanmovie":
+		# ролик для покадровой проверки движений (запуск с --write-movie файл.avi --fixed-fps 30): камера едет сбоку за
+		# героем; стойка → шаг → бег → остановка → автомат → огонь → бег с автоматом → бой с заражённым → его гибель
+		hp_lock = true
+		_hud.visible = false
+		if info:
+			info.visible = false
+		for e0 in enemies.duplicate():
+			e0.visible = false
+			e0.process_mode = Node.PROCESS_MODE_DISABLED
+		player.global_position = Vector3(20.0, 0.05, 40.0)
+		player.rotation.y = PI * 0.5
+		inv.primary = ULItems.make("ak74m")
+		inv.pistol = ULItems.make("tt")
+		inv.add(ULItems.make("a545", 90))
+		inv.hand = ""
+		_apply_gear()
+		var mc := Camera3D.new()
+		add_child(mc)
+		mc.fov = 34.0
+		mc.current = true
+		var mstate := {"on": true, "side": Vector3(0.6, 1.5, 5.2)}
+		var follow := func() -> void:
+			while mstate.on and is_inside_tree():
+				var pp := player.global_position
+				mc.global_position = mc.global_position.lerp(pp + (mstate.side as Vector3), 0.2)
+				mc.look_at(pp + Vector3.UP * 1.0, Vector3.UP)
+				await get_tree().process_frame
+		mc.global_position = player.global_position + (mstate.side as Vector3)
+		follow.call()
+		var mark := func(t: String) -> void:
+			print("[movie] %s — кадр %d" % [t, Engine.get_process_frames()])
+		# положение костей — после всех поправок скелета (стопы, руки, оружие): сигнал skeleton_updated
+		var fin := {}
+		rig.skel.skeleton_updated.connect(func() -> void:
+			var sk: Skeleton3D = rig.skel
+			var fwd := Vector3(sin(player.rotation.y), 0, cos(player.rotation.y))
+			var o := player.global_position
+			var P := func(b: String) -> Vector3: return sk.global_transform * sk.get_bone_global_pose(sk.find_bone(b)).origin
+			var hip: Vector3 = P.call("Hip")
+			var head: Vector3 = P.call("Head")
+			var feet: Vector3 = ((P.call("L_Foot") as Vector3) + (P.call("R_Foot") as Vector3)) * 0.5
+			fin["hip"] = (hip - o).dot(fwd) * 100.0
+			fin["head"] = (head - o).dot(fwd) * 100.0
+			fin["feet"] = (feet - o).dot(fwd) * 100.0
+			fin["hip_y"] = (hip.y - o.y) * 100.0
+			fin["body"] = rad_to_deg(atan2((head - feet).dot(fwd), head.y - feet.y))
+			fin["rig_x"] = rad_to_deg(rig.rotation.x)
+			fin["mdl_x"] = rad_to_deg(rig.model.rotation.x) if rig.model != null else 0.0)
+		var dbg := func() -> void:
+			# раз в полсекунды: какая поза и стойка у героя и как стоит тело (поиск «залипших» наклонов)
+			while mstate.on and is_inside_tree():
+				print("[pose] кадр %d: поза «%s», стойка %s/%s, скорость %.1f; тело (стопы→голова) вперёд %.0f°; вперёд от капсулы, см: стопы %.0f, таз %.0f, голова %.0f; таз над землёй %.0f см; поворот узла %.0f° / модели %.0f°" % [Engine.get_process_frames(), _pose_now, rig.hold.stance, rig.hold.stance_now(),
+					Vector3(player.velocity.x, 0, player.velocity.z).length(), float(fin.get("body", 0)), float(fin.get("feet", 0)), float(fin.get("hip", 0)), float(fin.get("head", 0)), float(fin.get("hip_y", 0)), float(fin.get("rig_x", 0)), float(fin.get("mdl_x", 0))])
+				await get_tree().create_timer(0.5).timeout
+		dbg.call()
+		var mpart := ""
+		for a8 in OS.get_cmdline_user_args():
+			if a8.begins_with("--as-part="):
+				mpart = a8.substr(10)
+		if mpart == "aim":
+			# стрельба на ходу: лицом в одну сторону, идёт вперёд, боком, пятится; потом повороты на месте
+			inv.hand = "primary"
+			_apply_gear()
+			inv.add(ULItems.make("a545", 600))
+			await get_tree().create_timer(1.5).timeout
+			_hud_touch[99] = "fire"
+			await get_tree().create_timer(0.8).timeout
+			for mv in [["вперёд с огнём", Vector2(1, 0)], ["влево с огнём", Vector2(0, -1)], ["назад с огнём", Vector2(-1, 0)], ["вправо с огнём", Vector2(0, 1)], ["наискось назад с огнём", Vector2(-0.7, 0.7)]]:
+				mark.call(String(mv[0]))
+				_joy_v = mv[1]
+				_joy_id = 77
+				await get_tree().create_timer(1.6).timeout
+				_joy_v = Vector2.ZERO
+				_joy_id = -1
+				await get_tree().create_timer(0.7).timeout
+			_hud_touch.erase(99)
+			await get_tree().create_timer(1.2).timeout
+			mark.call("разворот бегом туда-обратно")
+			for mv2 in [Vector2(-1, 0), Vector2(1, 0), Vector2(0, 1), Vector2(0, -1)]:
+				_joy_v = mv2
+				_joy_id = 77
+				await get_tree().create_timer(0.9).timeout
+			_joy_v = Vector2.ZERO
+			_joy_id = -1
+			await get_tree().create_timer(1.5).timeout
+			mark.call("перезарядка автомата")
+			reload_weapon()
+			await get_tree().create_timer(4.0).timeout
+			mark.call("конец")
+			mstate.on = false
+			_test_done()
+			return
+		if mpart == "melee":
+			# кулаки, мачете, пистолет (огонь и перезарядка), удар заражённого по герою, гибель героя
+			await get_tree().create_timer(1.0).timeout
+			mark.call("кулаки")
+			_hud_touch[99] = "fire"
+			await get_tree().create_timer(2.4).timeout
+			_hud_touch.erase(99)
+			await get_tree().create_timer(0.8).timeout
+			mark.call("мачете в руку")
+			inv.pistol = ULItems.make("machete")
+			inv.hand = "pistol"
+			_apply_gear()
+			await get_tree().create_timer(1.6).timeout
+			mark.call("удары мачете")
+			_hud_touch[99] = "fire"
+			await get_tree().create_timer(2.6).timeout
+			_hud_touch.erase(99)
+			await get_tree().create_timer(0.8).timeout
+			mark.call("бег с мачете")
+			_joy_v = Vector2(1, 0)
+			_joy_id = 77
+			await get_tree().create_timer(1.5).timeout
+			_joy_v = Vector2.ZERO
+			_joy_id = -1
+			await get_tree().create_timer(0.8).timeout
+			mark.call("пистолет в руку")
+			inv.pistol = ULItems.make("tt")
+			inv.add(ULItems.make("a762x25", 32))
+			inv.hand = "pistol"
+			_apply_gear()
+			await get_tree().create_timer(1.8).timeout
+			mark.call("огонь из пистолета")
+			_hud_touch[99] = "fire"
+			await get_tree().create_timer(1.5).timeout
+			_hud_touch.erase(99)
+			mark.call("перезарядка пистолета")
+			reload_weapon()
+			await get_tree().create_timer(3.0).timeout
+			mark.call("бег с пистолетом")
+			_joy_v = Vector2(1, 0)
+			_joy_id = 77
+			await get_tree().create_timer(1.5).timeout
+			_joy_v = Vector2.ZERO
+			_joy_id = -1
+			await get_tree().create_timer(0.8).timeout
+			mark.call("заражённый бьёт героя")
+			var hz := spawn_enemy("infected", player.global_position + Vector3(5.0, 0, 0.3))
+			hz.hear(player.global_position)
+			await get_tree().create_timer(4.0).timeout
+			mark.call("гибель героя")
+			hp_lock = false
+			hp = 1.0
+			await get_tree().create_timer(4.0).timeout
+			mark.call("конец")
+			mstate.on = false
+			_test_done()
+			return
+		if mpart == "mur":
+			# муры: автоматчик, дробовик, главарь — идут, стреляют по герою, гибнут; камера едет за муром
+			var who := {"n": null}
+			mstate.side = Vector3(0.6, 1.5, 6.0)
+			var mfollow := func() -> void:
+				while mstate.on and is_inside_tree():
+					if who.n != null and is_instance_valid(who.n):
+						var pp2: Vector3 = (who.n as Node3D).global_position
+						mc.global_position = mc.global_position.lerp(pp2 + (mstate.side as Vector3), 0.2)
+						mc.look_at(pp2 + Vector3.UP * 1.0, Vector3.UP)
+					await get_tree().process_frame
+			mfollow.call()
+			for mk in ["mur_ak", "mur_sg", "mur_boss"]:
+				mark.call("мур %s идёт к герою" % mk)
+				var me := spawn_enemy(mk, player.global_position + Vector3(16.0, 0, 1.0))
+				who.n = me
+				mc.global_position = me.global_position + (mstate.side as Vector3)
+				me.hear(player.global_position)
+				await get_tree().create_timer(6.0).timeout
+				mark.call("мур %s получает пули" % mk)
+				me.damage(maxf(me.hp * 0.3, 1.0), player.global_position)
+				await get_tree().create_timer(1.0).timeout
+				mark.call("мур %s убит" % mk)
+				me.damage(99999.0, player.global_position)
+				await get_tree().create_timer(3.0).timeout
+			mark.call("конец")
+			mstate.on = false
+			_test_done()
+			return
+		await get_tree().create_timer(1.0).timeout
+		mark.call("стойка")
+		await get_tree().create_timer(1.0).timeout
+		mark.call("шаг")
+		_joy_v = Vector2(0.35, 0)
+		_joy_id = 77
+		await get_tree().create_timer(2.0).timeout
+		mark.call("бег")
+		_joy_v = Vector2(1, 0)
+		await get_tree().create_timer(2.0).timeout
+		mark.call("остановка")
+		_joy_v = Vector2.ZERO
+		_joy_id = -1
+		await get_tree().create_timer(1.0).timeout
+		mark.call("автомат в руки")
+		inv.hand = "primary"
+		_apply_gear()
+		await get_tree().create_timer(2.0).timeout
+		mark.call("огонь")
+		_hud_touch[99] = "fire"
+		await get_tree().create_timer(1.2).timeout
+		_hud_touch.erase(99)
+		mark.call("бег с автоматом")
+		_joy_v = Vector2(1, 0)
+		_joy_id = 77
+		await get_tree().create_timer(2.0).timeout
+		_joy_v = Vector2.ZERO
+		_joy_id = -1
+		await get_tree().create_timer(0.8).timeout
+		mark.call("заражённый бежит и бьёт")
+		var mz := spawn_enemy("infected", player.global_position + Vector3(9.0, 0, 0.5))
+		mz.hear(player.global_position)
+		await get_tree().create_timer(4.5).timeout
+		mark.call("огонь по заражённому")
+		_hud_touch[99] = "fire"
+		var tm := 0.0
+		while mz.alive() and tm < 4.0:
+			await get_tree().process_frame
+			tm += get_process_delta_time()
+		_hud_touch.erase(99)
+		mark.call("гибель заражённого")
+		await get_tree().create_timer(3.0).timeout
+		mark.call("конец")
+		mstate.on = false
+		_test_done()
 		return
 	if test == "humanview":
 		# люди крупным планом (герой с разным оружием, жители базы; на локации — её враги): по три кадра подряд

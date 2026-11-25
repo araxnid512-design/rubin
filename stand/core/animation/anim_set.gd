@@ -193,6 +193,7 @@ static func build(skel: Skeleton3D, ap_root: Node, cfg: Dictionary, scale: float
 				if rr[1] != Vector3.ZERO:
 					mirror_fwd = rr[1]
 				break
+	floor_probe = OS.get_environment("UL_FLOOR_PROBE") == "1"
 	for clip_name in clips:
 		var c: Dictionary = clips[clip_name]
 		var src: Animation = null
@@ -220,7 +221,7 @@ static func build(skel: Skeleton3D, ap_root: Node, cfg: Dictionary, scale: float
 			speed = rb[0] * scale
 			dir = rb[1]
 		elif c.get("inplace", false):
-			var rr := _strip_root(a, skel, root_bone, c.get("root_lock", false))
+			var rr := _strip_root(a, skel, root_bone, c.get("root_lock", false), false)
 			speed = rr[0] * scale
 			dir = rr[1]
 			if c.get("root_smooth", 0.0) > 0.0:
@@ -230,6 +231,18 @@ static func build(skel: Skeleton3D, ap_root: Node, cfg: Dictionary, scale: float
 			_flatten_root(a, skel, root_bone, a.length * 2.0)
 		if c.get("mirror", false):
 			a = _mirror(a, skel, mirror_fwd)
+		if c.get("level", false):
+			_level(a, skel, root_bone)
+		if c.get("floor", false) or floor_probe:
+			_probe_row.clear()
+			var fs := _floor_shift(a, skel, root_bone)
+			if floor_probe and (String(clip_name) in ["walk_back", "strafe_left", "strafe_right", "run", "walk", "crouch_walk"]):
+				print("[floorrow] %s %.2f с: %s" % [clip_name, a.length, str(_probe_row.map(func(x): return snappedf(float(x) * scale * 100.0, 1.0)))])
+			_probe_row.clear()
+			if floor_probe:
+				print("[floor] %s: стопы за цикл не ниже %.1f см от пола исходной позы" % [clip_name, -fs * scale * 100.0])
+			if c.get("floor", false):
+				_floor_apply(a, skel, root_bone, fs)
 		if c.get("loop", false) and c.get("loop_fix", 0.0) > 0.0:
 			_loop_fix(a, c.loop_fix)
 		if c.get("loop", false) and c.get("phase", 0.0) > 0.0:
@@ -371,7 +384,7 @@ static func _hold_last(a: Animation) -> Animation:
 
 
 ## «на месте»: вычесть горизонтальный дрейф кости-корня; вернуть родную скорость (единиц модели/с)
-static func _strip_root(a: Animation, skel: Skeleton3D, root_bone: String, lock := false) -> Array:
+static func _strip_root(a: Animation, skel: Skeleton3D, root_bone: String, lock := false, _unused := false) -> Array:
 	var bi := skel.find_bone(root_bone)
 	if bi < 0:
 		return [0.0, Vector3.ZERO]
@@ -564,6 +577,125 @@ static func _loop_fix(a: Animation, w: float) -> void:
 ## убрать медленное «блуждание» таза по горизонтали у клипа «на месте»: скользящее среднее за двойной шаг
 ## (циклически) вычитается; покачивание с частотой шага остаётся. У готового «walk» Tripo таз уходит вбок на
 ## ±16 см за цикл, а опорная стопа едет вместе с ним — после вычета скольжение вбок втрое меньше.
+static var _probe_row: Array = []
+static var floor_probe := false     ## проверка: напечатать для каждого клипа, насколько его стопы выше/ниже пола
+
+
+## Клип шага записан с неточной высотой таза (движения по описанию: «пятится» — на 24 см выше, герой парил над
+## землёй). Мерим, как низко за клип опускаются стопы (кости стоп и пальцев) относительно их высоты в исходной позе;
+## возврат — на сколько поднять таз (ед. скелета; минус — опустить), чтобы нижняя точка шага касалась пола.
+static func _floor_shift(a: Animation, skel: Skeleton3D, root_bone: String) -> float:
+	var feet: PackedInt32Array = []
+	for i in skel.get_bone_count():
+		var n := skel.get_bone_name(i)
+		if n.ends_with("_Foot") or n.contains("ToeBase"):
+			feet.append(i)
+	if feet.is_empty() or a.length <= 0.0:
+		return 0.0
+	var rest_lo := 1e9
+	for i in feet:
+		rest_lo = minf(rest_lo, skel.get_bone_global_rest(i).origin.y)
+	var saved: Array = []
+	for i in skel.get_bone_count():
+		saved.append([skel.get_bone_pose_position(i), skel.get_bone_pose_rotation(i)])
+	var tracks: Array = []
+	for tr in a.get_track_count():
+		var bi := skel.find_bone(String(a.track_get_path(tr)).get_slice(":", 1))
+		if bi >= 0:
+			tracks.append([tr, bi, a.track_get_type(tr)])
+	var lo := 1e9
+	var steps := 20
+	for st in steps:
+		var t := a.length * float(st) / float(steps)
+		for q in tracks:
+			if int(q[2]) == Animation.TYPE_POSITION_3D:
+				skel.set_bone_pose_position(int(q[1]), a.position_track_interpolate(int(q[0]), t))
+			elif int(q[2]) == Animation.TYPE_ROTATION_3D:
+				skel.set_bone_pose_rotation(int(q[1]), a.rotation_track_interpolate(int(q[0]), t))
+		var lo_t := 1e9
+		for i in feet:
+			lo_t = minf(lo_t, skel.get_bone_global_pose(i).origin.y)
+		lo = minf(lo, lo_t)
+		_probe_row.append(lo_t - rest_lo)
+	for i in skel.get_bone_count():
+		skel.set_bone_pose_position(i, saved[i][0])
+		skel.set_bone_pose_rotation(i, saved[i][1])
+	return rest_lo - lo
+
+
+## Клип шага, в котором тело «плавает» по высоте (движения по описанию: у «пятится» стопы к концу цикла на 25 см
+## над полом, у «шага пригнувшись» — на 37 см, и скачок на стыке цикла; герой при стрельбе с отходом парил над
+## землёй). В шаге одна стопа всегда на полу — поэтому на каждом ключе таз сдвигается по высоте так, чтобы нижняя
+## стопа стояла на полу (как в исходной позе); сдвиг сглажен по соседним ключам, чтобы не убить покачивание шага.
+static func _level(a: Animation, skel: Skeleton3D, root_bone: String) -> void:
+	var bi := skel.find_bone(root_bone)
+	var track := -1
+	for i in a.get_track_count():
+		if a.track_get_type(i) == Animation.TYPE_POSITION_3D and String(a.track_get_path(i)).ends_with(":" + root_bone):
+			track = i
+	if bi < 0 or track < 0:
+		return
+	var feet: PackedInt32Array = []
+	for i in skel.get_bone_count():
+		var nm := skel.get_bone_name(i)
+		if nm.ends_with("_Foot") or nm.contains("ToeBase"):
+			feet.append(i)
+	if feet.is_empty():
+		return
+	var rest_lo := 1e9
+	for i in feet:
+		rest_lo = minf(rest_lo, skel.get_bone_global_rest(i).origin.y)
+	var saved: Array = []
+	for i in skel.get_bone_count():
+		saved.append([skel.get_bone_pose_position(i), skel.get_bone_pose_rotation(i)])
+	var tracks: Array = []
+	for tr in a.get_track_count():
+		var b2 := skel.find_bone(String(a.track_get_path(tr)).get_slice(":", 1))
+		if b2 >= 0:
+			tracks.append([tr, b2, a.track_get_type(tr)])
+	var n := a.track_get_key_count(track)
+	var d: PackedFloat32Array = []
+	for k in n:
+		var t := a.track_get_key_time(track, k)
+		for q in tracks:
+			if int(q[2]) == Animation.TYPE_POSITION_3D:
+				skel.set_bone_pose_position(int(q[1]), a.position_track_interpolate(int(q[0]), t))
+			elif int(q[2]) == Animation.TYPE_ROTATION_3D:
+				skel.set_bone_pose_rotation(int(q[1]), a.rotation_track_interpolate(int(q[0]), t))
+		var lo := 1e9
+		for i in feet:
+			lo = minf(lo, skel.get_bone_global_pose(i).origin.y)
+		d.append(rest_lo - lo)
+	for i in skel.get_bone_count():
+		skel.set_bone_pose_position(i, saved[i][0])
+		skel.set_bone_pose_rotation(i, saved[i][1])
+	var parent := skel.get_bone_parent(bi)
+	var pb := skel.get_bone_global_rest(parent).basis if parent >= 0 else Basis.IDENTITY
+	var up := pb.inverse() * Vector3.UP
+	for k in n:
+		var sm := 0.0
+		var w := 0.0
+		for o in range(-2, 3):
+			var kk := clampi(k + o, 0, n - 1)
+			var ww := 3.0 - absf(o)
+			sm += d[kk] * ww
+			w += ww
+		a.track_set_key_value(track, k, (a.track_get_key_value(track, k) as Vector3) + up * (sm / w))
+
+
+static func _floor_apply(a: Animation, skel: Skeleton3D, root_bone: String, shift: float) -> void:
+	var bi := skel.find_bone(root_bone)
+	if bi < 0 or absf(shift) < 0.0005:
+		return
+	var parent := skel.get_bone_parent(bi)
+	var pb := skel.get_bone_global_rest(parent).basis if parent >= 0 else Basis.IDENTITY
+	var up := pb.inverse() * Vector3.UP
+	for i in a.get_track_count():
+		if a.track_get_type(i) == Animation.TYPE_POSITION_3D and String(a.track_get_path(i)).ends_with(":" + root_bone):
+			for k in a.track_get_key_count(i):
+				a.track_set_key_value(i, k, (a.track_get_key_value(i, k) as Vector3) + up * shift)
+
+
 static func _flatten_root(a: Animation, skel: Skeleton3D, root_bone: String, window: float) -> void:
 	var bi := skel.find_bone(root_bone)
 	var track := -1
