@@ -749,7 +749,7 @@ func _build_routes() -> void:
 ## compact — карточки поменьше, чтобы два маршрута помещались без прокрутки (как на макете); dense — три и больше:
 ## без описания (оно — на карте мира), цена и кнопка — в столбце текста, все три карточки видны без прокрутки
 func _route_card(id: String, d: Dictionary, compact := false, dense := false) -> Control:
-	var cs: Dictionary = {"cowshed": ULCowshed.cfg(), "sanatorium": ULSanatorium.cfg(), "convoy": ULConvoy.ccfg(), "khutor": ULKhutor.kcfg(), "lair": ULLair.lcfg(), "quarry": ULQuarry.qcfg(), "port": ULPort.pcfg()}.get(id, {})
+	var cs: Dictionary = {"cowshed": ULCowshed.cfg(), "sanatorium": ULSanatorium.cfg(), "convoy": ULConvoy.ccfg(), "khutor": ULKhutor.kcfg(), "lair": ULLair.lcfg(), "quarry": ULQuarry.qcfg(), "port": ULPort.pcfg(), "depot": ULDepot.dcfg()}.get(id, {})
 	var card := _card()
 	card.name = "route_" + id
 	if dense:
@@ -778,7 +778,7 @@ func _route_card(id: String, d: Dictionary, compact := false, dense := false) ->
 		var pl := _lbl("· людей %d" % int(ULBase.reload_of(id).get("people", 0)), 11, Color(0.75, 0.78, 0.8))
 		pl.name = "People"
 		th.add_child(pl)
-	if d.has("danger") and String(d.kind) == "Вражеский стаб":
+	if d.has("danger") and (String(d.kind) == "Вражеский стаб" or String(d.get("danger_color", "")) == "red"):
 		# вражеский стаб: красная плашка опасности (как на макете)
 		var dg := _lbl("⚠ Опасность: " + String(d.danger), 10 if dense else 12, Color(1.0, 0.82, 0.78), true)
 		dg.name = "Danger"

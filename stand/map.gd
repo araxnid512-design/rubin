@@ -16,6 +16,7 @@ const PLACES := {
 	"convoy": {"rect": Rect2(650, 590, 310, 260), "n": "Разбитый конвой", "kind": "Временный нестабильный кластер", "route": true, "mark": "res://assets/ui/map_convoy.png", "pic": "res://assets/ui/place_convoy.jpg", "scene": "res://world.tscn"},
 	"lair": {"rect": Rect2(1120, 420, 400, 280), "n": "Логово Муров", "kind": "Вражеский стаб · Опасность: 2 уровень", "route": true, "mark": "res://assets/ui/map_lair.png", "pic": "res://assets/ui/place_lair.jpg", "scene": "res://world.tscn"},
 	"quarry": {"rect": Rect2(1250, 196, 320, 252), "n": "Карьер", "kind": "Рабочий кластер · Опасность: 1 уровень", "route": true, "mark": "res://assets/ui/map_quarry.png", "pic": "res://assets/ui/place_quarry.jpg", "scene": "res://world.tscn"},
+	"depot": {"rect": Rect2(70, 300, 420, 280), "n": "Железнодорожное депо", "kind": "Локация · Опасность: 2 уровень", "route": true, "ring": Color(1.0, 0.7, 0.25), "mark": "res://assets/ui/map_depot.png", "pic": "res://assets/ui/place_depot.jpg", "scene": "res://world.tscn"},
 	"port": {"rect": Rect2(940, 640, 380, 270), "n": "Порт", "kind": "Локация · Опасность: 2 уровень", "route": true, "ring": Color(1.0, 0.85, 0.2), "mark": "res://assets/ui/map_port.png", "pic": "res://assets/ui/place_port.jpg", "scene": "res://world.tscn"},
 	"sanatorium": {"rect": Rect2(262, 50, 432, 302), "n": "Санаторий Луч", "kind": "Временный нестабильный кластер", "route": true, "mark": "res://assets/ui/map_sanatorium.png", "pic": "res://assets/ui/place_sanatorium.jpg", "scene": "res://world.tscn"},
 }

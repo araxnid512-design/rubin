@@ -450,6 +450,10 @@ void fragment() {
 ## швартовые тумбы, ограждение на причалах, рельсы портального крана, лестницы к воде.
 func _p_quay(g: Node3D) -> void:
 	var depth := 3.2
+	# бетонные плиты (в швах — трава): набережная под краном и площадки перед воротами складов
+	_pave_rect(Rect2(-FENCE_X + 1.0, QUAY_Z + 0.4, FENCE_X * 2.0 - 2.0, 11.0), 0.02, "pavers")
+	_pave_rect(Rect2(-74.0, 28.6, 54.0, 7.0), 0.02, "pavers")
+	_pave_rect(Rect2(22.0, 28.6, 54.0, 7.0), 0.02, "pavers")
 	# стенка набережной (между причалами — сплошная)
 	_bx(g, "slab", Vector3(PX * 2.0 + 60.0, depth, 0.8), _at(Vector3(0, -depth * 0.5 + 0.02, QUAY_Z - 0.4)))
 	for r in PIERS:
@@ -812,7 +816,8 @@ func _p_warehouse(b: ULBlock, d: Dictionary) -> void:
 	var c: Vector2 = bk.c
 	var x0 := c.x - float(bk.L) * 0.5 + 1.6
 	var x1 := c.x + float(bk.L) * 0.5 - 1.6
-	var z_hall0 := c.y - float(bk.W) * 0.5 + float(bk.row_d) + 1.6
+	var z_hall0 := c.y - float(bk.W) * 0.5 + float(bk.get("row_d", 0.0)) + 1.6
+	var z_max := c.y + float(bk.W) * 0.5 - 2.2
 	var gates: Array = []
 	for e in bk.entr:
 		if String(e[0]) == "s+":
@@ -820,6 +825,8 @@ func _p_warehouse(b: ULBlock, d: Dictionary) -> void:
 	var n := 0
 	for row in 3:
 		var z := z_hall0 + 0.6 + row * 4.6
+		if z > z_max:
+			break
 		var x := x0
 		while x < x1:
 			var it: Array = kinds[rng.randi() % kinds.size()]
@@ -906,6 +913,17 @@ func junk_points(rng: RandomNumberGenerator) -> Array:
 		if bld_dist(Vector2((p as Vector3).x, (p as Vector3).z)) < 0.3:
 			out.append(p)
 	var per: Array = conf().get("junk_at_vehicles", [1, 2])
+	for sp in _junk_spots():
+		for k in rng.randi_range(int(per[0]), int(per[1])):
+			var a := rng.randf() * TAU
+			var p: Vector3 = (sp as Vector3) + Vector3(cos(a), 0, sin(a)) * rng.randf_range(3.4, 5.0)
+			if bld_dist(Vector2(p.x, p.z)) > 0.8 and _land_ok(Vector2(p.x, p.z)) and body_fits(p + Vector3.UP * 0.1, 0.3, 0.5):
+				out.append(Vector3(p.x, 0.02, p.z))
+	return out
+
+
+## у чего лежат кучки хлама вне построек (у наследников — свои места)
+func _junk_spots() -> Array:
 	var spots: Array = []
 	for t in P_THINGS:
 		spots.append(t[1])
@@ -914,10 +932,8 @@ func junk_points(rng: RandomNumberGenerator) -> Array:
 	for r in PIERS:
 		var c: Vector2 = (r as Rect2).get_center()
 		spots.append(Vector3(c.x, 0, c.y))
-	for sp in spots:
-		for k in rng.randi_range(int(per[0]), int(per[1])):
-			var a := rng.randf() * TAU
-			var p: Vector3 = (sp as Vector3) + Vector3(cos(a), 0, sin(a)) * rng.randf_range(3.4, 5.0)
-			if bld_dist(Vector2(p.x, p.z)) > 0.8 and on_land(Vector2(p.x, p.z), -1.2) and body_fits(p + Vector3.UP * 0.1, 0.3, 0.5):
-				out.append(Vector3(p.x, 0.02, p.z))
-	return out
+	return spots
+
+
+func _land_ok(q: Vector2) -> bool:
+	return on_land(q, -1.2)

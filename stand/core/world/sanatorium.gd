@@ -701,6 +701,15 @@ func _pave_mat(kind: String) -> ShaderMaterial:
 		sm.set_shader_parameter("tint", Color(1.25, 1.22, 1.18))
 		sm.set_shader_parameter("sat", 0.15)
 		sm.set_shader_parameter("moss", 0.45)
+	elif kind == "gravel":
+		# щебёночная отсыпка (балласт железнодорожных путей, площадки)
+		sm.set_shader_parameter("tex", load(TEX + "rocky_gravel_c.jpg"))
+		sm.set_shader_parameter("tex_n", load(TEX + "rocky_gravel_n.jpg"))
+		sm.set_shader_parameter("scale", 2.4)
+		sm.set_shader_parameter("tint", Color(0.82, 0.8, 0.76))
+		sm.set_shader_parameter("sat", 0.25)
+		sm.set_shader_parameter("moss", 0.35)
+		sm.set_shader_parameter("crumble", 0.6)
 	else:
 		sm.set_shader_parameter("tex", load(TEX + "overgrown_concrete_pavers_c.jpg"))
 		sm.set_shader_parameter("tex_n", load(TEX + "overgrown_concrete_pavers_n.jpg"))
