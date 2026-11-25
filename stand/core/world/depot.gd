@@ -100,29 +100,36 @@ const D_ROADS := [
 	[Vector2(-8, -30), Vector2(-4, -50), Vector2(-4, -62)],
 	[Vector2(48, -24), Vector2(64, -26), Vector2(82, -24)],
 ]
-## подвижной состав: [модель, x, z, длина, вид тайника, название] — стоит на путях, идущих вдоль x
-const D_STOCK := [
-	["rd_shunter", -58.0, -10.6, 13.5, "loco", "Кабина маневрового тепловоза"], ["rd_boxcar", -42.5, -10.6, 14.0, "wagon", "Крытый вагон"], ["rd_gondola", -27.5, -10.6, 13.6, "wagon_open", "Полувагон"],
-	["rd_tankcar", -68.0, 7.6, 12.2, "tank", "Железнодорожная цистерна"], ["rd_flatcar", -53.5, 7.6, 13.6, "flat", "Платформа"], ["rd_boxcar", -38.0, 7.6, 14.0, "wagon", "Крытый вагон"],
-	["rd_boxcar", 52.0, -17.6, 14.0, "wagon", "Крытый вагон"], ["rd_gondola", 67.5, -17.6, 13.6, "wagon_open", "Полувагон"],
-	["rd_gondola", 46.0, -9.6, 13.6, "wagon_open", "Полувагон"], ["rd_boxcar", 61.5, -9.6, 14.0, "wagon", "Крытый вагон"], ["rd_tankcar", 76.0, -9.6, 12.2, "tank", "Железнодорожная цистерна"],
-	["rd_tankcar", 30.0, 25.6, 12.2, "tank", "Железнодорожная цистерна"], ["rd_gondola", 44.5, 25.6, 13.6, "wagon_open", "Полувагон"], ["rd_boxcar", 60.0, 25.6, 14.0, "wagon", "Крытый вагон"], ["rd_flatcar", 75.5, 25.6, 13.6, "flat", "Платформа"],
-	["rd_flatcar", -66.0, 1.8, 13.6, "flat", "Платформа"],
+## подвижной состав на путях, идущих вдоль x: [z пути, x начала, единицы подряд (зазор 1 м)]
+const D_TRAINS := [
+	[-10.6, -64.0, ["rd_shunter", "rd_boxcar", "rd_gondola", "rd_gondola"]],
+	[7.6, -74.0, ["rd_tankcar", "rd_flatcar", "rd_boxcar", "rd_boxcar"]],
+	[1.8, -72.0, ["rd_flatcar", "rd_gondola"]],
+	[-17.6, 46.0, ["rd_boxcar", "rd_gondola", "rd_gondola"]],
+	[-9.6, 38.0, ["rd_gondola", "rd_boxcar", "rd_tankcar", "rd_flatcar"]],
+	[25.6, 24.0, ["rd_tankcar", "rd_gondola", "rd_boxcar", "rd_flatcar", "rd_gondola"]],
 ]
+## единицы: длина и ширина в игре (модели Tripo коренастые: ширина — по габариту 3,1–3,25 м, длина — с растяжкой
+## не больше трети, чтобы колёса не стали овалами), вид тайника, название
+const D_UNITS := {
+	"rd_shunter": [12.0, 3.2, "loco", "Кабина маневрового тепловоза"], "rd_loco": [13.5, 3.25, "loco", "Кабина грузового тепловоза"],
+	"rd_boxcar": [11.5, 3.1, "wagon", "Крытый вагон"], "rd_gondola": [8.5, 3.15, "wagon_open", "Полувагон"],
+	"rd_flatcar": [9.5, 3.1, "flat", "Платформа"], "rd_tankcar": [12.0, 3.0, "tank", "Железнодорожная цистерна"],
+}
 ## топливный узел (северо-восток): ограда x 50…85, z −66…−27; две лежачие цистерны, стоячий резервуар, насосная
 const D_FUEL := Rect2(50, -66, 35, 39)
 const D_TANKS_H := [Vector3(58.5, 0, -52), Vector3(65.5, 0, -52)]
 const D_TANK_V := Vector3(76.5, 0, -58)
 ## техника, оборудование и кучи: [модель, где, поворот, длина, вид тайника, название]
 const D_THINGS := [
-	["rd_gantry", Vector3(18, 0, 47), 0.0, 16.0, "crane", "Шкаф козлового крана"],
+	["rd_gantry", Vector3(18, 0, 47), PI * 0.5, 16.0, "crane", "Шкаф козлового крана"],
 	["ul_ural_wreck", Vector3(46, 0, 52), 0.6, 7.4, "truck", "Разбитый грузовик"], ["ul_car", Vector3(60, 0, 46), 1.9, 4.2, "cab", "Брошенная машина"],
 	["qr_loader", Vector3(52, 0, 60), -0.5, 7.0, "machine", "Кабина погрузчика"], ["ul_bus", Vector3(70, 0, 56), 0.2, 9.0, "cab", "Салон автобуса"],
 	["qr_scrap1", Vector3(34, 0, 58), 0.0, 3.2, "scrap", "Куча металлолома"], ["qr_scrap2", Vector3(62, 0, 62), 1.0, 3.2, "scrap", "Куча металлолома"],
 	["qr_scrap3", Vector3(76, 0, 48), 2.0, 3.0, "scrap", "Куча металлолома"], ["qr_scrap1", Vector3(44, 0, 44), 2.4, 2.8, "scrap", "Куча металлолома"],
 	["qr_scrap2", Vector3(28, 0, 50), 0.4, 2.6, "scrap", "Куча металлолома"], ["qr_scrap3", Vector3(82, 0, 60), 1.3, 2.6, "scrap", "Куча металлолома"],
-	["rd_wheels", Vector3(-20, 0, -26.5), 0.2, 3.4, "parts", "Колёсные пары"], ["rd_wheels", Vector3(8, 0, -40), 1.5, 3.4, "parts", "Колёсные пары"],
-	["rd_bogie", Vector3(-66, 0, -26), 0.1, 2.6, "parts", "Тележка вагона"], ["rd_bogie", Vector3(48, 0, -38), 1.2, 2.6, "parts", "Тележка вагона"],
+	["rd_wheels", Vector3(-20, 0, -26.5), 0.2, 2.4, "parts", "Колёсные пары"], ["rd_wheels", Vector3(8, 0, -40), 1.5, 2.4, "parts", "Колёсные пары"],
+	["rd_bogie", Vector3(-66, 0, -26), 0.1, 2.2, "parts", "Тележка вагона"], ["rd_bogie", Vector3(48, 0, -38), 1.2, 2.2, "parts", "Тележка вагона"],
 	["rd_jack", Vector3(-50, 0, -27), 0.0, 1.2, "", ""], ["rd_jack", Vector3(-32, 0, -27), 0.0, 1.2, "", ""],
 	["qr_cabledrum", Vector3(-8, 0, 24), 0.4, 2.0, "cable", "Барабан кабеля"], ["qr_transformer", Vector3(-84, 0, -30), 0.0, 2.6, "tech", "Трансформаторный шкаф"],
 	["qr_compressor", Vector3(-10, 0, -34), 1.57, 2.2, "tech", "Компрессор"], ["hm_generator", Vector3(22, 0, 62.5), 0.0, 1.6, "tech", "Генератор"],
@@ -216,8 +223,8 @@ func _junk_spots() -> Array:
 	var spots: Array = []
 	for t in D_THINGS:
 		spots.append(t[1])
-	for i in range(0, D_STOCK.size(), 2):
-		spots.append(Vector3(float(D_STOCK[i][1]), 0, float(D_STOCK[i][2]) + 3.4))
+	for tr in D_TRAINS:
+		spots.append(Vector3(float(tr[1]) + 8.0, 0, float(tr[0]) + 3.4))
 	return spots
 
 
@@ -436,7 +443,7 @@ func _d_tracks(g: Node3D) -> void:
 	for e in [[Vector2(-78, -10.6), PI * 0.5], [Vector2(-79, 1.8), PI * 0.5], [Vector2(-79, 7.6), PI * 0.5], [Vector2(84, -17.6), PI * 0.5], [Vector2(84, -9.6), PI * 0.5], [Vector2(84, 25.6), PI * 0.5]]:
 		var p: Vector2 = e[0]
 		if ResourceLoader.exists(MODELS + "rd_buffer.glb"):
-			_pm("rd_buffer", Vector3(p.x, 0, p.y), float(e[1]), 2.4, true, false)
+			_pm("rd_buffer", Vector3(p.x, 0, p.y), float(e[1]), 3.2, true, true)
 		else:
 			_bx(g, "rust", Vector3(0.4, 1.1, 2.4), _at(Vector3(p.x, 0.55, p.y)), true)
 	print("[depot] пути: ниток %d, шпал %d" % [D_TRACKS.size(), n_sl])
@@ -521,39 +528,65 @@ func _d_fuel(g: Node3D) -> void:
 
 # ---------------- подвижной состав, техника, штабеля ----------------
 
-## вагоны и тепловозы — на путях вдоль x; без модели — коробка-заместитель нужного размера
+## вагоны и тепловозы — на путях вдоль x: каждая единица — своя модель по своим размерам; столкновение — коробка,
+## обыск — с южной стороны у середины. Без модели — коробка-заместитель.
 func _d_stock() -> void:
 	var g := Node3D.new()
 	g.name = "Stock"
 	add_child(g)
-	for s in D_STOCK:
-		var p := Vector3(float(s[1]), 0.12, float(s[2]))
-		var ln := float(s[3])
-		var size := Vector3(ln, 4.2, 3.1)
-		if ResourceLoader.exists(MODELS + String(s[0]) + ".glb"):
-			var sz := _pm(String(s[0]), p, PI * 0.5, ln, false, true)
-			size = Vector3(ln, sz.y, minf(sz.x, sz.z))
-			if get_child_count() > 0:
-				_cull(get_child(get_child_count() - 1), 160.0)
-		else:
-			var mi := MeshInstance3D.new()
-			var bm := BoxMesh.new()
-			bm.size = Vector3(ln, 3.0, 3.0)
-			mi.mesh = bm
-			mi.material_override = _box_mat(Color(0.5, 0.3, 0.24))
-			mi.position = p + Vector3.UP * 2.3
-			g.add_child(mi)
-		_col_xf(Vector3(ln * 0.96, 4.4, 3.0), _at(p + Vector3.UP * 2.2))
-		blob_pts.append([p, Vector2(ln, 3.0), 0.0, 0.5])
-		# обыск — с южной стороны, у середины
-		_p_stash(p + Vector3(0, -0.12, 2.3), Vector3(2.4, 2.0, 1.2), 0.0, String(s[4]), String(s[5]))
+	for tr in D_TRAINS:
+		var z := float(tr[0])
+		var x := float(tr[1])
+		for id in tr[2]:
+			var u: Array = D_UNITS[String(id)]
+			var ln := float(u[0])
+			var wd := float(u[1])
+			var p := Vector3(x + ln * 0.5, 0.13, z)
+			var hgt := _d_unit(g, String(id), p, ln, wd, true)
+			_col_xf(Vector3(ln * 0.96, maxf(hgt, 1.6), wd * 0.94), _at(p + Vector3.UP * maxf(hgt, 1.6) * 0.5))
+			blob_pts.append([p, Vector2(ln, wd), 0.0, 0.5])
+			_p_stash(Vector3(p.x, 0, z + wd * 0.5 + 0.7), Vector3(2.4, 2.0, 1.2), 0.0, String(u[2]), String(u[3]))
+			x += ln + 1.0
+
+
+## единица подвижного состава своей моделью: длина — вдоль x (along_x) или z, ширина — поперёк, высота — в масштабе
+## ширины. Возвращает высоту.
+func _d_unit(g: Node3D, id: String, p: Vector3, ln: float, wd: float, along_x: bool) -> float:
+	var path := MODELS + id + ".glb"
+	if not ResourceLoader.exists(path):
+		var mi := MeshInstance3D.new()
+		var bm := BoxMesh.new()
+		bm.size = Vector3(ln, 3.0, wd) if along_x else Vector3(wd, 3.0, ln)
+		mi.mesh = bm
+		mi.material_override = _box_mat(Color(0.5, 0.3, 0.24))
+		mi.position = p + Vector3.UP * 2.2
+		g.add_child(mi)
+		return 3.8
+	if not _scenes.has(path):
+		_scenes[path] = load(path)
+	var n: Node3D = (_scenes[path] as PackedScene).instantiate()
+	ULSanatorium.mute(n)
+	var bb: AABB = w._aabb(n)
+	var long_x := bb.size.x > bb.size.z
+	var ml := maxf(bb.size.x, bb.size.z)
+	var mw := minf(bb.size.x, bb.size.z)
+	var kw := wd / mw
+	var kl := ln / ml
+	var sc := Vector3(kl, kw, kw) if long_x else Vector3(kw, kw, kl)
+	var rot := Basis(Vector3.UP, 0.0 if long_x == along_x else PI * 0.5)
+	var c := bb.get_center()
+	n.transform = Transform3D(rot * Basis.from_scale(sc), p + rot * Vector3(-c.x * sc.x, -bb.position.y * sc.y, -c.z * sc.z))
+	add_child(n)
+	_dirty(n, id, Color(0.86, 0.84, 0.8))
+	_cull(n, 160.0)
+	return bb.size.y * kw
 
 
 func _d_things() -> void:
 	for t in D_THINGS:
 		var at: Vector3 = t[1]
 		var big := String(t[0]) == "rd_gantry"
-		var size := _pm(String(t[0]), at, float(t[2]), float(t[3]), not big, false, Color(0.82, 0.8, 0.76))
+		var size := _pm(String(t[0]), at, float(t[2]), float(t[3]), not big, big, Color(0.82, 0.8, 0.76))
 		if big:
 			# козловой кран: проезд под мостом свободен, столкновения — только у опор
 			for sx in [-7.2, 7.2]:
@@ -592,7 +625,7 @@ func _d_hangar(b: ULBlock) -> void:
 		["gr_shelf2", Vector3(-33, 0.2, -53.2), 0.0, Vector3(2.4, 2.2, 0.7)], ["qr_compressor", Vector3(-16, 0.2, -52.5), 0.0, Vector3(2.0, 1.4, 1.1)],
 		["hm_generator", Vector3(-13.5, 0.2, -46), PI * 0.5, Vector3(1.5, 1.1, 0.9)], ["gr_jack", Vector3(-45.5, 0.2, -44), 0.0, Vector3(0.8, 0.6, 0.8)],
 		["gr_jack", Vector3(-36.5, 0.2, -44), 0.0, Vector3(0.8, 0.6, 0.8)], ["gr_tyres", Vector3(-70, 0.2, -50), 0.3, Vector3(1.6, 1.2, 1.6)],
-		["rd_bogie", Vector3(-58, 0.2, -38), PI * 0.5, Vector3(2.6, 1.1, 2.2)], ["rd_wheels", Vector3(-24, 0.2, -38), 0.0, Vector3(3.0, 1.4, 2.0)],
+		["rd_bogie", Vector3(-58, 0.2, -38), PI * 0.5, Vector3(2.2, 1.6, 1.6)], ["rd_wheels", Vector3(-24, 0.2, -38), 0.0, Vector3(2.4, 1.6, 2.2)],
 		["gr_barrels", Vector3(-14, 0.2, -36), 0.6, Vector3(1.8, 1.0, 1.8)], ["gr_hoist", Vector3(-50, 0.2, -44), 0.0, Vector3(2.0, 2.8, 1.6)],
 		["ul_crate", Vector3(-28, 0.2, -52.6), 0.2, Vector3(1.1, 0.9, 1.1)], ["qr_pallets", Vector3(-22, 0.2, -52.4), 0.0, Vector3(1.3, 1.2, 1.3)],
 	]
@@ -605,15 +638,15 @@ func _d_hangar(b: ULBlock) -> void:
 		var r := Basis(Vector3.UP, float(it[2]))
 		_col_xf(Vector3(sz.x * 0.9, sz.y, sz.z * 0.9), Transform3D(r, Vector3(p.x, 0.2 + sz.y * 0.5, p.z)))
 	# вагон на ремонте — на среднем пути (в глубине зала, перед ним проход)
-	_d_inside(b, "rd_boxcar", Vector3(-41, 0.32, -45), 14.0, 4.2, 3.1)
+	_d_inside(b, "rd_boxcar", Vector3(-41, 0.33, -45), 11.5, 4.3, 3.1)
 
 
 ## Локомотивное депо (зал 36 × 21 м): на крайних путях — грузовой и маневровый тепловозы, средний путь свободен.
 func _d_loco(b: ULBlock) -> void:
-	_d_inside(b, "rd_loco", Vector3(16.5, 0.32, -53), 17.0, 4.8, 3.2)
-	_d_inside(b, "rd_shunter", Vector3(38.5, 0.32, -55), 13.5, 4.6, 3.2)
+	_d_inside(b, "rd_loco", Vector3(16.5, 0.33, -53), 13.5, 4.0, 3.25)
+	_d_inside(b, "rd_shunter", Vector3(38.5, 0.33, -54), 12.0, 3.9, 3.2)
 	for it in [["gr_workbench", Vector3(27.5, 0.2, -63.2), 0.0, Vector3(2.4, 1.0, 0.9)], ["gr_shelf", Vector3(22, 0.2, -63.4), 0.0, Vector3(2.4, 2.2, 0.7)],
-			["gr_engstand", Vector3(33, 0.2, -63.0), 0.0, Vector3(1.6, 1.4, 1.2)], ["rd_wheels", Vector3(27.5, 0.2, -57), PI * 0.5, Vector3(3.0, 1.4, 2.0)]]:
+			["gr_engstand", Vector3(33, 0.2, -63.0), 0.0, Vector3(1.6, 1.4, 1.2)], ["rd_wheels", Vector3(33, 0.2, -47), PI * 0.5, Vector3(2.4, 1.6, 2.2)]]:
 		if not ResourceLoader.exists(MODELS + String(it[0]) + ".glb"):
 			continue
 		var sz: Vector3 = it[3]
