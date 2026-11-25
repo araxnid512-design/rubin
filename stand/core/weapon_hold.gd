@@ -441,6 +441,24 @@ func _v(a: Array) -> Vector3:
 	return fwd * float(a[0]) + upv * float(a[1]) + rgt * float(a[2])
 
 
+## Стойка «в опущенной руке» (пометка swing): оружие не стоит на месте относительно груди, а идёт за правой кистью
+## из клипа — на бегу рука машет как у бегущего, стоя висит вдоль тела. Ствол — вдоль предплечья, чуть вниз
+## (drop), чтобы запястье оставалось прямым. Поза — в системе покоя груди (как у _stance_pose).
+func _swing_pose(s: Skeleton3D, st: Dictionary) -> Transform3D:
+	var Gc := s.get_bone_global_pose(_chest)
+	var Gr := s.get_bone_global_rest(_chest)
+	var Ti := (Gc * Gr.affine_inverse()).orthonormalized().affine_inverse()
+	var hand := s.get_bone_global_pose(int(_hf.R.hand))
+	var elbow := s.get_bone_global_pose(int(_hf.R.fore)).origin
+	var f := (Ti.basis * (hand.origin - elbow)).normalized()
+	f = (f - upv * float(st.get("drop", 0.2)) + fwd * float(st.get("ahead", 0.15))).normalized()
+	var u := upv - f * upv.dot(f)
+	u = u.normalized() if u.length() > 0.05 else (-fwd - f * (-fwd).dot(f)).normalized()
+	var B := Basis(f.cross(u), u, -f)
+	var palm := Ti * (hand * (_hf.R.palm_l as Vector3))
+	return Transform3D(B, palm - B * _pt(w.grip))
+
+
 ## поза оружия для стойки — в системе покоя скелета (без масштаба)
 func _stance_pose(st: Dictionary) -> Transform3D:
 	var pm: Vector3 = _v(st.pos) * (_reach_k if String(st.anchor) == "grip" else 1.0)
@@ -562,6 +580,11 @@ func _process_modification_with_delta(delta: float) -> void:
 	# оружие — тело с массой: в новую стойку идёт с разгоном и торможением, с лёгким перелётом
 	var om := 13.0
 	var zt := 0.78
+	if st.get("swing", false) and _move == "" and _reload_t < 0.0:
+		# оружие в опущенной руке: идёт за кистью из клипа (рука свободно машет на бегу, висит вдоль тела стоя)
+		tgt = _swing_pose(s, st)
+		om = 34.0
+		zt = 1.0
 	if _move != "":
 		_move_t += delta * move_rate
 		var mp := _move_pose()

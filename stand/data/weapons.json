@@ -75,6 +75,44 @@
     ],
     "follow": 1.0,
     "twist": 0
+   },
+   "carry": {
+    "anchor": "grip",
+    "pos": [
+     0.1,
+     -0.55,
+     0.22
+    ],
+    "dir": [
+     0.5,
+     -0.85,
+     0.0
+    ],
+    "follow": 1.0,
+    "twist": 0,
+    "one": true,
+    "swing": true,
+    "drop": 0.2,
+    "ahead": 0.15
+   },
+   "rest": {
+    "anchor": "grip",
+    "pos": [
+     0.08,
+     -0.62,
+     0.2
+    ],
+    "dir": [
+     0.35,
+     -0.93,
+     0.0
+    ],
+    "follow": 1.0,
+    "twist": 0,
+    "one": true,
+    "swing": true,
+    "drop": 0.1,
+    "ahead": 0.2
    }
   },
   "holster": {
@@ -2870,6 +2908,44 @@
     ],
     "follow": 1.0,
     "twist": 0
+   },
+   "carry": {
+    "anchor": "grip",
+    "pos": [
+     0.1,
+     -0.55,
+     0.22
+    ],
+    "dir": [
+     0.5,
+     -0.85,
+     0.0
+    ],
+    "follow": 1.0,
+    "twist": 0,
+    "one": true,
+    "swing": true,
+    "drop": 0.2,
+    "ahead": 0.15
+   },
+   "rest": {
+    "anchor": "grip",
+    "pos": [
+     0.08,
+     -0.62,
+     0.2
+    ],
+    "dir": [
+     0.35,
+     -0.93,
+     0.0
+    ],
+    "follow": 1.0,
+    "twist": 0,
+    "one": true,
+    "swing": true,
+    "drop": 0.1,
+    "ahead": 0.2
    }
   },
   "holster": {

@@ -6,6 +6,7 @@
   "sanatorium": {"people": [50, 80], "eat": [0.3, 0.6], "kill": [0.03, 0.12], "ruber_max": 2},
   "convoy": {"people": [30, 60], "eat": [0.25, 0.55], "kill": [0.0, 0.08], "ruber_max": 1},
   "khutor": {"people": [35, 55], "eat": [0.3, 0.55], "kill": [0.0, 0.08], "ruber_max": 1},
-  "quarry": {"people": [65, 100], "eat": [0.2, 0.45], "kill": [0.0, 0.06], "ruber_max": 1}
+  "quarry": {"people": [65, 100], "eat": [0.2, 0.45], "kill": [0.0, 0.06], "ruber_max": 1},
+  "port": {"people": [45, 80], "eat": [0.25, 0.5], "kill": [0.0, 0.06], "ruber_max": 1}
  }
 }

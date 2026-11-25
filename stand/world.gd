@@ -165,6 +165,16 @@ func _ready() -> void:
 			kc.lottery = [kc.lottery[1], kc.lottery[1]]
 			kc.ruber_chances = [0, 1]                    # и Рубер — всего 40
 			ULKhutor._kcfg = kc
+	if test.begins_with("pt"):
+		# проверки порта: --as-test=pt (посещение, постройки, задание), ptbake (карты и кэш), ptview (снимки), ptperf
+		ULSettings.arena = false
+		ULSettings.place = "port"
+		if test == "ptperf":
+			var ptc := ULPort.pcfg().duplicate(true)
+			ptc.pustysh = [ptc.pustysh[1], ptc.pustysh[1]]
+			ptc.lottery = [ptc.lottery[1], ptc.lottery[1]]
+			ptc.ruber_chances = [0, 1]
+			ULPort._pcfg = ptc
 	if test.begins_with("cv"):
 		# проверки конвоя: --as-test=cv (посещение), cvbake (карты и кэш), cvview (снимки), cvperf
 		ULSettings.arena = false
@@ -197,7 +207,7 @@ func _ready() -> void:
 			var lc := ULLair.lcfg().duplicate(true)
 			lc.murs = [lc.murs[1], lc.murs[1]]
 			ULLair._lcfg = lc
-	lvl = ULSettings.level_test and test == "" or test == "lvl" or test == "lvlbench" or test == "lrview" or test == "qrview" or test == "gfxdiag"
+	lvl = ULSettings.level_test and test == "" or test == "lvl" or test == "lvlbench" or test == "lrview" or test == "qrview" or test == "ptview" or test == "gfxdiag"
 	if test != "" or lvl:
 		# проверки и тест уровней: база только в памяти; оружейник установлен (кроме проверки компьютера — там он покупается)
 		ULBase.memory_only = true
@@ -207,7 +217,7 @@ func _ready() -> void:
 			ULBase.data.upgrades["gunsmith"] = 1
 			ULBase.data.staff["gunsmith"] = true
 	arena = ULSettings.arena
-	place = ULSettings.place if not arena and ULSettings.place in ["cowshed", "sanatorium", "convoy", "khutor", "lair", "quarry"] else "home"
+	place = ULSettings.place if not arena and ULSettings.place in ["cowshed", "sanatorium", "convoy", "khutor", "lair", "quarry", "port"] else "home"
 	ULSettings.apply(get_viewport())
 	if test == "" or test == "enterview":
 		ULSettings.step("загрузка: " + place)
@@ -316,7 +326,7 @@ func _bake_nav(path := NAV_MESH) -> void:
 		nm.filter_ledge_spans = true            # без «островков» на столах, кроватях и шкафах
 		nm.region_min_size = 9.0
 	nm.geometry_parsed_geometry_type = NavigationMesh.PARSED_GEOMETRY_STATIC_COLLIDERS
-	var hgt := 18.0 if place == "sanatorium" else (7.0 if place == "convoy" or place == "khutor" or place == "lair" or place == "quarry" else 5.0)   # в санатории — все этажи корпусов; в конвое — вышка
+	var hgt := 18.0 if place == "sanatorium" else (7.0 if place == "convoy" or place == "khutor" or place == "lair" or place == "quarry" or place == "port" else 5.0)   # в санатории — все этажи корпусов; в конвое — вышка
 	var y0 := -3.4 if place == "khutor" else (-15.0 if place == "quarry" else -1.0)   # на хуторе — погреба на 2,6 м под землёй; в карьере — дно на −13,5 м
 	nm.filter_baking_aabb = AABB(Vector3(-size_m * 0.5 - 12.0, y0, -size_m * 0.5 - 12.0), Vector3(size_m + 24.0, hgt - y0 - 1.0, size_m + 24.0))
 	nm.geometry_collision_mask = 1                              # без дверей (слой 2): путь идёт через проём
@@ -384,6 +394,10 @@ var quest := {}
 var _quest_t := 0.0
 const QUEST_STAGES := [["traces", "Следы рабочих", ["q_tag", "q_photo", "q_pass"]], ["journal", "Журнал диспетчера", ["q_journal"]],
 	["samples", "Ящик с образцами", ["q_samples"]], ["exit", "Покинуть кластер до перезагрузки", []]]
+## задания по локациям: этапы [код, название, что нужно найти]. Находка — предмет в инвентаре; отметки без предмета
+## (контейнер открыт) ставит обыск тайника (ct.need).
+const QUEST_SETS := {"quarry": QUEST_STAGES, "port": [["docs", "Документы о грузе", ["p_docs"]], ["box", "Контейнер ТК-417", ["p_box"]],
+	["cargo", "Особый груз", ["p_cargo"]], ["exit", "Покинуть кластер до перезагрузки", []]]}
 var _cs_alarm := 0.0
 var cs_ready := false             ## враги расставлены
 var sn_ready_ms := 0              ## когда (мс от запуска) локация готова
@@ -421,24 +435,24 @@ var zone: Node3D                  ## текущий временный клас�
 
 
 func _san_world() -> void:
-	san = ULKhutor.new() if place == "khutor" else (ULConvoy.new() if place == "convoy" else (ULLair.new() if place == "lair" else (ULQuarry.new() if place == "quarry" else ULSanatorium.new())))
+	san = ULPort.new() if place == "port" else ULKhutor.new() if place == "khutor" else (ULConvoy.new() if place == "convoy" else (ULLair.new() if place == "lair" else (ULQuarry.new() if place == "quarry" else ULSanatorium.new())))
 	size_m = float(san.conf().get("size", 150.0))
-	san.name = {"khutor": "Khutor", "convoy": "Convoy", "lair": "Lair", "quarry": "Quarry"}.get(place, "Sanatorium")
+	san.name = {"khutor": "Khutor", "convoy": "Convoy", "lair": "Lair", "quarry": "Quarry", "port": "Port"}.get(place, "Sanatorium")
 	size_z = float(san.conf().get("size_z", size_m))
 	add_child(san)
 	zone = san
 	san.build(self)
 	_noise_tex = san._noise_tex
 	_edge_fog()
-	var nav := ULKhutor.K_NAV if place == "khutor" else (ULConvoy.C_NAV if place == "convoy" else (ULLair.L_NAV if place == "lair" else (ULQuarry.Q_NAV if place == "quarry" else NAV_SANATORIUM)))
-	if test == "snbake" or test == "cvbake" or test == "khbake" or test == "lrbake" or test == "qrbake":
+	var nav := ULPort.P_NAV if place == "port" else ULKhutor.K_NAV if place == "khutor" else (ULConvoy.C_NAV if place == "convoy" else (ULLair.L_NAV if place == "lair" else (ULQuarry.Q_NAV if place == "quarry" else NAV_SANATORIUM)))
+	if test == "snbake" or test == "cvbake" or test == "khbake" or test == "lrbake" or test == "qrbake" or test == "ptbake":
 		_bake_nav(nav)
 	_nav_load(nav)
 
 
 ## кластер с помещениями, в которые можно зайти (санаторий, конвой): этажи, двери, тайники, свет внутри
 func indoor() -> bool:
-	return place == "sanatorium" or place == "convoy" or place == "khutor" or place == "lair" or place == "quarry"
+	return place == "sanatorium" or place == "convoy" or place == "khutor" or place == "lair" or place == "quarry" or place == "port"
 
 
 ## временный кластер (коровник, санаторий) — не база и не полигон
@@ -447,6 +461,8 @@ func temp() -> bool:
 
 
 func zone_cfg() -> Dictionary:
+	if place == "port":
+		return ULPort.pcfg()
 	if place == "quarry":
 		return ULQuarry.qcfg()
 	if place == "khutor":
@@ -459,6 +475,8 @@ func zone_cfg() -> Dictionary:
 
 
 func zone_name() -> String:
+	if place == "port":
+		return ULPort.P_TITLE
 	if place == "quarry":
 		return ULQuarry.Q_TITLE
 	if place == "khutor":
@@ -471,6 +489,8 @@ func zone_name() -> String:
 
 
 func zone_entry() -> Vector3:
+	if place == "port":
+		return ULPort.P_ENTRY
 	if place == "quarry":
 		return ULQuarry.Q_ENTRY
 	if place == "khutor":
@@ -572,7 +592,7 @@ func _cowshed_enter() -> void:
 		en.set_meta("pi", k)                        # номер в расстановке — по нему при возвращении узнаётся, кто убит
 		if sp.size() > 2:
 			# санаторий: часть стоит на месте, часть бродит; в комнатах — в пределах комнаты
-			var outdoor := String(sp[2]) in ["yard", "plaza", "fence", "thicket", "boiler_out", "hozdvor", "behind_main", "road", "camp", "post", "supply", "heli", "tower", "forest"]
+			var outdoor := String(sp[2]) in ["yard", "plaza", "fence", "thicket", "boiler_out", "hozdvor", "behind_main", "road", "camp", "post", "supply", "heli", "tower", "forest", "gate", "admin_yard", "containers", "fuel", "quay", "piers"]
 			en.wander_r = 0.0 if rng.randf() < 0.4 else (5.0 if outdoor else 1.4)
 			if String(sp[0]) == "ruber":
 				en.wander_r = 4.0 if outdoor else 2.0           # тяжело бродит на своём месте
@@ -974,7 +994,7 @@ func _cs_tick(delta: float) -> void:
 		zone.tick(player.global_position, cam, delta)
 	if _cs_done or _cs_end <= 0.0:
 		return
-	if place == "quarry":
+	if not quest_stages().is_empty():
 		_quest_t -= delta
 		if _quest_t <= 0.0:
 			_quest_t = 0.4
@@ -1025,20 +1045,28 @@ func _cs_tick(delta: float) -> void:
 ## Задание «Последняя смена»: находка засчитывается, когда предмет попал в инвентарь (поднят с земли или взят из
 ## тайника); выброшенный потом — всё равно засчитан. Этапы: три следа рабочих, журнал диспетчера, ящик с
 ## образцами, выход до перезагрузки (награда — data/quarry.json, quest.reward; только при выходе за край).
+func quest_stages() -> Array:
+	return QUEST_SETS.get(place, [])
+
+
+func quest_cfg() -> Dictionary:
+	return zone_cfg().get("quest", {})
+
+
 func quest_tick() -> void:
 	if quest.is_empty():
 		quest = {"found": {}, "done": false}
 	var found: Dictionary = quest.found
-	for st in QUEST_STAGES:
+	for st in quest_stages():
 		for id in st[2]:
-			if not found.has(id) and inv.count(String(id)) > 0:
+			if not found.has(id) and ULItems.ITEMS.has(String(id)) and inv.count(String(id)) > 0:
 				found[id] = true
-				say("Задание «Последняя смена»: %s — %s" % [ULItems.title({"id": id, "n": 1}), quest_line(String(st[0]))])
+				say("Задание «%s»: %s — %s" % [String(quest_cfg().get("n", "")), ULItems.title({"id": id, "n": 1}), quest_line(String(st[0]))])
 
 
 ## сколько найдено по этапу и всего
 func quest_progress(stage: String) -> Vector2i:
-	for st in QUEST_STAGES:
+	for st in quest_stages():
 		if String(st[0]) == stage:
 			var n := 0
 			for id in st[2]:
@@ -1049,7 +1077,7 @@ func quest_progress(stage: String) -> Vector2i:
 
 
 func quest_ready() -> bool:
-	for st in QUEST_STAGES:
+	for st in quest_stages():
 		var pr := quest_progress(String(st[0]))
 		if pr.y > 0 and pr.x < pr.y:
 			return false
@@ -1063,14 +1091,14 @@ func quest_line(stage: String) -> String:
 
 ## панель задания слева под строкой состояния: этапы и отметки
 func _quest_hud(vs: Vector2, font0: Font) -> void:
-	if place != "quarry" or _cs_end <= 0.0:
+	if quest_stages().is_empty() or _cs_end <= 0.0:
 		return
-	var q: Dictionary = ULQuarry.qcfg().get("quest", {})
+	var q: Dictionary = quest_cfg()
 	var x := 12.0
 	var y := 124.0                                # под строкой состояния (имя, ресурсы, место и кадры/с)
 	var lines: Array = []
 	var cur_set := false
-	for st in QUEST_STAGES:
+	for st in quest_stages():
 		var pr := quest_progress(String(st[0]))
 		var ok := pr.y > 0 and pr.x >= pr.y
 		var cur := not ok and not cur_set
@@ -1102,12 +1130,14 @@ func cs_finish(why: String) -> void:
 		hp = 50.0
 	# задание карьера: всё найдено и ушёл до перезагрузки — награда в кошелёк (до записи того, что при себе)
 	var quest_note := ""
-	if place == "quarry" and why == "left" and not quest.is_empty() and quest_ready() and not bool(quest.get("done", false)):
+	# награда — только за выход из кластера с выполненными этапами (в порту — с особым грузом при себе)
+	if not quest_stages().is_empty() and why == "left" and not quest.is_empty() and quest_ready() and not bool(quest.get("done", false)) \
+			and (place != "port" or inv.count("p_cargo") > 0):
 		quest.done = true
-		var rw: Dictionary = ULQuarry.qcfg().get("quest", {}).get("reward", {})
+		var rw: Dictionary = quest_cfg().get("reward", {})
 		for k in rw:
 			inv.wallet[k] = int(inv.wallet.get(k, 0)) + int(rw[k])
-		quest_note = "\nЗадание «Последняя смена» выполнено: " + ULEconomy.list_text(rw) + "."
+		quest_note = "\nЗадание «%s» выполнено: " % String(quest_cfg().get("n", "")) + ULEconomy.list_text(rw) + "."
 	_save_carried()
 	# Локация остаётся на карте, пока не вышло её время (кроме перезагрузки кластера): состояние посещения
 	# записывается — при возвращении всё будет как оставлено.
@@ -1999,6 +2029,9 @@ const GROUND_SETS := {
 		"path": "brown_mud_dry", "path_n": "brown_mud_dry", "path_scale": 2.0, "grass_mul": Vector3(0.86, 0.95, 0.66), "path_mul": Vector3(0.86, 0.82, 0.76)},
 	"lair": {"soil": "brown_mud_rocks_01", "soil_n": "brown_mud_rocks_01", "tint": Vector3(1.0, 0.95, 0.88), "wet": 0.6, "dry": 0.35,
 		"path": "brown_mud_dry", "path_n": "brown_mud_dry", "path_scale": 2.0, "grass_mul": Vector3(0.8, 0.9, 0.62), "path_mul": Vector3(0.84, 0.8, 0.76)},
+	# порт: серо-бурый укатанный грунт со щебнем, мокрый после дождя; трава — пятнами, жухлая
+	"port": {"soil": "dry_ground_01", "soil_n": "dry_ground_01", "tint": Vector3(0.8, 0.78, 0.74), "wet": 0.45, "dry": 0.4,
+		"path": "damaged_concrete_floor", "path_n": "damaged_concrete_floor", "path_scale": 3.2, "grass_mul": Vector3(0.7, 0.8, 0.58), "path_mul": Vector3(0.8, 0.79, 0.76)},
 	# карьер: пыльный сухой грунт посёлка, щебёночные дороги для тяжёлой техники, трава выгоревшая
 	"quarry": {"soil": "dry_ground_01", "soil_n": "dry_ground_01", "tint": Vector3(0.92, 0.88, 0.82), "wet": 0.2, "dry": 0.6,
 		"path": "stony_dirt_path", "path_n": "stony_dirt_path", "path_scale": 2.6, "grass_mul": Vector3(0.8, 0.86, 0.58), "path_mul": Vector3(1.16, 1.06, 0.92)},
@@ -3271,6 +3304,8 @@ func _body_pose(speed: float) -> void:
 				want = "aim_idle"
 			elif rig.hold.stance_now() == "rest" and rig.info.has("rest_idle"):
 				want = "rest_idle"
+		elif String(rig.hold.w.get("mode", "")) == "pistol" and rig.hold.stance_now() == "rest":
+			want = ""                             # пистолет в опущенной руке — стоит свободно, как без оружия
 	if want != _pose_now:
 		_pose_now = want
 		rig.set_pose(want)
@@ -3284,7 +3319,7 @@ func _where() -> String:
 	if indoor():
 		if san.hero_b < 0:
 			return zone_name()
-		if place == "convoy" or place == "khutor" or place == "lair" or (place == "quarry" and san.blds[san.hero_b].floors <= 1):
+		if place == "convoy" or place == "khutor" or place == "lair" or place == "port" or (place == "quarry" and san.blds[san.hero_b].floors <= 1):
 			return "%s, %s" % [zone_name(), san.blds[san.hero_b].title.to_lower()]
 		return "%s, %s, %d этаж" % [zone_name(), san.blds[san.hero_b].title.to_lower(), san.hero_f + 1]
 	if not house.contains(player.global_position):
@@ -4060,6 +4095,17 @@ func do_action() -> void:
 	if _target.type == "box":
 		# тайник в корпусе: его содержимое — как хранилище (взять всё или по одному)
 		var ct: Dictionary = san.containers[int(_target.i)]
+		if ct.has("need"):
+			# запертый тайник задания (контейнер ТК-417): без документов не открыть; открыт — отметка этапа
+			if inv.count(String(ct.need)) <= 0 and not bool(ct.get("opened", false)):
+				say(String(ct.get("need_text", "Заперто")))
+				snd.play("block", ct.pos, -8.0)
+				return
+			if quest.is_empty():
+				quest = {"found": {}, "done": false}
+			if not (quest.found as Dictionary).has("p_box"):
+				quest.found["p_box"] = true
+				say("Задание «%s»: контейнер найден и открыт" % String(quest_cfg().get("n", "")))
 		var ic := {"med": "kit_6", "kitchen": "kit_9", "locker": "ammo_1", "bedside": "kit_7", "mil_med": "kit_6", "mil_ammo": "ammo_3", "soldier": "ammo_3",
 			"truck": "ammo_5", "btr": "ammo_5", "soldier_bag": "kit_9", "cab": "kit_9", "fuel": "junk", "wreck": "junk"}.get(String(ct.kind), "crate")
 		open_inventory(ct.items, String(ct.n), false, ic)
@@ -5856,6 +5902,13 @@ func _combat_tick(delta: float) -> void:
 	# кончил стрелять — оружие сразу опускается из прицела в положение «наготове»
 	if not aiming and rig.hold.wid != "" and rig.hold.stance == "aim" and not _reloading:
 		rig.hold.set_stance("ready")
+	# пистолет на ходу — в опущенной правой руке (рука машет, как у бегущего), а не прижат двумя руками к груди
+	if rig.hold.wid != "" and not _reloading and rig.hold.w.stances.has("carry"):
+		var going := Vector3(player.velocity.x, 0, player.velocity.z).length() > 0.6 and not aiming
+		if rig.hold.stance == "ready" and going:
+			rig.hold.set_stance("carry")
+		elif rig.hold.stance == "carry" and not going:
+			rig.hold.set_stance("ready")
 	if not is_nan(_face) and aiming:
 		_aim_yaw = _face
 		_face = NAN
@@ -6239,6 +6292,36 @@ func _lvl_exit() -> void:
 
 ## Вид карьера с нескольких точек (снимки в --as-out): общий вид, бровка, съезд, уступы, дно, дробилка, посёлок,
 ## постройки внутри. Враги рядом стоят спокойно. Точка — [имя, x, z, высота над землёй, расстояние камеры].
+## снимки порта с игровой камеры: герой переносится по точкам (въезд, двор, склады, контейнеры, топливо, краны, причалы)
+func _pt_view() -> void:
+	var t0 := Time.get_ticks_msec()
+	while not cs_ready and Time.get_ticks_msec() - t0 < 40000:
+		await get_tree().process_frame
+	var spots := [["a0_entry", -1.0, 72.0, 16.0], ["a1_gate", 0.0, 62.0, 22.0], ["a2_admin_in", 13.0, 55.5, 12.0], ["a3_yard", -3.0, 30.0, 26.0],
+		["a4_wh1_in", -47.0, 21.0, 16.0], ["a5_wh1_gate", -59.0, 30.0, 14.0], ["a6_wh2_in", 49.0, 21.0, 16.0], ["a7_fuel", -52.0, -16.0, 22.0],
+		["a8_containers", 20.0, -20.0, 22.0], ["a9_ct_in", 14.0, -16.5, 9.0], ["b0_quest_box", 58.3, -21.0, 12.0], ["b1_crane", -16.0, -36.0, 26.0],
+		["b2_pier_w", -45.0, -60.0, 20.0], ["b3_pier_e", 51.5, -62.0, 20.0], ["b4_quay_ship", 8.0, -41.0, 20.0], ["b5_top", 0.0, -5.0, 120.0]]
+	var only := ""
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--as-only="):
+			only = a.substr(10)
+	if only != "":
+		spots = spots.filter(func(sp): return only.split(",").has(String(sp[0])))
+	for sp in spots:
+		cam_dist = float(sp[3])
+		player.global_position = Vector3(float(sp[1]), 0.1, float(sp[2]))
+		player.velocity = Vector3.ZERO
+		for e in enemies:
+			if e.global_position.distance_to(player.global_position) < 30.0:
+				e.state = "idle"
+				e.wander_r = 0.0
+		_cam_ready = false
+		world_env.fog_enabled = String(sp[0]) != "b5_top"
+		await get_tree().create_timer(1.4).timeout
+		print("[view] %s: %s, герой (%.1f, %.1f, %.1f)" % [sp[0], _where(), player.global_position.x, player.global_position.y, player.global_position.z])
+		await _snap(String(sp[0]))
+
+
 func _qr_view() -> void:
 	var t0 := Time.get_ticks_msec()
 	while not cs_ready and Time.get_ticks_msec() - t0 < 40000:
@@ -6677,6 +6760,11 @@ func _qr_test() -> void:
 
 ## точки замера нагрузки по локации: [название, где]
 func _perf_points() -> Array:
+	if place == "port":
+		return [["въезд, будка охраны", ULPort.P_ENTRY + Vector3(0, 0, -4)], ["управление порта внутри", Vector3(13, 0, 55.5)], ["двор между складами", Vector3(-3, 0, 30)],
+			["склад № 1 внутри", Vector3(-47, 0, 21)], ["склад № 2 внутри", Vector3(49, 0, 21)], ["топливная зона", Vector3(-52, 0, -16)],
+			["контейнерная площадка", Vector3(38, 0, -20)], ["набережная у большого крана", Vector3(-14, 0, -38)], ["западный причал", Vector3(-45, 0, -60)],
+			["восточный причал", Vector3(51.5, 0, -62)], ["середина двора, все враги гонятся", Vector3(-4, 0, -6)]]
 	if place == "quarry":
 		var hq := func(x: float, z: float) -> Vector3: return Vector3(x, ULQuarry.height(Vector2(x, z)), z)
 		return [["вход, КПП", ULQuarry.Q_ENTRY + Vector3(0, 0, -3)], ["посёлок", hq.call(-44.0, 0.0)], ["общежитие внутри", hq.call(-58.0, -48.5)],
@@ -14991,7 +15079,7 @@ func _run_test() -> void:
 		print("[inv] итог: ошибок %d" % _fails)
 		get_tree().quit()
 		return
-	if test == "csperf" or test == "snperf" or test == "cvperf" or test == "khperf" or test == "lrperf" or test == "qrperf":
+	if test == "csperf" or test == "snperf" or test == "cvperf" or test == "khperf" or test == "lrperf" or test == "qrperf" or test == "ptperf":
 		var t1 := Time.get_ticks_msec()
 		while not cs_ready and Time.get_ticks_msec() - t1 < 25000:
 			await get_tree().process_frame
@@ -15166,7 +15254,7 @@ func _run_test() -> void:
 		print("[bake] карта земли сохранена: ", GROUND_MASK)
 		get_tree().quit()
 		return
-	if test == "csbake" or test == "snbake" or test == "cvbake" or test == "khbake" or test == "lrbake" or test == "qrbake":
+	if test == "csbake" or test == "snbake" or test == "cvbake" or test == "khbake" or test == "lrbake" or test == "qrbake" or test == "ptbake":
 		get_tree().quit()
 		return
 	if test == "qrpano":
@@ -15189,6 +15277,28 @@ func _run_test() -> void:
 		return
 	if test == "qrview":
 		await _qr_view()
+		get_tree().quit()
+		return
+	if test == "ptview":
+		await _pt_view()
+		get_tree().quit()
+		return
+	if test == "ptpano":
+		# обзорные снимки порта с высоты (как пролёт в видео-образце): с юга, двор и склады, контейнеры и краны, сверху
+		var tp0 := Time.get_ticks_msec()
+		while not cs_ready and Time.get_ticks_msec() - tp0 < 30000:
+			await get_tree().process_frame
+		DirAccess.make_dir_recursive_absolute(out)
+		var pshots := [["p0_south", Vector3(0, 46, 138), Vector3(0, 0, 30), 46.0], ["p1_yard", Vector3(-10, 34, 78), Vector3(0, 0, 8), 46.0],
+			["p2_containers", Vector3(20, 30, 30), Vector3(34, 0, -30), 46.0], ["p3_quay", Vector3(-4, 26, 4), Vector3(-10, 4, -52), 50.0],
+			["p4_piers", Vector3(20, 40, -10), Vector3(20, 0, -62), 50.0], ["p5_top", Vector3(0, 235, 0.01), Vector3.ZERO, 0.0]]
+		var ponly := ""
+		for a in OS.get_cmdline_user_args():
+			if a.begins_with("--as-only="):
+				ponly = a.substr(10)
+		if ponly != "":
+			pshots = pshots.filter(func(sp): return ponly.split(",").has(String(sp[0])))
+		await _pano(pshots, Vector2i(1920, 1104))
 		get_tree().quit()
 		return
 	if test == "pmap":
