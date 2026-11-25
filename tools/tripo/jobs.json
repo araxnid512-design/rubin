@@ -1,12 +1,12 @@
 {
- "stop": true,
+ "stop": false,
  "jobs": [
   {
-   "id": "g69_rd_shunter",
+   "id": "g70_ap_airliner",
    "py": "tools/tripo/chain.py",
    "args": [
     "--id",
-    "rd_shunter",
+    "ap_airliner",
     "--faces",
     "14000",
     "--tex",
@@ -15,34 +15,16 @@
     "detailed",
     "--pbr",
     "--prompt",
-    "old soviet diesel shunting locomotive with a single offset cab and long narrow hood, walkways with handrails along the hood, two bogies with wheels, couplers and buffers at both ends, steps, faded orange-red paint with a yellow stripe, weathered, rusty, dirty, realistic PBR, no text, no logos, single object, game asset"
+    "abandoned narrow-body twin-engine passenger jet airliner, long white cylindrical fuselage with a row of small windows and passenger doors, faded red stripe along the fuselage, swept low wings with one turbofan engine under each wing, vertical tail fin with horizontal stabilizers, landing gear down standing on the ground, rust streaks and grime, weathered, rusty, dirty, realistic PBR, no text, no logos, single object, game asset"
    ],
    "timeout": 1800
   },
   {
-   "id": "g69_rd_loco",
+   "id": "g70_ap_regional",
    "py": "tools/tripo/chain.py",
    "args": [
     "--id",
-    "rd_loco",
-    "--faces",
-    "14000",
-    "--tex",
-    "detailed",
-    "--geo",
-    "detailed",
-    "--pbr",
-    "--prompt",
-    "old soviet mainline freight diesel locomotive, long boxy body with cab at the front, round headlight, two three-axle bogies with wheels, couplers, side louvres and doors, handrails, faded dark green paint with a red stripe, weathered, rusty, dirty, realistic PBR, no text, no logos, single object, game asset"
-   ],
-   "timeout": 1800
-  },
-  {
-   "id": "g69_rd_boxcar",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "rd_boxcar",
+    "ap_regional",
     "--faces",
     "12000",
     "--tex",
@@ -51,34 +33,16 @@
     "detailed",
     "--pbr",
     "--prompt",
-    "old soviet covered freight railway boxcar, ribbed steel sides, large sliding door in the middle of the side, two bogies with wheels, couplers, ladders, faded brown-red paint, weathered, rusty, dirty, realistic PBR, no text, no logos, single object, game asset"
+    "abandoned small twin-engine turboprop regional passenger aircraft, straight high wings with two propeller engines, short white fuselage with a faded blue stripe and small windows, tail fin, landing gear down standing on the ground, rust streaks and grime, weathered, rusty, dirty, realistic PBR, no text, no logos, single object, game asset"
    ],
    "timeout": 1800
   },
   {
-   "id": "g69_rd_gondola",
+   "id": "g70_ap_airstairs",
    "py": "tools/tripo/chain.py",
    "args": [
     "--id",
-    "rd_gondola",
-    "--faces",
-    "12000",
-    "--tex",
-    "detailed",
-    "--geo",
-    "detailed",
-    "--pbr",
-    "--prompt",
-    "old open-top railway gondola freight wagon, high ribbed steel sides, open top, two bogies with wheels, couplers, faded green paint with heavy rust, empty, weathered, rusty, dirty, realistic PBR, no text, no logos, single object, game asset"
-   ],
-   "timeout": 1800
-  },
-  {
-   "id": "g69_rd_flatcar",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "rd_flatcar",
+    "ap_airstairs",
     "--faces",
     "10000",
     "--tex",
@@ -87,95 +51,186 @@
     "detailed",
     "--pbr",
     "--prompt",
-    "old railway flat wagon platform car, low flat wooden plank deck on a steel frame with short side stakes, two bogies with wheels, couplers, empty, weathered, rusty, dirty, realistic PBR, no text, no logos, single object, game asset"
+    "mobile aircraft passenger boarding stairs on a wheeled truck chassis, tall steel staircase with handrails and a top platform, faded white and yellow paint, weathered, rusty, dirty, realistic PBR, no text, no logos, single object, game asset"
    ],
    "timeout": 1800
   },
   {
-   "id": "g69_rd_tankcar",
+   "id": "g70_ap_jetbridge",
    "py": "tools/tripo/chain.py",
    "args": [
     "--id",
-    "rd_tankcar",
+    "ap_jetbridge",
     "--faces",
-    "12000",
+    "10000",
     "--tex",
     "detailed",
     "--geo",
     "detailed",
     "--pbr",
     "--prompt",
-    "old railway tank wagon, long horizontal cylindrical tank on a steel underframe, dome with hatch on top, ladder and catwalk, two bogies with wheels, couplers, faded grey-black paint with rust streaks, weathered, rusty, dirty, realistic PBR, no text, no logos, single object, game asset"
+    "airport passenger boarding bridge, long straight rectangular corrugated metal tunnel with small windows, resting on a steel support column with wheels at the far end, square cab at the far end, faded grey-beige paint with rust, weathered, rusty, dirty, realistic PBR, no text, no logos, single object, game asset"
    ],
    "timeout": 1800
   },
   {
-   "id": "g69_rd_gantry",
+   "id": "g70_ap_tug",
    "py": "tools/tripo/chain.py",
    "args": [
     "--id",
-    "rd_gantry",
+    "ap_tug",
     "--faces",
-    "12000",
+    "10000",
     "--tex",
     "detailed",
     "--geo",
     "detailed",
     "--pbr",
     "--prompt",
-    "old industrial gantry crane on two A-frame legs with wheels on rails, long horizontal lattice bridge beam, trolley with hoist hook hanging in the middle, operator cabin, faded yellow paint with rust, weathered, rusty, dirty, realistic PBR, no text, no logos, single object, game asset"
+    "airport aircraft pushback tug tractor, low flat heavy vehicle with a small open cab and big wheels, tow hitch, faded yellow paint, weathered, rusty, dirty, realistic PBR, no text, no logos, single object, game asset"
    ],
    "timeout": 1800
   },
   {
-   "id": "g69_rd_buffer",
+   "id": "g70_ap_bagcart",
    "py": "tools/tripo/chain.py",
    "args": [
     "--id",
-    "rd_buffer",
+    "ap_bagcart",
     "--faces",
     "4000",
     "--prompt",
-    "railway buffer stop at the end of a track, welded steel rail frame with a wooden beam and red-white striped board, weathered, rusty, dirty, realistic PBR, no text, no logos, single object, game asset"
+    "airport baggage cart trailer, open steel frame cart on four small wheels with a canopy roof, loaded with old suitcases and bags, tow bar, weathered, rusty, dirty, realistic PBR, no text, no logos, single object, game asset"
    ],
    "timeout": 1800
   },
   {
-   "id": "g69_rd_wheels",
+   "id": "g70_ap_checkin",
    "py": "tools/tripo/chain.py",
    "args": [
     "--id",
-    "rd_wheels",
+    "ap_checkin",
     "--faces",
     "4000",
     "--prompt",
-    "pile of spare railway wheelsets, steel wheels on axles stacked on short rails, weathered, rusty, dirty, realistic PBR, no text, no logos, single object, game asset"
+    "airport check-in counter desk with a baggage scale conveyor belt beside it, old monitor and keyboard on the desk, dusty, weathered, rusty, dirty, realistic PBR, no text, no logos, single object, game asset"
    ],
    "timeout": 1800
   },
   {
-   "id": "g69_rd_jack",
+   "id": "g70_ap_seats",
    "py": "tools/tripo/chain.py",
    "args": [
     "--id",
-    "rd_jack",
+    "ap_seats",
     "--faces",
     "4000",
     "--prompt",
-    "heavy industrial mechanical lifting jack for railway wagons, tall steel column on a wide base with a lifting arm and a hand wheel, weathered, rusty, dirty, realistic PBR, no text, no logos, single object, game asset"
+    "row of four airport waiting hall seats on one steel beam, perforated metal seats with armrests, dusty, weathered, rusty, dirty, realistic PBR, no text, no logos, single object, game asset"
    ],
    "timeout": 1800
   },
   {
-   "id": "g69_rd_bogie",
+   "id": "g70_ap_carousel",
    "py": "tools/tripo/chain.py",
    "args": [
     "--id",
-    "rd_bogie",
+    "ap_carousel",
     "--faces",
     "4000",
     "--prompt",
-    "spare railway wagon bogie truck, steel frame with two axles and four wheels, springs, standing on the ground, weathered, rusty, dirty, realistic PBR, no text, no logos, single object, game asset"
+    "airport baggage claim conveyor carousel, oval rubber slat belt with stainless steel sides, a few abandoned suitcases on the belt, dusty, weathered, rusty, dirty, realistic PBR, no text, no logos, single object, game asset"
+   ],
+   "timeout": 1800
+  },
+  {
+   "id": "g70_ap_scanner",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "ap_scanner",
+    "--faces",
+    "4000",
+    "--prompt",
+    "airport security checkpoint x-ray baggage scanner machine with a roller conveyor and a walk-through metal detector frame standing beside it, dusty, weathered, rusty, dirty, realistic PBR, no text, no logos, single object, game asset"
+   ],
+   "timeout": 1800
+  },
+  {
+   "id": "g70_ap_engine",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "ap_engine",
+    "--faces",
+    "4000",
+    "--prompt",
+    "aircraft turbofan jet engine removed from a plane and mounted on a wheeled steel maintenance stand, open cowling, weathered, rusty, dirty, realistic PBR, no text, no logos, single object, game asset"
+   ],
+   "timeout": 1800
+  },
+  {
+   "id": "g70_ap_wing",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "ap_wing",
+    "--faces",
+    "4000",
+    "--prompt",
+    "detached aircraft wing section and curved fuselage skin panels lying on wooden supports, aviation spare parts, weathered, rusty, dirty, realistic PBR, no text, no logos, single object, game asset"
+   ],
+   "timeout": 1800
+  },
+  {
+   "id": "g70_ap_uld",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "ap_uld",
+    "--faces",
+    "4000",
+    "--prompt",
+    "air cargo unit load device container, aluminium box with one angled corner and a canvas door, dented, weathered, rusty, dirty, realistic PBR, no text, no logos, single object, game asset"
+   ],
+   "timeout": 1800
+  },
+  {
+   "id": "g70_ap_cabinseats",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "ap_cabinseats",
+    "--faces",
+    "4000",
+    "--prompt",
+    "row of three airplane economy class passenger seats joined together, blue fabric upholstery, armrests, folding tray tables on the backs, torn and dusty, weathered, rusty, dirty, realistic PBR, no text, no logos, single object, game asset"
+   ],
+   "timeout": 1800
+  },
+  {
+   "id": "g70_ap_luggage",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "ap_luggage",
+    "--faces",
+    "4000",
+    "--prompt",
+    "pile of abandoned suitcases, travel bags and backpacks, some open with clothes spilling out, weathered, rusty, dirty, realistic PBR, no text, no logos, single object, game asset"
+   ],
+   "timeout": 1800
+  },
+  {
+   "id": "g70_ap_platform",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "ap_platform",
+    "--faces",
+    "4000",
+    "--prompt",
+    "aircraft maintenance work platform, wheeled steel scaffold with stairs and a railing platform on top, faded yellow paint, weathered, rusty, dirty, realistic PBR, no text, no logos, single object, game asset"
    ],
    "timeout": 1800
   }
@@ -2267,6 +2322,184 @@
   "g68_pt_tank_v",
   "g68_pt_container",
   "g68_pt_bollard",
-  "g68_pt_pump"
+  "g68_pt_pump",
+  {
+   "id": "g69_rd_shunter",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "rd_shunter",
+    "--faces",
+    "14000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "old soviet diesel shunting locomotive with a single offset cab and long narrow hood, walkways with handrails along the hood, two bogies with wheels, couplers and buffers at both ends, steps, faded orange-red paint with a yellow stripe, weathered, rusty, dirty, realistic PBR, no text, no logos, single object, game asset"
+   ],
+   "timeout": 1800
+  },
+  {
+   "id": "g69_rd_loco",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "rd_loco",
+    "--faces",
+    "14000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "old soviet mainline freight diesel locomotive, long boxy body with cab at the front, round headlight, two three-axle bogies with wheels, couplers, side louvres and doors, handrails, faded dark green paint with a red stripe, weathered, rusty, dirty, realistic PBR, no text, no logos, single object, game asset"
+   ],
+   "timeout": 1800
+  },
+  {
+   "id": "g69_rd_boxcar",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "rd_boxcar",
+    "--faces",
+    "12000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "old soviet covered freight railway boxcar, ribbed steel sides, large sliding door in the middle of the side, two bogies with wheels, couplers, ladders, faded brown-red paint, weathered, rusty, dirty, realistic PBR, no text, no logos, single object, game asset"
+   ],
+   "timeout": 1800
+  },
+  {
+   "id": "g69_rd_gondola",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "rd_gondola",
+    "--faces",
+    "12000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "old open-top railway gondola freight wagon, high ribbed steel sides, open top, two bogies with wheels, couplers, faded green paint with heavy rust, empty, weathered, rusty, dirty, realistic PBR, no text, no logos, single object, game asset"
+   ],
+   "timeout": 1800
+  },
+  {
+   "id": "g69_rd_flatcar",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "rd_flatcar",
+    "--faces",
+    "10000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "old railway flat wagon platform car, low flat wooden plank deck on a steel frame with short side stakes, two bogies with wheels, couplers, empty, weathered, rusty, dirty, realistic PBR, no text, no logos, single object, game asset"
+   ],
+   "timeout": 1800
+  },
+  {
+   "id": "g69_rd_tankcar",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "rd_tankcar",
+    "--faces",
+    "12000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "old railway tank wagon, long horizontal cylindrical tank on a steel underframe, dome with hatch on top, ladder and catwalk, two bogies with wheels, couplers, faded grey-black paint with rust streaks, weathered, rusty, dirty, realistic PBR, no text, no logos, single object, game asset"
+   ],
+   "timeout": 1800
+  },
+  {
+   "id": "g69_rd_gantry",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "rd_gantry",
+    "--faces",
+    "12000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "old industrial gantry crane on two A-frame legs with wheels on rails, long horizontal lattice bridge beam, trolley with hoist hook hanging in the middle, operator cabin, faded yellow paint with rust, weathered, rusty, dirty, realistic PBR, no text, no logos, single object, game asset"
+   ],
+   "timeout": 1800
+  },
+  {
+   "id": "g69_rd_buffer",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "rd_buffer",
+    "--faces",
+    "4000",
+    "--prompt",
+    "railway buffer stop at the end of a track, welded steel rail frame with a wooden beam and red-white striped board, weathered, rusty, dirty, realistic PBR, no text, no logos, single object, game asset"
+   ],
+   "timeout": 1800
+  },
+  {
+   "id": "g69_rd_wheels",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "rd_wheels",
+    "--faces",
+    "4000",
+    "--prompt",
+    "pile of spare railway wheelsets, steel wheels on axles stacked on short rails, weathered, rusty, dirty, realistic PBR, no text, no logos, single object, game asset"
+   ],
+   "timeout": 1800
+  },
+  {
+   "id": "g69_rd_jack",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "rd_jack",
+    "--faces",
+    "4000",
+    "--prompt",
+    "heavy industrial mechanical lifting jack for railway wagons, tall steel column on a wide base with a lifting arm and a hand wheel, weathered, rusty, dirty, realistic PBR, no text, no logos, single object, game asset"
+   ],
+   "timeout": 1800
+  },
+  {
+   "id": "g69_rd_bogie",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "rd_bogie",
+    "--faces",
+    "4000",
+    "--prompt",
+    "spare railway wagon bogie truck, steel frame with two axles and four wheels, springs, standing on the ground, weathered, rusty, dirty, realistic PBR, no text, no logos, single object, game asset"
+   ],
+   "timeout": 1800
+  }
  ]
 }
