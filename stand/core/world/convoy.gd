@@ -491,9 +491,10 @@ func _c_model_box(path: String, at: Vector3, yaw: float, length: float, tint: Co
 	if not collide and key in SOFT_COL:
 		w.prop_col_node(n)                     # без столкновения в карте проходимости — на слое мелких предметов
 	# пятно-тень под предметом (техника, ящики, ульи, поленницы): сажает на землю
-	blob_pts.append([at, Vector2(size.x, size.z), yaw, 0.6 if length < 2.5 else 0.5])
+	# (по середине модели, а не по её началу координат: у обломков и техники они не совпадают — тень уезжала вбок)
+	var c := bb.get_center() * k
+	blob_pts.append([at + Basis(Vector3.UP, yaw) * Vector3(c.x, 0, c.z), Vector2(size.x, size.z), yaw, 0.6 if length < 2.5 else 0.5])
 	if collide:
-		var c := bb.get_center() * k
 		var cs := CollisionShape3D.new()
 		var bs := BoxShape3D.new()
 		bs.size = Vector3(size.x * 0.9, maxf(size.y, 1.0), size.z * 0.9)

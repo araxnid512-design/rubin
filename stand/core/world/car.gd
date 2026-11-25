@@ -30,6 +30,7 @@ var body: Node3D                    ## кузов на пружинах: мод�
 var model: Node3D
 var parts_n: Node3D
 var smoke: CPUParticles3D
+var dust: CPUParticles3D            ## пыль из-под задних колёс на ходу (на земле, на скорости)
 var crashed := 0.0                  ## сила последнего удара (для звука), сбрасывает мир
 var front_hit := false
 var dist_total := 0.0
@@ -181,6 +182,7 @@ func setup(d: Dictionary) -> void:
 	safe_margin = 0.02
 	add_to_group("car")
 	_make_smoke()
+	_make_dust()
 	rebuild()
 
 
@@ -579,6 +581,12 @@ func step(delta: float) -> float:
 	_wear("wheels", km * float(wr.get("wheels_per_km", 0.6)))
 	_wear("engine", km * float(wr.get("engine_per_km", 0.35)) * (0.5 + absf(thr)))
 	_suspension(delta, dist * signf(speed))
+	if dust:
+		# пыль: едет по земле быстрее 3 м/с или резко тормозит/разгоняется; шлейф — за кормой (задом — перед капотом)
+		var hard := absf(speed - _prev_speed) / maxf(delta, 0.001) > 5.0 and absf(speed) > 1.0
+		dust.emitting = is_on_floor() and (absf(speed) > c("dust_speed", 3.0) or hard)
+		if absf(speed) > 0.5:
+			dust.position.z = -signf(speed) * size.z * 0.42
 	_prev_speed = speed
 	_turret_tick(delta)
 	return dist
@@ -586,6 +594,8 @@ func step(delta: float) -> float:
 
 ## стоящая (без водителя) машина: только подвеска и турель — колёса по земле, кузов успокаивается
 func idle(delta: float) -> void:
+	if dust:
+		dust.emitting = false
 	_suspension(delta, 0.0)
 	_turret_tick(delta)
 
@@ -777,6 +787,50 @@ func _make_smoke() -> void:
 	smoke.mesh = sm
 	smoke.position = Vector3(0, size.y * 0.55, size.z * 0.36)
 	body.add_child(smoke)
+
+
+## Пыль из-под колёс: лёгкий шлейф у земли за кормой — видно, что машина едет, а не скользит. Частиц мало
+## (14 мягких пятен), считаются на процессоре, в покое не рисуются.
+func _make_dust() -> void:
+	dust = CPUParticles3D.new()
+	dust.name = "Dust"
+	dust.amount = 14
+	dust.lifetime = 1.0
+	dust.emitting = false
+	dust.local_coords = false
+	dust.emission_shape = CPUParticles3D.EMISSION_SHAPE_BOX
+	dust.emission_box_extents = Vector3(size.x * 0.4, 0.05, 0.25)
+	dust.direction = Vector3.UP
+	dust.spread = 50.0
+	dust.initial_velocity_min = 0.3
+	dust.initial_velocity_max = 0.9
+	dust.gravity = Vector3(0, 0.3, 0)
+	dust.scale_amount_min = 0.7
+	dust.scale_amount_max = 1.5
+	var grow := Curve.new()
+	grow.add_point(Vector2(0.0, 0.45))
+	grow.add_point(Vector2(1.0, 1.0))
+	dust.scale_amount_curve = grow
+	var fade := Gradient.new()
+	fade.set_color(0, Color(1, 1, 1, 0.0))
+	fade.add_point(0.15, Color(1, 1, 1, 1.0))
+	fade.set_color(fade.get_point_count() - 1, Color(1, 1, 1, 0.0))
+	dust.color_ramp = fade
+	var qm := QuadMesh.new()
+	qm.size = Vector2(1.1, 1.1)
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
+	mat.vertex_color_use_as_albedo = true
+	mat.albedo_texture = BCShotFx._blob()
+	mat.albedo_color = Color(0.66, 0.6, 0.5, 0.3)
+	mat.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
+	qm.material = mat
+	dust.mesh = qm
+	dust.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	dust.position = Vector3(0, 0.2, -size.z * 0.42)
+	add_child(dust)
 
 
 func _smoke_update() -> void:

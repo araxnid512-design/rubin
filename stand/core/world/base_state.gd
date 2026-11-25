@@ -405,7 +405,7 @@ static func buy_route(inv: ULInventory, id: String, with_map := false) -> Dictio
 # ---------------- новые маршруты по времени ----------------
 
 static func refresh_period() -> int:
-	return maxi(int(float(shop().get("route_refresh_h", 2)) * 3600.0), 60)
+	return maxi(int(float(shop().get("route_refresh_h", 3)) * 3600.0), 60)
 
 
 ## сколько разных локаций предлагает компьютер (route_slots в data/base_shop.json)

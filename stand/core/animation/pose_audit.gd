@@ -219,12 +219,15 @@ func _dead(notes: Array, vals: Dictionary) -> void:
 	var top := -999.0
 	var low := 999.0
 	var top_b := ""
+	var low_b := ""
 	for b in _last:
 		var y: float = (_last[b] as Vector3).y
 		if y > top:
 			top = y
 			top_b = String(b)
-		low = minf(low, y)
+		if y < low:
+			low = y
+			low_b = String(b)
 	vals["top"] = top / k
 	vals["low"] = low / k
 	var names := {"Hip": "таз", "Head": "голова", "Spine02": "грудь", "L_Hand": "левая кисть", "R_Hand": "правая кисть", "L_Foot": "левая стопа", "R_Foot": "правая стопа", "L_Calf": "левое колено", "R_Calf": "правое колено", "L_ToeBase": "левый носок", "R_ToeBase": "правый носок", "L_Thigh": "левое бедро", "R_Thigh": "правое бедро"}
@@ -236,7 +239,7 @@ func _dead(notes: Array, vals: Dictionary) -> void:
 	if top > limb_max * k and not top_b in ["Hip", "Head", "Spine02"]:
 		notes.append("торчит вверх %s: %.2f м (норма до %.2f м)" % [names.get(top_b, top_b), top, limb_max * k])
 	if low < -lim(group, "dead", "sink_max", 0.1) * k:
-		notes.append("тело уходит под пол на %.0f см" % (-low * 100.0))
+		notes.append("тело уходит под пол на %.0f см (%s)" % [-low * 100.0, names.get(low_b, low_b)])
 
 
 ## Короткая строка для стенда.

@@ -1137,10 +1137,13 @@ func _a_bridges(g: Node3D) -> void:
 	for bx in [[-52.0, -58.0], [16.0, -53.0], [40.0, -58.0], [70.0, -58.0]]:
 		var at := Vector3(float(bx[0]), 0, float(bx[1]) + 8.0)
 		if ResourceLoader.exists(MODELS + "ap_jetbridge.glb"):
-			_pm("ap_jetbridge", at, PI * 0.5, 15.0, false, true, Color(0.84, 0.82, 0.78))
+			# модель длинная по своей оси Z, опора (тележка) — в 3,75 м от середины к самолётному концу:
+			# трап стоит от стены терминала на перрон (раньше лежал вдоль стены, а столкновение опоры было в стороне)
+			_pm("ap_jetbridge", at, 0.0, 15.0, false, false, Color(0.84, 0.82, 0.78))
+			_col_xf(Vector3(2.4, 4.0, 1.5), _at(at + Vector3(0, 2.0, 3.75)))
 		else:
 			_bx(g, "a_trim", Vector3(2.6, 2.6, 15.0), _at(at + Vector3(0, 4.6, 0)))
-		_col_xf(Vector3(1.2, 4.0, 1.2), _at(at + Vector3(0, 2.0, 6.4)))
+			_col_xf(Vector3(1.2, 4.0, 1.2), _at(at + Vector3(0, 2.0, 6.4)))
 	gate_pt = Vector3(16.0, 0, -47.0)
 
 

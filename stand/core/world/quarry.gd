@@ -771,12 +771,12 @@ func _rock_mat() -> StandardMaterial3D:
 
 ## Угловатый обломок скалы: грубый многогранник (6 × 4 граней), вершины сдвинуты шумом, грани плоские —
 ## на свету каждая своим тоном (прежние «камни» осыпи были гладкими шарами)
-func _rock_angular(seed_n: int) -> ArrayMesh:
+func _rock_angular(seed_n: int, segs := 6, rings := 4) -> ArrayMesh:
 	var sp := SphereMesh.new()
 	sp.radius = 0.5
 	sp.height = 1.0
-	sp.radial_segments = 6
-	sp.rings = 4
+	sp.radial_segments = segs
+	sp.rings = rings
 	var fn := FastNoiseLite.new()
 	fn.seed = seed_n
 	fn.frequency = 1.1
@@ -820,13 +820,18 @@ func _q_detail(g: Node3D) -> void:
 func _q_brow_rocks(g: Node3D) -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 8807
-	var xs: Array[Transform3D] = []
+	# глыбы — восемью секторами по кругу чаши: один общий набор рисовался целиком, стоило попасть в кадр любой
+	# его части (43 тыс. треугольников и столько же в каждой карте теней)
+	const SECT := 8
+	var xs: Array = []
+	for i in SECT:
+		xs.append([])
 	for wl in WALLS:
 		var s0: float = wl[0]
 		var s1: float = wl[1]
 		var top := terrace(s0 + 0.004)
 		var bot := terrace(s1 - 0.004)
-		for k in 280:
+		for k in 240:
 			var th := rng.randf_range(-PI, PI)
 			if on_ramp(pit_point(s0 + 0.01, th)) or on_ramp(pit_point(s1 - 0.01, th)) or ramp_h(s0 - 0.01, th) > bot + 0.3:
 				continue
@@ -837,20 +842,28 @@ func _q_brow_rocks(g: Node3D) -> void:
 			var y := minf(lerpf(top, bot, f), top - sz * 0.45)
 			var out := (q - PIT_C).normalized()
 			var basis := Basis.from_euler(Vector3(rng.randf_range(-0.6, 0.6), rng.randf() * TAU, rng.randf_range(-0.6, 0.6)))
-			xs.append(Transform3D(basis.scaled(Vector3(sz, sz * rng.randf_range(0.7, 1.1), sz * rng.randf_range(0.7, 1.0))), Vector3(q.x + out.x * 0.25, y, q.y + out.y * 0.25)))
-	var mm := MultiMesh.new()
-	mm.transform_format = MultiMesh.TRANSFORM_3D
-	mm.mesh = _rock_angular(91)
-	mm.instance_count = xs.size()
-	for i in xs.size():
-		mm.set_instance_transform(i, xs[i])
-	var mi := MultiMeshInstance3D.new()
-	mi.name = "BrowRocks"
-	mi.multimesh = mm
+			var sect := clampi(int((th + PI) / TAU * SECT), 0, SECT - 1)
+			(xs[sect] as Array).append(Transform3D(basis.scaled(Vector3(sz, sz * rng.randf_range(0.7, 1.1), sz * rng.randf_range(0.7, 1.0))), Vector3(q.x + out.x * 0.25, y, q.y + out.y * 0.25)))
+	var rock := _rock_angular(91, 5, 3)             # 40 треугольников вместо 60: глыб сотни, а видны они краем кадра
 	var bm := _rock_mat().duplicate() as StandardMaterial3D
 	bm.albedo_color = Color(0.5, 0.52, 0.56)            # в тон тёмной породы стенки
-	mi.material_override = bm
-	g.add_child(mi)
+	for si in SECT:
+		var part: Array = xs[si]
+		if part.is_empty():
+			continue
+		var mm := MultiMesh.new()
+		mm.transform_format = MultiMesh.TRANSFORM_3D
+		mm.mesh = rock
+		mm.instance_count = part.size()
+		for i in part.size():
+			mm.set_instance_transform(i, part[i])
+		var mi := MultiMeshInstance3D.new()
+		mi.name = "BrowRocks%d" % si
+		mi.multimesh = mm
+		mi.material_override = bm
+		# глыбы сидят в самой стенке: своей тени почти не видно, а в картах теней они стоили столько же, сколько в кадре
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		g.add_child(mi)
 
 
 const CRYSTAL_TINTS := [[Color(0.42, 0.78, 1.0), Color(0.16, 0.48, 1.0)], [Color(0.38, 0.95, 0.86), Color(0.1, 0.6, 0.55)],

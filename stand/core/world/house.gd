@@ -63,7 +63,8 @@ func build(shell_path: String, wall_tex: String, floor_tex: String, bunker := fa
 		wall_mat.set_shader_parameter("normal_tex", load(wall_tex + "_n.jpg"))
 		wall_mat.set_shader_parameter("has_normal", true)
 	wall_mat.set_shader_parameter("scale", 1.6)
-	wall_mat.set_shader_parameter("tint", Color(0.82, 0.83, 0.82) if bunker else Color(0.95, 0.88, 0.8))   # бункер — серый бетон
+	# бункер — серый бетон: текстура бетона тёмная (средняя яркость ~0,4), поэтому подтон выше единицы
+	wall_mat.set_shader_parameter("tint", Color(1.2, 1.2, 1.16) if bunker else Color(0.95, 0.88, 0.8))
 	wall_mat.set_shader_parameter("grime", 0.85)
 	wall_mat.set_shader_parameter("rough", 0.9)
 	var floor_mat := ShaderMaterial.new()

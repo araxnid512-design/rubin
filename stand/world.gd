@@ -264,7 +264,7 @@ func _ready() -> void:
 		add_child(house)
 		house.position = HOUSE_AT
 		# база — бункер: снаружи бетон с земляной насыпью (ULHouse._bunker_shell), внутри — серый бетон
-		house.build("", TEX + "worn_plaster_wall", TEX + "damaged_concrete_floor", true)
+		house.build("", TEX + "concrete_floor_worn_001", TEX + "damaged_concrete_floor", true)
 		_terminal_build()
 		_armory()
 		_storage()
@@ -7061,8 +7061,8 @@ func _rd_test() -> void:
 	_ok("добыча за 30 посещений: металлолом, запчасти, кабель, электроника, инструмент — %s" % str(loot),
 		int(loot.get("scrap_metal", 0)) > 80 and int(loot.get("spare_parts", 0)) > 80 and int(loot.get("cable", 0)) > 20 and int(loot.get("electronics", 0)) > 20 and int(loot.get("tool_ind", 0)) > 3)
 	# маршрут
-	_ok("маршрут: карточка «Железнодорожное депо», 35 споранов, закреплён в компьютере; на карте мира — слева ниже дома; картинки на месте",
-		bool(rt.get("pin", false)) and ULBase.offers().has("depot") and ResourceLoader.exists(String(rt.get("pic", ""))) and ResourceLoader.exists(String(rt.get("route_pic", "")))
+	_ok("маршрут: карточка «Железнодорожное депо», 35 споранов, в общем наборе маршрутов (не закреплён); на карте мира — слева ниже дома; картинки на месте",
+		not bool(rt.get("pin", false)) and ULBase.route_pool().has("depot") and ResourceLoader.exists(String(rt.get("pic", ""))) and ResourceLoader.exists(String(rt.get("route_pic", "")))
 		and ULMap.PLACES.has("depot") and (ULMap.PLACES.depot.rect as Rect2).get_center().x < (ULMap.PLACES.home.rect as Rect2).position.x and ResourceLoader.exists(String(ULMap.PLACES.depot.mark)))
 	var w_save: Dictionary = inv.wallet.duplicate()
 	inv.wallet = {"spore": 40}
@@ -7378,8 +7378,8 @@ func _ap_test() -> void:
 		await get_tree().create_timer(0.4).timeout
 		_ok("с документацией отсек открыт, специальный груз взят — остался выход; награда ещё не выдана", opened and quest_ready() and not bool(quest.get("done", false)) and inv.count("a_cargo") == 1)
 	# маршрут
-	_ok("маршрут: карточка «Заброшенный аэропорт» (самолёт), 120 споранов, 3-й уровень, закреплён в компьютере; на карте мира — далеко на юго-западе; картинки на месте",
-		String(rt.get("icon", "")) == "plane" and bool(rt.get("pin", false)) and ULBase.offers().has("airport") and ResourceLoader.exists(String(rt.get("pic", ""))) and ResourceLoader.exists(String(rt.get("route_pic", "")))
+	_ok("маршрут: карточка «Заброшенный аэропорт» (самолёт), 120 споранов, 3-й уровень, в общем наборе маршрутов (не закреплён); на карте мира — далеко на юго-западе; картинки на месте",
+		String(rt.get("icon", "")) == "plane" and not bool(rt.get("pin", false)) and ULBase.route_pool().has("airport") and ResourceLoader.exists(String(rt.get("pic", ""))) and ResourceLoader.exists(String(rt.get("route_pic", "")))
 		and ULMap.PLACES.has("airport") and (ULMap.PLACES.airport.rect as Rect2).get_center().x < (ULMap.PLACES.khutor.rect as Rect2).position.x and (ULMap.PLACES.airport.rect as Rect2).get_center().y > (ULMap.PLACES.home.rect as Rect2).end.y
 		and ResourceLoader.exists(String(ULMap.PLACES.airport.mark)))
 	var w_save: Dictionary = inv.wallet.duplicate()
@@ -7416,7 +7416,7 @@ func _ap_view() -> void:
 		["a4_term_hall", 0.0, -74.0, 22.0, 0.3], ["a5_checkin", -16.0, -78.0, 14.0, 0.3], ["a6_wing_w", -50.0, -66.0, 14.0, 0.3], ["a7_wing_w2", -40.0, -66.0, 14.0, 3.9],
 		["a8_wing_e2", 50.0, -66.0, 14.0, 3.9], ["a9_tower0", -19.0, -103.0, 10.0, 0.3], ["b0_tower_cab", -19.5, -103.0, 9.0, 10.5], ["b1_hangar1", 122.0, -54.0, 24.0, 0.3],
 		["b2_hangar2", 168.0, -56.0, 22.0, 0.3], ["b3_cargo", 150.0, 2.0, 18.0, 0.3], ["b4_cargo_yard", 150.0, -26.0, 24.0, 0.1], ["b5_fuel", 150.0, -108.0, 24.0, 0.1],
-		["b6_plane_out", -12.0, -36.0, 20.0, 0.1], ["b7_west", -160.0, -52.0, 24.0, 0.1], ["b8_admin", -104.0, -106.0, 14.0, 0.3], ["b9_top", 0.0, 0.0, 200.0, 0.1]]
+		["b6_plane_out", -12.0, -36.0, 20.0, 0.1], ["b6b_bridge", 16.0, -46.0, 30.0, 0.1], ["b7_west", -160.0, -52.0, 24.0, 0.1], ["b8_admin", -104.0, -106.0, 14.0, 0.3], ["b9_top", 0.0, 0.0, 200.0, 0.1]]
 	for i in ap.planes.size():
 		var pl: Dictionary = ap.planes[i]
 		if bool(pl.walk):
@@ -7788,8 +7788,8 @@ func _pt_test() -> void:
 	close_inventory()
 	_ok("таймер идёт и при открытом инвентаре (%.1f → %.1f с)" % [l0, cs_left()], cs_left() < l0 - 0.5)
 	# 11: маршрут в компьютере и на карте мира
-	_ok("маршрут: карточка «Порт» (кран), 35 споранов, закреплён в компьютере; на карте мира — ниже дома, у реки; картинки на месте",
-		String(rt.get("icon", "")) == "crane" and bool(rt.get("pin", false)) and ULBase.offers().has("port") and ResourceLoader.exists(String(rt.get("pic", ""))) and ResourceLoader.exists(String(rt.get("route_pic", "")))
+	_ok("маршрут: карточка «Порт» (кран), 35 споранов, в общем наборе маршрутов (не закреплён); на карте мира — ниже дома, у реки; картинки на месте",
+		String(rt.get("icon", "")) == "crane" and not bool(rt.get("pin", false)) and ULBase.route_pool().has("port") and ResourceLoader.exists(String(rt.get("pic", ""))) and ResourceLoader.exists(String(rt.get("route_pic", "")))
 		and ULMap.PLACES.has("port") and (ULMap.PLACES.port.rect as Rect2).get_center().y > (ULMap.PLACES.home.rect as Rect2).end.y and ResourceLoader.exists(String(ULMap.PLACES.port.mark)))
 	var w_save: Dictionary = inv.wallet.duplicate()
 	inv.wallet = {"spore": 40}
@@ -11892,19 +11892,28 @@ func _pc_test() -> void:
 		oa_new = oa_new or not offs_before.has(o)
 	_ok("срок вышел — предложения обновлены (из 4 локаций снова 3 разные, хотя бы одна новая), следующий срок через период: %s → %s" % [", ".join(offs_before), ", ".join(offs_after)],
 		a3 == per - 5 and int(ULBase.data.refreshes) == rf0 + 1 and offs_after.size() == 3 and oa_u.size() == 3 and (oa_new or offs_before.size() != 3))
-	# --- три разные локации, сброс каждые 2 часа ---
+	# --- ровно три случайные локации, сброс каждые 3 часа (закреплённых маршрутов нет) ---
 	var offs: Array = ULBase.offers_free()
 	var uniq := {}
 	for o in offs:
 		uniq[o] = true
-	_ok("в компьютере сразу 3 сменные локации, все разные: %s; сверх них закреплённые (%s); сброс — каждые %d ч" % [", ".join(offs), ", ".join(pins_t), per / 3600],
-		offs.size() == 3 and uniq.size() == 3 and ULBase.route_slots() == 3 and per == 2 * 3600 and pins_t.all(func(x): return ULBase.offers().has(x)))
+	_ok("в компьютере ровно 3 локации, все разные: %s; закреплённых нет (%d); сброс — каждые %d ч" % [", ".join(offs), pins_t.size(), per / 3600],
+		offs.size() == 3 and uniq.size() == 3 and ULBase.offers().size() == 3 and ULBase.route_slots() == 3 and per == 3 * 3600 and pins_t.is_empty())
 	var listed_cards := 0
 	pc._build_routes()                  # набор только что сменился (на экране он обновляется по таймеру, раз в 0,25 с)
 	for o in ULBase.offers():
 		if pc.find_child("route_" + String(o), true, false) != null:
 			listed_cards += 1
-	_ok("на экране — карточки маршрутов, по одной на локацию: три сменные и %d закреплённых" % pins_t.size(), listed_cards == 3 + pins_t.size())
+	var cards_all := 0
+	for ch in pc.find_children("route_*", "", true, false):
+		if ULBase.route_pool().has(String(ch.name).trim_prefix("route_")):
+			cards_all += 1
+	# сверх трёх предложений в списке остаются только уже купленные и ещё не пройденные маршруты (они переживают сброс)
+	var extra_b: Array = ULBase.routes_listed().filter(func(x): return not ULBase.offers().has(x))
+	_ok("на экране — ровно три карточки предложений, по одной на локацию; сверх них — только уже купленные маршруты (%d: %s)" % [extra_b.size(), ", ".join(extra_b)],
+		listed_cards == 3 and cards_all == 3 + extra_b.size() and extra_b.all(func(x): return ULBase.route_state(String(x)) != ""))
+	var tl := pc.find_child("RouteTimer", true, false) as Label
+	_ok("таймер «Новые маршруты через» показывает не больше 3 часов: %s" % (tl.text if tl else "нет"), tl != null and tl.text.begins_with("0") and int(tl.text.substr(0, 2)) <= 3)
 	# прокрутка пальцем: настоящие касания (нажать на список, протянуть вверх, отпустить)
 	var rsc: ScrollContainer = pc.find_child("Scroll_routes", true, false)
 	await get_tree().process_frame
@@ -11932,14 +11941,20 @@ func _pc_test() -> void:
 		ULBasePC.K >= 1.0 and ULBasePC.K <= 1.1 and rsc != null and pc.drag_moved and (not can_scroll or rsc.scroll_vertical > 30), "двигался: %s" % str(pc.drag_moved))
 	rsc.scroll_vertical = 0
 	pc.drag_moved = false
-	# карточка закреплённого маршрута «Заброшенный аэропорт» — прокрутить к ней и снять
+	# аэропорт выпал в набор — его карточка в списке (прокрутить к ней и снять)
+	var offs_keep: Array = (ULBase.data.offers as Array).duplicate()
+	ULBase.data.offers = ["cowshed", "port", "airport"]
+	pc._build_routes()
+	await get_tree().process_frame
 	var card_ap := pc.find_child("route_airport", true, false) as Control
-	_ok("карточка «Заброшенный аэропорт» есть в списке маршрутов (до неё — прокрутка)", card_ap != null)
+	_ok("аэропорт выпал в набор — карточка «Заброшенный аэропорт» в списке маршрутов", card_ap != null)
 	if card_ap != null and out != "":
 		rsc.ensure_control_visible(card_ap)
 		await get_tree().create_timer(0.4).timeout
 		await _snap("pc_route_airport")
 		rsc.scroll_vertical = 0
+	ULBase.data.offers = offs_keep
+	pc._build_routes()
 	# пул больше мест: 4 локации и ещё 3 для проверки — каждый сброс 3 разные, без повторов, набор не повторяется
 	var rts: Dictionary = ULBase.shop().routes
 	for fid in ["t_a", "t_b", "t_c"]:
@@ -11997,7 +12012,7 @@ func _pc_test() -> void:
 	var fx_real := true
 	for o in fx:
 		fx_u[o] = true
-		fx_real = fx_real and String(o) in ["cowshed", "sanatorium", "convoy", "khutor", "lair", "quarry"]
+		fx_real = fx_real and ULBase.route_pool().has(String(o))
 	_ok("старое сохранение с повтором («коровник» дважды) и исчезнувшей локацией — снова 3 разные: %s" % ", ".join(fx), fx.size() == 3 and fx_u.size() == 3 and fx.has("cowshed") and fx_real)
 	# посещение окончено — локация до сброса пропадает из компьютера, вместо карточки — строка «Пройдено…»
 	ULBase.data.offers = ["cowshed", "sanatorium", "convoy"]
@@ -20628,7 +20643,11 @@ func car_exit() -> void:
 		var gq := PhysicsRayQueryParameters3D.create((sp as Vector3) + Vector3.UP * 1.6, (sp as Vector3) + Vector3.DOWN * 2.6, 1)
 		gq.exclude = [car.get_rid(), player.get_rid()]
 		var gh := get_world_3d().direct_space_state.intersect_ray(gq)
-		var gp: Vector3 = gh.position if not gh.is_empty() else sp
+		# земли под точкой нет или она далеко внизу — это обрыв (бровка карьера, край причала): туда не выходят,
+		# иначе герой, выйдя из машины, падал с уступа
+		if gh.is_empty() or absf((gh.position as Vector3).y - car.global_position.y) > 1.5:
+			continue
+		var gp: Vector3 = gh.position
 		if _spot_free(gp):
 			at = gp
 			break
@@ -21534,6 +21553,7 @@ func _carin_test() -> void:
 	_ok("сел за руль у входа", car_in, _action_label())
 	var wi := 0
 	var stuck_t := 0.0
+	var dust_run := false                  # пыль из-под колёс хоть раз шла на ходу
 	var stuck_n := 0
 	var rev_t := 0.0
 	var f0 := Engine.get_physics_frames()
@@ -21546,6 +21566,7 @@ func _carin_test() -> void:
 		var dtg := now - prev_s
 		prev_s = now
 		var cp := car.global_position
+		dust_run = dust_run or (car.dust != null and car.dust.emitting and absf(car.speed) > 3.0)
 		while wi < pts.size() - 1 and Vector2(pts[wi].x - cp.x, pts[wi].z - cp.z).length() < 4.0:
 			wi += 1
 		var to := pts[wi] - cp
@@ -21594,12 +21615,16 @@ func _carin_test() -> void:
 		pts.is_empty() or left_d < 7.0, "упирался: %s" % ", ".join(where_stuck))
 	if out != "":
 		await _snap("carin_%s" % place)
+	for i in 3:
+		await get_tree().physics_frame
+	_ok("на ходу из-под колёс идёт пыль, на стоянке её нет", pts.is_empty() or (dust_run and car.dust != null and not car.dust.emitting), "на ходу: %s, сейчас: %s, скорость %.1f" % [str(dust_run), str(car.dust.emitting if car.dust else false), car.speed])
 	# 4) выйти и сесть обратно
 	if car_in:
 		car_exit()
 	for i in 6:
 		await get_tree().process_frame
-	_ok("на месте вышел из машины: герой рядом, на свободном месте", not car_in and player.visible and player.global_position.distance_to(car.global_position) < 5.0 and _spot_free(player.global_position), str(player.global_position))
+	_ok("на месте вышел из машины: герой рядом, на том же уровне (не упал с уступа), на свободном месте", not car_in and player.visible and player.global_position.distance_to(car.global_position) < 5.0 and absf(player.global_position.y - car.global_position.y) < 1.6 and _spot_free(player.global_position),
+		"герой %s, машина %s, до неё %.1f м, место свободно: %s, виден: %s, в машине: %s" % [str(player.global_position), str(car.global_position), player.global_position.distance_to(car.global_position), str(_spot_free(player.global_position)), str(player.visible), str(car_in)])
 	player.global_position = car.door_pos() + Vector3.UP * 0.1
 	for i in 8:
 		await get_tree().process_frame
