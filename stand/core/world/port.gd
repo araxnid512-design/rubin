@@ -511,7 +511,11 @@ func _p_quay(g: Node3D) -> void:
 			if has_b:
 				# швартовая тумба с канатом — на плите у бортика, вдоль кромки
 				var inw := Vector2(0, 0.9) if along_x else Vector2(0.9 if q.x < (a.x + b.x) * 0.5 + 0.01 and absf(q.x - (-51.0)) < 0.5 or absf(q.x - 46.0) < 0.5 else -0.9, 0)
-				_pm("pt_bollard", Vector3(q.x + inw.x, 0, q.y + inw.y), PI * 0.5 if along_x else 0.0, 1.3, false, true)
+				var b_yaw := PI * 0.5 if along_x else 0.0
+				var b_at := Vector3(q.x + inw.x, 0, q.y + inw.y)
+				_pm("pt_bollard", b_at, b_yaw, 1.3, false, true)
+				# сдвоенная тумба с канатом 1,3 × 0,57 × 0,55 м — столкновение по её размеру
+				_col_xf(Vector3(0.5, 0.55, 1.2), _at(b_at + Vector3(0, 0.275, 0), b_yaw))
 			else:
 				_cy(g, "rust", 0.2, 0.26, 0.5, _at(Vector3(q.x, 0.55, q.y)), 8)
 				_cy(g, "rust", 0.32, 0.2, 0.12, _at(Vector3(q.x, 0.84, q.y)), 8)
@@ -551,7 +555,7 @@ func _p_fences(g: Node3D) -> void:
 			_pm("qr_chainfence", Vector3(sx, 0, z + 2.0), 0.0, 4.0, true, true)
 			z += 4.0
 	# ворота: шлагбаум поднят, створки распахнуты
-	_pm("qr_barrier", Vector3(GATE_X + 3.2, 0, FENCE_Z - 1.5), 0.25, 5.0, false, true)
+	_barrier(Vector3(GATE_X + 3.2, 0, FENCE_Z - 1.5), 0.25)
 	for sgn in [-1.0, 1.0]:
 		_bx(g, "concrete", Vector3(0.5, 2.6, 0.5), _at(Vector3(GATE_X + sgn * 4.6, 1.3, FENCE_Z)), true)
 		_bx(g, "rust", Vector3(3.6, 1.9, 0.08), Transform3D(Basis(Vector3.UP, sgn * 1.25), Vector3(GATE_X + sgn * 5.2, 1.05, FENCE_Z + 1.9)), true)
@@ -572,6 +576,15 @@ func _p_fences(g: Node3D) -> void:
 
 
 ## модель из assets/world по длине; along — yaw задаёт, куда смотрит длинная сторона
+## Шлагбаум у ворот (модель — две стойки и перекладина на высоте 2,4 м, стоит вдоль дороги сбоку от проезда):
+## столкновения — у обеих стоек, под перекладиной проход свободен.
+func _barrier(at: Vector3, yaw: float) -> void:
+	_pm("qr_barrier", at, yaw, 5.0, false, true)
+	var bs := Basis(Vector3.UP, yaw)
+	for sgn in [-1.0, 1.0]:
+		_col_xf(Vector3(1.1, 3.0, 0.9), Transform3D(bs, at + bs * Vector3(0, 1.5, sgn * 2.0)))
+
+
 func _pm(id: String, at: Vector3, yaw: float, length: float, collide := true, along := false, tint := Color(0.86, 0.84, 0.8), by_height := false, key := "") -> Vector3:
 	var path := MODELS + id + ".glb"
 	if ResourceLoader.exists(path) and along and _p_long_x(path):

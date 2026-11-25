@@ -218,7 +218,7 @@ static func build(skel: Skeleton3D, ap_root: Node, cfg: Dictionary, scale: float
 		var dir := Vector3.ZERO
 		if c.get("bake", "") != "":
 			# движения по описанию: корень считается в системе скелета (см. _bake_root)
-			var rb := _bake_root(a, skel, root_bone, String(c.bake), bool(c.get("heading_lock", false)), float(c.get("sway", 0.0)))
+			var rb := _bake_root(a, skel, root_bone, String(c.bake), bool(c.get("heading_lock", false)), float(c.get("sway", 0.0)), float(c.get("sway_k", 1.0)))
 			speed = rb[0] * scale
 			dir = rb[1]
 		elif c.get("inplace", false):
@@ -445,7 +445,7 @@ static func _strip_root(a: Animation, skel: Skeleton3D, root_bone: String, lock 
 ##      медленный увод: вычитается скользящее среднее за sway секунд), "lock" — таз по горизонтали на месте,
 ##      "center" — среднее положение таза над капсулой, "keep" — путь как есть (падения);
 ##   4) обратно в систему корня. Возвращает [скорость ед./с, направление хода в системе скелета].
-static func _bake_root(a: Animation, skel: Skeleton3D, hip_name: String, mode: String, heading_lock: bool, sway: float) -> Array:
+static func _bake_root(a: Animation, skel: Skeleton3D, hip_name: String, mode: String, heading_lock: bool, sway: float, sway_k := 1.0) -> Array:
 	var hip := skel.find_bone(hip_name)
 	if hip < 0:
 		return [0.0, Vector3.ZERO]
@@ -538,6 +538,15 @@ static func _bake_root(a: Animation, skel: Skeleton3D, hip_name: String, mode: S
 				S.append(acc / maxf(m, 1))
 			for k in n:
 				W[k] = Vector3(W[k].x - S[k].x + S[0].x, W[k].y, W[k].z - S[k].z + S[0].z)
+		if mode == "inplace" and sway_k < 0.999 and dir != Vector3.ZERO:
+			# раскачка таза поперёк хода — меньше (sway_k): с 20 см и больше персонаж «переваливается»
+			var side := Vector3.UP.cross(dir).normalized()
+			var ms := 0.0
+			for k in n:
+				ms += W[k].dot(side)
+			ms /= n
+			for k in n:
+				W[k] -= side * ((W[k].dot(side) - ms) * (1.0 - sway_k))
 		# тело над капсулой: среднее положение таза по горизонтали — там же, где в исходной позе
 		var mean := Vector3.ZERO
 		for k in n:

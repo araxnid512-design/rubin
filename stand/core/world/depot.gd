@@ -467,7 +467,7 @@ func _d_fences(g: Node3D) -> void:
 				_pm("qr_concfence", Vector3(sx, 0, z + 2.0), 0.0, 4.0, true, true)
 			z += 4.0
 	# ворота: шлагбаум поднят, створки распахнуты; рядом — вышка-мачта
-	_pm("qr_barrier", Vector3(D_GATE_X - 3.4, 0, D_FS - 1.5), -0.25, 5.0, false, true)
+	_barrier(Vector3(D_GATE_X - 3.4, 0, D_FS - 1.5), -0.25)
 	for sgn in [-1.0, 1.0]:
 		_bx(g, "concrete", Vector3(0.5, 2.6, 0.5), _at(Vector3(D_GATE_X + sgn * 4.8, 1.3, D_FS)), true)
 		_bx(g, "rust", Vector3(3.8, 1.9, 0.08), Transform3D(Basis(Vector3.UP, sgn * 1.25), Vector3(D_GATE_X + sgn * 5.5, 1.05, D_FS + 2.0)), true)

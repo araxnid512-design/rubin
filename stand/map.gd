@@ -118,20 +118,27 @@ func _ready() -> void:
 	var ph := HBoxContainer.new()
 	ph.add_theme_constant_override("separation", 12)
 	panel.add_child(ph)
+	# слева — снимок в своём размере (раньше маленькая картинка растягивалась на всю высоту карточки и мылилась)
+	# и под ним главное о локации; справа — название, описание и кнопки
+	var lc := VBoxContainer.new()
+	lc.add_theme_constant_override("separation", 6)
+	lc.custom_minimum_size.x = 250
+	ph.add_child(lc)
 	p_pic = TextureRect.new()
 	p_pic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	p_pic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
-	p_pic.custom_minimum_size = Vector2(200, 0)
-	ph.add_child(p_pic)
+	p_pic.custom_minimum_size = Vector2(250, 152)
+	lc.add_child(p_pic)
 	var vb := VBoxContainer.new()
 	vb.add_theme_constant_override("separation", 5)
 	vb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	ph.add_child(vb)
 	p_t = _lbl(vb, 26, Color(0.96, 0.96, 0.94))
 	p_k = _lbl(vb, 15, Color(0.75, 0.9, 0.35))
-	p_x = _lbl(vb, 15, Color(1.0, 0.55, 0.4))
+	p_x = _lbl(lc, 14, Color(1.0, 0.6, 0.45))
+	p_x.custom_minimum_size.x = 250
 	p_d = _lbl(vb, 14, Color(0.82, 0.84, 0.86))
-	p_d.custom_minimum_size.x = PANEL_W - 250.0
+	p_d.custom_minimum_size.x = PANEL_W - 300.0
 	var hb := HBoxContainer.new()
 	hb.add_theme_constant_override("separation", 8)
 	vb.add_child(hb)

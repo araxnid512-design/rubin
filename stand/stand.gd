@@ -939,6 +939,26 @@ func _build_ui() -> void:
 		whos.append(["hero", ULHeroes.name_of(hid), hid])
 	for k in ULEnemy.KINDS:
 		whos.append([k, String(ULEnemy.KINDS[k].n), ""])
+	# строка «Кто» — отдельная и прокручивается пальцем: героев и врагов девять, в один ряд с кнопками оружия они
+	# не помещались (муров и главаря было не выбрать)
+	var who_bar := HBoxContainer.new()
+	who_bar.anchor_top = 1.0
+	who_bar.anchor_bottom = 1.0
+	who_bar.anchor_right = 1.0
+	who_bar.offset_left = 330
+	who_bar.offset_right = -160
+	who_bar.offset_top = -260
+	who_bar.offset_bottom = -208
+	who_bar.add_theme_constant_override("separation", 6)
+	ui.add_child(who_bar)
+	who_bar.add_child(_lbl("Кто:", 15, Color(0.45, 0.85, 1.0)))
+	var who_sc := ScrollContainer.new()
+	who_sc.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	who_sc.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	who_bar.add_child(who_sc)
+	var who_row := HBoxContainer.new()
+	who_row.add_theme_constant_override("separation", 6)
+	who_sc.add_child(who_row)
 	for wv2 in whos:
 		var hb2 := _btn(wv2[1], func():
 			if who != wv2[0] or (wv2[2] != "" and hero_id != wv2[2]):
@@ -946,16 +966,13 @@ func _build_ui() -> void:
 				if wv2[2] != "":
 					ULSettings.stand_hero = wv2[2]
 				Engine.time_scale = 1.0
-				get_tree().reload_current_scene(), 112, 50, 15)
+				get_tree().reload_current_scene(), 124, 48, 15)
+		who_row.add_child(hb2)
 		if who == wv2[0] and (wv2[2] == "" or wv2[2] == hero_id):
 			hb2.add_theme_color_override("font_color", Color(0.45, 0.95, 1.0))
-		abar.add_child(hb2)
+			who_sc.ensure_control_visible.call_deferred(hb2)
 	if who != "hero":
 		wbar.visible = false
-		var esp := Control.new()
-		esp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		esp.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		abar.add_child(esp)
 	abar.add_child(_lbl("Рюкзак:", 15, Color(0.45, 0.85, 1.0)))
 	for pv in [["", "Нет"], ["small", "Малый 8"], ["medium", "Средний 12"], ["large", "Большой 20"]]:
 		var pb := _btn(pv[1], wear_pack.bind(pv[0]), 104, 50, 14)
@@ -973,28 +990,28 @@ func _build_ui() -> void:
 	abar.add_child(_btn("Перезарядка", func(): rig.hold.reload(), 140, 50, 16))
 	if who != "hero":
 		# врагу оружие и рюкзаки не нужны — остаются «Назад» и выбор, кого смотреть
-		for ci in range(1 + whos.size() + 1, abar.get_child_count()):
+		for ci in range(1, abar.get_child_count()):
 			(abar.get_child(ci) as Control).visible = false
-	bar.add_child(_btn("◀", func(): select((cur_i - 1 + entries.size()) % entries.size()), 60))
-	bar.add_child(_btn("▶", func(): select((cur_i + 1) % entries.size()), 60))
-	pause_btn = _btn("Пауза", _toggle_pause, 110)
+	bar.add_child(_btn("◀", func(): select((cur_i - 1 + entries.size()) % entries.size()), 52))
+	bar.add_child(_btn("▶", func(): select((cur_i + 1) % entries.size()), 52))
+	pause_btn = _btn("Пауза", _toggle_pause, 96)
 	bar.add_child(pause_btn)
-	spd_btn = _btn("Скорость 1×", _cycle_speed, 150)
+	spd_btn = _btn("Скорость 1×", _cycle_speed, 126, 56.0, 16)
 	bar.add_child(spd_btn)
-	ik_btn = _btn("Хват: новый", _toggle_ik, 150)
+	ik_btn = _btn("Хват: новый", _toggle_ik, 126, 56.0, 16)
 	bar.add_child(ik_btn)
 	ik_btn.visible = who == "hero"
 	var sp := Control.new()
 	sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	sp.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	bar.add_child(sp)
-	audit_btn = _btn("Проверка поз", _audit_all, 170)
+	audit_btn = _btn("Проверка поз", _audit_all, 150, 56.0, 16)
 	bar.add_child(audit_btn)
-	ok_btn = _btn("Годится", _mark.bind("ok"), 120)
+	ok_btn = _btn("Годится", _mark.bind("ok"), 100, 56.0, 16)
 	bar.add_child(ok_btn)
-	bad_btn = _btn("Брак", _mark.bind("bad"), 100)
+	bad_btn = _btn("Брак", _mark.bind("bad"), 78, 56.0, 16)
 	bar.add_child(bad_btn)
-	bar.add_child(_btn("Итог", _summary, 90))
+	bar.add_child(_btn("Итог", _summary, 74, 56.0, 16))
 	if who == "hero":
 		views.add_child(_btn("Редактор\nудара", _ed_toggle, 140, 64, 15))
 		_ed_build()
@@ -1386,7 +1403,11 @@ func _info() -> void:
 	parts.append(audit.line())
 	if who != "hero":
 		var d: Dictionary = ULEnemy.KINDS[who]
-		parts.append("прочность %d, удар %d раз в %.1f с, шаг %.1f м/с, бег %.1f м/с, видит до %d м, слышит выстрел до %d м" % [int(d.hp), int(d.dmg), float(d.cd), float(d.walk), float(d.run), int(d.see), int(d.hear)])
+		# у Рубера и муров общего «удара» нет (свои удары и оружие) — строка раньше падала с ошибкой и не показывалась
+		var hit_t := ("удар %d раз в %.1f с" % [int(d.dmg), float(d.get("cd", 1.0))]) if d.has("dmg") else ("ударов в наборе: %d" % (d.get("attacks", []) as Array).size())
+		if d.has("gun"):
+			hit_t = "оружие: %s" % String(ULItems.get_def(String((d.gun as Dictionary).get("weapon", ""))).get("n", (d.gun as Dictionary).get("weapon", "")))
+		parts.append("прочность %d, %s, шаг %.1f м/с, бег %.1f м/с, видит до %d м, слышит выстрел до %d м" % [int(d.hp), hit_t, float(d.get("walk", 0.0)), float(d.get("run", 0.0)), int(d.get("see", 0)), int(d.get("hear", 0))])
 	info_lbl.text = " · ".join(parts)
 
 

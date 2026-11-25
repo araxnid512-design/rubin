@@ -176,6 +176,8 @@ func result() -> Dictionary:
 		var f_max := lim(group, m, "fwd_max", 16.0)
 		var f_min := lim(group, m, "fwd_min", -8.0)
 		var s_max := lim(group, m, "side_max", 6.0)
+		if crouch:
+			f_max += 12.0                 # в приседе корпус и должен быть наклонён вперёд
 		if m != "action":
 			if lf > f_max:
 				notes.append("заваливается вперёд: %.0f° (норма до %.0f°)" % [lf, f_max])
@@ -190,7 +192,7 @@ func result() -> Dictionary:
 				notes.append("ноги скрещены")
 		if m == "move":
 			var roll_max := lim(group, m, "roll_max", 14.0)
-			var sway_max := lim(group, m, "sway_max", 0.16)
+			var sway_max := lim(group, m, "sway_max", 0.16) * (1.5 if crouch else 1.0)     # крадучись вес переносится шире
 			if roll > roll_max:
 				notes.append("переваливается с боку на бок: размах %.0f° (норма до %.0f°)" % [roll, roll_max])
 			if sway > sway_max:

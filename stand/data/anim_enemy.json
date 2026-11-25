@@ -25,7 +25,7 @@
 			"loop_fix": 0.3,
 			"bake": "inplace",
 			"heading_lock": true,
-			"sway": 1.0
+			"sway": 1.0, "sway_k": 0.7
 		},
 		"run": {
 			"src": [
@@ -39,7 +39,7 @@
 			"loop_fix": 0.25,
 			"bake": "inplace",
 			"heading_lock": true,
-			"sway": 1.0
+			"sway": 1.0, "sway_k": 0.7
 		},
 		"alert": {
 			"src": [

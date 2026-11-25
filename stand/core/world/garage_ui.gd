@@ -207,6 +207,9 @@ func refresh() -> void:
 	for c in _body.get_children():
 		c.queue_free()
 	_wallet.text = "Горох %d   Спораны %d   Хлам %d" % [int(w.inv.wallet.get("pea", 0)), int(w.inv.wallet.get("spore", 0)), w.inv.count("junk")]
+	if int(w.inv.wallet.get("pearl_black", 0)) > 0:
+		# верхние детали стоят чёрные жемчужины — они видны в строке, когда есть
+		_wallet.text = "Чёрные жемчужины %d   %s" % [int(w.inv.wallet.pearl_black), _wallet.text]
 	match tab:
 		"up":
 			_build_up()

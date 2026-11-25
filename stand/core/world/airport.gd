@@ -762,7 +762,7 @@ func _a_fences(g: Node3D) -> void:
 	for sgn in [-1.0, 1.0]:
 		_bx(g, "concrete", Vector3(0.6, 3.0, 0.6), _at(Vector3(A_GATE_X + sgn * 6.3, 1.5, A_FS)), true)
 		_bx(g, "rust", Vector3(5.2, 2.2, 0.08), Transform3D(Basis(Vector3.UP, sgn * 1.3), Vector3(A_GATE_X + sgn * 7.2, 1.2, A_FS + 2.6)), true)
-	_pm("qr_barrier", Vector3(A_GATE_X - 4.4, 0, A_FS - 3.0), -0.25, 5.0, false, true)
+	_barrier(Vector3(A_GATE_X - 4.4, 0, A_FS - 3.0), -0.25)
 	# ограда топливной зоны (сетка), ворота — с запада
 	var f := A_FUEL
 	var fp: Array = []

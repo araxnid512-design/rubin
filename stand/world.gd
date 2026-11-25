@@ -95,9 +95,6 @@ func _ready() -> void:
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--as-test="):
 			test = a.substr(10)
-			# проверки идут на программной отрисовке (несколько кадров/с): без запаса шагов физика отстаёт от часов,
-			# и проверки «успел за N секунд» ложно не укладываются. На устройстве кадров хватает — там это не нужно.
-			Engine.max_physics_steps_per_frame = 30
 		if a == "--as-test=enterview":
 			_enterview.call_deferred()                 # снимки первых секунд после входа (как видит игрок)
 		if a.begins_with("--as-out="):
@@ -2393,7 +2390,19 @@ func _tris_breakdown(tag: String) -> void:
 			continue
 		var bb := gi.global_transform * gi.get_aabb()
 		if gi is MeshInstance3D:
-			if not cam.is_position_in_frustum(bb.get_center()) and not cam.is_position_in_frustum(bb.position) and not cam.is_position_in_frustum(bb.end):
+			# в кадре — если коробка сетки не лежит целиком за одной из плоскостей обзора (прежняя проверка «центр или
+			# два угла в кадре» теряла крупные сетки: стены построек, землю)
+			var outside := false
+			for pl in cam.get_frustum():
+				var all_out := true
+				for ci in 8:
+					if not (pl as Plane).is_point_over(bb.get_endpoint(ci)):
+						all_out = false
+						break
+				if all_out:
+					outside = true
+					break
+			if outside:
 				continue
 			if gi.visibility_range_end > 0.0 and cam.global_position.distance_to(bb.get_center()) > gi.visibility_range_end:
 				continue
@@ -5998,8 +6007,9 @@ func _combat_tick(delta: float) -> void:
 	_atk_cd -= delta                        # в этом кадре может уйти в минус: очередь не теряет выстрелы при низком FPS
 	_heal_cd = maxf(0.0, _heal_cd - delta)
 	_aim_t += delta
-	if not (rig.hold.wid != "" and rig.hold.drawn < 0.99):
-		_atk_want = maxf(0.0, _atk_want - delta)         # пока оружие достаётся, нажатие ждёт
+	# отложенное нажатие: пока оружие достаётся, оно ждёт; отсчёт — после попытки атаки этого кадра (ниже), иначе
+	# на редких кадрах (кадр длиннее запаса 0,4 с) нажатие сгорало в тот же кадр, когда оружие оказалось в руках
+	var atk_wait := rig.hold.wid != "" and rig.hold.drawn < 0.99
 	# кнопка удержана — атака повторяется в темпе оружия (и кулаки, и мачете, и одиночный огонь); нажатие чуть
 	# раньше срока (оружие ещё достаётся, не кончился прошлый удар) не теряется — сработает, как только можно
 	var held: bool = _hud_touch.values().has("fire") or Input.is_physical_key_pressed(KEY_SPACE)
@@ -6018,6 +6028,8 @@ func _combat_tick(delta: float) -> void:
 		if _atk_cd == cd0:
 			break
 		_atk_want = 0.0
+	if not atk_wait:
+		_atk_want = maxf(0.0, _atk_want - delta)
 	_atk_cd = maxf(_atk_cd, 0.0)
 	_bullets_tick(delta)
 	# метка под целью
@@ -20606,10 +20618,19 @@ func car_exit() -> void:
 	if car == null or not car_in:
 		return
 	var spots := [car.door_pos(), car.global_transform * Vector3(-car.size.x * 0.5 - 0.6, 0.0, car.size.z * 0.05), car.trunk_pos(), car.hood_pos()]
+	# ещё восемь точек вокруг кузова: на склоне (карьер) и в тесноте первые четыре бывают заняты
+	for k in 8:
+		var ang := k * TAU / 8.0 + 0.4
+		spots.append(car.global_position + Vector3(cos(ang), 0, sin(ang)) * (car.size.z * 0.5 + 0.9))
 	var at: Vector3 = spots[0]
 	for sp in spots:
-		if _spot_free(sp):
-			at = sp
+		# точка — на землю под ней: машина на склоне стоит с наклоном, её «рядом с дверью» уходит под грунт или над ним
+		var gq := PhysicsRayQueryParameters3D.create((sp as Vector3) + Vector3.UP * 1.6, (sp as Vector3) + Vector3.DOWN * 2.6, 1)
+		gq.exclude = [car.get_rid(), player.get_rid()]
+		var gh := get_world_3d().direct_space_state.intersect_ray(gq)
+		var gp: Vector3 = gh.position if not gh.is_empty() else sp
+		if _spot_free(gp):
+			at = gp
 			break
 	car_in = false
 	tur_mode = false
@@ -21090,20 +21111,20 @@ func _garage_test() -> void:
 		var lv := c.find_child("Level", true, false) as Label
 		return {"btn": b.text if b else "", "dis": b.disabled if b else false, "lvl": lv.text if lv else ""}
 	var c0: Dictionary = card.call()
-	_ok("2. в компьютере базы карточка «Гараж»: «Ур. 0 / 3», «КУПИТЬ И УСТАНОВИТЬ — 80 СПОРАНОВ»", String(c0.get("lvl", "")) == "Ур. 0 / 3" and String(c0.get("btn", "")) == "КУПИТЬ И УСТАНОВИТЬ — 80 СПОРАНОВ", str(c0))
+	_ok("2. в компьютере базы карточка «Гараж»: «Ур. 0 / 3», «КУПИТЬ И УСТАНОВИТЬ — 8 ГОРОШИН»", String(c0.get("lvl", "")) == "Ур. 0 / 3" and String(c0.get("btn", "")) == "КУПИТЬ И УСТАНОВИТЬ — 8 ГОРОШИН", str(c0))
 	inv.wallet = {"spore": 50}
 	pc.ask_upgrade("garage")
 	var dt := pc.dialog_text()
 	pc.dialog_close()
-	_ok("3. 50 споранов — не хватает 30: ничего не списано, гаража нет", dt.contains("30 споранов") and int(inv.wallet.spore) == 50 and ULBase.garage_level() == 0, dt.replace("\n", " / "))
+	_ok("3. 50 споранов (5 горошин по курсу) — не хватает 3 горошин: ничего не списано, гаража нет", dt.contains("3 горошины") and int(inv.wallet.spore) == 50 and ULBase.garage_level() == 0, dt.replace("\n", " / "))
 	inv.wallet = {"spore": 600, "pea": 80}
 	pc.ask_upgrade("garage")
 	pc.dialog_confirm()
 	pc.dialog_confirm()
 	await get_tree().create_timer(0.5).timeout
 	var c1: Dictionary = card.call()
-	_ok("4. куплено за 80 споранов: «Ур. 1 / 3», следующий уровень закрыт; гараж построен, в нём УАЗ-469 на платформе", ULBase.garage_level() == 1 and int(inv.wallet.spore) == 520 and String(c1.get("lvl", "")) == "Ур. 1 / 3" and bool(c1.get("dis", false)) and String(c1.get("btn", "")).contains("ЗАКРЫТ") and garage.built and car != null and car.global_position.distance_to(garage.platform_xf().origin) < 0.6, str(c1))
-	_ok("5. второй раз уровень 2 не купить (закрыт)", not ULBase.buy_garage(inv).ok and int(inv.wallet.spore) == 520)
+	_ok("4. куплено за 8 горошин: «Ур. 1 / 3», следующий уровень закрыт; гараж построен, в нём УАЗ-469 на платформе", ULBase.garage_level() == 1 and int(inv.wallet.pea) == 72 and int(inv.wallet.spore) == 600 and String(c1.get("lvl", "")) == "Ур. 1 / 3" and bool(c1.get("dis", false)) and String(c1.get("btn", "")).contains("ЗАКРЫТ") and garage.built and car != null and car.global_position.distance_to(garage.platform_xf().origin) < 0.6, str(c1))
+	_ok("5. второй раз уровень 2 не купить (закрыт)", not ULBase.buy_garage(inv).ok and int(inv.wallet.pea) == 72 and int(inv.wallet.spore) == 600)
 	pc.close()
 	await get_tree().process_frame
 	await get_tree().create_timer(0.3).timeout
@@ -21615,6 +21636,7 @@ func _colaudit_test() -> void:
 	var miss := {}
 	var where := {}
 	var total := 0
+	var bridge := 0                    # предметы, под которыми проходят (столкновения только у опор)
 	for n in find_children("*", "Node3D", true, false):
 		var n3 := n as Node3D
 		if not n3.scene_file_path.ends_with(".glb") or not n3.is_visible_in_tree() or n3.get_viewport() != get_viewport():
@@ -21653,6 +21675,15 @@ func _colaudit_test() -> void:
 			if not (h.collider is CharacterBody3D):
 				ok = true
 				break
+		if not ok and maxf(bb.size.x, bb.size.z) >= 4.0:
+			# «мостовой» предмет (козловой кран, телетрап, шлагбаум): под ним проходят, столкновения — у опор.
+			# Середина пуста по замыслу — ищем столкновение где-нибудь в пределах всего предмета.
+			bs.size = Vector3(bb.size.x * 0.96, clampf(bb.size.y - 0.2, 0.2, 0.8), bb.size.z * 0.96)
+			for h2 in space.intersect_shape(q, 8):
+				if not (h2.collider is CharacterBody3D):
+					ok = true
+					bridge += 1
+					break
 		if not ok:
 			miss[nm] = int(miss.get(nm, 0)) + 1
 			if not where.has(nm):
@@ -21660,6 +21691,6 @@ func _colaudit_test() -> void:
 	var lines := []
 	for k in miss:
 		lines.append("%s ×%d %s" % [k, int(miss[k]), String(where[k])])
-	print("[colaudit] %s: предметов %d, без столкновения %d: %s" % [place, total, lines.size(), ", ".join(lines)])
+	print("[colaudit] %s: предметов %d (из них %d — с проходом под ними, столкновения у опор), без столкновения %d: %s" % [place, total, bridge, lines.size(), ", ".join(lines)])
 	_ok("%s: у всех %d предметов выше колена есть столкновение" % [place, total], miss.is_empty(), ", ".join(lines))
 	_test_done()

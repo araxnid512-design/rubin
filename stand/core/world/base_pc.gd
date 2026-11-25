@@ -68,6 +68,24 @@ var drag_moved := false            ## палец сдвинулся — это �
 var _fling_sc: ScrollContainer = null
 
 
+var _root: Control = null
+
+
+## Подгонка под экран. Окно собрано под широкий экран телефона (20:9); на экране 16:9 и уже содержимому не хватало
+## ширины — правый край (белая жемчужина, таймер маршрутов, «Купить / Продать») уходил за экран. Если содержимому
+## нужно больше места, чем есть, окно уменьшается целиком (не мельче 0,72), оставаясь во весь экран.
+func _fit() -> void:
+	if _root == null or not is_inside_tree():
+		return
+	var vs := get_viewport_rect().size
+	var need := _root.get_combined_minimum_size() + Vector2(66.0, 66.0)
+	var k := clampf(minf(vs.x / maxf(need.x, 1.0), vs.y / maxf(need.y, 1.0)), 0.72, 1.0)
+	set_anchors_preset(PRESET_TOP_LEFT)
+	scale = Vector2(k, k)
+	position = Vector2.ZERO
+	size = vs / k
+
+
 func setup(world) -> void:
 	w = world
 	inv = world.inv
@@ -89,6 +107,7 @@ func setup(world) -> void:
 	add_child(fr)
 	fr.set_anchors_and_offsets_preset(PRESET_FULL_RECT)
 	var root := VBoxContainer.new()
+	_root = root
 	root.add_theme_constant_override("separation", 6)
 	add_child(root)
 	root.set_anchors_and_offsets_preset(PRESET_FULL_RECT)
@@ -118,6 +137,8 @@ func setup(world) -> void:
 	_toast.visible = false
 	_toast.mouse_filter = MOUSE_FILTER_IGNORE
 	add_child(_toast)
+	_fit.call_deferred()
+	get_viewport().size_changed.connect(_fit)
 	inv.changed.connect(_refresh_wallet)
 	ULBase.routes_tick()
 	_build_upgrades()
@@ -1371,7 +1392,7 @@ func toast(t: String) -> void:
 	_toast_lbl.text = t
 	_toast.visible = true
 	_toast.reset_size()
-	var vs := get_viewport_rect().size
+	var vs := size                               # своя система (окно может быть уменьшено под экран)
 	_toast.position = Vector2((vs.x - _toast.size.x) * 0.5, 10)
 	_toast.modulate.a = 1.0
 	if _toast_tw:
