@@ -11771,7 +11771,7 @@ func _pc_test() -> void:
 	await get_tree().process_frame
 	var pc := _term_ui as ULBasePC
 	var vs := get_viewport().get_visible_rect().size
-	_ok("компьютер открыт во весь экран, игра под ним не принимает касания", pc != null and _modal() and pc.size.distance_to(vs) < 2.0, str(pc.size if pc else Vector2.ZERO))
+	_ok("компьютер открыт во весь экран, игра под ним не принимает касания", pc != null and _modal() and (pc.size * pc.scale).distance_to(vs) < 2.0 and pc.scale.x <= 1.0 and pc.scale.x >= 0.72, "размер %s × масштаб %.2f" % [str(pc.size if pc else Vector2.ZERO), pc.scale.x if pc else 0.0])
 	if pc == null:
 		print("[inv] итог: ошибок %d" % _fails)
 		get_tree().quit()
