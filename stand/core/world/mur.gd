@@ -266,10 +266,17 @@ func tick(delta: float, p: Vector3, can_see: bool, hero_alive: bool) -> void:
 	mv = mv.normalized()
 	if speed > 0.05 and _move_dir.length() > 0.05:
 		mv = _steer(mv, delta)
+	if _esc_t > 0.0:
+		# выбирается из затора (ULEnemy._stuck_tick): полсекунды идёт туда, где свободно
+		_esc_t -= delta
+		if speed > 0.05:
+			mv = _esc_dir
 	# разгон и торможение — не мгновенно (у героя — так же)
 	_spd = move_toward(_spd, speed, delta * (12.0 if speed > _spd else 18.0))
 	velocity = Vector3(mv.x * _spd * step_k, velocity.y - 9.8 * delta, mv.z * _spd * step_k)
+	var was := global_position
 	move_and_slide()
+	_stuck_tick(_spd if speed > 0.05 and _move_dir.length() > 0.05 else 0.0, delta, was)
 	velocity.x /= step_k
 	velocity.z /= step_k
 	if is_on_floor():

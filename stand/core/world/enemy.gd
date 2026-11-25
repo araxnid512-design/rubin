@@ -54,6 +54,35 @@ var _rng := RandomNumberGenerator.new()
 var _path: PackedVector3Array = []   ## путь по карте проходимости к месту, где видели героя
 var _path_t := 0.0
 var _path_to := Vector3.INF
+## Ум (data/enemies.json: brain 1–3, чем сильнее вид — тем выше). Все ходят по карте проходимости и сами выбираются
+## из затора. 1 (пустыш) — думает редко, идёт туда, где видел героя, и быстро забывает. 2 (лотерейщик) — бежит на
+## упреждение, потеряв героя — проверяет место, куда тот ушёл, обходит своих сбоку. 3 (рубер) — упреждает дальше,
+## обыскивает несколько мест, в рывок срывается только по свободной прямой.
+var brain := 1
+var unstuck := 0                  ## сколько раз выбирался из затора (для проверок)
+var pushed_out := 0               ## сколько раз его вытолкнуло из стены или предмета на проходимое место
+var searches := 0                 ## сколько мест проверил, потеряв героя (для проверок)
+var flanks := 0                   ## сколько раз пошёл в обход своих
+var blocked_s := 0.0              ## сколько секунд подряд хотел идти и стоял (для проверок)
+var blocked_max := 0.0
+var _direct := true               ## до цели можно дойти по прямой (путь по карте — без поворотов)
+var _stk_want := 0.0
+var _stk_got := 0.0
+var _stk_time := 0.0
+var _stk_n := 0
+var _esc_t := 0.0
+var _esc_dir := Vector3.ZERO
+var _hero_v := Vector3.ZERO       ## скорость героя (по его перемещению) — для упреждения
+var _hero_prev := Vector3.INF
+var _search_left := 0
+var _flank_t := 0.0
+var _flank_s := 1.0
+var _flank_cd := 0.0
+var _flank_chk := 0.0
+static var push_door: Callable    ## упёрся в закрытую дверь — толкает её (мир открывает двери рядом с точкой)
+const THINK_S := [0.6, 0.35, 0.2]        ## как часто пересматривает путь
+const LEAD_S := [0.0, 0.5, 0.9]          ## на сколько секунд вперёд берёт упреждение
+const SEARCH_N := [0, 1, 3]              ## сколько мест проверяет, потеряв героя
 var wander_r := 5.0               ## насколько отходит от своего места, бродя (в комнате — меньше; 0 — стоит)
 var charges := 0                  ## сколько раз сорвался в рывок (для проверок)
 var _charge_t := 0.0              ## рывок: сколько ещё длится
@@ -90,6 +119,19 @@ static func _load_kinds() -> Dictionary:
 
 
 ## описание вида для справочника: строки «как ходит, как нападает, что в нём бывает» — из тех же чисел баланса
+## строка справочника про ум вида
+static func brain_text(k: String) -> String:
+	var d: Dictionary = KINDS[k]
+	if d.has("gun"):
+		return "Ум: человек. Ходит дозором, прячется за укрытия, перебегает, заходит сбоку; препятствия обходит, из затора выбирается сам."
+	match int(d.get("brain", 1)):
+		2:
+			return "Ум: охотник. Обходит препятствия по кратчайшему пути, бежит наперерез, а не следом; потеряв героя, идёт проверять, куда тот ушёл; своих обходит сбоку — окружает."
+		3:
+			return "Ум: вожак. Просчитывает, где герой окажется, и бежит туда; потеряв — обыскивает несколько мест подряд и почти не ошибается с направлением; в рывок срывается только по свободной прямой; камень бросает из-за преграды."
+	return "Ум: почти нет. Препятствия обходит и в стенах не застревает, но думает медленно: бежит туда, где видел героя в последний раз, и, не найдя, быстро о нём забывает."
+
+
 static func describe(k: String) -> Array:
 	var d: Dictionary = KINDS[k]
 	var lt := ""
@@ -126,6 +168,7 @@ static func describe(k: String) -> Array:
 			"Рост %d см. Прочность: %d." % [int(round(float(d.get("height", 1.78)) * 100.0)), int(d.hp)],
 			"Видит героя ближе %d м, слышит %s. Заметив — вскидывает оружие и через %.1f с открывает огонь." % [int(d.see), hears, float(d.get("alert_s", 0.5))],
 			"Оружие — %s." % at,
+			brain_text(k),
 			"В теле может быть: %s." % lt,
 			"Тело лежит минуту и исчезает — обыскали его или нет.",
 		]
@@ -134,6 +177,7 @@ static func describe(k: String) -> Array:
 		"Рост %d см. Прочность: %d." % [int(round(float(d.get("height", 1.78)) * 100.0)), int(d.hp)],
 		"Ходит: бродит шагом (%.1f м/с). Видит героя ближе %d м, слышит %s. Заметив — %sбежит к нему (%.1f м/с), обходя препятствия. Теряет, если не видит %d с и герой дальше %d м." % [float(d.walk), int(d.see), hears, "кричит и " if float(d.get("alert_s", 0.0)) > 0.0 else "", float(d.run), int(d.get("lose_s", 0)), int(d.lose)] + chg,
 		"Нападает: подходит вплотную, раз в %.1f с, с замахом — от удара можно отскочить. Удары: %s." % [float(d.cd), at],
+		brain_text(k),
 		"В теле может быть: %s." % lt,
 		"Тело лежит минуту и исчезает — обыскали его или нет.",
 	]
@@ -142,6 +186,7 @@ static func describe(k: String) -> Array:
 func setup(k: String, at: Vector3, seed_n: int) -> void:
 	kind = k
 	def = KINDS[k]
+	brain = clampi(int(def.get("brain", 1)), 1, 3)
 	hp = float(def.hp)
 	home = at
 	position = at
@@ -358,6 +403,7 @@ func _notice(at: Vector3) -> void:
 		end_feed()
 	_last = at
 	_unseen = 0.0
+	_search_left = int(SEARCH_N[brain - 1])
 	var wait := float(def.get("alert_s", 0.0))
 	if wait > 0.0:
 		state = "alert"
@@ -482,6 +528,12 @@ func damage(d: float, from := Vector3.INF) -> void:
 ## кадр: p — где герой, can_see — видит ли его сейчас (без стены между ними), hero_alive — жив ли герой
 func tick(delta: float, p: Vector3, can_see: bool, hero_alive: bool) -> void:
 	_hero_p = p
+	if _hero_prev != Vector3.INF and delta > 0.0:
+		var hv := (p - _hero_prev) / delta
+		hv.y = 0.0
+		if hv.length() < 12.0:
+			_hero_v = _hero_v.lerp(hv, clampf(delta * 4.0, 0.0, 1.0))
+	_hero_prev = p
 	if not _strikes.is_empty():
 		_strike_tick(delta)
 	if state == "dead":
@@ -492,6 +544,7 @@ func tick(delta: float, p: Vector3, can_see: bool, hero_alive: bool) -> void:
 	to.y = 0.0
 	var dist := to.length()
 	_atk = maxf(0.0, _atk - delta)
+	_flank_cd = maxf(0.0, _flank_cd - delta)
 	_rock_cd = maxf(0.0, _rock_cd - delta)
 	_growl -= delta
 	var speed := 0.0
@@ -509,11 +562,14 @@ func tick(delta: float, p: Vector3, can_see: bool, hero_alive: bool) -> void:
 						_t = _rng.randf_range(2.0, 5.0)
 					else:
 						speed = float(def.walk)
-						_face(_steer(g, delta), delta, 4.0)
+						_face(_steer(_nav_dir(_goal, delta, 3.0) if g.length() > 1.5 else g, delta), delta, 4.0)
 				elif _t <= 0.0 and wander_r > 0.05:
-					state = "wander"
-					_goal = home + Vector3(_rng.randf_range(-wander_r, wander_r), 0, _rng.randf_range(-wander_r, wander_r))
-					_t = 6.0
+					_goal = _wander_goal()
+					if _goal == Vector3.INF:
+						_t = _rng.randf_range(1.0, 2.5)      # место за стеной или в предмете — постоит и выберет другое
+					else:
+						state = "wander"
+						_t = 6.0
 				elif _t <= 0.0:
 					_t = _rng.randf_range(3.0, 7.0)
 				if _growl <= 0.0:
@@ -557,17 +613,31 @@ func tick(delta: float, p: Vector3, can_see: bool, hero_alive: bool) -> void:
 			if can_see:
 				_last = p
 				_unseen = 0.0
+				_search_left = int(SEARCH_N[brain - 1])
 			else:
 				_unseen += delta
 			var tl := _last - global_position
 			var tly := tl.y
 			tl.y = 0.0
 			var same_floor := absf(p.y - global_position.y) < 1.2
+			if hero_alive and not can_see and _search_left > 0 and tl.length() < 0.8 and absf(tly) < 1.2 and dist <= float(def.lose):
+				# дошёл туда, где видел героя, — пусто. Кто умнее — не стоит, а идёт проверять, куда тот ушёл (чует след:
+				# направление верное, место — с ошибкой; рубер ошибается меньше и проверяет больше мест)
+				_search_left -= 1
+				searches += 1
+				var sd := Vector3(p.x - _last.x, 0, p.z - _last.z)
+				var sl := minf(sd.length(), _rng.randf_range(5.0, 8.0))
+				var err := 0.8 if brain < 3 else 0.35
+				_last = _on_nav(_last + sd.normalized().rotated(Vector3.UP, _rng.randf_range(-err, err)) * sl)
+				_path_t = 0.0
+				tl = _last - global_position
+				tly = tl.y
+				tl.y = 0.0
 			if not hero_alive or (_unseen > float(def.get("lose_s", 0.0)) and (dist > float(def.lose) or (tl.length() < 0.8 and absf(tly) < 1.2))):
 				# потерял: не видит дольше положенного, а герой далеко — или дошёл до места, где видел, и там пусто
 				state = "idle"
 				_t = 2.5
-			elif can_see and same_floor and dist <= _close() + maxf(0.9, float(def.get("strike_d", 1.0))):
+			elif can_see and same_floor and dist <= _close() + maxf(0.9, float(def.get("strike_d", 1.0))) and not _go_around(p, dist):
 				state = "attack"
 			elif tl.length() < 0.5 and absf(tly) < 1.2:
 				_face(to, delta, 3.0)                    # дошёл до последнего места — озирается
@@ -584,15 +654,42 @@ func tick(delta: float, p: Vector3, can_see: bool, hero_alive: bool) -> void:
 					if _charge_t > 0.0:
 						_charge_t -= delta
 						speed = float(chg.speed)
-					elif _charge_cd <= 0.0 and can_see and same_floor and dist < float(chg.from) and dist > float(chg.to):
+					elif _charge_cd <= 0.0 and can_see and same_floor and _direct and dist < float(chg.from) and dist > float(chg.to):
 						_charge_t = float(chg.s)
 						_charge_cd = float(chg.cd)
 						charges += 1
 						noise.emit("roar", global_position)
-				var go := tl if can_see else _nav_dir(_last, delta)
-				# по пути карты проходимости идёт как есть: путь уже обходит стены и мебель, а «щуп» перед собой у перил и
-				# косяков только сбивал с него; щуп — когда идёт напрямик (видит героя) или пути нет
-				_face(_steer(go, delta) if (can_see or _path.is_empty()) else go, delta, 7.0)
+				# Куда бежит: видит героя — к нему (кто умнее — на упреждение, туда, где герой окажется; упёрся в спину
+				# своему — заходит сбоку), не видит — туда, где видел. Всегда по карте проходимости: видеть героя можно и
+				# через забор, ящик или окно, а дойти — только в обход.
+				var aim := _last
+				if can_see:
+					var lead := float(LEAD_S[brain - 1])
+					if lead > 0.0 and dist > 3.5:
+						aim = p + _hero_v * minf(dist / maxf(float(def.run), 0.1), lead)
+				# Свой впереди, у самой цели (героя заслоняют спины — «не видит», но идёт туда, где видел): умный не
+				# толкается в спину, а секунду обходит это место по дуге и выходит на героя сбоку
+				var fc := p if can_see else _last
+				var fv := Vector3(fc.x - global_position.x, 0, fc.z - global_position.z)
+				_flank_t = maxf(0.0, _flank_t - delta)
+				_flank_chk -= delta
+				if brain >= 2 and _flank_t <= 0.0 and _flank_cd <= 0.0 and _flank_chk <= 0.0 and fv.length() > 2.2 and fv.length() < 4.5:
+					_flank_chk = 0.25
+					if _ally_between(fc, 2.4):
+						_flank_t = 1.0
+						_flank_cd = 4.0
+						_flank_s = 1.0 if (get_instance_id() & 1) == 1 else -1.0
+						flanks += 1
+				if _flank_t > 0.0 and fv.length() > _close() + 0.3:
+					aim = fc + fv.normalized().rotated(Vector3.UP, PI * 0.5) * _flank_s * 2.2
+				var go := _nav_dir(aim, delta, float(THINK_S[brain - 1]))
+				# прямая свободна — идёт напрямик со «щупом» (машина, открытая створка, другой враг); путь с поворотами —
+				# идёт по нему как есть: он уже обходит стены и мебель, а щуп у перил и косяков только сбивал с него
+				if _direct or _path.is_empty():
+					var fl := Vector3(aim.x - global_position.x, 0, aim.z - global_position.z)
+					_face(_steer(fl if fl.length() > 0.3 else tl, delta), delta, 7.0)
+				else:
+					_face(go, delta, 7.0)
 				if _growl <= 0.0:
 					_growl = _rng.randf_range(3.0, 6.0)
 					noise.emit("growl", global_position)
@@ -689,6 +786,11 @@ func tick(delta: float, p: Vector3, can_see: bool, hero_alive: bool) -> void:
 		rig.fx.strike = pulse
 		rig.fx.bite = pulse if _fx_bite else 0.0
 		rig.fx.breath_hz = 0.9 if state == "chase" or state == "attack" else 0.35
+	if _esc_t > 0.0:
+		# выбирается из затора: полсекунды идёт туда, где свободно (см. _stuck_tick)
+		_esc_t -= delta
+		if speed > 0.1 and _hit_due < 0.0:
+			_face(_esc_dir, delta, 18.0)
 	var fwd := Vector3(sin(rotation.y), 0, cos(rotation.y))
 	# разгон (accel, м/с²): из стойки в бег — не рывком, а через шаг; тормозит сразу (удар с подбега — как прежде)
 	if def.has("accel") and speed > _spd_s:
@@ -698,7 +800,10 @@ func tick(delta: float, p: Vector3, can_see: bool, hero_alive: bool) -> void:
 		_spd_s = speed
 	velocity = Vector3(fwd.x * speed * step_k + _kb.x, velocity.y - 9.8 * delta, fwd.z * speed * step_k + _kb.z)
 	_kb = _kb.move_toward(Vector3.ZERO, delta * 14.0)
+	var was := global_position
 	move_and_slide()
+	# у героя вплотную стоит законно (упёрся в него, бьёт) — это не затор
+	_stuck_tick(0.0 if state == "attack" and dist < _close() + 0.7 else speed, delta, was)
 	velocity.x /= step_k
 	velocity.z /= step_k
 	if is_on_floor():
@@ -927,15 +1032,17 @@ func _steer(dir: Vector3, delta: float) -> Vector3:
 	return d.rotated(Vector3.UP, _steer_a)
 
 
-## Направление к цели в обход препятствий: путь по карте проходимости (обновляется раз в 0.4 с или когда цель
-## сдвинулась на метр), берётся ближайший ещё не пройденный поворот. Карты нет или путь пуст — прямо.
-func _nav_dir(target: Vector3, delta: float) -> Vector3:
+## Направление к цели в обход препятствий: путь по карте проходимости (обновляется раз в every секунд или когда цель
+## резко сместилась), берётся ближайший ещё не пройденный поворот. Карты нет или путь пуст — прямо.
+## _direct — путь без поворотов: до цели можно идти по прямой.
+func _nav_dir(target: Vector3, delta: float, every := 0.4) -> Vector3:
 	_path_t -= delta
-	if _path_t <= 0.0 or _path_to.distance_to(target) > 1.0:
-		_path_t = 0.4
+	if _path_t <= 0.0 or _path_to.distance_to(target) > 3.0:
+		_path_t = every
 		_path_to = target
 		var map := get_world_3d().navigation_map
 		_path = NavigationServer3D.map_get_path(map, global_position, target, true) if NavigationServer3D.map_get_iteration_id(map) > 0 else PackedVector3Array()
+		_direct = _straight(_path)
 	var me := Vector3(global_position.x, 0, global_position.z)
 	while _path.size() > 1 and Vector3(_path[0].x, 0, _path[0].z).distance_to(me) < 0.6 and absf(_path[0].y - global_position.y) < 1.0:
 		_path.remove_at(0)
@@ -943,6 +1050,149 @@ func _nav_dir(target: Vector3, delta: float) -> Vector3:
 		return Vector3(target.x - me.x, 0, target.z - me.z)
 	var nx := _path[0]
 	return Vector3(nx.x - me.x, 0, nx.z - me.z)
+
+
+## Кто умнее (brain ≥ 2): подбежал, а между ним и героем уже стоит свой — не толкается ему в спину, а секунду
+## обходит героя по дуге и нападает сбоку: стая окружает. Не чаще раза в 4 с. true — пока обходит (не бьёт).
+func _go_around(p: Vector3, dist: float) -> bool:
+	if brain < 2:
+		return false
+	if _flank_t > 0.0:
+		return dist > _close() + 0.35
+	if _flank_cd > 0.0 or dist < _close() + 0.5 or not is_inside_tree():
+		return false
+	if not _ally_between(p, dist):
+		return false
+	_flank_t = 1.0
+	_flank_cd = 4.0
+	_flank_s = 1.0 if (get_instance_id() & 1) == 1 else -1.0
+	flanks += 1
+	return true
+
+
+## между ним и точкой at (не дальше reach метров) стоит свой — луч на уровне пояса
+func _ally_between(at: Vector3, reach: float) -> bool:
+	if not is_inside_tree():
+		return false
+	var v := Vector3(at.x - global_position.x, 0, at.z - global_position.z)
+	if v.length() < 0.2:
+		return false
+	var from := global_position + Vector3.UP * 0.9
+	var q := PhysicsRayQueryParameters3D.create(from, from + v.normalized() * minf(v.length(), reach))
+	var ex: Array[RID] = [get_rid()]
+	ex.append_array(exclude)
+	q.exclude = ex
+	var hit := get_world_3d().direct_space_state.intersect_ray(q)
+	return not hit.is_empty() and hit.collider is ULEnemy and (hit.collider as ULEnemy).alive()
+
+
+## ближайшее проходимое место (карты проходимости нет — сама точка)
+func _on_nav(q: Vector3) -> Vector3:
+	if not is_inside_tree():
+		return q
+	var map := get_world_3d().navigation_map
+	return NavigationServer3D.map_get_closest_point(map, q) if NavigationServer3D.map_get_iteration_id(map) > 0 else q
+
+
+## Куда пойти, бродя: случайное место у своего — на карте проходимости и не «за стеной» (путь туда не длиннее
+## прямой больше чем в полтора раза). Раньше цель бралась как есть: в стене или в соседней комнате — и враг шагал
+## в стену, пока не надоест. INF — подходящего места не нашлось.
+func _wander_goal() -> Vector3:
+	var g := home + Vector3(_rng.randf_range(-wander_r, wander_r), 0, _rng.randf_range(-wander_r, wander_r))
+	if not is_inside_tree():
+		return g
+	var map := get_world_3d().navigation_map
+	if NavigationServer3D.map_get_iteration_id(map) <= 0:
+		return g
+	var q := NavigationServer3D.map_get_closest_point(map, g)
+	if absf(q.y - global_position.y) > 1.0 or Vector2(q.x - g.x, q.z - g.z).length() > 1.5:
+		return Vector3.INF
+	var path := NavigationServer3D.map_get_path(map, global_position, q, true)
+	if path.size() < 2:
+		return q if global_position.distance_to(q) < 0.6 else Vector3.INF
+	var ln := 0.0
+	for i in path.size() - 1:
+		ln += path[i].distance_to(path[i + 1])
+	var end := path[path.size() - 1]
+	if Vector2(end.x - q.x, end.z - q.z).length() > 0.6 or ln > global_position.distance_to(q) * 1.5 + 1.0:
+		return Vector3.INF
+	_path = path
+	_path_to = q
+	_path_t = 3.0
+	_direct = _straight(path)
+	return q
+
+
+## путь по карте проходимости — прямая (точек на прямой может быть несколько: путь режется по граням карты)
+static func _straight(path: PackedVector3Array) -> bool:
+	if path.size() <= 2:
+		return true
+	var ln := 0.0
+	for i in path.size() - 1:
+		ln += path[i].distance_to(path[i + 1])
+	return ln <= path[0].distance_to(path[path.size() - 1]) * 1.03 + 0.1
+
+
+## Затор: хотел пройти метр с лишним, а сдвинулся меньше чем на треть — упёрся (угол, предмет, толпа в дверях,
+## закрытая дверь) или оказался там, где ходить нельзя (вытолкнули в стену, в щель между предметами).
+## Тогда: толкает дверь рядом; путь пересчитывается сразу; если стоит вне карты проходимости — идёт к ближайшему
+## проходимому месту, а не выходит — его туда переносит (не дальше 2,5 м); если на карте — полсекунды идёт вбок
+## вдоль преграды, раз влево, раз вправо, с каждым разом дольше. Кто просто бродил — останавливается и выбирает
+## другое место.
+## want — с какой скоростью хотел идти (м/с), was — где был до шага.
+func _stuck_tick(want: float, delta: float, was: Vector3) -> void:
+	if want < 0.5:
+		_stk_want = 0.0
+		_stk_got = 0.0
+		_stk_time = 0.0
+		blocked_s = 0.0
+		return
+	var mv := global_position - was
+	mv.y = 0.0
+	_stk_want += want * delta
+	_stk_got += mv.length()
+	_stk_time += delta
+	if mv.length() < want * delta * 0.3:
+		blocked_s += delta
+		blocked_max = maxf(blocked_max, blocked_s)
+	else:
+		blocked_s = 0.0
+	# решает, когда «должен был» пройти 1,2 м — или через 0,8 с (шагом идёт медленно)
+	if _stk_want < 1.2 and _stk_time < 0.8:
+		return
+	var ok := _stk_got > _stk_want * 0.3
+	_stk_want = 0.0
+	_stk_got = 0.0
+	_stk_time = 0.0
+	if ok:
+		_stk_n = 0
+		return
+	_stk_n += 1
+	unstuck += 1
+	_path_t = 0.0
+	if push_door.is_valid():
+		push_door.call(global_position)
+	if state == "wander":
+		# бродил и упёрся (другой заражённый, машина, створка) — не ломится: постоит и пойдёт в другую сторону
+		state = "idle"
+		_t = _rng.randf_range(0.6, 1.8)
+		blocked_s = 0.0
+		return
+	var cp := _on_nav(global_position)
+	var off := Vector3(cp.x - global_position.x, 0, cp.z - global_position.z)
+	if off.length() > 0.3 and absf(cp.y - global_position.y) < 1.0:
+		if _stk_n >= 2 and off.length() < 2.5:
+			global_position = cp + Vector3.UP * 0.05
+			velocity = Vector3.ZERO
+			pushed_out += 1
+			_stk_n = 0
+		else:
+			_esc_dir = off.normalized()
+			_esc_t = 0.7
+	else:
+		var f := Vector3(sin(rotation.y), 0, cos(rotation.y))
+		_esc_dir = f.rotated(Vector3.UP, 1.9 if _stk_n % 2 == 1 else -1.9)
+		_esc_t = 0.45 + 0.2 * minf(float(_stk_n), 4.0)
 
 
 func _face(dir: Vector3, delta: float, rate: float) -> void:

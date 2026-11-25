@@ -3027,6 +3027,7 @@ func _player() -> void:
 	blob.position.y = 0.03
 	player.add_child(blob)
 	ULDoor.on_sound = _door_sound
+	ULEnemy.push_door = Callable(self, "_enemy_push_door")
 	snd = BCSound.new()
 	add_child(snd)
 	rig.hold.sfx.connect(_on_sfx)
@@ -6314,6 +6315,387 @@ func _lvl_exit() -> void:
 ## Проверка железнодорожного депо (--as-test=rd): список проходимости из задания (22 пункта) — в настоящей игровой
 ## сцене: герой идёт сам по карте проходимости (как заражённые) от въезда в каждое помещение и на каждую площадку;
 ## плюс поле, время, враги, тайники, отсутствие надписей, маршрут.
+## враг упёрся и стоит (ULEnemy._stuck_tick): если рядом закрытая дверь — толкает её
+var doors_pushed := 0
+
+
+func _enemy_push_door(at: Vector3) -> void:
+	if san != null and san.open_near(at, 1.2):
+		doors_pushed += 1
+
+
+## Погоня для проверки ума: герой стоит в b, враги видов kinds появляются у a (exact — ровно в a, даже если там
+## нельзя ходить) и замечают героя. Ждём, пока все подойдут ближе near или выйдет время. По каждому — когда дошёл
+## (−1 — не дошёл), сколько секунд подряд простоял в заторе, сколько раз выбирался.
+func _ai_chase(kinds: Array, a: Vector3, b: Vector3, limit: float, near := 2.6, spread := 0.9, exact := false) -> Array:
+	var map := get_world_3d().navigation_map
+	clear_enemies()
+	player.global_position = b + Vector3.UP * 0.1
+	player.velocity = Vector3.ZERO
+	await get_tree().create_timer(0.3).timeout
+	# spread > 0 — толпа: все сразу, кучей вокруг a; иначе — по одному из одной точки, через секунду друг за другом
+	# (рядом с a может быть преграда: поставленный «рядом» оказался бы по другую её сторону)
+	var es := []
+	var born := []
+	var res := []
+	var dbg := OS.get_environment("UL_AI_DEBUG") != ""
+	var t := 0.0
+	var left := kinds.size()
+	var dbg_t := 0.0
+	while t < limit + (0.0 if spread > 0.0 else float(kinds.size() - 1)) and left > 0:
+		while es.size() < kinds.size() and (spread > 0.0 or t >= float(es.size())):
+			var at := a
+			if not exact:
+				at = NavigationServer3D.map_get_closest_point(map, a + Vector3(cos(es.size() * 2.4), 0, sin(es.size() * 2.4)) * spread * sqrt(float(es.size())))
+			var ne := spawn_enemy(String(kinds[es.size()]), at)
+			ne._notice(player.global_position)
+			es.append(ne)
+			born.append(t)
+			res.append({"kind": ne.kind, "t": -1.0})
+		await get_tree().process_frame
+		t += get_process_delta_time()
+		dbg_t += get_process_delta_time()
+		for i in es.size():
+			var e: ULEnemy = es[i]
+			if float(res[i].t) < 0.0 and Vector2(e.global_position.x - player.global_position.x, e.global_position.z - player.global_position.z).length() < near:
+				res[i].t = t - float(born[i])
+				left -= 1
+			if dbg and dbg_t >= 1.0 and float(res[i].t) < 0.0:
+				print("[ai] %.0f с %s %s %s видит %s прямо %s путь %d след. %s цель %s затор %.1f обход %.1f" % [t, e.kind, str(e.global_position.snapped(Vector3(0.1, 0.1, 0.1))), e.state, str(e.get_meta("sees", false)),
+					str(e._direct), e._path.size(), str(e._path[0].snapped(Vector3(0.1, 0.1, 0.1))) if not e._path.is_empty() else "-", str(e._last.snapped(Vector3(0.1, 0.1, 0.1))), e.blocked_s, e._esc_t])
+		if dbg_t >= 1.0:
+			dbg_t = 0.0
+	for i in es.size():
+		var e: ULEnemy = es[i]
+		res[i]["blocked"] = e.blocked_max
+		res[i]["unstuck"] = e.unstuck
+		res[i]["pushed"] = e.pushed_out
+		res[i]["searches"] = e.searches
+		res[i]["flanks"] = e.flanks
+		res[i]["state"] = e.state
+		res[i]["pos"] = e.global_position
+	return res
+
+
+## Ум врагов в настоящей сцене (депо, --as-test=rdai): обход построек и низких преград, выход из стены и из затора,
+## толпа в воротах, бродят без упора в стены, поиск потерянного героя — по видам (пустыш, лотерейщик, рубер).
+func _ai_test() -> void:
+	var t0 := Time.get_ticks_msec()
+	while not cs_ready and Time.get_ticks_msec() - t0 < 45000:
+		await get_tree().process_frame
+	var map := get_world_3d().navigation_map
+	var space := get_world_3d().direct_space_state
+	clear_enemies()
+	hp_lock = true
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 4242
+	var plen := func(a: Vector3, b: Vector3) -> float:
+		var path := NavigationServer3D.map_get_path(map, a, b, true)
+		if path.size() < 2 or path[path.size() - 1].distance_to(b) > 0.8:
+			return -1.0
+		var l := 0.0
+		for i in path.size() - 1:
+			l += path[i].distance_to(path[i + 1])
+		return l
+	var sight := func(a: Vector3, b: Vector3) -> bool:
+		var q := PhysicsRayQueryParameters3D.create(b + Vector3.UP * 1.35, a + Vector3.UP * 1.2)
+		q.exclude = [player.get_rid()]
+		return space.intersect_ray(q).is_empty()
+	var kinds3 := ["infected", "lottery", "ruber"]
+	# --as-only=2,5 — только эти пункты
+	var only := []
+	for arg in OS.get_cmdline_user_args():
+		if arg.begins_with("--as-only="):
+			only = Array(arg.substr(10).split(","))
+	var skip := func(k: String) -> bool:
+		return not only.is_empty() and not (k in only)
+	# случайное проходимое место внутри ограды депо, на земле
+	var rnd := func() -> Vector3:
+		for k in 200:
+			var q: Vector3 = NavigationServer3D.map_get_random_point(map, 1, true)
+			if absf(q.y) < 0.3 and absf(q.x) < 83.0 and q.z > -69.0 and q.z < 63.0:
+				return q
+		return Vector3(0, 0, -2)
+	var inside := func(q: Vector3) -> bool:
+		return absf(q.y) < 0.3 and absf(q.x) < 83.0 and q.z > -69.0 and q.z < 63.0
+	_ok("ум по видам (data/enemies.json: brain): пустыш %d, лотерейщик %d, рубер %d — чем сильнее, тем умнее" % [int(ULEnemy.KINDS.infected.get("brain", 0)), int(ULEnemy.KINDS.lottery.get("brain", 0)), int(ULEnemy.KINDS.ruber.get("brain", 0))],
+		int(ULEnemy.KINDS.infected.get("brain", 0)) == 1 and int(ULEnemy.KINDS.lottery.get("brain", 0)) == 2 and int(ULEnemy.KINDS.ruber.get("brain", 0)) == 3)
+	# 1–2. пары «враг — герой», между которыми преграда: путь по карте заметно длиннее прямой.
+	# «за стеной» — героя не видно; «видит через преграду» — видно (низкий ящик, платформа, упор), а пройти нельзя
+	var walled := []
+	var seen := []
+	var tries := 0
+	while tries < 12000 and (walled.size() < 3 or seen.size() < 3):
+		tries += 1
+		var a: Vector3 = rnd.call()
+		var b: Vector3 = NavigationServer3D.map_get_closest_point(map, a + Vector3(rng.randf_range(-15, 15), 0, rng.randf_range(-15, 15)))
+		var sd := Vector2(a.x - b.x, a.z - b.z).length()
+		if not inside.call(b) or sd < 7.0 or sd > 15.0:
+			continue
+		var l: float = plen.call(a, b)
+		var s: bool = sight.call(a, b)
+		if l < sd * (1.35 if s else 1.8) or l > 42.0:
+			continue
+		var arr := seen if s else walled
+		var far := true
+		for o in arr:
+			if (o[0] as Vector3).distance_to(a) < 20.0:
+				far = false
+		if arr.size() < 3 and far:
+			arr.append([a, b, sd, l])
+	for pack in [["1. за стеной (героя не видно)", walled], ["2. видит героя через преграду, а прямо пройти нельзя", seen]]:
+		if skip.call(String(pack[0]).left(1)):
+			continue
+		var come := 0
+		var total := 0
+		var worst := 0.0
+		var notes := []
+		for pr in pack[1]:
+			var lim: float = float(pr[3]) / 2.9 * 1.7 + 7.0
+			var res: Array = await _ai_chase(kinds3, pr[0], pr[1], lim, 2.6, 0.0)
+			var line := "прямая %.0f м, путь %.0f м:" % [float(pr[2]), float(pr[3])]
+			for r in res:
+				total += 1
+				if float(r.t) >= 0.0:
+					come += 1
+				worst = maxf(worst, float(r.blocked))
+				line += " %s %s" % [String(ULEnemy.KINDS[String(r.kind)].n).to_lower(), ("%.0f с" % float(r.t)) if float(r.t) >= 0.0 else "НЕ ДОШЁЛ %s (%s)" % [str(r.pos), String(r.state)]]
+			notes.append(line)
+		_ok("%s: мест %d, дошли до героя %d из %d, дольше всех стоял в заторе %.1f с" % [String(pack[0]), (pack[1] as Array).size(), come, total, worst],
+			(pack[1] as Array).size() >= 2 and come == total and worst < 2.5, "; ".join(notes))
+	# 3. враг оказался там, где ходить нельзя (в стене, в предмете, за оградой): выходит сам или его выталкивает
+	var cases := []
+	tries = 0
+	while tries < 12000 and cases.size() < 5:
+		tries += 1
+		var n: Vector3 = rnd.call()
+		var q := n + Vector3(1, 0, 0).rotated(Vector3.UP, rng.randf() * TAU) * rng.randf_range(0.8, 2.6)
+		var cp := NavigationServer3D.map_get_closest_point(map, q)
+		var off := Vector2(cp.x - q.x, cp.z - q.z).length()
+		if off < 0.5 or off > 2.2 or not inside.call(cp) or not inside.call(q):
+			continue
+		# первые три места — внутри предмета (вагон, контейнер, цистерна, штабель): точка на высоте пояса в теле
+		var pq := PhysicsPointQueryParameters3D.new()
+		pq.position = q + Vector3.UP * 0.9
+		var solid := not space.intersect_point(pq, 1).is_empty()
+		if solid != (cases.size() < 3) or (not solid and off > 1.0):
+			continue
+		var b: Vector3 = NavigationServer3D.map_get_closest_point(map, n + Vector3(1, 0, 0).rotated(Vector3.UP, rng.randf() * TAU) * 9.0)
+		var l: float = plen.call(cp, b)
+		if l < 6.0 or l > 28.0 or not inside.call(b):
+			continue
+		var far := true
+		for o in cases:
+			if (o[0] as Vector3).distance_to(q) < 15.0:
+				far = false
+		if far:
+			cases.append([q, b, l, off])
+	var out_n := 0
+	var out_notes := []
+	var pushes := 0
+	if skip.call("3"):
+		cases.clear()
+	for cs in cases:
+		var res: Array = await _ai_chase(["infected"], cs[0], cs[1], float(cs[2]) / 2.9 * 1.7 + 12.0, 2.6, 0.0, true)
+		if float(res[0].t) >= 0.0:
+			out_n += 1
+		pushes += int(res[0].pushed)
+		out_notes.append("%s %s, до проходимого места %.1f м: %s, выбирался %d, вытолкнут %d" % ["внутри предмета" if out_notes.size() < 3 else "у стены", str((cs[0] as Vector3).snapped(Vector3(0.1, 0.1, 0.1))), float(cs[3]),
+			("дошёл за %.0f с" % float(res[0].t)) if float(res[0].t) >= 0.0 else "НЕ ДОШЁЛ %s" % str(res[0].pos), int(res[0].unstuck), int(res[0].pushed)])
+	if not skip.call("3"):
+		_ok("3. враг внутри предмета или в стене (вне карты проходимости): выбрался и дошёл до героя — %d из %d (вытолкнуло на проходимое место %d раз)" % [out_n, cases.size(), pushes],
+			cases.size() >= 4 and out_n == cases.size(), "; ".join(out_notes))
+	# 4. толпа в воротах ангара: 10 пустышей и 3 лотерейщика со двора — к герою в зале
+	var crowd := []
+	for i in 10:
+		crowd.append("infected")
+	for i in 3:
+		crowd.append("lottery")
+	var hall: Vector3 = NavigationServer3D.map_get_closest_point(map, Vector3(-41, 0, -40))
+	var yard: Vector3 = NavigationServer3D.map_get_closest_point(map, Vector3(-41, 0, -21))
+	if skip.call("4"):
+		crowd.clear()
+	var cres: Array = await _ai_chase(crowd, yard, hall, 34.0, 4.5, 1.2)
+	var c_in := 0
+	var c_block := 0.0
+	var c_fl := 0
+	for r in cres:
+		if float(r.t) >= 0.0:
+			c_in += 1
+		c_block = maxf(c_block, float(r.blocked))
+		c_fl += int(r.flanks)
+	if not skip.call("4"):
+		_ok("4. толпа (10 пустышей, 3 лотерейщика) через ворота ангара к герою в зале: рядом с героем %d из 13, дольше всех стоял %.1f с, лотерейщики обходили своих сбоку %d раз" % [c_in, c_block, c_fl],
+			c_in >= 11 and c_block < 4.0)
+	# 5. потерял героя: пустыш доходит до места и забывает; лотерейщик проверяет одно место, рубер — до трёх
+	var pa := Vector3.INF
+	var pb := Vector3.INF
+	var pc := Vector3.INF
+	tries = 0
+	while tries < 20000 and pc == Vector3.INF and not skip.call("5"):
+		tries += 1
+		var a: Vector3 = rnd.call()
+		var b: Vector3 = NavigationServer3D.map_get_closest_point(map, a + Vector3(1, 0, 0).rotated(Vector3.UP, rng.randf() * TAU) * 11.0)
+		if not inside.call(b) or a.distance_to(b) < 9.5 or not sight.call(a, b):
+			continue
+		var l: float = plen.call(a, b)
+		if l < 0.0 or l > a.distance_to(b) * 1.08:
+			continue
+		for k in 30:
+			var c: Vector3 = NavigationServer3D.map_get_closest_point(map, b + Vector3(1, 0, 0).rotated(Vector3.UP, rng.randf() * TAU) * rng.randf_range(12.0, 15.0))
+			var lc: float = plen.call(b, c)
+			var hidden: bool = inside.call(c) and b.distance_to(c) > 11.0 and c.distance_to(a) > 11.0 and lc > b.distance_to(c) * 1.4 and lc < 40.0
+			for h in 9:
+				hidden = hidden and not sight.call(a.lerp(b, h / 8.0), c)
+			# и с пути «место, где видели → герой» его не видно первые метры (иначе найдёт любой, просто дойдя)
+			if hidden:
+				pa = a
+				pb = b
+				pc = c
+				break
+	var s_ok := false
+	var s_note := "места для проверки не нашлось"
+	if pc != Vector3.INF:
+		clear_enemies()
+		player.global_position = pb + Vector3.UP * 0.1
+		player.velocity = Vector3.ZERO
+		await get_tree().create_timer(0.3).timeout
+		var es := []
+		for i in 3:
+			es.append(spawn_enemy(String(kinds3[i]), NavigationServer3D.map_get_closest_point(map, pa + Vector3(cos(i * 2.1), 0, sin(i * 2.1)) * 1.3)))
+		await get_tree().create_timer(0.3).timeout
+		for e in es:
+			(e as ULEnemy)._notice(player.global_position)
+		await get_tree().create_timer(1.6).timeout
+		player.global_position = pc + Vector3.UP * 0.1          # герой скрылся из виду
+		for e in es:
+			# «видит» пересчитывается раз в несколько кадров: после мгновенного переноса (в игре такого нет) враг ещё
+			# кадр-другой «видел» бы героя уже на новом месте
+			(e as ULEnemy).remove_meta("sees")
+			(e as ULEnemy)._last = pb
+		var found := [-1.0, -1.0, -1.0]
+		var ts := 0.0
+		while ts < 40.0:
+			await get_tree().process_frame
+			ts += get_process_delta_time()
+			for i in 3:
+				var e: ULEnemy = es[i]
+				if float(found[i]) < 0.0 and e.global_position.distance_to(player.global_position) < 2.8:
+					found[i] = ts
+			if float(found[1]) >= 0.0 and float(found[2]) >= 0.0 and (es[0] as ULEnemy).state in ["idle", "wander"]:
+				break
+		var e0: ULEnemy = es[0]
+		var e1: ULEnemy = es[1]
+		var e2: ULEnemy = es[2]
+		s_ok = e0.searches == 0 and float(found[0]) < 0.0 and e1.searches >= 1 and e2.searches >= 1 and (float(found[2]) >= 0.0 or e2.searches >= 2)
+		s_note = "герой ушёл на %.0f м за преграду; пустыш: искал %d, %s; лотерейщик: искал %d, %s; рубер: искал %d, %s" % [pb.distance_to(pc),
+			e0.searches, "нашёл" if float(found[0]) >= 0.0 else "забыл (%s)" % e0.state,
+			e1.searches, ("нашёл за %.0f с" % float(found[1])) if float(found[1]) >= 0.0 else "не нашёл",
+			e2.searches, ("нашёл за %.0f с" % float(found[2])) if float(found[2]) >= 0.0 else "не нашёл"]
+	if not skip.call("5"):
+		_ok("5. герой скрылся: пустыш дошёл до места и забыл, лотерейщик и рубер пошли искать", s_ok, s_note)
+	# 8. лотерейщик догоняет стаю пустышей на открытом месте: не толкается им в спины, а заходит сбоку
+	if pa == Vector3.INF and not skip.call("8"):
+		tries = 0
+		while tries < 20000 and pa == Vector3.INF:
+			tries += 1
+			var a: Vector3 = rnd.call()
+			var b: Vector3 = NavigationServer3D.map_get_closest_point(map, a + Vector3(1, 0, 0).rotated(Vector3.UP, rng.randf() * TAU) * 11.0)
+			var l: float = plen.call(a, b)
+			if inside.call(b) and a.distance_to(b) > 9.5 and sight.call(a, b) and l > 0.0 and l < a.distance_to(b) * 1.08:
+				pa = a
+				pb = b
+	if pa != Vector3.INF and not skip.call("8"):
+		clear_enemies()
+		player.global_position = pb + Vector3.UP * 0.1
+		player.velocity = Vector3.ZERO
+		await get_tree().create_timer(0.3).timeout
+		var dir := Vector3(pb.x - pa.x, 0, pb.z - pa.z).normalized()
+		var herd := []
+		for i in 5:
+			herd.append(spawn_enemy("infected", NavigationServer3D.map_get_closest_point(map, pa + dir * 1.6 + dir.rotated(Vector3.UP, PI * 0.5) * (i - 2) * 0.75)))
+		for e in herd:
+			(e as ULEnemy)._notice(player.global_position)
+		# пустыши успевают обступить героя с ближней стороны — лотерейщик подбегает им в спины
+		await get_tree().create_timer(2.2).timeout
+		var lot := spawn_enemy("lottery", pa)
+		lot._notice(player.global_position)
+		if OS.get_environment("UL_AI_DEBUG") != "":
+			for e in herd:
+				print("[ai] пустыш ", (e as ULEnemy).global_position, " ", (e as ULEnemy).state, " до героя ", (e as ULEnemy).global_position.distance_to(player.global_position), " герой ", player.global_position, " pa ", pa)
+		var tf := 0.0
+		var lot_t := -1.0
+		while tf < 16.0 and lot_t < 0.0:
+			await get_tree().process_frame
+			tf += get_process_delta_time()
+			if lot.global_position.distance_to(player.global_position) < 1.9:
+				lot_t = tf
+		var side_a := rad_to_deg(Vector3(lot.global_position.x - pb.x, 0, lot.global_position.z - pb.z).angle_to(Vector3(pa.x - pb.x, 0, pa.z - pb.z)))
+		_ok("8. лотерейщик подбегает к герою, которого с его стороны уже обступили пять пустышей: зашёл сбоку %d раз, встал вплотную к герою %s под углом %.0f° от своей линии подхода, в заторе не дольше %.1f с" % [lot.flanks,
+			("за %.0f с" % lot_t) if lot_t >= 0.0 else "— НЕТ", side_a, lot.blocked_max], lot.flanks >= 1 and lot_t >= 0.0 and lot.blocked_max < 2.0)
+	# 6. бродят сами по себе: никто не шагает в стену и не оказывается вне проходимых мест
+	clear_enemies()
+	hero_unseen = true
+	var mid: Vector3 = NavigationServer3D.map_get_closest_point(map, Vector3(0, 0, -2))
+	player.global_position = mid + Vector3.UP * 0.1
+	var ws := []
+	var w0 := []
+	tries = 0
+	while tries < 4000 and ws.size() < 18 and not skip.call("6"):
+		tries += 1
+		var q: Vector3 = rnd.call()
+		if q.distance_to(mid) > 70.0 or q.distance_to(mid) < 6.0:
+			continue
+		var e := spawn_enemy("infected" if ws.size() % 3 != 0 else "lottery", q)
+		e._t = rng.randf_range(0.2, 2.0)
+		ws.append(e)
+		w0.append(q)
+	var doors0 := doors_pushed
+	var tw := 0.0
+	var walked := []
+	var prev := []
+	for e in ws:
+		walked.append(0.0)
+		prev.append((e as ULEnemy).global_position)
+	while tw < 45.0 and not skip.call("6"):
+		await get_tree().process_frame
+		tw += get_process_delta_time()
+		for i in ws.size():
+			var e: ULEnemy = ws[i]
+			walked[i] += Vector2(e.global_position.x - (prev[i] as Vector3).x, e.global_position.z - (prev[i] as Vector3).z).length()
+			prev[i] = e.global_position
+	var w_block := 0.0
+	var w_off := 0
+	var w_moved := 0
+	var w_stuck := 0
+	for i in ws.size():
+		var e: ULEnemy = ws[i]
+		w_block = maxf(w_block, e.blocked_max)
+		w_stuck += e.unstuck
+		var cp := NavigationServer3D.map_get_closest_point(map, e.global_position)
+		if Vector2(cp.x - e.global_position.x, cp.z - e.global_position.z).length() > 0.45:
+			w_off += 1
+		if float(walked[i]) > 2.0:
+			w_moved += 1
+	hero_unseen = false
+	if not skip.call("6"):
+		_ok("6. бродят 45 с (18 заражённых по всему депо): ходили %d, вне проходимых мест %d, дольше всех упирался %.1f с, заторов %d, дверей толкнули %d" % [w_moved, w_off, w_block, w_stuck, doors_pushed - doors0],
+			ws.size() == 18 and w_moved >= 12 and w_off == 0 and w_block < 1.6)
+	# 7. справочник: у каждого вида — строка про ум
+	var book_ok := true
+	for k in ULEnemy.KINDS:
+		if not (ULEnemy.KINDS[k] is Dictionary) or not (ULEnemy.KINDS[k] as Dictionary).has("hp"):
+			continue
+		var has := false
+		for ln in ULEnemy.describe(String(k)):
+			if String(ln).begins_with("Ум:"):
+				has = true
+		book_ok = book_ok and has
+	_ok("7. справочник врагов: у каждого вида есть строка «Ум»", book_ok)
+	print("[inv] итог: ошибок %d" % _fails)
+	get_tree().quit()
+
+
 func _rd_test() -> void:
 	var t0 := Time.get_ticks_msec()
 	while not cs_ready and Time.get_ticks_msec() - t0 < 45000:
@@ -15740,6 +16122,9 @@ func _run_test() -> void:
 		return
 	if test == "rd":
 		await _rd_test()
+		return
+	if test == "rdai":
+		await _ai_test()
 		return
 	if test == "rdgate":
 		# отладка прохода: герой идёт сквозь ворота (--as-from=x,z --as-to=x,z), печать — во что упёрся
