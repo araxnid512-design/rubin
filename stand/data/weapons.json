@@ -1967,7 +1967,9 @@
   },
   "sound": {
    "shot": "shot_vss",
-   "db": -4
+   "db": -4,
+   "tail": false,
+   "weight": 0.2
   },
   "case": [
    0.039,

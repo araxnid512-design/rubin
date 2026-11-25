@@ -193,6 +193,7 @@ static func shop() -> Dictionary:
 	if _shop.is_empty():
 		var d = JSON.parse_string(FileAccess.get_file_as_string(SHOP))
 		_shop = d if d is Dictionary else {}
+		ULPriceAI.fix_base(_shop)             # координатор цен: маршруты и улучшения — в своих коридорах
 	return _shop
 
 

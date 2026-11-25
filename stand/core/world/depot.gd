@@ -578,7 +578,7 @@ func _d_unit(g: Node3D, id: String, p: Vector3, ln: float, wd: float, along_x: b
 	n.transform = Transform3D(rot * Basis.from_scale(sc), p + rot * Vector3(-c.x * sc.x, -bb.position.y * sc.y, -c.z * sc.z))
 	add_child(n)
 	_dirty(n, id, Color(0.86, 0.84, 0.8))
-	_cull(n, 160.0)
+	_cull(n, 110.0)
 	return bb.size.y * kw
 
 

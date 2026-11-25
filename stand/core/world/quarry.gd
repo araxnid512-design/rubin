@@ -1291,7 +1291,7 @@ func _qm(id: String, at: Vector3, yaw: float, length: float, collide := true, by
 	var p := Vector3(at.x, height(Vector2(at.x, at.z)) if at.y == 0.0 else at.y, at.z)
 	var sz := _c_model_box(path, p, yaw, length, tint, id, collide, by_height)
 	if length >= 6.0 and get_child_count() > 0:
-		_cull(get_child(get_child_count() - 1), 120.0)     # техника и цеха — ориентиры: видны издалека
+		_cull(get_child(get_child_count() - 1), 85.0)      # техника и цеха: дальше камера их всё равно не показывает
 	return sz
 
 

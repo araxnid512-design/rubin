@@ -3241,6 +3241,9 @@ func _process(delta: float) -> void:
 		var sk := _shake_amp * (_shake_t / maxf(_shake_len, 0.01))
 		var ms := Time.get_ticks_msec()
 		cam.global_position += Vector3(sin(ms * 0.071), sin(ms * 0.093) * 0.6, cos(ms * 0.083)) * 0.16 * sk
+	if _kick_v.length_squared() > 0.0000005:
+		cam.global_position += _kick_v
+		_kick_v = _kick_v.lerp(Vector3.ZERO, 1.0 - exp(-delta * 16.0))
 	_cam_ready = true
 	cam.look_at(look, Vector3.UP)
 	var _p0 := Time.get_ticks_usec()
@@ -5405,6 +5408,16 @@ func _shoot(it: Dictionary, d: Dictionary) -> void:
 		e.hear(player.global_position)          # выстрел слышат враги поблизости
 	var sd: Dictionary = wcfg.get("sound", {})
 	snd.play(String(sd.get("shot", "shot_ak")), vis_from, float(sd.get("db", 0.0)), 0.04)
+	# «Вес» выстрела: к своему звуку оружия подмешиваются низкий удар (чем мощнее патрон — тем ниже и громче) и
+	# хвост — раскат на улице, короткий отзвук в помещении. У автоматов — не на каждый выстрел (иначе каша).
+	var wt := shot_weight(d, sd)
+	var is_auto := bool(d.get("auto", false))
+	_shot_i += 1
+	if not is_auto or _shot_i % 2 == 0:
+		snd.play("thump_light" if wt < 0.3 else ("thump_mid" if wt < 0.62 else "thump_heavy"), vis_from, lerpf(-10.0, -3.0, wt) + float(sd.get("db", 0.0)), 0.05)
+	if bool(sd.get("tail", true)) and (not is_auto or _shot_i % 5 == 1):
+		var indoors := (san != null and san.hero_b >= 0) or (place == "home" and house != null and house.contains(player.global_position))
+		snd.play("tail_room" if indoors else "tail_open", vis_from, lerpf(-15.0, -6.0, wt) + float(sd.get("db", 0.0)), 0.06)
 	_case_i += 1
 	if not bool(d.get("auto", false)) or _case_i % 3 == 0:
 		snd.play(String(sd.get("case", "casing")), player.global_position + Vector3(0.5, 0.05, 0), -12.0, 0.1, randf_range(0.4, 0.6))
@@ -5422,14 +5435,28 @@ func _shoot(it: Dictionary, d: Dictionary) -> void:
 		var end: Vector3 = hit.position if not hit.is_empty() else from + dir * reach
 		var col: Object = hit.collider if not hit.is_empty() else null
 		_fly_bullet(String(d.ammo), vis_from, end, col, float(d.dmg) / pellets)
-	# отдача видна и камерой: дробовик и одиночные — толчок, очередь — мелкая дрожь
-	shake(0.35 if pellets > 1 else (0.1 if bool(d.get("auto", false)) else 0.2), 0.1)
+	# отдача видна и камерой: дрожь — по весу выстрела (очередь — мельче), и толчок камеры назад, от цели:
+	# лёгкий пистолет едва заметен, винтовка и дробовик ощутимо бьют в плечо
+	shake(clampf(0.08 + wt * 0.34, 0.08, 0.42) * (0.7 if is_auto else 1.0), 0.1 + wt * 0.08)
+	_kick_v = -f * lerpf(0.02, 0.2, wt) * (0.6 if is_auto else 1.0)
 	# вспышка у ствола
 	_flash.global_position = vis_from + f * 0.12
 	_flash.visible = true
 	_flash.scale = Vector3.ONE * randf_range(0.8, 1.15)
 	_flash_t = 0.05
 	_use_up(it)
+
+
+var _shot_i := 0
+var _kick_v := Vector3.ZERO          ## толчок камеры от выстрела (гаснет за ~0,15 с)
+
+
+## вес выстрела 0…1: по урону одного выстрела (22 у ТТ → 0,1; 70 у СВД → 0,9); можно задать в data/weapons.json
+## (sound.weight)
+static func shot_weight(d: Dictionary, sd: Dictionary = {}) -> float:
+	if sd.has("weight"):
+		return clampf(float(sd.weight), 0.0, 1.0)
+	return clampf((float(d.get("dmg", 20.0)) - 14.0) / 60.0, 0.0, 1.0)
 
 
 ## Огонь без цели: если враг на экране есть, но прицел его не взял — сказать почему (не чаще раза в 2.5 с)
@@ -8407,6 +8434,112 @@ func _offer_route(id: String) -> void:
 ## Барахольщик (--as-test=dl [--as-out=папка]): разговор → «Торговать»; витрина «Продать» из карманов и рюкзака,
 ## фильтр по категориям, количество и итог, продажа; «Продать весь хлам»; «Купить»: свой товар лотами и выкуп
 ## сданного; нехватка ресурсов и места; двойное нажатие; пополнение при сбросе маршрутов; сохранение.
+## Координатор цен (--as-test=price): данные согласованы (правок нет), «вечных двигателей» нет, сильнее — не
+## дешевле, абсурдные цены возвращаются в коридор, рынок барахольщика насыщается и восстанавливается.
+func _price_test() -> void:
+	await get_tree().create_timer(1.0).timeout
+	var G := ULPriceAI
+	_ok("координатор цен включён; курс: горошина %d, чёрная жемчужина %d, красная %d, белая %d споранов" % [int(G.unit("pea")), int(G.unit("pearl_black")), int(G.unit("pearl_red")), int(G.unit("pearl_white"))],
+		G.on() and G.unit("pea") == 10.0 and G.unit("pearl_white") == 450.0)
+	# данные согласованы: свежая копия — без правок
+	var shop: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("res://data/shop.json"))
+	var base: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("res://data/base_shop.json"))
+	G.report.clear()
+	G.fix_shop(shop, true)
+	G.fix_base(base, true)
+	var notes := []
+	for r in G.report:
+		notes.append("%s: %d → %d (%s)" % [String(r[0]), int(r[1]), int(r[2]), String(r[3])])
+	_ok("цены в данных согласованы: координатору нечего править (правок %d)" % G.report.size(), G.report.is_empty(), "; ".join(notes))
+	for row in G.audit(shop):
+		print("[price] %-9s %-34s %6.1f  %s %s" % [String(row[0]), String(row[1]), float(row[2]), String(row[3]), String(row[4])])
+	_ok("«вечных двигателей» нет: ни один предмет нельзя купить и продать дороже", G.loops(shop).is_empty(), str(G.loops(shop)))
+	# оружие: сильнее — не заметно дешевле; цена за единицу силы — в коридоре
+	var ws: Array = (shop.weapons as Array).duplicate()
+	ws.sort_custom(func(a, b) -> bool: return G.power(String(a[0])) < G.power(String(b[0])))
+	var order_ok := true
+	var top := 0.0
+	var line := []
+	for row in ws:
+		var pr := G.sp(row[2])
+		line.append("%s (сила %d) — %d" % [String(ULItems.get_def(String(row[0])).n), roundi(G.power(String(row[0]))), int(pr)])
+		order_ok = order_ok and pr >= top * float(G.cfg().weapon.order_slack) - 0.5
+		top = maxf(top, pr)
+	_ok("оружие по возрастанию силы: более сильное не стоит заметно дешевле более слабого", order_ok, "; ".join(line))
+	# маршруты: доля от выручки вылазки
+	var rline := []
+	var r_ok := true
+	for id in base.routes:
+		var inc := G.route_income(String(id))
+		if inc > 0.0:
+			var sh := G.sp(base.routes[id].price) / inc
+			rline.append("%s %d (%.0f %% от ~%d)" % [String(base.routes[id].n), int(G.sp(base.routes[id].price)), sh * 100.0, roundi(inc)])
+			r_ok = r_ok and sh >= float(G.cfg().route.share[0]) - 0.01 and sh <= float(G.cfg().route.share[1]) + 0.01
+	_ok("маршруты стоят долю ожидаемой выручки вылазки (%d–%d %%)" % [int(float(G.cfg().route.share[0]) * 100.0), int(float(G.cfg().route.share[1]) * 100.0)], r_ok, "; ".join(rline))
+	# сторож: абсурдные цены возвращаются в коридор
+	var bad_shop: Dictionary = shop.duplicate(true)
+	var bad_base: Dictionary = base.duplicate(true)
+	for row in bad_shop.weapons:
+		if String(row[0]) == "ak74m":
+			row[2] = {"spore": 5}
+		if String(row[0]) == "tt":
+			row[2] = {"spore": 900}
+	for row in bad_shop.ammo:
+		if String(row[0]) == "a545":
+			row[2] = {"spore": 60}
+	bad_base.routes.airport.price = {"spore": 5000}
+	bad_base.routes.cowshed.price = {"spore": 1}
+	bad_base.upgrades.storage.price = {"spore": 9000}
+	G.report.clear()
+	G.fix_shop(bad_shop, true)
+	G.fix_base(bad_base, true)
+	var after := {}
+	for row in bad_shop.weapons:
+		after[String(row[0])] = int(G.sp(row[2]))
+	var a545 := 0
+	for row in bad_shop.ammo:
+		if String(row[0]) == "a545":
+			a545 = int(G.sp(row[2]))
+	_ok("сторож: АК за 5 → %d, ТТ за 900 → %d, патроны 5,45 за 60 → %d, аэропорт за 5000 → %d, коровник за 1 → %d, хранилище за 9000 → %d (правок %d)" % [int(after.ak74m), int(after.tt), a545,
+		int(G.sp(bad_base.routes.airport.price)), int(G.sp(bad_base.routes.cowshed.price)), int(G.sp(bad_base.upgrades.storage.price)), G.report.size()],
+		int(after.ak74m) >= 80 and int(after.tt) <= 120 and a545 <= 10 and int(G.sp(bad_base.routes.airport.price)) <= 260 and int(G.sp(bad_base.routes.cowshed.price)) >= 9
+		and int(G.sp(bad_base.upgrades.storage.price)) <= 260 and G.report.size() >= 6)
+	# продажа не дороже доли покупки: если бы электронику продавали у оружейника по 2 спорана, барахольщик брал бы её по 1
+	var loop_shop: Dictionary = shop.duplicate(true)
+	(loop_shop.supplies as Array).append(["electronics", 1, {"spore": 2}])
+	_ok("продать можно не дороже %d %% покупной цены: электроника при покупке за 2 спорана принималась бы по %d (обычно — по %d)" % [int(float(G.cfg().sale.resale_max) * 100.0), G.sale_unit("electronics", loop_shop), G.sale_unit("electronics", shop)],
+		G.sale_unit("electronics", loop_shop) <= 1 and G.sale_unit("electronics", shop) == 4 and G.loops(loop_shop).is_empty())
+	# рынок барахольщика
+	ULBase.load_state()
+	ULBase.data.erase("dealer")
+	inv.from_dict({})
+	inv.pack = ULItems.make("pack_large")
+	inv.add(ULItems.make("electronics", 10))
+	inv.add(ULItems.make("electronics", 10))
+	inv.add(ULItems.make("electronics", 10))
+	inv.add(ULItems.make("junk", 30))
+	var p_first := int(ULPriceAI.sp(ULDealer.sell_price("electronics")))
+	var s1 := ULDealer.sell(inv, "electronics", 12)
+	var p_13 := int(ULPriceAI.sp(ULDealer.sell_price("electronics")))
+	var s2 := ULDealer.sell(inv, "electronics", 18)
+	var p_31 := int(ULPriceAI.sp(ULDealer.sell_price("electronics")))
+	var sj := ULDealer.sell(inv, "junk", 30)
+	_ok("рынок: первые 12 штук электроники — по %d (всего %d), следующие 18 — всего %d (без рынка было бы %d), 31-я — уже по %d; хлам за 1 споран не дешевеет (30 шт. — %d)" % [p_first, int(G.sp(s1.got)), int(G.sp(s2.got)), 18 * p_first, p_31, int(G.sp(sj.got))],
+		bool(s1.ok) and int(G.sp(s1.got)) == 12 * p_first and p_13 <= p_first and bool(s2.ok) and int(G.sp(s2.got)) < 18 * p_first and int(G.sp(s2.got)) >= int(18 * p_first * 0.6) and p_31 < p_first
+		and int(G.sp(sj.got)) == 30)
+	ULBase.data.refreshes = int(ULBase.data.get("refreshes", 0)) + 1
+	_ok("сброс маршрутов — спрос вернулся: электроника снова по %d" % int(G.sp(ULDealer.sell_price("electronics"))), int(G.sp(ULDealer.sell_price("electronics"))) == p_first)
+	var bb_ok := true
+	for st in ULDealer.stock():
+		var own := G.sp(ULItems.get_def(String(st.id)).get("price", {})) * float(st.lot)
+		if own > 0.0 and G.sp(st.price) < own:
+			bb_ok = false
+	_ok("барахольщик ничего не продаёт дешевле, чем сам покупает", bb_ok)
+	ULBase.data.erase("dealer")
+	print("[inv] итог: ошибок %d" % _fails)
+	get_tree().quit()
+
+
 func _dl_test() -> void:
 	var keep_path := ULBase.path
 	ULBase.path = "user://test_dealer_base.json"
@@ -15880,6 +16013,7 @@ static func _load_shop() -> Dictionary:
 				price[String(res)] = int(r[2][res])
 			rows.append([String(r[0]), int(r[1]), price])
 		out_d[String(k)] = rows
+	ULPriceAI.fix_shop(out_d, true)           # координатор цен: оружие — по силе, патроны и лекарства — в коридорах
 	return out_d
 
 
@@ -16381,6 +16515,9 @@ func _run_test() -> void:
 		return
 	if test == "st":
 		await _st_test()
+		return
+	if test == "price":
+		await _price_test()
 		return
 	if test == "dl":
 		await _dl_test()
