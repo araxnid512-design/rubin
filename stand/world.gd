@@ -165,6 +165,16 @@ func _ready() -> void:
 			kc.lottery = [kc.lottery[1], kc.lottery[1]]
 			kc.ruber_chances = [0, 1]                    # и Рубер — всего 40
 			ULKhutor._kcfg = kc
+	if test.begins_with("ap"):
+		# проверки аэропорта: --as-test=ap (посещение и проходимость), apbake (карты и кэш), apview (снимки), apperf
+		ULSettings.arena = false
+		ULSettings.place = "airport"
+		if test == "apperf":
+			var apc := ULAirport.acfg().duplicate(true)
+			apc.pustysh = [apc.pustysh[1], apc.pustysh[1]]
+			apc.lottery = [apc.lottery[1], apc.lottery[1]]
+			apc.ruber_chances = [0, 0, 1]
+			ULAirport._acfg = apc
 	if test.begins_with("rd"):
 		# проверки железнодорожного депо: --as-test=rd (посещение и проходимость), rdbake (карты и кэш), rdview (снимки), rdperf
 		ULSettings.arena = false
@@ -217,7 +227,7 @@ func _ready() -> void:
 			var lc := ULLair.lcfg().duplicate(true)
 			lc.murs = [lc.murs[1], lc.murs[1]]
 			ULLair._lcfg = lc
-	lvl = ULSettings.level_test and test == "" or test == "lvl" or test == "lvlbench" or test == "lrview" or test == "qrview" or test == "ptview" or test == "rdview" or test == "gfxdiag"
+	lvl = ULSettings.level_test and test == "" or test == "lvl" or test == "lvlbench" or test == "lrview" or test == "qrview" or test == "ptview" or test == "rdview" or test == "apview" or test == "gfxdiag"
 	if test != "" or lvl:
 		# проверки и тест уровней: база только в памяти; оружейник установлен (кроме проверки компьютера — там он покупается)
 		ULBase.memory_only = true
@@ -227,7 +237,7 @@ func _ready() -> void:
 			ULBase.data.upgrades["gunsmith"] = 1
 			ULBase.data.staff["gunsmith"] = true
 	arena = ULSettings.arena
-	place = ULSettings.place if not arena and ULSettings.place in ["cowshed", "sanatorium", "convoy", "khutor", "lair", "quarry", "port", "depot"] else "home"
+	place = ULSettings.place if not arena and ULSettings.place in ["cowshed", "sanatorium", "convoy", "khutor", "lair", "quarry", "port", "depot", "airport"] else "home"
 	ULSettings.apply(get_viewport())
 	if test == "" or test == "enterview":
 		ULSettings.step("загрузка: " + place)
@@ -336,7 +346,7 @@ func _bake_nav(path := NAV_MESH) -> void:
 		nm.filter_ledge_spans = true            # без «островков» на столах, кроватях и шкафах
 		nm.region_min_size = 9.0
 	nm.geometry_parsed_geometry_type = NavigationMesh.PARSED_GEOMETRY_STATIC_COLLIDERS
-	var hgt := 18.0 if place == "sanatorium" else (7.0 if place == "convoy" or place == "khutor" or place == "lair" or place == "quarry" or place == "port" or place == "depot" else 5.0)   # в санатории — все этажи корпусов; в конвое — вышка
+	var hgt := 18.0 if place == "sanatorium" or place == "airport" else (7.0 if place == "convoy" or place == "khutor" or place == "lair" or place == "quarry" or place == "port" or place == "depot" else 5.0)   # в санатории — все этажи корпусов; в конвое — вышка
 	var y0 := -3.4 if place == "khutor" else (-15.0 if place == "quarry" else -1.0)   # на хуторе — погреба на 2,6 м под землёй; в карьере — дно на −13,5 м
 	nm.filter_baking_aabb = AABB(Vector3(-size_m * 0.5 - 12.0, y0, -size_m * 0.5 - 12.0), Vector3(size_m + 24.0, hgt - y0 - 1.0, size_m + 24.0))
 	nm.geometry_collision_mask = 1                              # без дверей (слой 2): путь идёт через проём
@@ -407,7 +417,11 @@ const QUEST_STAGES := [["traces", "Следы рабочих", ["q_tag", "q_phot
 ## задания по локациям: этапы [код, название, что нужно найти]. Находка — предмет в инвентаре; отметки без предмета
 ## (контейнер открыт) ставит обыск тайника (ct.need).
 const QUEST_SETS := {"quarry": QUEST_STAGES, "port": [["docs", "Документы о грузе", ["p_docs"]], ["box", "Контейнер ТК-417", ["p_box"]],
-	["cargo", "Особый груз", ["p_cargo"]], ["exit", "Покинуть кластер до перезагрузки", []]]}
+	["cargo", "Особый груз", ["p_cargo"]], ["exit", "Покинуть кластер до перезагрузки", []]],
+	"airport": [["info", "Сведения о рейсе", ["a_flight"]], ["docs", "Документация рейса", ["a_docs"]], ["gate", "Посадочный выход № 2", ["a_gate"]],
+	["plane", "Самолёт рейса 417", ["a_plane"]], ["cargo", "Специальный груз", ["a_cargo"]], ["exit", "Вернуться на базу до перезагрузки", []]]}
+## с чем при себе надо выйти, чтобы задание засчиталось
+const QUEST_CARRY := {"port": "p_cargo", "airport": "a_cargo"}
 var _cs_alarm := 0.0
 var cs_ready := false             ## враги расставлены
 var sn_ready_ms := 0              ## когда (мс от запуска) локация готова
@@ -445,24 +459,24 @@ var zone: Node3D                  ## текущий временный клас�
 
 
 func _san_world() -> void:
-	san = ULDepot.new() if place == "depot" else ULPort.new() if place == "port" else ULKhutor.new() if place == "khutor" else (ULConvoy.new() if place == "convoy" else (ULLair.new() if place == "lair" else (ULQuarry.new() if place == "quarry" else ULSanatorium.new())))
+	san = ULAirport.new() if place == "airport" else ULDepot.new() if place == "depot" else ULPort.new() if place == "port" else ULKhutor.new() if place == "khutor" else (ULConvoy.new() if place == "convoy" else (ULLair.new() if place == "lair" else (ULQuarry.new() if place == "quarry" else ULSanatorium.new())))
 	size_m = float(san.conf().get("size", 150.0))
-	san.name = {"khutor": "Khutor", "convoy": "Convoy", "lair": "Lair", "quarry": "Quarry", "port": "Port", "depot": "Depot"}.get(place, "Sanatorium")
+	san.name = {"khutor": "Khutor", "convoy": "Convoy", "lair": "Lair", "quarry": "Quarry", "port": "Port", "depot": "Depot", "airport": "Airport"}.get(place, "Sanatorium")
 	size_z = float(san.conf().get("size_z", size_m))
 	add_child(san)
 	zone = san
 	san.build(self)
 	_noise_tex = san._noise_tex
 	_edge_fog()
-	var nav := ULDepot.D_NAV if place == "depot" else ULPort.P_NAV if place == "port" else ULKhutor.K_NAV if place == "khutor" else (ULConvoy.C_NAV if place == "convoy" else (ULLair.L_NAV if place == "lair" else (ULQuarry.Q_NAV if place == "quarry" else NAV_SANATORIUM)))
-	if test == "snbake" or test == "cvbake" or test == "khbake" or test == "lrbake" or test == "qrbake" or test == "ptbake" or test == "rdbake":
+	var nav := ULAirport.A_NAV if place == "airport" else ULDepot.D_NAV if place == "depot" else ULPort.P_NAV if place == "port" else ULKhutor.K_NAV if place == "khutor" else (ULConvoy.C_NAV if place == "convoy" else (ULLair.L_NAV if place == "lair" else (ULQuarry.Q_NAV if place == "quarry" else NAV_SANATORIUM)))
+	if test == "snbake" or test == "cvbake" or test == "khbake" or test == "lrbake" or test == "qrbake" or test == "ptbake" or test == "rdbake" or test == "apbake":
 		_bake_nav(nav)
 	_nav_load(nav)
 
 
 ## кластер с помещениями, в которые можно зайти (санаторий, конвой): этажи, двери, тайники, свет внутри
 func indoor() -> bool:
-	return place == "sanatorium" or place == "convoy" or place == "khutor" or place == "lair" or place == "quarry" or place == "port" or place == "depot"
+	return place == "sanatorium" or place == "convoy" or place == "khutor" or place == "lair" or place == "quarry" or place == "port" or place == "depot" or place == "airport"
 
 
 ## временный кластер (коровник, санаторий) — не база и не полигон
@@ -471,6 +485,8 @@ func temp() -> bool:
 
 
 func zone_cfg() -> Dictionary:
+	if place == "airport":
+		return ULAirport.acfg()
 	if place == "depot":
 		return ULDepot.dcfg()
 	if place == "port":
@@ -487,6 +503,8 @@ func zone_cfg() -> Dictionary:
 
 
 func zone_name() -> String:
+	if place == "airport":
+		return ULAirport.A_TITLE
 	if place == "depot":
 		return ULDepot.D_TITLE
 	if place == "port":
@@ -503,6 +521,8 @@ func zone_name() -> String:
 
 
 func zone_entry() -> Vector3:
+	if place == "airport":
+		return ULAirport.A_ENTRY
 	if place == "depot":
 		return ULDepot.D_ENTRY
 	if place == "port":
@@ -608,7 +628,7 @@ func _cowshed_enter() -> void:
 		en.set_meta("pi", k)                        # номер в расстановке — по нему при возвращении узнаётся, кто убит
 		if sp.size() > 2:
 			# санаторий: часть стоит на месте, часть бродит; в комнатах — в пределах комнаты
-			var outdoor := String(sp[2]) in ["yard", "plaza", "fence", "thicket", "boiler_out", "hozdvor", "behind_main", "road", "camp", "post", "supply", "heli", "tower", "forest", "gate", "admin_yard", "containers", "fuel", "quay", "piers", "tracks", "hangar_yard", "loco_yard", "platforms", "store_yard", "scrap"]
+			var outdoor := String(sp[2]) in ["yard", "plaza", "fence", "thicket", "boiler_out", "hozdvor", "behind_main", "road", "camp", "post", "supply", "heli", "tower", "forest", "gate", "admin_yard", "containers", "fuel", "quay", "piers", "tracks", "hangar_yard", "loco_yard", "platforms", "store_yard", "scrap", "field", "apron", "parking", "south", "runway", "taxiway", "north", "west", "cargo_yard"]
 			en.wander_r = 0.0 if rng.randf() < 0.4 else (5.0 if outdoor else 1.4)
 			if String(sp[0]) == "ruber":
 				en.wander_r = 4.0 if outdoor else 2.0           # тяжело бродит на своём месте
@@ -1073,6 +1093,15 @@ func quest_tick() -> void:
 	if quest.is_empty():
 		quest = {"found": {}, "done": false}
 	var found: Dictionary = quest.found
+	if place == "airport" and san != null:
+		# этапы без предмета: вышел к посадочному выходу рейса (узнав о нём), поднялся в самолёт рейса
+		var ap := san as ULAirport
+		if found.has("a_flight") and not found.has("a_gate") and player.global_position.distance_to(ap.gate_pt) < 9.0:
+			found["a_gate"] = true
+			say("Задание «%s»: посадочный выход № 2 найден — самолёт рейса на стоянке перед ним" % String(quest_cfg().get("n", "")))
+		if not found.has("a_plane") and ap.flight_plane >= 0 and ap.plane_at(player.global_position) == ap.flight_plane:
+			found["a_plane"] = true
+			say("Задание «%s»: вы в самолёте рейса 417. Груз — в хвостовом отсеке" % String(quest_cfg().get("n", "")))
 	for st in quest_stages():
 		for id in st[2]:
 			if not found.has(id) and ULItems.ITEMS.has(String(id)) and inv.count(String(id)) > 0:
@@ -1148,7 +1177,7 @@ func cs_finish(why: String) -> void:
 	var quest_note := ""
 	# награда — только за выход из кластера с выполненными этапами (в порту — с особым грузом при себе)
 	if not quest_stages().is_empty() and why == "left" and not quest.is_empty() and quest_ready() and not bool(quest.get("done", false)) \
-			and (place != "port" or inv.count("p_cargo") > 0):
+			and (not QUEST_CARRY.has(place) or inv.count(String(QUEST_CARRY[place])) > 0):
 		quest.done = true
 		var rw: Dictionary = quest_cfg().get("reward", {})
 		for k in rw:
@@ -2045,6 +2074,9 @@ const GROUND_SETS := {
 		"path": "brown_mud_dry", "path_n": "brown_mud_dry", "path_scale": 2.0, "grass_mul": Vector3(0.86, 0.95, 0.66), "path_mul": Vector3(0.86, 0.82, 0.76)},
 	"lair": {"soil": "brown_mud_rocks_01", "soil_n": "brown_mud_rocks_01", "tint": Vector3(1.0, 0.95, 0.88), "wet": 0.6, "dry": 0.35,
 		"path": "brown_mud_dry", "path_n": "brown_mud_dry", "path_scale": 2.0, "grass_mul": Vector3(0.8, 0.9, 0.62), "path_mul": Vector3(0.84, 0.8, 0.76)},
+	# аэропорт: между покрытиями — луг с жухлой травой, у построек — растрескавшийся бетон
+	"airport": {"soil": "dry_ground_01", "soil_n": "dry_ground_01", "tint": Vector3(0.8, 0.78, 0.72), "wet": 0.5, "dry": 0.45,
+		"path": "damaged_concrete_floor", "path_n": "damaged_concrete_floor", "path_scale": 3.2, "grass_mul": Vector3(0.74, 0.86, 0.58), "path_mul": Vector3(0.92, 0.9, 0.86)},
 	# депо: щебень и укатанный грунт между путями, трава жухлая, пятнами
 	"depot": {"soil": "dry_ground_01", "soil_n": "dry_ground_01", "tint": Vector3(0.82, 0.78, 0.72), "wet": 0.35, "dry": 0.5,
 		"path": "damaged_concrete_floor", "path_n": "damaged_concrete_floor", "path_scale": 2.8, "grass_mul": Vector3(0.72, 0.82, 0.58), "path_mul": Vector3(0.98, 0.95, 0.9)},
@@ -3339,7 +3371,7 @@ func _where() -> String:
 	if indoor():
 		if san.hero_b < 0:
 			return zone_name()
-		if place == "convoy" or place == "khutor" or place == "lair" or place == "port" or place == "depot" or (place == "quarry" and san.blds[san.hero_b].floors <= 1):
+		if place == "convoy" or place == "khutor" or place == "lair" or place == "port" or place == "depot" or ((place == "quarry" or place == "airport") and san.blds[san.hero_b].floors <= 1):
 			return "%s, %s" % [zone_name(), san.blds[san.hero_b].title.to_lower()]
 		return "%s, %s, %d этаж" % [zone_name(), san.blds[san.hero_b].title.to_lower(), san.hero_f + 1]
 	if not house.contains(player.global_position):
@@ -4123,9 +4155,10 @@ func do_action() -> void:
 				return
 			if quest.is_empty():
 				quest = {"found": {}, "done": false}
-			if not (quest.found as Dictionary).has("p_box"):
-				quest.found["p_box"] = true
-				say("Задание «%s»: контейнер найден и открыт" % String(quest_cfg().get("n", "")))
+			var qflag := String(ct.get("flag", "p_box"))
+			if not (quest.found as Dictionary).has(qflag):
+				quest.found[qflag] = true
+				say("Задание «%s»: %s" % [String(quest_cfg().get("n", "")), String(ct.get("open_text", "контейнер найден и открыт"))])
 		var ic := {"med": "kit_6", "kitchen": "kit_9", "locker": "ammo_1", "bedside": "kit_7", "mil_med": "kit_6", "mil_ammo": "ammo_3", "soldier": "ammo_3",
 			"truck": "ammo_5", "btr": "ammo_5", "soldier_bag": "kit_9", "cab": "kit_9", "fuel": "junk", "wreck": "junk"}.get(String(ct.kind), "crate")
 		open_inventory(ct.items, String(ct.n), false, ic)
@@ -6957,6 +6990,45 @@ func _rd_test() -> void:
 
 
 ## снимки депо с игровой камеры
+## снимки аэропорта от героя: [имя, x, z, высота камеры, высота героя]
+func _ap_view() -> void:
+	var t0 := Time.get_ticks_msec()
+	while not cs_ready and Time.get_ticks_msec() - t0 < 40000:
+		await get_tree().process_frame
+	var ap := san as ULAirport
+	var spots := [["a0_entry", 0.0, 132.0, 18.0, 0.1], ["a1_parking", -30.0, 108.0, 24.0, 0.1], ["a2_runway", 0.0, 56.0, 30.0, 0.1], ["a3_apron", -20.0, -14.0, 28.0, 0.1],
+		["a4_term_hall", 0.0, -74.0, 22.0, 0.3], ["a5_checkin", -16.0, -78.0, 14.0, 0.3], ["a6_wing_w", -50.0, -66.0, 14.0, 0.3], ["a7_wing_w2", -40.0, -66.0, 14.0, 3.9],
+		["a8_wing_e2", 50.0, -66.0, 14.0, 3.9], ["a9_tower0", -19.0, -103.0, 10.0, 0.3], ["b0_tower_cab", -19.5, -103.0, 9.0, 10.5], ["b1_hangar1", 122.0, -54.0, 24.0, 0.3],
+		["b2_hangar2", 168.0, -56.0, 22.0, 0.3], ["b3_cargo", 150.0, 2.0, 18.0, 0.3], ["b4_cargo_yard", 150.0, -26.0, 24.0, 0.1], ["b5_fuel", 150.0, -108.0, 24.0, 0.1],
+		["b6_plane_out", -12.0, -36.0, 20.0, 0.1], ["b7_west", -160.0, -52.0, 24.0, 0.1], ["b8_admin", -104.0, -106.0, 14.0, 0.3], ["b9_top", 0.0, 0.0, 200.0, 0.1]]
+	for i in ap.planes.size():
+		var pl: Dictionary = ap.planes[i]
+		if bool(pl.walk):
+			var am: Vector3 = pl.aisle
+			spots.append(["c%d_plane_in" % i, am.x, am.z, 11.0, am.y + 0.1])
+			var ft: Vector3 = pl.foot
+			spots.append(["c%d_plane_trap" % i, ft.x, ft.z, 16.0, 0.1])
+	var only := ""
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--as-only="):
+			only = a.substr(10)
+	if only != "":
+		spots = spots.filter(func(sp): return only.split(",").has(String(sp[0])))
+	for sp in spots:
+		cam_dist = float(sp[3])
+		player.global_position = Vector3(float(sp[1]), float(sp[4]), float(sp[2]))
+		player.velocity = Vector3.ZERO
+		for e in enemies:
+			if e.global_position.distance_to(player.global_position) < 30.0:
+				e.state = "idle"
+				e.wander_r = 0.0
+		_cam_ready = false
+		world_env.fog_enabled = String(sp[0]) != "b9_top"
+		await get_tree().create_timer(1.4).timeout
+		print("[view] %s: %s, герой (%.1f, %.1f, %.1f)" % [sp[0], _where(), player.global_position.x, player.global_position.y, player.global_position.z])
+		await _snap(String(sp[0]))
+
+
 func _rd_view() -> void:
 	var t0 := Time.get_ticks_msec()
 	while not cs_ready and Time.get_ticks_msec() - t0 < 40000:
@@ -16192,7 +16264,7 @@ func _run_test() -> void:
 		print("[inv] итог: ошибок %d" % _fails)
 		get_tree().quit()
 		return
-	if test == "csperf" or test == "snperf" or test == "cvperf" or test == "khperf" or test == "lrperf" or test == "qrperf" or test == "ptperf" or test == "rdperf":
+	if test == "csperf" or test == "snperf" or test == "cvperf" or test == "khperf" or test == "lrperf" or test == "qrperf" or test == "ptperf" or test == "rdperf" or test == "apperf":
 		var t1 := Time.get_ticks_msec()
 		while not cs_ready and Time.get_ticks_msec() - t1 < 25000:
 			await get_tree().process_frame
@@ -16367,7 +16439,7 @@ func _run_test() -> void:
 		print("[bake] карта земли сохранена: ", GROUND_MASK)
 		get_tree().quit()
 		return
-	if test == "csbake" or test == "snbake" or test == "cvbake" or test == "khbake" or test == "lrbake" or test == "qrbake" or test == "ptbake" or test == "rdbake":
+	if test == "csbake" or test == "snbake" or test == "cvbake" or test == "khbake" or test == "lrbake" or test == "qrbake" or test == "ptbake" or test == "rdbake" or test == "apbake":
 		get_tree().quit()
 		return
 	if test == "qrpano":
@@ -16398,6 +16470,30 @@ func _run_test() -> void:
 		return
 	if test == "rdview":
 		await _rd_view()
+		get_tree().quit()
+		return
+	if test == "apview":
+		await _ap_view()
+		get_tree().quit()
+		return
+	if test == "appano":
+		# обзорные снимки аэропорта с высоты (как пролёт в видео-образце)
+		var ta0 := Time.get_ticks_msec()
+		while not cs_ready and Time.get_ticks_msec() - ta0 < 40000:
+			await get_tree().process_frame
+		DirAccess.make_dir_recursive_absolute(out)
+		var ashots := [["p0_south", Vector3(0, 60, 200), Vector3(0, 0, 40), 50.0], ["p1_terminal", Vector3(0, 46, 30), Vector3(0, 4, -66), 46.0],
+			["p2_apron_w", Vector3(-60, 40, 30), Vector3(-90, 0, -40), 46.0], ["p3_hangars", Vector3(110, 40, 10), Vector3(140, 0, -60), 46.0],
+			["p4_tower", Vector3(-70, 34, -150), Vector3(-20, 6, -90), 46.0], ["p5_cargo", Vector3(150, 40, 70), Vector3(150, 0, -6), 46.0],
+			["p6_runway", Vector3(-190, 30, 110), Vector3(-40, 0, 50), 50.0], ["p7_top", Vector3(0, 400, 0.01), Vector3.ZERO, 0.0],
+			["p8_fuel", Vector3(110, 36, -60), Vector3(162, 0, -116), 46.0], ["p9_parking", Vector3(0, 30, 160), Vector3(0, 0, 100), 50.0]]
+		var aonly := ""
+		for a in OS.get_cmdline_user_args():
+			if a.begins_with("--as-only="):
+				aonly = a.substr(10)
+		if aonly != "":
+			ashots = ashots.filter(func(sp): return aonly.split(",").has(String(sp[0])))
+		await _pano(ashots, Vector2i(1920, 1104))
 		get_tree().quit()
 		return
 	if test == "rdpano":

@@ -805,7 +805,8 @@ func _add_entr(bk: Dictionary, f: int, side: String, ops: Array) -> void:
 		if String(e[0]) == side:
 			var s := float(e[1])
 			var w := float(e[2])
-			ops.append([s - w * 0.5, s + w * 0.5, 0.0, minf(DH + 0.25, storey - 0.12), "entr", String(e[3]) if e.size() > 3 else ""])
+			# пятый элемент входа — высота проёма (ворота ангара); по умолчанию — дверная
+			ops.append([s - w * 0.5, s + w * 0.5, 0.0, minf(float(e[4]) if e.size() > 4 else DH + 0.25, storey - 0.12), "entr", String(e[3]) if e.size() > 3 else ""])
 
 
 func _add_links(bi: int, f: int, side: String, ops: Array) -> void:
@@ -1260,7 +1261,8 @@ func _floor(bi: int, f: int) -> void:
 		var fm := String(_floor_mat(String(r.type)))
 		var fy := y + (0.012 if f == 0 else 0.0)
 		# в лестничной клетке покрытие — в обход проёма над маршем
-		for rr in _rect_minus(Rect2(float(r.u0), float(r.v0), float(r.u1) - float(r.u0), float(r.v1) - float(r.v0)), holes if String(r.type) == "stair" else []):
+		# (в зальном блоке с лестницей марш идёт прямо в зале — проём вырезается и там)
+		for rr in _rect_minus(Rect2(float(r.u0), float(r.v0), float(r.u1) - float(r.u0), float(r.v1) - float(r.v0)), holes if String(r.type) == "stair" or layout != "corridor" else []):
 			var q: Rect2 = rr
 			_lb(nk, fm, bk, q.position.x, q.end.x, fy, fy + 0.02, q.position.y, q.end.y)
 	# лестничные клетки
@@ -1292,13 +1294,13 @@ func _floor(bi: int, f: int) -> void:
 
 func _floor_mat(t: String) -> String:
 	match t:
-		"cor", "hall0", "hall_dorm", "lounge", "stair", "wc", "proc":
+		"cor", "hall0", "hall_dorm", "lounge", "stair", "wc", "proc", "lobby", "tower":
 			return "tiles"
 		"kitchen", "cold":
 			return "ktiles"
 		"office", "club", "library":
 			return "parquet"
-		"boiler", "tech", "store", "workshop", "warehouse", "pantry":
+		"boiler", "tech", "store", "workshop", "warehouse", "pantry", "ahangar":
 			return "concrete"
 		"tent_hq", "tent_med", "tent_live", "m_boss", "m_office":
 			return "wood"
