@@ -1,12 +1,102 @@
 {
- "stop": true,
+ "stop": false,
  "jobs": [
   {
-   "id": "g67_tr2_rifle",
+   "id": "g68_pt_crane",
    "py": "tools/tripo/chain.py",
    "args": [
     "--id",
-    "tr2_rifle",
+    "pt_crane",
+    "--faces",
+    "16000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "old soviet harbor portal gantry crane, tall four-legged steel lattice portal base on rails, rotating machine house with operator cabin on top, long lattice jib boom raised at 45 degrees with cables and hook block, counterweight, ladders, orange-brown rusted paint, weathered, rusty, realistic PBR, single object, game asset"
+   ],
+   "timeout": 1800
+  },
+  {
+   "id": "g68_pt_crane2",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "pt_crane2",
+    "--faces",
+    "12000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "small old yellow harbor quay crane on a short square steel pedestal base, rotating cabin, short lattice boom with cables and hook, faded yellow paint with rust, weathered, rusty, realistic PBR, single object, game asset"
+   ],
+   "timeout": 1800
+  },
+  {
+   "id": "g68_pt_tug",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "pt_tug",
+    "--faces",
+    "12000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "old small river tugboat, black and rust red steel hull with tyre fenders, white wheelhouse superstructure with funnel and mast, flat open deck with towing winch, complete boat including flat bottom hull, weathered, rusty, realistic PBR, single object, game asset"
+   ],
+   "timeout": 1800
+  },
+  {
+   "id": "g68_pt_barge",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "pt_barge",
+    "--faces",
+    "12000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "old flat river cargo barge, long rectangular rusty steel hull with open cargo hold, flat walkable side decks, bollards, rust red and black, complete hull, weathered, rusty, realistic PBR, single object, game asset"
+   ],
+   "timeout": 1800
+  },
+  {
+   "id": "g68_pt_ship",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "pt_ship",
+    "--faces",
+    "12000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "small old river dry cargo ship, long low dark hull, flat deck with closed cargo hatch covers, white superstructure with wheelhouse at the stern, mast, complete hull, weathered, rusty, realistic PBR, single object, game asset"
+   ],
+   "timeout": 1800
+  },
+  {
+   "id": "g68_pt_forklift",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "pt_forklift",
     "--faces",
     "10000",
     "--tex",
@@ -15,16 +105,16 @@
     "detailed",
     "--pbr",
     "--prompt",
-    "a single isolated vehicle weapon only, no vehicle: Kalashnikov assault rifle mounted on a swivel pintle post with a steel ammo box on the side and a small armored gun shield, round mounting base plate at the bottom, olive drab, military, realistic, single object, game asset"
+    "old yellow warehouse forklift truck with raised mast and two forks, black tyres, overhead guard cage, worn paint, weathered, rusty, realistic PBR, single object, game asset"
    ],
    "timeout": 1800
   },
   {
-   "id": "g67_tr2_mg",
+   "id": "g68_pt_tank_h",
    "py": "tools/tripo/chain.py",
    "args": [
     "--id",
-    "tr2_mg",
+    "pt_tank_h",
     "--faces",
     "10000",
     "--tex",
@@ -33,16 +123,16 @@
     "detailed",
     "--pbr",
     "--prompt",
-    "a single isolated vehicle weapon only, no vehicle: belt-fed general purpose machine gun on a pintle post mount, metal ammunition box with a cartridge belt feeding into the gun, armored gun shield, round base plate, olive drab, military, realistic, single object, game asset"
+    "large horizontal cylindrical fuel storage tank lying on two concrete saddle supports, white-grey paint with heavy rust streaks, access ladder and small platform on top, pipes and valves at one end, hazard sign, weathered, rusty, realistic PBR, single object, game asset"
    ],
    "timeout": 1800
   },
   {
-   "id": "g67_tr2_cannon",
+   "id": "g68_pt_tank_v",
    "py": "tools/tripo/chain.py",
    "args": [
     "--id",
-    "tr2_cannon",
+    "pt_tank_v",
     "--faces",
     "10000",
     "--tex",
@@ -51,88 +141,16 @@
     "detailed",
     "--pbr",
     "--prompt",
-    "a single isolated vehicle weapon only, no vehicle: compact armored weapon station with a 30mm automatic cannon, boxy armored housing on a round rotating base, long barrel with a muzzle brake, olive drab, military, realistic, single object, game asset"
+    "vertical cylindrical steel fuel storage tank with a slightly conical roof, spiral ladder around the side with railing, light grey paint with rust streaks, pipe connections at the base, weathered, rusty, realistic PBR, single object, game asset"
    ],
    "timeout": 1800
   },
   {
-   "id": "g67_tr2_rocket",
+   "id": "g68_pt_container",
    "py": "tools/tripo/chain.py",
    "args": [
     "--id",
-    "tr2_rocket",
-    "--faces",
-    "10000",
-    "--tex",
-    "detailed",
-    "--geo",
-    "detailed",
-    "--pbr",
-    "--prompt",
-    "a single isolated vehicle weapon only, no vehicle: rocket launcher pod with six round launch tubes on a rotating pedestal mount with an elevation arm, olive drab, military, realistic, single object, game asset"
-   ],
-   "timeout": 1800
-  },
-  {
-   "id": "g67_gr_platform",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "gr_platform",
-    "--faces",
-    "10000",
-    "--tex",
-    "detailed",
-    "--geo",
-    "detailed",
-    "--pbr",
-    "--prompt",
-    "garage vehicle service platform: low raised steel drive-on platform with two wide diamond-plate tracks, sloped ramps at both ends, yellow and black hazard stripes on the edges, worn and scratched, realistic, single object, game asset"
-   ],
-   "timeout": 1800
-  },
-  {
-   "id": "g67_gr_shelf",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "gr_shelf",
-    "--faces",
-    "10000",
-    "--tex",
-    "detailed",
-    "--geo",
-    "detailed",
-    "--pbr",
-    "--prompt",
-    "tall industrial metal shelving rack with four shelves full of paint cans, motor oil canisters, cardboard boxes and car parts, worn, garage, realistic, single object, game asset"
-   ],
-   "timeout": 1800
-  },
-  {
-   "id": "g67_gr_shelf2",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "gr_shelf2",
-    "--faces",
-    "10000",
-    "--tex",
-    "detailed",
-    "--geo",
-    "detailed",
-    "--pbr",
-    "--prompt",
-    "wide metal garage shelf unit holding spare car tires, toolboxes, plastic crates and jerry cans, worn, post-apocalyptic, realistic, single object, game asset"
-   ],
-   "timeout": 1800
-  },
-  {
-   "id": "g67_gr_pegboard",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "gr_pegboard",
+    "pt_container",
     "--faces",
     "8000",
     "--tex",
@@ -141,168 +159,33 @@
     "detailed",
     "--pbr",
     "--prompt",
-    "garage tool wall: perforated pegboard panel with hanging wrenches, hammers, screwdrivers, saw and pliers above a low wooden work counter, realistic, single object, game asset"
+    "closed standard 20 foot intermodal shipping container, corrugated steel walls, double doors with locking bars at one end, corner castings, plain light grey paint with rust and scratches, no logos, no text, weathered, rusty, realistic PBR, single object, game asset"
    ],
    "timeout": 1800
   },
   {
-   "id": "g67_gr_upbench",
+   "id": "g68_pt_bollard",
    "py": "tools/tripo/chain.py",
    "args": [
     "--id",
-    "gr_upbench",
-    "--faces",
-    "10000",
-    "--tex",
-    "detailed",
-    "--geo",
-    "detailed",
-    "--pbr",
-    "--prompt",
-    "heavy vehicle upgrade workbench: steel work table with a car engine part on it, a welding machine, a vise, scattered tools and a lamp, post-apocalyptic garage, realistic, single object, game asset"
-   ],
-   "timeout": 1800
-  },
-  {
-   "id": "g67_gr_tyres",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "gr_tyres",
+    "pt_bollard",
     "--faces",
     "3000",
     "--prompt",
-    "stack of four old worn car tires, realistic, single object, game asset"
+    "cast iron mooring bollard on a concrete quay block with a thick coiled mooring rope lying next to it, weathered, rusty, realistic PBR, single object, game asset"
    ],
    "timeout": 1800
   },
   {
-   "id": "g67_gr_barrels",
+   "id": "g68_pt_pump",
    "py": "tools/tripo/chain.py",
    "args": [
     "--id",
-    "gr_barrels",
-    "--faces",
-    "4000",
-    "--prompt",
-    "group of three dented rusty oil barrels, one blue and two red, realistic, single object, game asset"
-   ],
-   "timeout": 1800
-  },
-  {
-   "id": "g67_gr_lamp",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "gr_lamp",
-    "--faces",
-    "2000",
-    "--prompt",
-    "industrial hanging ceiling lamp with a metal shade on a short chain, realistic, single object, game asset"
-   ],
-   "timeout": 1800
-  },
-  {
-   "id": "g67_gr_hoist",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "gr_hoist",
-    "--faces",
-    "4000",
-    "--prompt",
-    "garage chain hoist with a hook hanging from a steel I-beam trolley, realistic, single object, game asset"
-   ],
-   "timeout": 1800
-  },
-  {
-   "id": "g67_gr_jack",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "gr_jack",
-    "--faces",
-    "3000",
-    "--prompt",
-    "red hydraulic floor jack for cars with a long handle, realistic, single object, game asset"
-   ],
-   "timeout": 1800
-  },
-  {
-   "id": "g67_gr_welder",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "gr_welder",
-    "--faces",
-    "4000",
-    "--prompt",
-    "gas welding cart with two tall gas cylinders, hoses and a torch, realistic, single object, game asset"
-   ],
-   "timeout": 1800
-  },
-  {
-   "id": "g67_gr_engstand",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "gr_engstand",
+    "pt_pump",
     "--faces",
     "5000",
     "--prompt",
-    "car engine mounted on a red engine repair stand on wheels, realistic, single object, game asset"
-   ],
-   "timeout": 1800
-  },
-  {
-   "id": "g67_gr_jerryrack",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "gr_jerryrack",
-    "--faces",
-    "4000",
-    "--prompt",
-    "metal floor rack holding six green and red jerry cans, realistic, single object, game asset"
-   ],
-   "timeout": 1800
-  },
-  {
-   "id": "g67_gr_parts",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "gr_parts",
-    "--faces",
-    "4000",
-    "--prompt",
-    "pile of old car parts: exhaust pipe, wheel rim, brake discs and a radiator, realistic, single object, game asset"
-   ],
-   "timeout": 1800
-  },
-  {
-   "id": "g67_it_canister_e",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "it_canister_e",
-    "--faces",
-    "3000",
-    "--prompt",
-    "single empty dented old grey-green metal jerry can with an open cap, realistic, single object, game asset"
-   ],
-   "timeout": 1800
-  },
-  {
-   "id": "g67_fx_rocket",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "fx_rocket",
-    "--faces",
-    "2000",
-    "--prompt",
-    "single small unguided rocket missile with tail fins, olive green, realistic, single object, game asset"
+    "old industrial fuel pump unit on a steel skid frame with an electric motor, pipes, valves and a pressure gauge, weathered, rusty, realistic PBR, single object, game asset"
    ],
    "timeout": 1800
   }
@@ -2363,6 +2246,26 @@
   "g65c_bp_2",
   "g65c_bp_3",
   "g66_fetch_uaz469",
-  "g66_fetch_toz"
+  "g66_fetch_toz",
+  "g67_tr2_rifle",
+  "g67_tr2_mg",
+  "g67_tr2_cannon",
+  "g67_tr2_rocket",
+  "g67_gr_platform",
+  "g67_gr_shelf",
+  "g67_gr_shelf2",
+  "g67_gr_pegboard",
+  "g67_gr_upbench",
+  "g67_gr_tyres",
+  "g67_gr_barrels",
+  "g67_gr_lamp",
+  "g67_gr_hoist",
+  "g67_gr_jack",
+  "g67_gr_welder",
+  "g67_gr_engstand",
+  "g67_gr_jerryrack",
+  "g67_gr_parts",
+  "g67_it_canister_e",
+  "g67_fx_rocket"
  ]
 }
