@@ -164,6 +164,7 @@
    "kind": "Нестабильный кластер",
    "danger": "2 уровень",
    "danger_color": "yellow",
+   "pin": true,
    "price": {
     "spore": 35
    },

@@ -38,10 +38,10 @@ const P_BUILDINGS := [
 		"blocks": [{"c": Vector2(49, 17), "L": 58.0, "W": 22.0, "axis": "x", "floors": 1, "layout": "hall", "row_side": -1, "row_d": 5.0,
 			"row": [["store", 11.0], ["store", 11.0], ["tech", 12.0], ["store", 11.0], ["staff", 12.4]], "hall_type": "warehouse",
 			"entr": [["s+", -14.0, 4.4, "plain"], ["s+", 12.0, 4.0, "plain"], ["e-", 3.0, 1.3, "plain"]], "win_w": 1.4, "win_h": 0.8, "sill": 2.8}]},
-	{"id": "admin", "n": "Управление порта", "kind": "office", "skin": "plaster", "int": "int_beige1", "storey": 3.2,
-		"blocks": [{"c": Vector2(11, 53), "L": 20.0, "W": 11.0, "axis": "x", "floors": 1, "layout": "hall", "row_side": -1, "row_d": 5.2,
-			"row": [["office", 7.0], ["archive", 6.4], ["m_radio", 6.2]], "hall_type": "m_hall",
-			"entr": [["s+", 2.0, 1.4, "porch"]], "win_w": 1.2, "win_h": 1.2, "sill": 0.9}]},
+	{"id": "admin", "n": "Управление порта", "kind": "office", "skin": "plaster", "roof": "gable", "roof_mat": "q_rust", "gable": "plaster", "rise": 0.3, "ov": 0.4, "chimney": false, "int": "int_beige1", "storey": 3.2,
+		"blocks": [{"c": Vector2(11, 53), "L": 20.0, "W": 12.0, "axis": "x", "floors": 1, "layout": "hall", "row_side": -1, "row_d": 5.4,
+			"row": [["office", 7.0], ["m_radio", 6.4], ["archive", 6.2]], "hall_type": "m_hall",
+			"entr": [["s+", 3.0, 1.4, "porch"]], "win_w": 1.2, "win_h": 1.2, "sill": 0.9}]},
 	{"id": "guard", "n": "Будка охраны", "style": "box", "skin": "plaster", "int": "int_grey1", "storey": 2.5, "te": 0.2,
 		"blocks": [{"c": Vector2(7.5, 65.5), "L": 4.2, "W": 3.6, "axis": "x", "floors": 1, "layout": "hall", "row": [], "hall_type": "guard",
 			"entr": [["e-", 0.0, 1.0, "plain"]], "win_w": 1.1, "win_h": 0.9, "sill": 1.0}]},
@@ -90,7 +90,7 @@ const FUEL := Rect2(-82, -33, 48, 35)
 const P_TANKS_H := [Vector3(-63, 0, -22), Vector3(-63, 0, -11)]
 const P_TANK_V := Vector3(-43, 0, -25)
 const P_CRANE := Vector3(-22, 0, -39.5)            ## большой портальный кран — на рельсах у кромки набережной
-const P_CRANE2 := Vector3(42.5, 0, -47.0)          ## малый кран — у основания восточного причала
+const P_CRANE2 := Vector3(41.0, 0, -40.5)          ## малый кран — у основания восточного причала
 ## техника и крупные предметы: [модель, где, поворот, длина, вид тайника, название, по высоте]
 const P_THINGS := [
 	["ul_ural", Vector3(-50, 0, 52), 1.75, 7.4, "truck", "Кузов грузовика", false],
@@ -486,10 +486,16 @@ func _p_quay(g: Node3D) -> void:
 		_col_xf(Vector3(ln + 0.6, 3.0, 0.5) if along_x else Vector3(0.5, 3.0, ln + 0.6), _at(Vector3(mid.x, 1.5, mid.y)))
 		# жёлто-чёрная полоса по бортику и тумбы через 8 м
 		var k := 4.0
+		var has_b := ResourceLoader.exists(MODELS + "pt_bollard.glb")
 		while k < ln - 2.0:
 			var q := a.lerp(b, k / ln)
-			_cy(g, "rust", 0.2, 0.26, 0.5, _at(Vector3(q.x, 0.55, q.y)), 8)
-			_cy(g, "rust", 0.32, 0.2, 0.12, _at(Vector3(q.x, 0.84, q.y)), 8)
+			if has_b:
+				# швартовая тумба с канатом — на плите у бортика, вдоль кромки
+				var inw := Vector2(0, 0.9) if along_x else Vector2(0.9 if q.x < (a.x + b.x) * 0.5 + 0.01 and absf(q.x - (-51.0)) < 0.5 or absf(q.x - 46.0) < 0.5 else -0.9, 0)
+				_pm("pt_bollard", Vector3(q.x + inw.x, 0, q.y + inw.y), PI * 0.5 if along_x else 0.0, 1.3, false, true)
+			else:
+				_cy(g, "rust", 0.2, 0.26, 0.5, _at(Vector3(q.x, 0.55, q.y)), 8)
+				_cy(g, "rust", 0.32, 0.2, 0.12, _at(Vector3(q.x, 0.84, q.y)), 8)
 			k += 8.0
 	# рельсы большого крана вдоль набережной
 	for rz in [QUAY_Z + 2.2, QUAY_Z + 7.4]:
@@ -590,7 +596,7 @@ func _p_fuel(g: Node3D) -> void:
 	for t in P_TANKS_H:
 		var p: Vector3 = t
 		if ResourceLoader.exists(MODELS + "pt_tank_h.glb"):
-			_pm("pt_tank_h", p, 0.0, 18.0, true, true)
+			_pm("pt_tank_h", p, PI * 0.5, 14.0, true, true)
 		else:
 			_cy(g, "rust", 2.6, 2.6, 18.0, Transform3D(Basis(Vector3(0, 0, 1), PI * 0.5), p + Vector3(0, 3.2, 0)), 20)
 			for sx in [-6.0, 6.0]:
@@ -624,7 +630,7 @@ func _p_fuel(g: Node3D) -> void:
 func _p_cranes(g: Node3D) -> void:
 	var c := P_CRANE
 	if ResourceLoader.exists(MODELS + "pt_crane.glb"):
-		_pm("pt_crane", c, PI, 30.0, false, false, Color(0.86, 0.84, 0.8), true)
+		_pm("pt_crane", c, 0.0, 30.0, false, false, Color(0.9, 0.86, 0.8), true)
 		if get_child_count() > 0:
 			_cull(get_child(get_child_count() - 1), 400.0)
 	else:
@@ -663,7 +669,7 @@ func _p_boats(g: Node3D) -> void:
 	# буксир — у западного причала с запада; баржа — у восточного с востока; грузовое судно — у набережной
 	var boats := [
 		["pt_tug", Vector3(-56.5, WATER_Y - 0.7, -62), 0.0, 16.0, Vector3(5.0, 4.0, 16.0), "Рубка буксира", Vector3(-52.0, 0, -62)],
-		["pt_barge", Vector3(61.5, WATER_Y - 0.9, -60), 0.0, 26.0, Vector3(7.5, 3.0, 26.0), "Трюм баржи", Vector3(58.0, 0, -60)],
+		["pt_barge", Vector3(61.5, WATER_Y - 2.2, -60), 0.0, 26.0, Vector3(7.5, 3.0, 26.0), "Трюм баржи", Vector3(58.0, 0, -60)],
 		["pt_ship", Vector3(8, WATER_Y - 1.0, -51.5), PI * 0.5, 34.0, Vector3(34.0, 5.0, 8.0), "Палуба грузового судна", Vector3(8, 0, -45.2)],
 	]
 	for b in boats:
@@ -716,7 +722,20 @@ func _p_stacks() -> void:
 
 func _p_container(g: Node3D, p: Vector3, yaw: float, tint: Color, collide: bool, has: bool, key: String) -> void:
 	if has:
-		_pm("pt_container", p, yaw, 6.06, false, true, tint, false, key)
+		# модель Tripo вышла «кубиком» (короткий контейнер): растягивается по длине до 20 футов — 6,06 × 2,59 × 2,44 м
+		var path := MODELS + "pt_container.glb"
+		if not _scenes.has(path):
+			_scenes[path] = load(path)
+		var n: Node3D = (_scenes[path] as PackedScene).instantiate()
+		ULSanatorium.mute(n)
+		var bb: AABB = w._aabb(n)
+		var sc := Vector3(6.06 / bb.size.x, 2.59 / bb.size.y, 2.44 / bb.size.z)
+		var rot := Basis(Vector3.UP, yaw)
+		var c := bb.get_center()
+		n.transform = Transform3D(rot * Basis.from_scale(sc), p + rot * Vector3(-c.x * sc.x, -bb.position.y * sc.y, -c.z * sc.z))
+		add_child(n)
+		_dirty(n, key, tint)
+		_cull(n, 90.0)
 	else:
 		# без модели — гофрированная коробка 6,06 × 2,59 × 2,44 м нужного цвета
 		var mi := MeshInstance3D.new()

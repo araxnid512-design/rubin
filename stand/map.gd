@@ -13,9 +13,10 @@ const PLACES := {
 	"home": {"rect": Rect2(700, 300, 320, 280), "n": "Дом", "kind": "Стабильный стаб", "d": "Ваш дом. Укрытие, защита и начало нового пути в мире Стикса.", "pic": "res://assets/ui/place_home.jpg", "scene": "res://world.tscn"},
 	"cowshed": {"rect": Rect2(1172, 92, 252, 190), "n": "Опасный коровник", "kind": "Временный нестабильный кластер", "route": true, "mark": "res://assets/ui/map_cowshed.png", "pic": "res://assets/ui/place_cowshed.jpg", "scene": "res://world.tscn"},
 	"khutor": {"rect": Rect2(330, 540, 310, 260), "n": "Хутор", "kind": "Временный нестабильный кластер", "route": true, "mark": "res://assets/ui/map_khutor.png", "pic": "res://assets/ui/place_khutor.jpg", "scene": "res://world.tscn"},
-	"convoy": {"rect": Rect2(812, 560, 310, 260), "n": "Разбитый конвой", "kind": "Временный нестабильный кластер", "route": true, "mark": "res://assets/ui/map_convoy.png", "pic": "res://assets/ui/place_convoy.jpg", "scene": "res://world.tscn"},
+	"convoy": {"rect": Rect2(650, 590, 310, 260), "n": "Разбитый конвой", "kind": "Временный нестабильный кластер", "route": true, "mark": "res://assets/ui/map_convoy.png", "pic": "res://assets/ui/place_convoy.jpg", "scene": "res://world.tscn"},
 	"lair": {"rect": Rect2(1120, 420, 400, 280), "n": "Логово Муров", "kind": "Вражеский стаб · Опасность: 2 уровень", "route": true, "mark": "res://assets/ui/map_lair.png", "pic": "res://assets/ui/place_lair.jpg", "scene": "res://world.tscn"},
 	"quarry": {"rect": Rect2(1250, 196, 320, 252), "n": "Карьер", "kind": "Рабочий кластер · Опасность: 1 уровень", "route": true, "mark": "res://assets/ui/map_quarry.png", "pic": "res://assets/ui/place_quarry.jpg", "scene": "res://world.tscn"},
+	"port": {"rect": Rect2(940, 640, 380, 270), "n": "Порт", "kind": "Локация · Опасность: 2 уровень", "route": true, "ring": Color(1.0, 0.85, 0.2), "mark": "res://assets/ui/map_port.png", "pic": "res://assets/ui/place_port.jpg", "scene": "res://world.tscn"},
 	"sanatorium": {"rect": Rect2(262, 50, 432, 302), "n": "Санаторий Луч", "kind": "Временный нестабильный кластер", "route": true, "mark": "res://assets/ui/map_sanatorium.png", "pic": "res://assets/ui/place_sanatorium.jpg", "scene": "res://world.tscn"},
 }
 const MAP_SHADER := """shader_type canvas_item;
@@ -261,7 +262,8 @@ func _draw_over() -> void:
 			if not _marks.has(id):
 				_marks[id] = load(String(PLACES[id].mark))
 			var kk2 := 1.0 + 0.05 * sin(Time.get_ticks_msec() * 0.004)
-			over.draw_arc(c, r.size.x * 0.5 * kk2, 0, TAU, 56, Color(1.0, 0.6, 0.2, 0.35), 2.0)
+			var rc0: Color = PLACES[id].get("ring", Color(1.0, 0.6, 0.2))
+			over.draw_arc(c, r.size.x * 0.5 * kk2, 0, TAU, 56, Color(rc0.r, rc0.g, rc0.b, 0.35), 2.0)
 			over.draw_texture_rect(_marks[id], r, false)
 		var lf := ULBase.route_left(id) if PLACES[id].get("route", false) else 0
 		if lf > 0:
@@ -336,6 +338,9 @@ func _route_text(id: String) -> String:
 	var r: Dictionary = ULBase.shop().get("routes", {}).get(id, {})
 	var t := "Опасность: %s\n" % String(r.get("danger", "высокая")).to_lower()
 	var lf := ULBase.route_left(id)
+	for k in [["size", "Размер"], ["loot", "Добыча"]]:
+		if r.has(k[0]):
+			t += "%s: %s\n" % [k[1], String(r[k[0]])]
 	if lf > 0:
 		t += "До перезагрузки кластера: %d:%02d — пока идёт время, сюда можно вернуться" % [lf / 60, lf % 60]
 	else:

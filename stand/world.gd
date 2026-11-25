@@ -4852,7 +4852,7 @@ func _pmap_test() -> void:
 	targets.clear()
 	await get_tree().create_timer(1.0).timeout
 	# цены и снимки
-	var want := {"cowshed": 5, "sanatorium": 13, "convoy": 18, "khutor": 9, "lair": 25, "quarry": 13}
+	var want := {"cowshed": 5, "sanatorium": 13, "convoy": 18, "khutor": 9, "lair": 25, "quarry": 13, "port": 12}
 	var got := {}
 	var pics := 0
 	for id in want:
@@ -6292,6 +6292,290 @@ func _lvl_exit() -> void:
 
 ## Вид карьера с нескольких точек (снимки в --as-out): общий вид, бровка, съезд, уступы, дно, дробилка, посёлок,
 ## постройки внутри. Враги рядом стоят спокойно. Точка — [имя, x, z, высота над землёй, расстояние камеры].
+## Проверка порта (--as-test=pt): поле и вход, постройки и путь в каждую, стены, река и причалы, краны и суда,
+## заражённые (число, места, не в воде и не у входа), тайники и добыча, задание «Последний груз» целиком,
+## таймер, маршрут в компьютере и на карте мира, выход с наградой. --as-reset — время вышло с героем внутри.
+func _pt_test() -> void:
+	var t0 := Time.get_ticks_msec()
+	while not cs_ready and Time.get_ticks_msec() - t0 < 45000:
+		await get_tree().process_frame
+	var pt := san as ULPort
+	var c := ULPort.pcfg()
+	var map := get_world_3d().navigation_map
+	var snapf := func(p: Vector3) -> Vector3:
+		return NavigationServer3D.map_get_closest_point(map, p)
+	var space := get_world_3d().direct_space_state
+	print("[inv] порт готов через %.1f с от запуска игры" % (sn_ready_ms / 1000.0))
+	var rt: Dictionary = ULBase.shop().routes.get("port", {})
+	# 1: поле, вход, время, маршрут
+	_ok("порт: поле %d × %d м, вход на юге у ворот, %d минут, маршрут %d споранов, опасность «%s»" % [int(size_m), int(size_z), int(c.minutes), int(rt.get("price", {}).get("spore", 0)), String(rt.get("danger", ""))],
+		size_m == 180.0 and size_z == 160.0 and place == "port" and pt != null and ULPort.P_ENTRY.z > 65.0 and absf(ULPort.P_ENTRY.x) < 8.0 and int(c.minutes) == 15
+		and int(rt.get("price", {}).get("spore", 0)) == 35 and String(rt.get("danger", "")) == "2 уровень" and player.global_position.distance_to(ULPort.P_ENTRY) < 6.0, str(player.global_position))
+	_ok("таймер кластера идёт: %s" % _minutes_text(int(cs_left())), cs_left() > 14.0 * 60.0 and cs_left() <= 15.0 * 60.0)
+	# 2: постройки по плану
+	var by_id := {}
+	var names := []
+	for b in san.blds:
+		by_id[String(b.id)] = b
+		names.append(b.title)
+	var ids_ok := true
+	for id in ["wh1", "wh2", "admin", "guard", "pump", "ct1", "ct2", "ct3", "ct4", "ct5"]:
+		ids_ok = ids_ok and by_id.has(id)
+	_ok("постройки, куда можно зайти (%d): %s" % [san.blds.size(), ", ".join(names)], san.blds.size() == 10 and ids_ok)
+	var w1: Rect2 = by_id.wh1.rect
+	var w2: Rect2 = by_id.wh2.rect
+	var ad: Rect2 = by_id.admin.rect
+	_ok("по плану: склад № 1 — юго-запад (%.0f × %.0f м), склад № 2 — юго-восток (%.0f × %.0f м), между ними дорога; управление порта — у въезда; топливная зона — северо-запад; контейнеры — северо-восток" % [w1.size.x, w1.size.y, w2.size.x, w2.size.y],
+		w1.get_center().x < -20.0 and w2.get_center().x > 20.0 and absf(w1.size.x - 58.0) < 1.0 and absf(w1.size.y - 22.0) < 1.0 and w1.end.x < -10.0 and w2.position.x > 10.0
+		and ad.get_center().y > 44.0 and ULPort.FUEL.get_center().x < -40.0 and ULPort.FUEL.get_center().y < 0.0 and (by_id.ct3.rect as Rect2).get_center().x > 40.0)
+	# 3: модели — отдельные (краны, суда, цистерны, погрузчик), сквозь них не пройти
+	var mfiles := []
+	var mmiss := []
+	for m in ["pt_crane", "pt_crane2", "pt_tug", "pt_barge", "pt_ship", "pt_forklift", "pt_tank_h", "pt_tank_v"]:
+		if ResourceLoader.exists(ULSanatorium.MODELS + m + ".glb"):
+			mfiles.append(m)
+		else:
+			mmiss.append(m)
+	_ok("отдельные модели порта на месте: %d из 8" % mfiles.size(), mmiss.is_empty(), "нет: " + ", ".join(mmiss))
+	var solid := 0
+	var solid_pts := [ULPort.P_CRANE + Vector3(4.2, 0, 2.6), ULPort.P_CRANE2, ULPort.P_TANK_V, ULPort.P_TANKS_H[0], ULPort.P_TANKS_H[1], Vector3(10, 0, -34), Vector3(58.3, 0, -24)]
+	for sp in solid_pts:
+		var qv := PhysicsRayQueryParameters3D.create((sp as Vector3) + Vector3(0, 14, 0), (sp as Vector3) + Vector3(0, 0.3, 0))
+		qv.collision_mask = 1
+		if not space.intersect_ray(qv).is_empty():
+			solid += 1
+	_ok("опоры кранов, цистерны и контейнеры — препятствия: %d из %d" % [solid, solid_pts.size()], solid == solid_pts.size())
+	# 4: путь от входа в каждую постройку
+	var e0: Vector3 = snapf.call(ULPort.P_ENTRY)
+	var reach := 0
+	var bad := []
+	for b in san.blds:
+		# цель — середина постройки; если она пришлась на перегородку — точка сразу за входом
+		var got := false
+		var why := ""
+		for cand in [Vector3(b.rect.get_center().x, 0.1, b.rect.get_center().y), b.entrances[0][1]]:
+			var tgt: Vector3 = snapf.call(cand)
+			var path := NavigationServer3D.map_get_path(map, e0, tgt, true)
+			if path.size() > 1 and path[path.size() - 1].distance_to(tgt) < 0.6 and san.locate(tgt + Vector3.UP * 0.3).x >= 0:
+				got = true
+				break
+			why += "%s: цель %s, конец пути %s, внутри %s; " % [String(b.id), str(tgt), str(path[path.size() - 1]) if path.size() > 0 else "нет", str(san.locate(tgt + Vector3.UP * 0.3))]
+		if got:
+			reach += 1
+		else:
+			bad.append(why)
+	_ok("от входа есть путь внутрь каждой постройки и каждого открытого контейнера: %d из %d" % [reach, san.blds.size()], reach == san.blds.size(), str(bad))
+	var wall_hits := 0
+	var wall_rays := 0
+	for b in san.blds:
+		for bk in b.blocks:
+			for k in 5:
+				var u := (k - 2) * float(bk.hl) / 3.0
+				var a0: Vector3 = b._w(bk, u, 0.5, float(bk.hw) + 1.2)
+				var a1: Vector3 = b._w(bk, u, 0.5, float(bk.hw) - 0.5)
+				var q := PhysicsRayQueryParameters3D.create(a0, a1)
+				q.collision_mask = 1 | ULDoor.LAYER
+				wall_rays += 1
+				if not space.intersect_ray(q).is_empty():
+					wall_hits += 1
+	_ok("стены построек непроходимы (лучи в стену: %d из %d упёрлись — остальные во входы)" % [wall_hits, wall_rays], wall_hits >= wall_rays * 0.75)
+	# 5: причалы доступны, в реку не сойти
+	var piers_ok := 0
+	for pp in [Vector3(-45, 0, -70), Vector3(51.5, 0, -70)]:
+		var tg: Vector3 = snapf.call(pp)
+		var pth := NavigationServer3D.map_get_path(map, e0, tg, true)
+		if pth.size() > 1 and pth[pth.size() - 1].distance_to(pp) < 1.5:
+			piers_ok += 1
+	var wpt := Vector3(8, 0, -66)
+	var wtg: Vector3 = snapf.call(wpt)
+	var wpath := NavigationServer3D.map_get_path(map, e0, wtg, true)
+	var water_free: bool = wpath.size() < 2 or wpath[wpath.size() - 1].distance_to(wpt) > 6.0 or not ULPort.on_land(Vector2(wtg.x, wtg.z), 0.5)
+	_ok("оба причала доступны пешком (%d из 2); по воде пути нет" % piers_ok, piers_ok == 2 and water_free, "ближайшая точка пути к воде: %s" % str(wtg))
+	for e in enemies:
+		if e.global_position.distance_to(Vector3(-20, 0, -40)) < 40.0:
+			e.state = "dead"
+			e.visible = false
+			e.process_mode = Node.PROCESS_MODE_DISABLED
+	hp_lock = true
+	player.global_position = Vector3(-30, 0.1, -41.0)
+	player.velocity = Vector3.ZERO
+	await get_tree().create_timer(0.3).timeout
+	await _walk([Vector3(-30, 0, -48.0)], 3.0)
+	_ok("герой идёт с набережной к воде — бортик не пускает (z = %.1f, кромка %.1f)" % [player.global_position.z, ULPort.QUAY_Z], player.global_position.z > ULPort.QUAY_Z - 0.4 and player.global_position.y > -0.3)
+	player.global_position = Vector3(-45, 0.1, -72.0)
+	await get_tree().create_timer(0.3).timeout
+	await _walk([Vector3(-45, 0, -80.0)], 3.0)
+	_ok("на конце причала — тоже бортик (z = %.1f)" % player.global_position.z, player.global_position.z > -76.6 and player.global_position.y > -0.3)
+	# 6: склад — герой входит через ворота, крыша скрыта, ряды груза с проходами
+	var wb: ULBlock = by_id.wh1
+	var w_out: Vector3 = snapf.call(wb.entrances[0][0])
+	var w_in: Vector3 = snapf.call(Vector3(wb.rect.get_center().x, 0.1, wb.rect.get_center().y + 3.0))
+	player.global_position = w_out + Vector3(0, 0.1, 3.0)
+	await get_tree().create_timer(0.5).timeout
+	var roof0: bool = wb._groups["b0/r"].visible and san.hero_b == -1
+	await _walk(Array(NavigationServer3D.map_get_path(map, snapf.call(player.global_position), w_in, true)), 16.0)
+	await get_tree().create_timer(0.4).timeout
+	var wh_goods := 0
+	for m in wb.models:
+		if String(m[4]) == "b0/n0":
+			wh_goods += 1
+	_ok("склад № 1: герой вошёл через ворота, крыша скрыта; груза в зале — %d предметов" % wh_goods, roof0 and san.hero_b == san.blds.find(wb) and not wb._groups["b0/r"].visible and wh_goods >= 30)
+	if out != "":
+		_cam_ready = false
+		await get_tree().create_timer(0.6).timeout
+		await _snap("pt_wh1")
+	# 7: заражённые
+	var cnt := {"infected": 0, "lottery": 0, "ruber": 0}
+	var in_water := 0
+	var near_entry := 0
+	var outside := 0
+	for sp in cs_plan:
+		var kd := String(sp[0])
+		cnt[kd] = int(cnt.get(kd, 0)) + 1
+		var p: Vector3 = sp[1]
+		if not ULPort.on_land(Vector2(p.x, p.z)):
+			in_water += 1
+		if p.distance_to(ULPort.P_ENTRY) < float(c.safe_r) - 0.5:
+			near_entry += 1
+		if absf(p.x) > ULPort.FENCE_X or p.z > ULPort.FENCE_Z:
+			outside += 1
+	_ok("заражённые при входе: пустышей %d (25–45), лотерейщиков %d (4–10), руберов %d (0–1)" % [int(cnt.infected), int(cnt.lottery), int(cnt.ruber)],
+		int(cnt.infected) >= 25 and int(cnt.infected) <= 45 and int(cnt.lottery) >= 4 and int(cnt.lottery) <= 10 and int(cnt.ruber) <= 1, str(cnt))
+	_ok("никто не стоит в воде (%d), у входа ближе %d м (%d) и за оградой (%d)" % [in_water, int(c.safe_r), near_entry, outside], in_water == 0 and near_entry == 0 and outside == 0)
+	var zones := {}
+	var lo := 999
+	var hi := 0
+	var rub := 0
+	for sd in 40:
+		var pr := RandomNumberGenerator.new()
+		pr.seed = 7000 + sd * 53
+		var plan: Array = zone.spawn_plan(pr, snapf)
+		var np := 0
+		for sp in plan:
+			if String(sp[0]) == "infected":
+				np += 1
+			if String(sp[0]) == "ruber":
+				rub += 1
+			if sp.size() > 2:
+				zones[String(sp[2])] = int(zones.get(String(sp[2]), 0)) + 1
+		lo = mini(lo, np)
+		hi = maxi(hi, np)
+	_ok("40 посещений: пустышей от %d до %d, рубер — в %d посещениях; зоны: %s" % [lo, hi, rub, str(zones)], lo >= 25 and hi <= 45 and rub > 3 and rub < 30
+		and zones.has("containers") and zones.has("quay") and zones.has("yard") and zones.has("wh1") and zones.has("wh2") and zones.has("piers"))
+	# 8: тайники и добыча
+	var kinds := {}
+	for ct in san.containers:
+		kinds[String(ct.kind)] = int(kinds.get(String(ct.kind), 0)) + 1
+	_ok("тайники: всего %d; контейнеры %d, ящики %d, паллеты %d, техника и краны %d, суда %d" % [san.containers.size(), int(kinds.get("container", 0)), int(kinds.get("crate", 0)), int(kinds.get("pallet", 0)),
+		int(kinds.get("truck", 0)) + int(kinds.get("forklift", 0)) + int(kinds.get("crane", 0)), int(kinds.get("boat", 0))],
+		san.containers.size() >= 150 and int(kinds.get("container", 0)) >= 5 and int(kinds.get("crate", 0)) >= 8 and int(kinds.get("boat", 0)) == 3 and int(kinds.get("crane", 0)) == 2)
+	var loot := {}
+	for sd in 30:
+		var lr := RandomNumberGenerator.new()
+		lr.seed = 300 + sd * 11
+		san.roll_containers(lr)
+		for ct in san.containers:
+			for it in ct.items:
+				if it != null:
+					loot[String(it.id)] = int(loot.get(String(it.id), 0)) + int(it.n)
+	_ok("добыча за 30 посещений: хлам, запчасти, кабель, электроника, инструмент, медикаменты, патроны — %s" % str(loot),
+		int(loot.get("tech_junk", 0)) > 50 and int(loot.get("spare_parts", 0)) > 50 and int(loot.get("scrap_metal", 0)) > 50 and int(loot.get("cable", 0)) > 20
+		and int(loot.get("electronics", 0)) > 20 and int(loot.get("tool_ind", 0)) > 3 and int(loot.get("bandage", 0)) > 3 and loot.has("p_docs") and loot.has("p_cargo")
+		and not loot.has("wood") and not loot.has("stone"))
+	var sell := 0
+	for id in loot:
+		if not (ULItems.get_def(String(id)).get("price", {}) as Dictionary).is_empty():
+			sell += 1
+	_ok("находки годятся барахольщику: %d видов из %d с ценой" % [sell, loot.size()], sell >= 6)
+	# 9: задание «Последний груз»
+	var qr := RandomNumberGenerator.new()
+	qr.seed = cs_seed
+	san.roll_containers(qr)
+	quest = {}
+	var dci := int(pt.quest_where.get("p_docs", -1))
+	var bci := int(pt.quest_where.get("p_cargo", -1))
+	_ok("задание: документы — в тайнике управления порта, особый груз — в контейнере ТК-417 (заперт)", dci >= 0 and bci >= 0 and String(san.containers[dci].get("bld", "")) == "admin"
+		and String(san.containers[bci].n).contains("ТК-417") and san.containers[bci].has("need"))
+	quest_tick()
+	_ok("задание в начале: этапы не выполнены, награды нет", not quest_ready() and quest_progress("docs").x == 0 and quest_progress("box").x == 0 and quest_progress("cargo").x == 0)
+	var bct: Dictionary = san.containers[bci]
+	player.global_position = (bct.pos as Vector3) + Vector3(0, 0.1, 1.2)
+	await get_tree().create_timer(0.4).timeout
+	_target = {"type": "box", "i": bci}
+	do_action()
+	await get_tree().create_timer(0.2).timeout
+	_ok("контейнер ТК-417 без документов не открывается", (inv_ui == null or not inv_ui.visible) and quest_progress("box").x == 0)
+	var dct: Dictionary = san.containers[dci]
+	for k in (dct.items as Array).size():
+		var it = dct.items[k]
+		if it != null and String(it.id) == "p_docs" and inv.add(it) == 0:
+			dct.items[k] = null
+	await get_tree().create_timer(0.6).timeout
+	_ok("документы найдены в управлении порта — этап отмечен", quest_progress("docs").x == 1 and inv.count("p_docs") == 1)
+	_target = {"type": "box", "i": bci}
+	do_action()
+	await get_tree().create_timer(0.3).timeout
+	_ok("с документами контейнер открыт — этап «Контейнер ТК-417» отмечен, внутри особый груз", inv_ui != null and inv_ui.visible and quest_progress("box").x == 1)
+	close_inventory()
+	for k in (bct.items as Array).size():
+		var it2 = bct.items[k]
+		if it2 != null and String(it2.id) == "p_cargo" and inv.add(it2) == 0:
+			bct.items[k] = null
+	await get_tree().create_timer(0.6).timeout
+	_ok("особый груз взят — остался выход из кластера; награда ещё не выдана", quest_ready() and not bool(quest.get("done", false)) and inv.count("p_cargo") == 1)
+	if out != "":
+		await _snap("pt_quest_hud")
+	# 10: таймер не останавливается
+	var l0 := cs_left()
+	open_inventory(null, "", false)
+	await get_tree().create_timer(1.2).timeout
+	close_inventory()
+	_ok("таймер идёт и при открытом инвентаре (%.1f → %.1f с)" % [l0, cs_left()], cs_left() < l0 - 0.5)
+	# 11: маршрут в компьютере и на карте мира
+	_ok("маршрут: карточка «Порт» (кран), 35 споранов, закреплён в компьютере; на карте мира — ниже дома, у реки; картинки на месте",
+		String(rt.get("icon", "")) == "crane" and bool(rt.get("pin", false)) and ULBase.offers().has("port") and ResourceLoader.exists(String(rt.get("pic", ""))) and ResourceLoader.exists(String(rt.get("route_pic", "")))
+		and ULMap.PLACES.has("port") and (ULMap.PLACES.port.rect as Rect2).get_center().y > (ULMap.PLACES.home.rect as Rect2).end.y and ResourceLoader.exists(String(ULMap.PLACES.port.mark)))
+	var w_save: Dictionary = inv.wallet.duplicate()
+	inv.wallet = {"spore": 40}
+	ULBase.data.routes.erase("port")
+	(ULBase.data.done as Array).erase("port")
+	var b1 := ULBase.buy_route(inv, "port")
+	var sp1 := int(inv.wallet.get("spore", 0))
+	var b2 := ULBase.buy_route(inv, "port")
+	var sp2 := int(inv.wallet.get("spore", 0))
+	ULBase.data.routes.erase("port")
+	var b3 := ULBase.buy_route(inv, "port")
+	_ok("покупка: с 40 споранами маршрут куплен (осталось %d), повторно не списывается (%d); с 5 споранами — отказ, не хватает" % [sp1, sp2],
+		bool(b1.ok) and sp1 == 5 and not bool(b2.ok) and String(b2.err) == "have" and sp2 == 5 and not bool(b3.ok) and int(inv.wallet.get("spore", 0)) == 5 and ULBase.route_state("port") == "")
+	inv.wallet = w_save
+	if OS.get_cmdline_user_args().has("--as-reset"):
+		inv.wallet["spore"] = 9
+		ULBase.set_route("port", "active")
+		_cs_end = Time.get_unix_time_from_system() + 1.0
+		hp_lock = false
+		var tr := 0.0
+		while not _cs_done and tr < 12.0:
+			await get_tree().create_timer(0.2).timeout
+			tr += 0.2
+		_ok("время вышло: кластер перезагрузился, герой погиб, вещи при себе и спораны потеряны, награды нет, маршрут закрыт", _cs_done and inv.count("p_cargo") == 0 and int(inv.wallet.get("spore", 0)) == 0
+			and not bool(quest.get("done", false)) and ULBase.route_state("port") != "active")
+		print("[inv] итог: ошибок %d" % _fails)
+		get_tree().quit()
+		return
+	# 12: выход за южный край с грузом — награда
+	var w0 := int(inv.wallet.get("spore", 0))
+	player.global_position = Vector3(ULPort.P_ENTRY.x, 0.1, ULPort.PZ + 3.0)
+	var tl := 0.0
+	while not _cs_done and tl < LEAVE_S + 3.0:
+		await get_tree().create_timer(0.2).timeout
+		tl += 0.2
+	var rw: Dictionary = c.quest.reward
+	_ok("вышел за южный край с грузом: задание выполнено, награда %s выдана (спораны %d → %d), груз при себе" % [ULEconomy.list_text(rw), w0, int(inv.wallet.get("spore", 0))],
+		_cs_done and bool(quest.get("done", false)) and int(inv.wallet.get("spore", 0)) == w0 + int(rw.get("spore", 0)) and inv.count("p_cargo") == 1)
+	print("[inv] итог: ошибок %d" % _fails)
+	get_tree().quit()
+
+
 ## снимки порта с игровой камеры: герой переносится по точкам (въезд, двор, склады, контейнеры, топливо, краны, причалы)
 func _pt_view() -> void:
 	var t0 := Time.get_ticks_msec()
@@ -15062,6 +15346,9 @@ func _run_test() -> void:
 		return
 	if test == "qr":
 		await _qr_test()
+		return
+	if test == "pt":
+		await _pt_test()
 		return
 	if test == "lvl":
 		await _lvl_test()

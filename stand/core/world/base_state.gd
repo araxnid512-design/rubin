@@ -432,6 +432,7 @@ static func _roll_offers(prev: Array = []) -> Array:
 	var fresh := pool.filter(func(x): return not prev.has(x))
 	if pool.size() > n and not fresh.is_empty() and pick.all(func(x): return prev.has(x)):
 		pick[randi() % pick.size()] = fresh[randi() % fresh.size()]
+	_pin_into(pick)
 	return pool.filter(func(x): return pick.has(x))
 
 
@@ -463,7 +464,33 @@ static func routes_listed() -> Array:
 
 static func offers() -> Array:
 	routes_tick()
+	var of: Array = data.offers
+	if pinned().any(func(x): return not of.has(x)):
+		# закреплённый маршрут появился в игре позже, чем был разыгран набор (обновление): занимает место в наборе
+		_pin_into(of)
+		data.offers = route_pool().filter(func(x): return of.has(x))
+		save_state()
 	return data.offers
+
+
+## закреплённые маршруты ("pin": true в data/base_shop.json) — всегда среди предложений компьютера
+static func pinned() -> Array:
+	return route_pool().filter(func(x): return bool(shop().routes[x].get("pin", false)))
+
+
+## закреплённые — в набор: вместо предложений, которые не закреплены и не куплены (с конца)
+static func _pin_into(pick: Array) -> void:
+	var pins := pinned()
+	for p in pins:
+		if pick.has(p):
+			continue
+		var i := pick.size() - 1
+		while i >= 0 and (pins.has(pick[i]) or (data.get("routes", {}) as Dictionary).has(String(pick[i]))):
+			i -= 1
+		if i >= 0:
+			pick[i] = p
+		else:
+			pick.append(p)
 
 
 ## Сколько секунд до обновления маршрутов. Время следующего обновления хранится в base.json (unix-время),

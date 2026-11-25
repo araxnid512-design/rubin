@@ -749,7 +749,7 @@ func _build_routes() -> void:
 ## compact — карточки поменьше, чтобы два маршрута помещались без прокрутки (как на макете); dense — три и больше:
 ## без описания (оно — на карте мира), цена и кнопка — в столбце текста, все три карточки видны без прокрутки
 func _route_card(id: String, d: Dictionary, compact := false, dense := false) -> Control:
-	var cs: Dictionary = {"cowshed": ULCowshed.cfg(), "sanatorium": ULSanatorium.cfg(), "convoy": ULConvoy.ccfg(), "khutor": ULKhutor.kcfg(), "lair": ULLair.lcfg(), "quarry": ULQuarry.qcfg()}.get(id, {})
+	var cs: Dictionary = {"cowshed": ULCowshed.cfg(), "sanatorium": ULSanatorium.cfg(), "convoy": ULConvoy.ccfg(), "khutor": ULKhutor.kcfg(), "lair": ULLair.lcfg(), "quarry": ULQuarry.qcfg(), "port": ULPort.pcfg()}.get(id, {})
 	var card := _card()
 	card.name = "route_" + id
 	if dense:
@@ -786,6 +786,14 @@ func _route_card(id: String, d: Dictionary, compact := false, dense := false) ->
 		dp.add_theme_stylebox_override("panel", _sb(Color(0.45, 0.06, 0.05, 0.9), Color(0.85, 0.2, 0.15), 1, 4, 2))
 		dp.add_child(dg)
 		th.add_child(dp)
+	elif d.has("danger") and String(d.get("danger_color", "")) == "yellow":
+		# второй уровень опасности — жёлтая плашка (порт)
+		var dg2 := _lbl("⚠ Опасность: " + String(d.danger), 10 if dense else 12, Color(1.0, 0.93, 0.6), true)
+		dg2.name = "Danger"
+		var dp2 := PanelContainer.new()
+		dp2.add_theme_stylebox_override("panel", _sb(Color(0.36, 0.28, 0.04, 0.9), Color(0.95, 0.78, 0.2), 1, 4, 2))
+		dp2.add_child(dg2)
+		th.add_child(dp2)
 	if not dense:
 		var dl := _lbl(String(d.d), 10 if compact else 11, C_TEXT, false, true)
 		dl.add_theme_constant_override("line_spacing", -2 if compact else -1)
