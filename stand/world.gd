@@ -7067,13 +7067,15 @@ func _rd_test() -> void:
 	var w_save: Dictionary = inv.wallet.duplicate()
 	inv.wallet = {"spore": 40}
 	ULBase.data.routes.erase("depot")
-	(ULBase.data.done as Array).erase("depot")
+	var offs_save: Array = (ULBase.offers() as Array).duplicate()
+	_offer_route("depot")                    # маршрут не закреплён: для проверки покупки ставим его в набор
 	var b1 := ULBase.buy_route(inv, "depot")
 	var sp1 := int(inv.wallet.get("spore", 0))
 	var b2 := ULBase.buy_route(inv, "depot")
-	_ok("покупка: с 40 споранами маршрут куплен (осталось %d), повторно не списывается" % sp1, bool(b1.ok) and sp1 == 5 and not bool(b2.ok) and int(inv.wallet.get("spore", 0)) == 5)
+	_ok("покупка: с 40 споранами маршрут куплен (осталось %d), повторно не списывается" % sp1, bool(b1.ok) and sp1 == 5 and not bool(b2.ok) and int(inv.wallet.get("spore", 0)) == 5, "%s, кошелёк %s" % [str(b1), str(inv.wallet)])
 	inv.wallet = w_save
 	ULBase.data.routes.erase("depot")
+	ULBase.data.offers = offs_save
 	# выход
 	player.global_position = Vector3(ULDepot.D_ENTRY.x, 0.1, ULDepot.DZ + 3.0)
 	var tl := 0.0
@@ -7102,8 +7104,8 @@ func _ap_test() -> void:
 	var space := get_world_3d().direct_space_state
 	var rt: Dictionary = ULBase.shop().routes.get("airport", {})
 	print("[inv] аэропорт готов через %.1f с от запуска игры" % (sn_ready_ms / 1000.0))
-	_ok("аэропорт: поле %d × %d м, вход на юге у КПП, время %d минут (3-й уровень опасности), маршрут %d споранов" % [int(size_m), int(size_z), int(ULBase.minutes_for("airport", 0.0)), int(rt.get("price", {}).get("spore", 0))],
-		size_m == 420.0 and size_z == 300.0 and place == "airport" and ap != null and ULAirport.A_ENTRY.z > 120.0 and int(rt.get("price", {}).get("spore", 0)) == 120 and int(rt.get("level", 0)) == 3
+	_ok("аэропорт: поле %d × %d м, вход на юге у КПП, время %d минут (3-й уровень опасности), маршрут %d горошин" % [int(size_m), int(size_z), int(ULBase.minutes_for("airport", 0.0)), int(rt.get("price", {}).get("pea", 0))],
+		size_m == 420.0 and size_z == 300.0 and place == "airport" and ap != null and ULAirport.A_ENTRY.z > 120.0 and int(rt.get("price", {}).get("pea", 0)) == 12 and int(rt.get("level", 0)) == 3
 		and cs_left() > 29.0 * 60.0 and cs_left() <= 30.0 * 60.0 and player.global_position.distance_to(ULAirport.A_ENTRY) < 8.0, str(player.global_position))
 	var by_id := {}
 	var names := []
@@ -7378,20 +7380,22 @@ func _ap_test() -> void:
 		await get_tree().create_timer(0.4).timeout
 		_ok("с документацией отсек открыт, специальный груз взят — остался выход; награда ещё не выдана", opened and quest_ready() and not bool(quest.get("done", false)) and inv.count("a_cargo") == 1)
 	# маршрут
-	_ok("маршрут: карточка «Заброшенный аэропорт» (самолёт), 120 споранов, 3-й уровень, в общем наборе маршрутов (не закреплён); на карте мира — далеко на юго-западе; картинки на месте",
+	_ok("маршрут: карточка «Заброшенный аэропорт» (самолёт), 12 горошин, 3-й уровень, в общем наборе маршрутов (не закреплён); на карте мира — далеко на юго-западе; картинки на месте",
 		String(rt.get("icon", "")) == "plane" and not bool(rt.get("pin", false)) and ULBase.route_pool().has("airport") and ResourceLoader.exists(String(rt.get("pic", ""))) and ResourceLoader.exists(String(rt.get("route_pic", "")))
 		and ULMap.PLACES.has("airport") and (ULMap.PLACES.airport.rect as Rect2).get_center().x < (ULMap.PLACES.khutor.rect as Rect2).position.x and (ULMap.PLACES.airport.rect as Rect2).get_center().y > (ULMap.PLACES.home.rect as Rect2).end.y
 		and ResourceLoader.exists(String(ULMap.PLACES.airport.mark)))
 	var w_save: Dictionary = inv.wallet.duplicate()
 	inv.wallet = {"spore": 125}
 	ULBase.data.routes.erase("airport")
-	(ULBase.data.done as Array).erase("airport")
+	var offs_save: Array = (ULBase.offers() as Array).duplicate()
+	_offer_route("airport")                  # маршрут не закреплён: для проверки покупки ставим его в набор
 	var b1 := ULBase.buy_route(inv, "airport")
 	var sp1 := int(inv.wallet.get("spore", 0))
 	var b2 := ULBase.buy_route(inv, "airport")
-	_ok("покупка: со 125 споранами маршрут куплен (осталось %d), повторно не списывается" % sp1, bool(b1.ok) and sp1 == 5 and not bool(b2.ok) and int(inv.wallet.get("spore", 0)) == 5)
+	_ok("покупка: со 125 споранами маршрут за 12 горошин куплен (спораны обменялись сами, осталось %d), повторно не списывается" % sp1, bool(b1.ok) and sp1 == 5 and not bool(b2.ok) and int(inv.wallet.get("spore", 0)) == 5, "%s, кошелёк %s" % [str(b1), str(inv.wallet)])
 	inv.wallet = w_save
 	ULBase.data.routes.erase("airport")
+	ULBase.data.offers = offs_save
 	# выход: с грузом — награда
 	var w0 := int(inv.wallet.get("spore", 0))
 	player.global_position = Vector3(ULAirport.A_ENTRY.x, 0.1, ULAirport.AZ + 3.0)
@@ -7794,7 +7798,8 @@ func _pt_test() -> void:
 	var w_save: Dictionary = inv.wallet.duplicate()
 	inv.wallet = {"spore": 40}
 	ULBase.data.routes.erase("port")
-	(ULBase.data.done as Array).erase("port")
+	var offs_save: Array = (ULBase.offers() as Array).duplicate()
+	_offer_route("port")                     # маршрут не закреплён: для проверки покупки ставим его в набор
 	var b1 := ULBase.buy_route(inv, "port")
 	var sp1 := int(inv.wallet.get("spore", 0))
 	var b2 := ULBase.buy_route(inv, "port")
@@ -7802,8 +7807,9 @@ func _pt_test() -> void:
 	ULBase.data.routes.erase("port")
 	var b3 := ULBase.buy_route(inv, "port")
 	_ok("покупка: с 40 споранами маршрут куплен (осталось %d), повторно не списывается (%d); с 5 споранами — отказ, не хватает" % [sp1, sp2],
-		bool(b1.ok) and sp1 == 5 and not bool(b2.ok) and String(b2.err) == "have" and sp2 == 5 and not bool(b3.ok) and int(inv.wallet.get("spore", 0)) == 5 and ULBase.route_state("port") == "")
+		bool(b1.ok) and sp1 == 5 and not bool(b2.ok) and String(b2.err) == "have" and sp2 == 5 and not bool(b3.ok) and int(inv.wallet.get("spore", 0)) == 5 and ULBase.route_state("port") == "", "%s / %s / %s" % [str(b1), str(b2), str(b3)])
 	inv.wallet = w_save
+	ULBase.data.offers = offs_save
 	if OS.get_cmdline_user_args().has("--as-reset"):
 		inv.wallet["spore"] = 9
 		ULBase.set_route("port", "active")
@@ -13399,8 +13405,8 @@ func _lair_test() -> void:
 	for b in san.blds:
 		by_id[b.id] = b
 	var rt_l: Dictionary = ULBase.shop().routes.lair
-	_ok("логово: поле %d×%d м, вход с юга, %d минут, маршрут %d споранов, опасность «%s»" % [int(size_m), int(size_m), int(c.minutes), int(rt_l.price.spore), String(rt_l.danger)],
-		size_m == 200.0 and place == "lair" and ULLair.L_ENTRY.z > 85.0 and int(c.minutes) == 20 and int(rt_l.price.spore) == 75 and String(rt_l.danger) == "2 уровень" and absf(_cs_end - cs_start - 1200.0) < 1.0)
+	_ok("логово: поле %d×%d м, вход с юга, %d минут, маршрут %d горошин, опасность «%s»" % [int(size_m), int(size_m), int(c.minutes), int(rt_l.price.get("pea", 0)), String(rt_l.danger)],
+		size_m == 200.0 and place == "lair" and ULLair.L_ENTRY.z > 85.0 and int(c.minutes) == 20 and int(rt_l.price.get("pea", 0)) == 8 and String(rt_l.danger) == "2 уровень" and absf(_cs_end - cs_start - 1200.0) < 1.0)
 	var need := ["hq", "barracks", "warehouse", "workshop", "mess", "quarters", "shed_nw", "shed_ne", "shed_e", "container", "tent", "hut"]
 	_ok("постройки по карте: штаб, казарма, склад, мастерская, столовая, жилой блок, сараи, гараж, контейнер, палатка, будка", need.all(func(x): return by_id.has(x)), str(by_id.keys()))
 	var cpos := func(id: String) -> Vector2:
