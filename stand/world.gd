@@ -145,7 +145,7 @@ func _ready() -> void:
 			sc.lottery = [sc.lottery[1], sc.lottery[1]]
 			sc.ruber_chances = [0, 0, 1]                 # и два Рубера — всего 57
 			ULSanatorium._cfg = sc
-	if test == "revisit" or test == "humanview" or test == "glowview" or test == "gqview" or test == "mapbake" or test == "pmap" or test == "fldiag" or test == "shbake" or test == "shcheck" or test == "gbake" or test == "gcheck" or test == "gperf" or test == "lumtest" or test == "wperf" or test == "evo" or test == "reload" or test == "look" or test == "traces" or test == "car" or test == "turfx" or test == "exitflow" or test == "enterview" or test == "colaudit":
+	if test == "revisit" or test == "humanview" or test == "glowview" or test == "gqview" or test == "mapbake" or test == "pmap" or test == "fldiag" or test == "shbake" or test == "shcheck" or test == "gbake" or test == "gcheck" or test == "gperf" or test == "lumtest" or test == "wperf" or test == "evo" or test == "reload" or test == "look" or test == "traces" or test == "car" or test == "turfx" or test == "exitflow" or test == "enterview" or test == "colaudit" or test == "carin":
 		# сравнение чёткости (gqview), запекание карты локации (mapbake), проверка карты (pmap): место — --as-place=
 		ULSettings.arena = false
 		for a in OS.get_cmdline_user_args():
@@ -643,12 +643,12 @@ func _cowshed_enter() -> void:
 			await get_tree().process_frame          # по нескольку за кадр — без долгой заминки на входе
 			if not is_inside_tree() or _leaving:
 				return                              # ушли с локации, пока она заселялась
-	if test == "car" or test == "turfx":
+	if test == "car" or test == "turfx" or test == "carin":
 		ULBase.memory_only = true                  # проверка машины: гараж куплен — в памяти, файл не трогается
 		ULBase.load_state(true)
 		ULBase.data.garage.level = 1
 		ULBase._garage_norm()
-	if test == "" or test == "car" or test == "turfx":
+	if test == "" or test == "car" or test == "turfx" or test == "carin":
 		_car_spawn()
 	if not vst.is_empty():
 		_cs_restore(vst)
@@ -3609,8 +3609,33 @@ func open_inventory(container = null, title := "", is_pack := false, icon := "cr
 	snd.play("zip", player.global_position + Vector3.UP * 1.2, -12.0)
 
 
+## в добыче (массив ячеек тела или тайника) ничего нет
+static func loot_empty(arr) -> bool:
+	if not (arr is Array):
+		return true
+	for it in arr:
+		if it != null:
+			return false
+	return true
+
+
+## добыча кончилась (сигнал окна): тело обыскано до конца или тайник опустошён — окно закрывается само
+func _on_loot_emptied() -> void:
+	if not inv_ui.visible or inv_ui.auto_close == "":
+		return
+	close_inventory()
+	say("Всё забрано")
+
+
 func close_inventory() -> void:
 	inv_ui.visible = false
+	inv_ui.auto_close = ""
+	if _open_corpse != null and is_instance_valid(_open_corpse) and loot_empty(_open_corpse.loot):
+		# обыскано до конца — тело больше не предлагает «Обыскать»
+		_open_corpse.set_meta("looted", true)
+		if _target != null and _target.type == "corpse" and _target.e == _open_corpse:
+			_target = null
+	_open_corpse = null
 	_hud.visible = true
 	_open_ground = null
 	if _trunk_open:
@@ -3929,7 +3954,7 @@ func _find_target() -> void:
 			bd = ds
 			best = {"type": "safe", "k": k + 1}
 	for e in enemies:
-		if not e.alive():
+		if not e.alive() and not e.has_meta("looted"):
 			var d := e.body_pos().distance_to(p) - 0.3
 			if d < bd:
 				bd = d
@@ -4168,14 +4193,25 @@ func do_action() -> void:
 				say("Задание «%s»: %s" % [String(quest_cfg().get("n", "")), String(ct.get("open_text", "контейнер найден и открыт"))])
 		var ic := {"med": "kit_6", "kitchen": "kit_9", "locker": "ammo_1", "bedside": "kit_7", "mil_med": "kit_6", "mil_ammo": "ammo_3", "soldier": "ammo_3",
 			"truck": "ammo_5", "btr": "ammo_5", "soldier_bag": "kit_9", "cab": "kit_9", "fuel": "junk", "wreck": "junk"}.get(String(ct.kind), "crate")
+		inv_ui.auto_close = "stash"              # «Взять всё» из тайника — и окно закрывается само
 		open_inventory(ct.items, String(ct.n), false, ic)
 		snd.play("hit_wood" if String(ct.kind) in ["bedside", "wardrobe", "desk", "store", "reception", "workbench", "mil_ammo", "mil_gear", "mil_docs"] else ("cloth" if String(ct.kind) in ["soldier", "soldier_bag", "mil_med"] else "click"), ct.pos, -12.0)
 		ct["opened"] = true
 		return
 	if _target.type == "corpse":
-		# обыск тела: его добыча — как хранилище; что взять — решает игрок («Взять всё» или по одному)
-		_open_corpse = _target.e
-		open_inventory((_target.e as ULEnemy).loot, String((_target.e as ULEnemy).def.n), false, String((_target.e as ULEnemy).def.pic))
+		# обыск тела: его добыча — как хранилище; что взять — решает игрок («Взять всё» или по одному).
+		# Пустое тело окна не открывает — сразу «Пусто»; забрали всё — окно закрывается само (_on_loot_emptied):
+		# как в Last Day on Earth и Dawn of Zombies, на пустое окно время не тратится.
+		var ce := _target.e as ULEnemy
+		if loot_empty(ce.loot):
+			ce.set_meta("looted", true)
+			_target = null
+			say("Пусто")
+			snd.play("cloth", ce.body_pos(), -10.0)
+			return
+		_open_corpse = ce
+		inv_ui.auto_close = "body"
+		open_inventory(ce.loot, String(ce.def.n), false, String(ce.def.pic))
 		return
 	var g: Dictionary = _target.g
 	var it: Dictionary = g.item
@@ -4539,6 +4575,7 @@ func _ui() -> void:
 	ui.add_child(inv_ui)
 	inv_ui.closed.connect(close_inventory)
 	inv_ui.changed.connect(_on_inv_changed)
+	inv_ui.emptied.connect(_on_loot_emptied)
 	inv_ui.drop.connect(_on_drop)
 	inv_ui.wear_ground_pack.connect(_on_wear_ground_pack)
 	inv_ui.use.connect(func(id: String):
@@ -12627,11 +12664,24 @@ func _inv_test() -> void:
 	_ok("обыск открывает добычу тела как хранилище", inv_ui.visible and inv_ui.cont == e.loot)
 	inv_ui._take_all()
 	_ok("«Взять всё»: два спорана — в инвентаре", inv.count("spore") == sp0 + 2 and e.loot[0] == null, "%d → %d" % [sp0, inv.count("spore")])
+	await get_tree().process_frame
+	await get_tree().process_frame
+	_ok("всё забрано — окно обыска закрылось само («Всё забрано»), тело больше не предлагает «Обыскать»", not inv_ui.visible and e.has_meta("looted") and _toast.text == "Всё забрано" and (_target == null or _target.type != "corpse"), "окно %s, надпись «%s»" % [str(inv_ui.visible), _toast.text])
 	_ok("тело лежит минуту", ULEnemy.CORPSE_S == 60.0 and is_instance_valid(e) and enemies.has(e))
 	e.dead_t = ULEnemy.CORPSE_S - 0.3
 	await get_tree().create_timer(0.6).timeout
 	_ok("через минуту обысканное тело исчезает, окно обыска закрывается", not is_instance_valid(e) and enemies.size() == 1 and targets.size() == n_targets + 1 and not inv_ui.visible)
 	_damage(far, 1000.0, far.global_position + Vector3.UP)
+	# пустое тело: окно не открывается — сразу «Пусто», и тело больше не цель
+	for li in far.loot.size():
+		far.loot[li] = null
+	player.global_position = far.body_pos() + Vector3(0.7, 0.05, 0.0)
+	await get_tree().create_timer(0.3).timeout
+	var empty_target: bool = _target != null and _target.type == "corpse" and _target.e == far
+	do_action()
+	await get_tree().process_frame
+	await get_tree().process_frame
+	_ok("пустое тело: «Обыскать» — окно не открывается, надпись «Пусто», тело больше не цель", empty_target and not inv_ui.visible and far.has_meta("looted") and _toast.text == "Пусто" and (_target == null or _target.type != "corpse"), "цель была %s, окно %s, надпись «%s»" % [str(empty_target), str(inv_ui.visible), _toast.text])
 	far.dead_t = ULEnemy.CORPSE_S - 0.3
 	await get_tree().create_timer(0.6).timeout
 	_ok("необысканное тело тоже исчезает через минуту", not is_instance_valid(far) and enemies.is_empty() and targets.size() == n_targets)
@@ -16708,6 +16758,9 @@ func _run_test() -> void:
 		await _garage_test()
 	if test == "colaudit":
 		await _colaudit_test()
+		return
+	if test == "carin":
+		await _carin_test()
 		return
 	if test == "setshot":
 		# снимок окна настроек (строка о разрешении экрана и подстройке)
@@ -21298,6 +21351,243 @@ func _garage_test() -> void:
 	var cd2 := ULBase.car_data()
 	_ok("30. после сохранения и загрузки: гараж 1/3, детали 3/3, турели (автоматная на крыше, пулемётная в гараже), боезапас, бак, шкаф",
 		ULBase.garage_level() == 1 and ULCar.PARTS.all(func(k): return ULGarageOps.lvl(cd2, k) == 3) and String(cd2.turret) == "rifle" and (cd2.turrets as Dictionary).has("mg") and int(cd2.turrets.rifle.ammo) == int(cd.turrets.rifle.ammo) and is_equal_approx(float(cd2.fuel), float(cd.fuel)) and ULBase.cabinet().any(func(x): return x != null and String(x.id) == "bandage"))
+	_test_done()
+
+
+## Заезд на локацию на УАЗе (--as-test=carin --as-place=…). Машина стоит у входа на свободном месте; по сетке
+## «пролезет ли кузов» (клетка 1 м, квадрат 2,6 × 2,6 м над землёй пуст) считается, куда от входа можно доехать;
+## затем машина сама едет по такому пути вглубь локации (к ближайшему к её середине доступному месту), там герой
+## выходит и садится обратно. Тесные клетки (нет запаса на разворот, квадрат 4,4 м занят) путь обходит, если может.
+func _carin_test() -> void:
+	var t0 := Time.get_ticks_msec()
+	while not cs_ready and Time.get_ticks_msec() - t0 < 60000:
+		await get_tree().process_frame
+	await get_tree().create_timer(0.8).timeout
+	_ok("%s: машина гаража стоит у входа" % place, car != null and car.global_position.distance_to(zone_entry()) < 18.0, str(car.global_position) if car else "машины нет")
+	if car == null:
+		_test_done()
+		return
+	_ok("место стоянки свободно: кузов ни во что не упирается", _car_free(), str(car.global_position))
+	for e in enemies:
+		if is_instance_valid(e) and e.alive():
+			e.global_position += Vector3(0, -60, 0)       # проверяется проезд, а не бой
+			e.set_active(false)
+			e.state = "idle"
+	hp_lock = true
+	car.data["fuel"] = 40.0
+	var space := get_world_3d().direct_space_state
+	var start := car.global_position
+	var ex := [car.get_rid(), player.get_rid()]
+	var tight_box := BoxShape3D.new()
+	tight_box.size = Vector3(2.6, 1.15, 2.6)
+	var wide_box := BoxShape3D.new()
+	wide_box.size = Vector3(4.4, 1.15, 4.4)
+	var qp := PhysicsShapeQueryParameters3D.new()
+	qp.collision_mask = 1 | PROP_LAYER
+	qp.exclude = ex
+	# 1) какие клетки проезжаемы: волна от машины, высота земли — от соседней клетки (под крышу и на крышу не уйдёт)
+	var hgt := {Vector2i(0, 0): start.y - 0.1}
+	var narrow := {}
+	var order: Array[Vector2i] = [Vector2i(0, 0)]
+	var qi := 0
+	var R := 150
+	var steps := [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]
+	while qi < order.size():
+		var c: Vector2i = order[qi]
+		qi += 1
+		if qi % 3000 == 0:
+			await get_tree().process_frame
+		for d in steps:
+			var n: Vector2i = c + d
+			if hgt.has(n) or absi(n.x) > R or absi(n.y) > R:
+				continue
+			var h0: float = hgt[c]
+			var at := Vector3(start.x + n.x, h0 + 1.2, start.z + n.y)
+			var rq := PhysicsRayQueryParameters3D.create(at, at + Vector3.DOWN * 2.6, 1)
+			rq.exclude = ex
+			var gh := space.intersect_ray(rq)
+			if gh.is_empty():
+				hgt[n] = NAN
+				continue
+			var gy: float = (gh.position as Vector3).y
+			qp.shape = tight_box
+			qp.transform = Transform3D(Basis.IDENTITY, Vector3(at.x, gy + 0.45 + 0.575, at.z))
+			if not space.intersect_shape(qp, 1).is_empty():
+				hgt[n] = NAN
+				continue
+			hgt[n] = gy
+			qp.shape = wide_box
+			if not space.intersect_shape(qp, 1).is_empty():
+				narrow[n] = true
+			order.append(n)
+	var area := order.size()
+	var far := 0.0
+	var goal := Vector2i(0, 0)
+	var best := INF
+	for c in order:
+		far = maxf(far, Vector2(c).length())
+		# цель — доступное просторное место ближе всего к середине локации
+		var dc := Vector2(start.x + c.x, start.z + c.y).length() + (6.0 if narrow.has(c) else 0.0)
+		if dc < best:
+			best = dc
+			goal = c
+	_ok("от входа на машине можно заехать вглубь: проезжаемо %d м², дальше всего от стоянки %.0f м, до середины локации остаётся %.0f м" % [area, far, best],
+		area > 1500 and far > 45.0, "место машины %s" % str(start.snapped(Vector3(0.1, 0.1, 0.1))))
+	# 2) путь: кратчайший, тесные клетки дороже (обходит их, если может)
+	var dist := {Vector2i(0, 0): 0.0}
+	var prev := {}
+	var heap: Array = [[0.0, Vector2i(0, 0)]]
+	var nb8 := [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1), Vector2i(1, 1), Vector2i(1, -1), Vector2i(-1, 1), Vector2i(-1, -1)]
+	var pops := 0
+	while not heap.is_empty():
+		# очередь с приоритетом: наименьшее — в начале (двоичная куча)
+		var top: Array = heap[0]
+		var last_e: Array = heap.pop_back()
+		if not heap.is_empty():
+			heap[0] = last_e
+			var i := 0
+			while true:
+				var l := i * 2 + 1
+				var r := l + 1
+				var m := i
+				if l < heap.size() and float(heap[l][0]) < float(heap[m][0]):
+					m = l
+				if r < heap.size() and float(heap[r][0]) < float(heap[m][0]):
+					m = r
+				if m == i:
+					break
+				var tmp: Array = heap[i]
+				heap[i] = heap[m]
+				heap[m] = tmp
+				i = m
+		var c: Vector2i = top[1]
+		if float(top[0]) > float(dist.get(c, INF)) + 0.001:
+			continue
+		if c == goal:
+			break
+		pops += 1
+		if pops % 4000 == 0:
+			await get_tree().process_frame
+		for d in nb8:
+			var n: Vector2i = c + d
+			if not hgt.has(n) or is_nan(float(hgt[n])):
+				continue
+			if d.x != 0 and d.y != 0 and (is_nan(float(hgt.get(c + Vector2i(d.x, 0), NAN))) or is_nan(float(hgt.get(c + Vector2i(0, d.y), NAN)))):
+				continue                                  # наискось мимо угла не режем
+			var nd := float(dist[c]) + Vector2(d).length() * (5.0 if narrow.has(n) else 1.0)
+			if nd < float(dist.get(n, INF)):
+				dist[n] = nd
+				prev[n] = c
+				heap.append([nd, n])
+				var j := heap.size() - 1
+				while j > 0:
+					var pj := (j - 1) / 2
+					if float(heap[pj][0]) <= float(heap[j][0]):
+						break
+					var t2: Array = heap[j]
+					heap[j] = heap[pj]
+					heap[pj] = t2
+					j = pj
+	var cells: Array[Vector2i] = []
+	var cur := goal
+	while cur != Vector2i(0, 0) and prev.has(cur):
+		cells.append(cur)
+		cur = prev[cur]
+	cells.reverse()
+	var pts: Array[Vector3] = []
+	var tight_n := 0
+	for i in cells.size():
+		if narrow.has(cells[i]):
+			tight_n += 1
+		if i % 3 == 2 or i == cells.size() - 1:
+			pts.append(Vector3(start.x + cells[i].x, float(hgt[cells[i]]), start.z + cells[i].y))
+	var path_len := float(cells.size())
+	# 3) сесть и ехать
+	player.global_position = car.door_pos() + Vector3.UP * 0.1
+	for i in 8:
+		await get_tree().process_frame
+	if _target != null and String(_target.type) == "car_door":
+		do_action()
+	for i in 4:
+		await get_tree().process_frame
+	_ok("сел за руль у входа", car_in, _action_label())
+	var wi := 0
+	var stuck_t := 0.0
+	var stuck_n := 0
+	var rev_t := 0.0
+	var f0 := Engine.get_physics_frames()
+	var lim := clampf(path_len / 3.0 + 25.0, 30.0, 120.0)
+	var prev_s := 0.0
+	var where_stuck := []
+	while car_in and not pts.is_empty() and _game_s(f0) < lim:
+		await get_tree().process_frame
+		var now := _game_s(f0)
+		var dtg := now - prev_s
+		prev_s = now
+		var cp := car.global_position
+		while wi < pts.size() - 1 and Vector2(pts[wi].x - cp.x, pts[wi].z - cp.z).length() < 4.0:
+			wi += 1
+		var to := pts[wi] - cp
+		to.y = 0.0
+		if wi == pts.size() - 1 and to.length() < 4.5:
+			break
+		var f := car.fwd()
+		var left := Vector3(f.z, 0, -f.x)
+		var ang := atan2(to.dot(left), to.dot(f))
+		for k in 4:
+			_hud_touch.erase(90 + k)
+		if rev_t > 0.0:
+			rev_t -= dtg
+			_hud_touch[90] = "c_rev"
+			_hud_touch[91] = "c_right" if ang > 0.0 else "c_left"       # задом — руль в другую сторону
+			continue
+		var cap := 2.5 if absf(ang) > 0.9 else (4.0 if absf(ang) > 0.4 else 6.5)
+		if absf(ang) > 2.3:
+			rev_t = 1.3                                   # цель сзади — сдать назад с поворотом
+			continue
+		if car.speed < cap:
+			_hud_touch[90] = "c_gas"
+		elif car.speed > cap + 1.5:
+			_hud_touch[90] = "c_brake"
+		if ang > 0.07:
+			_hud_touch[91] = "c_left"
+		elif ang < -0.07:
+			_hud_touch[91] = "c_right"
+		if absf(car.speed) < 0.35:
+			stuck_t += dtg
+			if stuck_t > 1.6:
+				stuck_t = 0.0
+				stuck_n += 1
+				rev_t = 1.4
+				if where_stuck.size() < 4:
+					where_stuck.append("(%.0f, %.0f)" % [cp.x, cp.z])
+		else:
+			stuck_t = 0.0
+	for k in 4:
+		_hud_touch.erase(90 + k)
+	if car_in:
+		await _car_stop()
+	var done_d := Vector2(car.global_position.x - start.x, car.global_position.z - start.z).length()
+	var left_d := 0.0 if pts.is_empty() else Vector2(car.global_position.x - pts[pts.size() - 1].x, car.global_position.z - pts[pts.size() - 1].z).length()
+	_ok("доехал на машине вглубь локации: путь %.0f м (тесных мест %d м), проехал до точки в %.0f м от стоянки, до цели осталось %.0f м, за %.0f с, застревал %d раз" % [path_len, tight_n, done_d, left_d, _game_s(f0), stuck_n],
+		pts.is_empty() or left_d < 7.0, "упирался: %s" % ", ".join(where_stuck))
+	if out != "":
+		await _snap("carin_%s" % place)
+	# 4) выйти и сесть обратно
+	if car_in:
+		car_exit()
+	for i in 6:
+		await get_tree().process_frame
+	_ok("на месте вышел из машины: герой рядом, на свободном месте", not car_in and player.visible and player.global_position.distance_to(car.global_position) < 5.0 and _spot_free(player.global_position), str(player.global_position))
+	player.global_position = car.door_pos() + Vector3.UP * 0.1
+	for i in 8:
+		await get_tree().process_frame
+	if _target != null and String(_target.type) == "car_door":
+		do_action()
+	for i in 4:
+		await get_tree().process_frame
+	_ok("и сел обратно", car_in)
+	print("[carin] %s: проезжаемо %d м², дальше всего %.0f м, путь %.0f м, тесно %d м, доехал — осталось %.0f м, застревал %d (%s)" % [place, area, far, path_len, tight_n, left_d, stuck_n, ", ".join(where_stuck)])
 	_test_done()
 
 

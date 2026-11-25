@@ -147,8 +147,9 @@ func sample(delta: float, direct := false) -> void:
 	if ((p.L_Foot as Vector3).x - (p.R_Foot as Vector3).x) * _side0 < -0.04 * k:
 		_cross += 1
 	# колено: середина «бедро — стопа» против сустава колена; колено позади этой линии — нога выгнута назад
+	# (только у стоящего: у лежащего и встающего «назад» — это вверх или вбок, мерка не годится)
 	for s in ["L", "R"]:
-		if p.has(s + "_Thigh") and p.has(s + "_Calf"):
+		if hip.y > 0.62 * k and p.has(s + "_Thigh") and p.has(s + "_Calf"):
 			var mid: Vector3 = ((p[s + "_Thigh"] as Vector3) + (p[s + "_Foot"] as Vector3)) * 0.5
 			_knee = maxf(_knee, mid.z - (p[s + "_Calf"] as Vector3).z)
 	if _prev != Vector3.INF and delta > 0.0005:

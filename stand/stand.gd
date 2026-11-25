@@ -1461,9 +1461,16 @@ func _audit_all() -> void:
 	paused = false
 	if audit_btn:
 		audit_btn.text = "Стоп"
+	# автопроверка: --as-only=idle,walk,run — только эти движения (быстрая перепроверка после правки)
+	var only: PackedStringArray = []
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--as-only="):
+			only = a.substr(10).split(",")
 	for i in entries.size():
 		if not _audit_run:
 			break
+		if test == "poses" and not only.is_empty() and not only.has(String(entries[i].id)):
+			continue
 		select(i)
 		await get_tree().create_timer(_audit_wait(entries[i])).timeout
 		if not is_inside_tree():
@@ -1480,11 +1487,14 @@ func _audit_all() -> void:
 			print("[poses] %s · %s «%s» (%s): %s | %s" % [who if who != "hero" else hero_id, en.id, en.n, audit.mode, "норма" if r.ok else "ЗАМЕЧАНИЯ: " + "; ".join(r.notes), ", ".join(vs)])
 			if not r.ok:
 				var y0 := yaw
+				get_viewport().scaling_3d_scale = 1.0
 				for vw in [["f", 0.0], ["s", PI * 0.5]]:
 					yaw = vw[1]
 					await get_tree().process_frame
+					await get_tree().process_frame
 					await _snap("%s/%s_%s_%s.png" % [out, who if who != "hero" else hero_id, en.id, vw[0]])
 				yaw = y0
+				get_viewport().scaling_3d_scale = 0.3
 		_refresh()
 	_audit_run = false
 	if audit_btn:
@@ -1552,7 +1562,12 @@ func _snap(path: String) -> void:
 func _run_test() -> void:
 	DirAccess.make_dir_recursive_absolute(out)
 	if test == "poses":
-		# проверка поз всех движений этого персонажа: замечания — в журнал, по два снимка на каждое замечание
+		# проверка поз всех движений этого персонажа: замечания — в журнал, по два снимка на каждое замечание.
+		# Картинка на время проверки — лёгкая (без теней, 3D в треть разрешения): на программной отрисовке это
+		# даёт в несколько раз больше кадров, а значит и замеров позы; для снимка разрешение возвращается.
+		for sl in find_children("*", "DirectionalLight3D", true, false):
+			(sl as DirectionalLight3D).shadow_enabled = false
+		get_viewport().scaling_3d_scale = 0.3
 		await get_tree().create_timer(1.0).timeout
 		await _audit_all()
 		var bad_n := 0

@@ -206,7 +206,8 @@ static func build(skel: Skeleton3D, ap_root: Node, cfg: Dictionary, scale: float
 		if src == null:
 			continue
 		var a: Animation = src.duplicate(true)
-		_retarget(a, skel, skel_path, _fix_for(fixes, skel, src_path), root_bone)
+		var fx := _fix_for(fixes, skel, src_path)
+		_retarget(a, skel, skel_path, fx, root_bone)
 		if c.get("reverse", false):
 			a = _reverse(a)
 		var t0: float = c.get("from", 0.0)
@@ -226,6 +227,10 @@ static func build(skel: Skeleton3D, ap_root: Node, cfg: Dictionary, scale: float
 			dir = rr[1]
 			if c.get("root_smooth", 0.0) > 0.0:
 				_flatten_root(a, skel, root_bone, c.root_smooth)
+			if c.has("sway_k"):
+				_sway_scale(a, skel, root_bone, dir, float(c.sway_k))
+			if not fx.is_empty() and bool(c.get("legs_center", true)):
+				_legs_center(a, skel, root_bone, dir)
 		elif c.get("center", false):
 			# стойка: тело над капсулой (у готового «idle» таз в среднем в 12 см от точки персонажа)
 			_flatten_root(a, skel, root_bone, a.length * 2.0)
@@ -694,6 +699,102 @@ static func _floor_apply(a: Animation, skel: Skeleton3D, root_bone: String, shif
 		if a.track_get_type(i) == Animation.TYPE_POSITION_3D and String(a.track_get_path(i)).ends_with(":" + root_bone):
 			for k in a.track_get_key_count(i):
 				a.track_set_key_value(i, k, (a.track_get_key_value(i, k) as Vector3) + up * shift)
+
+
+## Раскачка таза вбок на ходу: поперечное (поперёк хода, по горизонтали) смещение кости-корня от своего среднего
+## умножается на k. У клипов ходьбы Tripo таз гуляет на 20 см и больше — персонаж «переваливается» с боку на бок;
+## k = 0,5 оставляет живое покачивание без утиной походки. dir — направление хода (из _strip_root).
+static func _sway_scale(a: Animation, skel: Skeleton3D, root_bone: String, dir: Vector3, k: float) -> void:
+	var bi := skel.find_bone(root_bone)
+	var track := -1
+	for i in a.get_track_count():
+		if a.track_get_type(i) == Animation.TYPE_POSITION_3D and String(a.track_get_path(i)).ends_with(":" + root_bone):
+			track = i
+	if bi < 0 or track < 0 or dir == Vector3.ZERO:
+		return
+	var parent := skel.get_bone_parent(bi)
+	var pb := skel.get_bone_global_rest(parent).basis if parent >= 0 else Basis.IDENTITY
+	var up := (pb.inverse() * Vector3.UP).normalized()
+	var fwd := (pb.inverse() * dir).normalized()
+	var side := up.cross(fwd).normalized()
+	var n := a.track_get_key_count(track)
+	var mean := 0.0
+	for i in n:
+		mean += (a.track_get_key_value(track, i) as Vector3).dot(side)
+	mean /= maxf(n, 1)
+	for i in n:
+		var v: Vector3 = a.track_get_key_value(track, i)
+		a.track_set_key_value(track, i, v - side * ((v.dot(side) - mean) * (1.0 - k)))
+
+
+## Ноги — под таз. Клип шага, снятый с другой модели, на чужом скелете может ставить обе ноги вбок от таза
+## (у «Рыси» — на 14 см вправо: тело на ходу «заваливалось» на 6–8°, хотя таз и грудь стояли ровно): поправка под
+## чужие пропорции (_rest_fix) выставляет бёдра неточно. Здесь меряется, насколько середина между стопами в среднем
+## за цикл уходит вбок от таза против исходной позы, и оба бедра доворачиваются вокруг оси хода на этот угол.
+## Только для хода вперёд-назад (в шаге боком ноги и должны уходить в сторону) и только для чужого скелета.
+static func _legs_center(a: Animation, skel: Skeleton3D, root_bone: String, dir: Vector3) -> void:
+	var hip := skel.find_bone(root_bone)
+	var lt := skel.find_bone("L_Thigh")
+	var rt := skel.find_bone("R_Thigh")
+	var lf := skel.find_bone("L_Foot")
+	var rf := skel.find_bone("R_Foot")
+	if hip < 0 or lt < 0 or rt < 0 or lf < 0 or rf < 0 or a.length <= 0.0:
+		return
+	var side := skel.get_bone_global_rest(lt).origin - skel.get_bone_global_rest(rt).origin
+	side.y = 0.0
+	if side.length() < 1e-4:
+		return
+	side = side.normalized()
+	var fwd := side.cross(Vector3.UP).normalized()
+	if dir != Vector3.ZERO and absf(dir.normalized().dot(fwd)) < 0.8:
+		return                                  # шаг боком — не трогаем
+	var saved: Array = []
+	for i in skel.get_bone_count():
+		saved.append([skel.get_bone_pose_position(i), skel.get_bone_pose_rotation(i)])
+	var tracks: Array = []
+	var tr_l := -1
+	var tr_r := -1
+	for tr in a.get_track_count():
+		var bi := skel.find_bone(String(a.track_get_path(tr)).get_slice(":", 1))
+		if bi >= 0:
+			tracks.append([tr, bi, a.track_get_type(tr)])
+			if a.track_get_type(tr) == Animation.TYPE_ROTATION_3D:
+				if bi == lt:
+					tr_l = tr
+				elif bi == rt:
+					tr_r = tr
+	var pose_at := func(t: float) -> void:
+		for q in tracks:
+			if int(q[2]) == Animation.TYPE_POSITION_3D:
+				skel.set_bone_pose_position(int(q[1]), a.position_track_interpolate(int(q[0]), t))
+			elif int(q[2]) == Animation.TYPE_ROTATION_3D:
+				skel.set_bone_pose_rotation(int(q[1]), a.rotation_track_interpolate(int(q[0]), t))
+	var rest_hip := skel.get_bone_global_rest(hip).origin
+	var rest_mid := (skel.get_bone_global_rest(lf).origin + skel.get_bone_global_rest(rf).origin) * 0.5
+	var off0 := (rest_mid - rest_hip).dot(side)
+	var leg := maxf(rest_hip.y - rest_mid.y, 0.05)
+	var off := 0.0
+	var steps := 24
+	for st in steps:
+		pose_at.call(a.length * float(st) / float(steps))
+		off += (((skel.get_bone_global_pose(lf).origin + skel.get_bone_global_pose(rf).origin) * 0.5) - skel.get_bone_global_pose(hip).origin).dot(side)
+	off = off / float(steps) - off0
+	var ang := atan2(off, leg)
+	if absf(ang) >= deg_to_rad(1.5) and tr_l >= 0 and tr_r >= 0:
+		# в какую сторону поворот вокруг оси хода уводит опущенную ногу
+		var sgn := signf((Basis(fwd, 0.1) * Vector3.DOWN).dot(side))
+		var turn := Quaternion(fwd, -sgn * ang)
+		for tr in [tr_l, tr_r]:
+			var bone := lt if tr == tr_l else rt
+			var par := skel.get_bone_parent(bone)
+			for k in a.track_get_key_count(tr):
+				pose_at.call(a.track_get_key_time(tr, k))
+				var pq := skel.get_bone_global_pose(par).basis.get_rotation_quaternion()
+				var q: Quaternion = a.track_get_key_value(tr, k)
+				a.track_set_key_value(tr, k, (pq.inverse() * turn * pq * q).normalized())
+	for i in skel.get_bone_count():
+		skel.set_bone_pose_position(i, saved[i][0])
+		skel.set_bone_pose_rotation(i, saved[i][1])
 
 
 static func _flatten_root(a: Animation, skel: Skeleton3D, root_bone: String, window: float) -> void:

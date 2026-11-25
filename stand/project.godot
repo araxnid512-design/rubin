@@ -35,6 +35,10 @@ window/stretch/aspect="expand"
 window/handheld/orientation=4
 window/vsync/vsync_mode=1
 
+[gui]
+
+theme/custom_font="res://assets/fonts/ui_font.tres"
+
 [importer_defaults]
 
 texture={

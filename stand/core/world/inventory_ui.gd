@@ -11,6 +11,7 @@ extends Control
 
 signal closed
 signal changed                    ## снаряжение или содержимое поменялось (обновить героя, сохранить)
+signal emptied                    ## открытая добыча кончилась (тело обыскано до конца, тайник опустошён) — окно закрывается
 signal drop(item: Dictionary)     ## выбросить предмет на землю
 signal wear_ground_pack           ## надеть открытый рюкзак с земли
 signal use(id: String)            ## использовать расходник (лечение, еда, вода)
@@ -29,6 +30,10 @@ const CLOTHES := [["helmet", "Шлем"], ["vest", "Жилет"], ["jacket", "К
 
 var inv: ULInventory
 var cont = null                   ## открытое хранилище: массив ячеек или null
+## Когда окно закрывается само (как в Last Day / Dawn of Zombies — не тратить время на пустое окно):
+## "" — никогда (свой ящик, сейф, багажник); "body" — как только из тела забрано всё; "stash" — тайник локации
+## опустел после «Взять всё».
+var auto_close := ""
 var cont_title := ""
 var cont_icon := "crate"          ## значок хранилища (assets/icons)
 var cont_is_pack := false         ## хранилище — рюкзак на земле (можно надеть)
@@ -610,6 +615,18 @@ func _done(msg := "") -> void:
 	_sel_i = -1
 	changed.emit()
 	refresh()
+	if auto_close == "body" and visible and cont_empty():
+		emptied.emit.call_deferred()
+
+
+## в открытом хранилище ничего не осталось
+func cont_empty() -> bool:
+	if not (cont is Array):
+		return false
+	for it in cont:
+		if it != null:
+			return false
+	return true
 
 
 func _act_hand(slot: String) -> void:
@@ -729,6 +746,8 @@ func _take_all() -> void:
 		_done("Хранилище пусто")
 	else:
 		_done("Взято: %d" % moved + (", не поместилось: %d" % stuck if stuck > 0 else ""))
+	if auto_close == "stash" and visible and cont_empty():
+		emptied.emit.call_deferred()
 
 
 ## разделить стопку пополам: половина — в первую свободную ячейку того же места
