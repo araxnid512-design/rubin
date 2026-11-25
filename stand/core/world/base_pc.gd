@@ -11,7 +11,7 @@ signal closed
 
 const UI := "res://assets/ui/"
 ## всё на экране компьютера — в K раз крупнее исходного макета (на телефоне мелкий текст и кнопки читались плохо)
-const K := 1.3
+const K := 1.0                 ## общий размер окна: было 1,3 — просьба пользователя 25.11 «сделать компактнее»: окно плотнее, в список помещается больше маршрутов
 const DRAG_START := 12.0           ## на сколько точек сдвинуть палец, чтобы список начал прокручиваться (не нажатие)
 const C_BG := Color(0.07, 0.08, 0.08)
 const C_PANEL := Color(0.03, 0.065, 0.058, 0.97)
@@ -326,7 +326,7 @@ func _card(bg := C_CARD, border := C_LINE) -> PanelContainer:
 func _top_bar() -> Control:
 	var top := HBoxContainer.new()
 	top.add_theme_constant_override("separation", 6)
-	top.custom_minimum_size.y = 64 * K
+	top.custom_minimum_size.y = 56 * K
 	var title := _card(C_PANEL)
 	title.size_flags_horizontal = SIZE_EXPAND_FILL
 	title.size_flags_stretch_ratio = 1.75
@@ -1008,7 +1008,7 @@ func _exchange_bar() -> Control:
 		c.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
 		c.pressed.connect(open_exchange.bind("buy", hi))
 		c.name = "pair_" + hi
-		c.custom_minimum_size = Vector2(120, 84) * K
+		c.custom_minimum_size = Vector2(120, 66) * K
 		h.add_child(c)
 		var cv := VBoxContainer.new()
 		cv.set_anchors_and_offsets_preset(PRESET_FULL_RECT)
@@ -1024,20 +1024,20 @@ func _exchange_bar() -> Control:
 		ic.add_theme_constant_override("separation", 6)
 		ic.mouse_filter = MOUSE_FILTER_IGNORE
 		cv.add_child(ic)
-		ic.add_child(_ico(ULItems.icon(hi), 36))
-		ic.add_child(_ico("arrow", 24))
-		ic.add_child(_ico(ULItems.icon(ULEconomy.lower(hi)), 36))
+		ic.add_child(_ico(ULItems.icon(hi), 28))
+		ic.add_child(_ico("arrow", 20))
+		ic.add_child(_ico(ULItems.icon(ULEconomy.lower(hi)), 28))
 		var rl := _lbl(_cap_rate(hi), 12, C_TEXT, false, true)
 		rl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		cv.add_child(rl)
 	var bv := VBoxContainer.new()
 	bv.alignment = BoxContainer.ALIGNMENT_CENTER
-	bv.add_theme_constant_override("separation", 8)
+	bv.add_theme_constant_override("separation", 5)
 	h.add_child(bv)
-	var bb := _btn("КУПИТЬ", "cart", "green", open_exchange.bind("buy", ""), Vector2(196, 42), 18)
+	var bb := _btn("КУПИТЬ", "cart", "green", open_exchange.bind("buy", ""), Vector2(196, 34), 17)
 	bb.name = "ExBuy"
 	bv.add_child(bb)
-	var sb := _btn("ПРОДАТЬ", "coins", "orange", open_exchange.bind("sell", ""), Vector2(196, 42), 18)
+	var sb := _btn("ПРОДАТЬ", "coins", "orange", open_exchange.bind("sell", ""), Vector2(196, 34), 17)
 	sb.name = "ExSell"
 	bv.add_child(sb)
 	return p

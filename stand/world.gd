@@ -11928,8 +11928,8 @@ func _pc_test() -> void:
 	ev2.position = p0 + Vector2(0, -120)
 	Input.parse_input_event(ev2)
 	await get_tree().process_frame
-	_ok("компьютер крупнее (в 1,3 раза) и список маршрутов тянется пальцем: %s" % ("прокрутился на %d" % rsc.scroll_vertical if can_scroll else "всё влезает — прокручивать нечего"),
-		ULBasePC.K >= 1.3 and rsc != null and pc.drag_moved and (not can_scroll or rsc.scroll_vertical > 30), "двигался: %s" % str(pc.drag_moved))
+	_ok("компьютер компактный (размер 1,0) и список маршрутов тянется пальцем: %s" % ("прокрутился на %d" % rsc.scroll_vertical if can_scroll else "всё влезает — прокручивать нечего"),
+		ULBasePC.K >= 1.0 and ULBasePC.K <= 1.1 and rsc != null and pc.drag_moved and (not can_scroll or rsc.scroll_vertical > 30), "двигался: %s" % str(pc.drag_moved))
 	rsc.scroll_vertical = 0
 	pc.drag_moved = false
 	# карточка закреплённого маршрута «Заброшенный аэропорт» — прокрутить к ней и снять
