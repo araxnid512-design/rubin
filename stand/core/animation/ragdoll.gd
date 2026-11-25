@@ -36,6 +36,7 @@ var _joints: Array = []
 var _prev := {}                                 ## кость → положение в мире кадром раньше (скорость при переходе)
 var _prev_dt := 0.016
 var _quiet := 0.0
+var _feet: Array = []                           ## [[кость стопы, кость носка, часть тела «голень»]] — см. _feet_up
 
 
 ## Можно ли собрать тело из этого скелета (нужны все кости из SEG)
@@ -119,6 +120,12 @@ func start(push: Vector3, hit := Vector3.INF) -> bool:
 		if hit != Vector3.INF:
 			near = clampf(1.4 - body.global_position.distance_to(hit) / height, 0.5, 1.4)
 		body.linear_velocity = v + push * near
+	_feet.clear()
+	for sd in ["L", "R"]:
+		var fb := sk.find_bone(sd + "_Foot")
+		var tb := sk.find_bone(sd + "_ToeBase")
+		if fb >= 0 and tb >= 0 and by_name.has(sd + "_Calf"):
+			_feet.append([fb, tb, by_name[sd + "_Calf"]])
 	# суставы: в начале кости-ребёнка, ось скручивания (X сустава) — вдоль неё
 	for s in SEG:
 		if String(s[4]) == "":
@@ -198,6 +205,42 @@ func _process_modification() -> void:
 	for it in _items:
 		var b := it.body as RigidBody3D
 		sk.set_bone_global_pose(int(it.bone), inv * (b.global_transform * (it.k as Transform3D)))
+	var up := _feet_up(sk)
+	for fb in up:
+		sk.set_bone_global_pose(int(fb), up[fb])
+
+
+## Носок не ниже голени. У стопы своей части тела нет: она идёт за голенью так, как стояла в клипе, и у лежащего
+## ничком носок уходил под пол (у Рубера — на 13 см). Стопа доворачивается, чтобы носок лёг на уровень низа голени.
+## Возвращает {кость стопы: новая поза в скелете}; пусто — доворачивать нечего.
+func _feet_up(sk: Skeleton3D) -> Dictionary:
+	var out := {}
+	var skg := sk.global_transform
+	for f in _feet:
+		var body := (f[2] as Dictionary).body as RigidBody3D
+		if body == null or not is_instance_valid(body) or body.get_child_count() == 0:
+			continue
+		var cap := (body.get_child(0) as CollisionShape3D).shape as CapsuleShape3D
+		var axis := body.global_transform.basis.y
+		var half := axis * (cap.height * 0.5 - cap.radius)
+		var low := minf((body.global_position + half).y, (body.global_position - half).y) - cap.radius
+		var fg: Transform3D = skg * sk.get_bone_global_pose(int(f[0]))
+		var tg: Vector3 = skg * sk.get_bone_global_pose(int(f[1])).origin
+		var d := tg - fg.origin
+		var ln := d.length()
+		var want_y := low + cap.radius * 0.35            # носок — чуть выше низа голени (толщина стопы)
+		if ln < 0.01 or tg.y >= want_y:
+			continue
+		var flat := Vector3(d.x, 0.0, d.z)
+		if flat.length() < 0.02 * ln:
+			flat = Vector3(axis.x, 0.0, axis.z)          # носок смотрел строго вниз — кладём вдоль голени
+		if flat.length() < 0.001:
+			continue
+		var ny := clampf((want_y - fg.origin.y) / ln, -1.0, 1.0)
+		var nd := flat.normalized() * sqrt(1.0 - ny * ny) + Vector3.UP * ny
+		var q := Quaternion(d / ln, nd.normalized())
+		out[int(f[0])] = skg.affine_inverse() * Transform3D(Basis(q) * fg.basis, fg.origin)
+	return out
 
 
 ## шаг физики тела: легло — записать позу и убрать тела
@@ -235,6 +278,11 @@ func bake() -> void:
 		var loc := (sk.get_bone_global_pose(par).affine_inverse() * g) if par >= 0 else g
 		sk.set_bone_pose_position(bi, loc.origin)
 		sk.set_bone_pose_rotation(bi, loc.basis.get_rotation_quaternion())
+	var up := _feet_up(sk)                           # носки — не ниже голеней (пока части тела ещё на месте)
+	for fb in up:
+		var fpar := sk.get_bone_parent(int(fb))
+		var floc: Transform3D = (sk.get_bone_global_pose(fpar).affine_inverse() * (up[fb] as Transform3D)) if fpar >= 0 else (up[fb] as Transform3D)
+		sk.set_bone_pose_rotation(int(fb), floc.basis.get_rotation_quaternion())
 	for j in _joints:
 		(j as Node).queue_free()
 	_joints.clear()
