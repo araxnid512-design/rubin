@@ -55,13 +55,13 @@ const A_BUILDINGS := [
 			"row": [["guard", 7.0], ["proc", 8.0], ["wc", 5.5], ["shop", 8.0], ["shop", 8.0], ["dining", 10.5], ["wc", 5.5], ["store", 7.1]], "hall_type": "lobby",
 			"entr": [["s-", 0.0, 3.6, "plain"], ["s-", -19.0, 1.8, "plain"], ["s-", 19.0, 1.8, "plain"], ["e-", 4.0, 2.2, "plain"], ["e+", 4.0, 2.2, "plain"]],
 			"win_w": 2.4, "win_h": 2.4, "sill": 1.0}]},
-	{"id": "term_w", "n": "Терминал: багажное крыло", "kind": "office", "skin": "facade", "int": "int_beige", "storey": 3.6, "hall0": "warehouse",
+	{"id": "term_w", "n": "Терминал: багажное крыло", "kind": "office", "skin": "facade", "int": "int_beige", "storey": 3.6, "hall0": "lounge",
 		"types": {"0": [["store", 2], ["tech", 1], ["staff", 1], ["guard", 1]], "1": [["office", 3], ["staff", 1], ["archive", 1], ["tech", 1]]},
-		"blocks": [{"c": Vector2(-51, -66), "L": 42.0, "W": 16.0, "axis": "x", "floors": 2, "stairs": [-1], "hall": [1.0, 13.0],
+		"blocks": [{"c": Vector2(-51, -66), "L": 42.0, "W": 16.0, "axis": "x", "floors": 2, "stairs": [-1, 1], "hall": [1.0, 13.0],
 			"entr": [["e+", 0.0, 2.0], ["s+", 1.0, 2.4], ["e-", 0.0, 1.6]], "wide": 0.5}]},
 	{"id": "term_e", "n": "Терминал: посадочное крыло", "kind": "office", "skin": "facade", "int": "int_beige", "storey": 3.6, "hall0": "lounge",
 		"types": {"0": [["shop", 2], ["wc", 1], ["nurse", 1], ["staff", 1]], "1": [["office", 3], ["staff", 1], ["m_office", 1], ["archive", 1]]},
-		"blocks": [{"c": Vector2(51, -66), "L": 42.0, "W": 16.0, "axis": "x", "floors": 2, "stairs": [1], "hall": [-1.0, 13.0],
+		"blocks": [{"c": Vector2(51, -66), "L": 42.0, "W": 16.0, "axis": "x", "floors": 2, "stairs": [-1, 1], "hall": [-1.0, 13.0],
 			"entr": [["e-", 0.0, 2.0], ["s+", -1.0, 2.4], ["e+", 0.0, 1.6]], "wide": 0.5}]},
 	# диспетчерская вышка: четыре уровня, лестница маршами вдоль стен, наверху — кабина диспетчеров
 	{"id": "tower", "n": "Диспетчерская вышка", "kind": "tech", "style": "box", "skin": "plaster", "int": "int_grey1", "storey": 3.4, "te": 0.24,
@@ -100,7 +100,7 @@ const A_BUILDINGS := [
 			"row": [["tech", 11.0], ["store", 11.0], ["staff", 11.6]], "hall_type": "workshop",
 			"entr": [["s+", -8.0, 4.4, "plain"], ["s+", 8.0, 4.4, "plain"], ["e+", 2.0, 1.4, "plain"]], "win_w": 1.4, "win_h": 0.8, "sill": 2.6}]},
 	# север: администрация аэропорта (два этажа), служба полётов, техническая служба
-	{"id": "admin", "n": "Администрация аэропорта", "kind": "office", "skin": "plaster", "int": "int_beige1", "storey": 3.3,
+	{"id": "office", "n": "Администрация аэропорта", "kind": "office", "skin": "plaster", "int": "int_beige1", "storey": 3.3, "hall0": "lounge",
 		"types": {"0": [["office", 3], ["archive", 1], ["staff", 1], ["wc", 1]], "1": [["office", 3], ["m_office", 1], ["staff", 1], ["archive", 1]]},
 		"blocks": [{"c": Vector2(-104, -106), "L": 34.0, "W": 13.0, "axis": "x", "floors": 2, "stairs": [1], "hall": [-3.0, 6.5],
 			"entr": [["s+", -3.0, 2.0], ["e+", 0.0, 1.4]], "wide": 0.45}]},
@@ -313,7 +313,7 @@ func roll_containers(rng: RandomNumberGenerator) -> void:
 			up.append(i)
 	if not up.is_empty():
 		var ci: int = up[rng.randi() % up.size()]
-		ULInventory.put(containers[ci].items, ULItems.make("a_docs", 1))
+		_a_put(containers[ci].items, "a_docs")
 		quest_where["a_docs"] = ci
 	for key in quest_stash:
 		var qi: int = base + int(quest_stash[key])
@@ -324,8 +324,18 @@ func roll_containers(rng: RandomNumberGenerator) -> void:
 			for l in conf().get("loot", {}).get("quest_box", []):
 				if rng.randf() <= (float(l[3]) if l.size() > 3 else 1.0):
 					ULInventory.put(items, ULItems.make(String(l[0]), rng.randi_range(int(l[1]), int(l[2]))))
-		ULInventory.put(items, ULItems.make(String(key), 1))
+		_a_put(items, String(key))
 		quest_where[String(key)] = qi
+
+
+## предмет задания — в тайник: в свободную ячейку, а если все заняты — вместо последнего предмета
+func _a_put(items: Array, id: String) -> void:
+	for k in items.size():
+		if items[k] == null:
+			items[k] = ULItems.make(id, 1)
+			return
+	if not items.is_empty():
+		items[items.size() - 1] = ULItems.make(id, 1)
 
 
 # ---------------- сборка ----------------
@@ -370,6 +380,13 @@ func build(world: Node3D) -> void:
 			made[String(d.id)]["rng0"] = st0
 		for c in b.cols:
 			_col_xf(c[0], c[1])
+		# лестничные марши — клинья столкновений (по ним ходят и герой, и заражённые)
+		for h in b.hulls:
+			var hcs := CollisionShape3D.new()
+			var hsh := ConvexPolygonShape3D.new()
+			hsh.points = h
+			hcs.shape = hsh
+			body.add_child(hcs)
 		blds.append(b)
 		barns.append({"node": b, "id": b.id, "n": b.title})
 		for dd in b.doors:
@@ -891,18 +908,18 @@ func _a_plane(g: Node3D, d: Dictionary) -> void:
 	# кабина пилотов: перегородка с проходом, два кресла, приборная доска
 	var ck := x1 - 2.6
 	for sgn in [-1.0, 1.0]:
-		var wl := hw - 0.5
-		_bx(g, "a_trim", Vector3(0.08, 1.2, wl), xf * Transform3D(Basis(), Vector3(ck, fy + 0.6, sgn * (0.5 + wl * 0.5))), true)
-		_bx(g, "a_seat", Vector3(0.6, 0.5, 0.55), xf * Transform3D(Basis(), Vector3(x1 - 1.3, fy + 0.25, sgn * 0.75)))
-		_bx(g, "a_seat", Vector3(0.14, 0.7, 0.55), xf * Transform3D(Basis(), Vector3(x1 - 1.62, fy + 0.6, sgn * 0.75)))
-		_col_xf(Vector3(0.8, 1.0, 0.6), xf * Transform3D(Basis(), Vector3(x1 - 1.35, fy + 0.5, sgn * 0.8)))
+		var wl := hw - 0.62
+		_bx(g, "a_trim", Vector3(0.08, 1.2, wl), xf * Transform3D(Basis(), Vector3(ck, fy + 0.6, sgn * (0.62 + wl * 0.5))), true)
+		_bx(g, "a_seat", Vector3(0.6, 0.5, 0.55), xf * Transform3D(Basis(), Vector3(x1 - 1.3, fy + 0.25, sgn * 1.0)))
+		_bx(g, "a_seat", Vector3(0.14, 0.7, 0.55), xf * Transform3D(Basis(), Vector3(x1 - 1.62, fy + 0.6, sgn * 1.0)))
+		_col_xf(Vector3(0.8, 1.0, 0.6), xf * Transform3D(Basis(), Vector3(x1 - 1.35, fy + 0.5, sgn * 1.05)))
 	_bx(g, "a_floor", Vector3(0.5, 0.9, hw * 1.7), xf * Transform3D(Basis(), Vector3(x1 - 0.4, fy + 0.45, 0)), true)
 	# кухня: шкафы у двери напротив трапа
 	var gal := door_x
 	_bx(g, "a_trim", Vector3(1.4, 1.15, 0.6), xf * Transform3D(Basis(), Vector3(gal, fy + 0.58, -side * (hw - 0.4))), true)
 	_bx(g, "a_floor", Vector3(1.4, 0.05, 0.62), xf * Transform3D(Basis(), Vector3(gal, fy + 1.18, -side * (hw - 0.4))))
 	# ряды кресел: от хвоста до двери; проход посередине 0,95 м
-	var seat_w := hw - 0.55
+	var seat_w := hw - 0.65
 	var sx := x0 + 2.6
 	var rows := 0
 	var last := door_x - dw * 0.5 - 0.7
@@ -911,7 +928,7 @@ func _a_plane(g: Node3D, d: Dictionary) -> void:
 	var seat_yaw := yaw + PI * 0.5 + deg_to_rad(float(acfg().get("seat_yaw", 0.0)))
 	while sx < last:
 		for sgn in [-1.0, 1.0]:
-			var zc: float = float(sgn) * (0.5 + seat_w * 0.5)
+			var zc: float = float(sgn) * (0.6 + seat_w * 0.5)
 			if seat_model:
 				seat_pts.append([xf * Vector3(sx, fy + 0.03, zc), seat_yaw])
 			else:
@@ -923,7 +940,7 @@ func _a_plane(g: Node3D, d: Dictionary) -> void:
 	_a_repeat("ap_cabinseats", seat_pts, seat_w - 0.06, 34.0)
 	for sgn in [-1.0, 1.0]:
 		var a2 := x0 + 2.2
-		_col_xf(Vector3(last - a2 + 0.3, 1.1, seat_w), xf * Transform3D(Basis(), Vector3((a2 + last + 0.3) * 0.5, fy + 0.55, sgn * (0.5 + seat_w * 0.5))))
+		_col_xf(Vector3(last - a2 + 0.3, 1.1, seat_w), xf * Transform3D(Basis(), Vector3((a2 + last + 0.3) * 0.5, fy + 0.55, sgn * (0.6 + seat_w * 0.5))))
 	# трап: от земли к двери
 	var run := fy / 0.62
 	var door_w: Vector3 = xf * Vector3(door_x, fy, side * (hw + 0.08))
@@ -1121,7 +1138,12 @@ func _a_piles(rng: RandomNumberGenerator) -> void:
 func _a_item(b: ULBlock, id: String, p: Vector3, yaw: float, sz: Vector3, grp := "b0/n0", col := true) -> bool:
 	if not ResourceLoader.exists(MODELS + id + ".glb"):
 		return false
-	b.models.append([id, p, yaw, sz, grp, 0.0])
+	# sz — (длинная сторона, высота, короткая). Модель вписывается в место по своим осям X и Z: если у неё длинная
+	# сторона идёт по Z, место задаётся повёрнутым на четверть
+	if sz.x >= sz.z == _p_long_x(MODELS + id + ".glb"):
+		b.models.append([id, p, yaw, sz, grp, 0.0])
+	else:
+		b.models.append([id, p, yaw + PI * 0.5, Vector3(sz.z, sz.y, sz.x), grp, 0.0])
 	if col:
 		_col_xf(Vector3(sz.x * 0.9, sz.y, sz.z * 0.9), Transform3D(Basis(Vector3.UP, yaw), Vector3(p.x, p.y + sz.y * 0.5, p.z)))
 	return true

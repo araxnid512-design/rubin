@@ -35,13 +35,13 @@
   "cargo": 6,
   "wstore": 4,
   "gse": 3,
-  "admin": 4,
   "hangar1": 4,
   "hangar2": 4,
   "sort": 1,
   "svc1": 1,
   "ops": 1,
-  "tower": 2
+  "tower": 2,
+  "office": 4
  },
  "zones_lottery": {
   "hangar1": 4,

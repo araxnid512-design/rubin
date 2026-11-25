@@ -6990,6 +6990,326 @@ func _rd_test() -> void:
 
 
 ## снимки депо с игровой камеры
+## Аэропорт (--as-test=ap): посещение по списку задания — 18 пунктов проходимости (герой сам идёт по карте
+## проходимости: КПП, стоянка, перрон, трап и салон самолёта, оба этажа терминала, вышка до кабины, ангар, склад,
+## топливо, выход), крыши и срез фюзеляжа, входы, навигация заражённых, враги, тайники, задание «Последний рейс»,
+## маршрут. --as-skip-walk — без обхода (остальные проверки).
+func _ap_test() -> void:
+	var t0 := Time.get_ticks_msec()
+	while not cs_ready and Time.get_ticks_msec() - t0 < 60000:
+		await get_tree().process_frame
+	var ap := san as ULAirport
+	var c := ULAirport.acfg()
+	var map := get_world_3d().navigation_map
+	var snapf := func(p: Vector3) -> Vector3:
+		return NavigationServer3D.map_get_closest_point(map, p)
+	var space := get_world_3d().direct_space_state
+	var rt: Dictionary = ULBase.shop().routes.get("airport", {})
+	print("[inv] аэропорт готов через %.1f с от запуска игры" % (sn_ready_ms / 1000.0))
+	_ok("аэропорт: поле %d × %d м, вход на юге у КПП, время %d минут (3-й уровень опасности), маршрут %d споранов" % [int(size_m), int(size_z), int(ULBase.minutes_for("airport", 0.0)), int(rt.get("price", {}).get("spore", 0))],
+		size_m == 420.0 and size_z == 300.0 and place == "airport" and ap != null and ULAirport.A_ENTRY.z > 120.0 and int(rt.get("price", {}).get("spore", 0)) == 120 and int(rt.get("level", 0)) == 3
+		and cs_left() > 29.0 * 60.0 and cs_left() <= 30.0 * 60.0 and player.global_position.distance_to(ULAirport.A_ENTRY) < 8.0, str(player.global_position))
+	var by_id := {}
+	var names := []
+	for b in san.blds:
+		by_id[String(b.id)] = b
+		names.append(b.title)
+	var need_b := ["term", "term_w", "term_e", "tower", "hangar1", "hangar2", "cargo", "wstore", "gse", "office", "fpump", "kpp"]
+	var has_all := true
+	for nb in need_b:
+		has_all = has_all and by_id.has(nb)
+	_ok("постройки, куда можно зайти (%d): %s" % [san.blds.size(), ", ".join(names)], san.blds.size() >= 19 and has_all
+		and int((by_id.term_w as ULBlock).floors) == 2 and int((by_id.term_e as ULBlock).floors) == 2 and int((by_id.tower as ULBlock).floors) == 4)
+	var tr: Rect2 = by_id.term.rect
+	_ok("по схеме: терминал — севернее перрона (%.0f × %.0f м с крыльями %.0f м), вышка — за ним, ангары — на востоке, топливо — на северо-востоке, полоса — %.0f × %.0f м между перроном и въездом, грузовой склад — на востоке" % [
+		tr.size.x, tr.size.y, (by_id.term_e.rect as Rect2).end.x - (by_id.term_w.rect as Rect2).position.x, ULAirport.RWY.size.x, ULAirport.RWY.size.y],
+		tr.get_center().y < ULAirport.APRON.position.y and (by_id.tower.rect as Rect2).get_center().y < tr.position.y and (by_id.hangar1.rect as Rect2).get_center().x > 90.0
+		and ULAirport.A_FUEL.get_center().x > 120.0 and ULAirport.A_FUEL.get_center().y < -80.0 and ULAirport.RWY.position.y > ULAirport.APRON.end.y and ULAirport.RWY.end.y < 90.0)
+	var mmiss := []
+	for m in ["ap_airliner", "ap_regional", "ap_airstairs", "ap_jetbridge", "ap_tug", "ap_bagcart", "ap_checkin", "ap_seats", "ap_carousel", "ap_scanner", "ap_engine", "ap_wing", "ap_uld", "ap_cabinseats", "ap_luggage", "ap_platform"]:
+		if not ResourceLoader.exists(ULSanatorium.MODELS + m + ".glb"):
+			mmiss.append(m)
+	_ok("отдельные модели аэропорта на месте (16): нет — %d" % mmiss.size(), mmiss.is_empty(), ", ".join(mmiss))
+	var labels := 0
+	for n in san.find_children("*", "Label3D", true, false):
+		labels += 1
+	_ok("поясняющих надписей в мире нет (Label3D: %d)" % labels, labels == 0)
+	var walk_n := 0
+	for pl in ap.planes:
+		if bool(pl.walk):
+			walk_n += 1
+	_ok("самолёты: всего %d, с доступным салоном — %d (трап, кресла, кухня, кабина пилотов)" % [ap.planes.size(), walk_n], ap.planes.size() >= 4 and walk_n >= 2 and ap.flight_plane >= 0)
+	for e in enemies:
+		e.state = "dead"
+		e.visible = false
+		e.process_mode = Node.PROCESS_MODE_DISABLED
+	hp_lock = true
+	# --- список проходимости ---
+	var fp: Dictionary = ap.planes[ap.flight_plane]
+	var st_w := float((by_id.term_w as ULBlock).storey)
+	var st_t := float((by_id.tower as ULBlock).storey)
+	# [название, точка, постройка, этаж, самолёт]
+	var route := [
+		["1. вход через КПП", Vector3(0, 0, 122), "", 0, -1],
+		["2. стоянка машин", Vector3(-34, 0, 108), "", 0, -1],
+		["9. перрон (через полосу и рулёжку)", Vector3(-22, 0, -10), "", 0, -1],
+		["10. подход к самолёту — к трапу", fp.foot, "", 0, -1],
+		["11–12. по трапу в самолёт", fp.aisle, "", 0, ap.flight_plane],
+		["13. салон: до хвостового отсека", fp.tail + (fp.aisle as Vector3 - fp.tail as Vector3).normalized() * 1.6, "", 0, ap.flight_plane],
+		["7. багажное отделение (вход с перрона)", Vector3(-50, 0, -63), "term_w", 0, -1],
+		["5. второй этаж (лестница в крыле)", Vector3(-41, st_w, -66), "term_w", 1, -1],
+		["3–4. зал терминала, первый этаж", Vector3(-14, 0, -72), "term", 0, -1],
+		["6. между залами: посадочное крыло", Vector3(50, 0, -66), "term_e", 0, -1],
+		["6б. второй этаж посадочного крыла", Vector3(41, st_w, -66), "term_e", 1, -1],
+		["17. диспетчерская вышка — кабина наверху", Vector3(-19.5, st_t * 3.0, -103), "tower", 3, -1],
+		["16. топливные резервуары", Vector3(152, 0, -106), "", 0, -1],
+		["14. ремонтный ангар", Vector3(112, 0, -62), "hangar1", 0, -1],
+		["15. грузовой склад", Vector3(150, 0, 0), "cargo", 0, -1],
+		["18. возвращение к выходу", Vector3(0, 0, 124), "", 0, -1],
+	]
+	var done := 0
+	var min_y := 0.0
+	var roofs_ok := 0
+	var roofs_n := 0
+	var cut_ok := false
+	var fails := []
+	if not OS.get_cmdline_user_args().has("--as-skip-walk"):
+		player.global_position = (snapf.call(ULAirport.A_ENTRY) as Vector3) + Vector3.UP * 0.1
+		await get_tree().create_timer(0.3).timeout
+		var k0 := _auto_k
+		_auto_k = 1.0
+		for st in route:
+			var tgt: Vector3 = snapf.call(st[1])
+			var path := NavigationServer3D.map_get_path(map, snapf.call(player.global_position), tgt, true)
+			var plen := 0.0
+			for i in path.size() - 1:
+				plen += path[i].distance_to(path[i + 1])
+			await _walk(Array(path), plen / 2.6 + 16.0)
+			await get_tree().create_timer(0.3).timeout
+			min_y = minf(min_y, player.global_position.y)
+			var near: bool = player.global_position.distance_to(tgt) < 1.4 and tgt.distance_to(st[1]) < 2.0
+			var where_ok := true
+			if String(st[2]) != "":
+				roofs_n += 1
+				var bb: ULBlock = by_id[String(st[2])]
+				where_ok = san.hero_b == san.blds.find(bb) and san.hero_f == int(st[3])
+				if where_ok and not bb._groups["b0/r"].visible:
+					roofs_ok += 1
+			elif int(st[4]) >= 0:
+				where_ok = ap.plane_at(player.global_position) == int(st[4])
+				cut_ok = cut_ok or (where_ok and bool(ap.planes[int(st[4])].inside))
+			else:
+				where_ok = san.hero_b == -1
+			if near and where_ok:
+				done += 1
+			else:
+				fails.append("%s: герой %s, цель %s, путь %.0f м, в постройке %d, этаж %d" % [String(st[0]), str(player.global_position.snapped(Vector3(0.1, 0.1, 0.1))), str(tgt.snapped(Vector3(0.1, 0.1, 0.1))), plen, san.hero_b, san.hero_f])
+			print("[ap] %s — %s (путь %.0f м)" % [String(st[0]), "дошёл" if near and where_ok else "НЕТ", plen])
+			if out != "" and String(st[0]).left(2) in ["13", "5.", "17", "14", "3–"]:
+				_cam_ready = false
+				await get_tree().create_timer(0.6).timeout
+				await _snap("ap_walk_%s" % String(st[0]).left(2).replace(".", "").replace("–", ""))
+		_auto_k = k0
+		_ok("проходимость по списку задания (18 пунктов): герой сам дошёл до %d точек из %d" % [done, route.size()], done == route.size(), "; ".join(fails))
+		_ok("провалов под карту нет (самая низкая точка пути героя %.2f м)" % min_y, min_y > -0.3)
+		_ok("крыша скрывается, когда герой внутри: %d из %d помещений; в салоне самолёта верх фюзеляжа срезан — %s" % [roofs_ok, roofs_n, "да" if cut_ok else "нет"], roofs_ok == roofs_n and cut_ok)
+	# входы свободны, стены — преграда
+	var open_n := 0
+	var ent_n := 0
+	var ent_bad := []
+	for b in san.blds:
+		for en in b.entrances:
+			ent_n += 1
+			var q := PhysicsRayQueryParameters3D.create((en[0] as Vector3) + Vector3.UP * 1.0, (en[1] as Vector3) + Vector3.UP * 1.0)
+			q.collision_mask = 1
+			var eh := space.intersect_ray(q)
+			if eh.is_empty():
+				open_n += 1
+			else:
+				ent_bad.append("%s %s→%s упор %s" % [String(b.id), str((en[0] as Vector3).snapped(Vector3(0.1, 0.1, 0.1))), str((en[1] as Vector3).snapped(Vector3(0.1, 0.1, 0.1))), str((eh.position as Vector3).snapped(Vector3(0.1, 0.1, 0.1)))])
+	_ok("невидимых стен в проходах нет: свободных входов %d из %d" % [open_n, ent_n], open_n == ent_n, "; ".join(ent_bad))
+	var wall_hits := 0
+	var wall_rays := 0
+	for b in san.blds:
+		for bk in b.blocks:
+			for k in 5:
+				var u := (k - 2) * float(bk.hl) / 3.0
+				var q2 := PhysicsRayQueryParameters3D.create(b._w(bk, u, 0.5, float(bk.hw) + 1.2), b._w(bk, u, 0.5, float(bk.hw) - 0.5))
+				q2.collision_mask = 1 | ULDoor.LAYER
+				wall_rays += 1
+				if not space.intersect_ray(q2).is_empty():
+					wall_hits += 1
+	_ok("стены построек непроходимы (лучи в стену: %d из %d упёрлись — остальные во входы)" % [wall_hits, wall_rays], wall_hits >= wall_rays * 0.65)
+	var solid := 0
+	var solid_pts := [ULAirport.A_TANKS_V[0], ULAirport.A_TANKS_V[1], ULAirport.A_TANKS_H[0], Vector3(62, 0, -28), Vector3(-62, 0, -4), Vector3(-66, 0, 100)]
+	for sp in solid_pts:
+		var qv := PhysicsRayQueryParameters3D.create((sp as Vector3) + Vector3(0, 20, 0), (sp as Vector3) + Vector3(0, 0.4, 0))
+		qv.collision_mask = 1
+		if not space.intersect_ray(qv).is_empty():
+			solid += 1
+	_ok("резервуары, закрытые самолёты, автобусы — преграды: %d из %d" % [solid, solid_pts.size()], solid >= solid_pts.size() - 1)
+	# навигация заражённых: с перрона — в каждую постройку, на вторые этажи, в кабину вышки, в салоны самолётов
+	var yard: Vector3 = snapf.call(Vector3(-22, 0, -10))
+	var reach := 0
+	var total := 0
+	var bad := []
+	var targets_n: Array = []
+	for b in san.blds:
+		targets_n.append([String(b.id), Vector3(b.rect.get_center().x, 0.1, b.rect.get_center().y), b.entrances[0][1]])
+	targets_n.append(["term_w/2", Vector3(-41, st_w, -66), Vector3(-62, st_w, -66)])
+	targets_n.append(["term_e/2", Vector3(41, st_w, -66), Vector3(62, st_w, -66)])
+	targets_n.append(["office/2", Vector3(-112, 3.3, -106), Vector3(-96, 3.3, -106)])
+	targets_n.append(["tower/4", Vector3(-19.5, st_t * 3.0, -103), Vector3(-19.5, st_t * 3.0, -103)])
+	for i in ap.planes.size():
+		if bool(ap.planes[i].walk):
+			targets_n.append(["самолёт %d" % i, ap.planes[i].aisle, ap.planes[i].tail])
+	for tn in targets_n:
+		total += 1
+		var got := false
+		for cand in [tn[1], tn[2]]:
+			var tg2: Vector3 = snapf.call(cand)
+			var pth := NavigationServer3D.map_get_path(map, yard, tg2, true)
+			if pth.size() > 1 and pth[pth.size() - 1].distance_to(tg2) < 0.6 and tg2.distance_to(cand) < 2.5:
+				got = true
+				break
+		if got:
+			reach += 1
+		else:
+			bad.append(String(tn[0]))
+	_ok("навигация заражённых: путь с перрона в каждую постройку, на вторые этажи, в кабину вышки и в салоны — %d из %d" % [reach, total], reach == total, str(bad))
+	# враги
+	var cnt := {"infected": 0, "lottery": 0, "ruber": 0}
+	var near_entry := 0
+	var outside := 0
+	var rub_in := 0
+	for sp in cs_plan:
+		cnt[String(sp[0])] = int(cnt.get(String(sp[0]), 0)) + 1
+		var p: Vector3 = sp[1]
+		if p.distance_to(ULAirport.A_ENTRY) < float(c.safe_r) - 0.5:
+			near_entry += 1
+		if not ULAirport.in_field(Vector2(p.x, p.z)):
+			outside += 1
+		if String(sp[0]) == "ruber" and san.locate(p + Vector3.UP * 0.3).x >= 0:
+			rub_in += 1
+	_ok("заражённые при входе: пустышей %d (60–100), лотерейщиков %d (10–20), руберов %d (1–2); у входа ближе %d м — %d, за оградой — %d, рубер в помещении — %d" % [int(cnt.infected), int(cnt.lottery), int(cnt.ruber), int(c.safe_r), near_entry, outside, rub_in],
+		int(cnt.infected) >= 60 and int(cnt.infected) <= 100 and int(cnt.lottery) >= 10 and int(cnt.lottery) <= 20 and int(cnt.ruber) >= 1 and int(cnt.ruber) <= 2 and near_entry == 0 and outside == 0 and rub_in == 0, str(cnt))
+	var zones := {}
+	var rub_min := 9
+	var rub_max := 0
+	var rub_bad := 0
+	for sd in 30:
+		var pr := RandomNumberGenerator.new()
+		pr.seed = 9000 + sd * 53
+		var rb := 0
+		for sp in zone.spawn_plan(pr, snapf):
+			if sp.size() > 2:
+				zones[String(sp[2])] = int(zones.get(String(sp[2]), 0)) + 1
+			if String(sp[0]) == "ruber":
+				rb += 1
+				if san.locate((sp[1] as Vector3) + Vector3.UP * 0.3).x >= 0:
+					rub_bad += 1
+		rub_min = mini(rub_min, rb)
+		rub_max = maxi(rub_max, rb)
+	_ok("30 посещений: руберов от %d до %d, в помещении ни разу (%d); враги и снаружи, и в постройках: %s" % [rub_min, rub_max, rub_bad, str(zones)], rub_min >= 1 and rub_max <= 2 and rub_bad == 0
+		and zones.has("parking") and zones.has("apron") and zones.has("term") and zones.has("term_w") and zones.has("hangar1") and zones.has("cargo") and zones.has("runway"))
+	# тайники и добыча
+	var kinds := {}
+	for ct in san.containers:
+		kinds[String(ct.kind)] = int(kinds.get(String(ct.kind), 0)) + 1
+	_ok("тайники: всего %d; в самолётах %d, багаж %d, авиаконтейнеры %d, электроника (вышка) %d, инструмент и детали %d" % [san.containers.size(),
+		int(kinds.get("plane_galley", 0)) + int(kinds.get("plane_cabin", 0)) + int(kinds.get("plane_cockpit", 0)) + int(kinds.get("plane_tail", 0)) + int(kinds.get("plane_hold", 0)),
+		int(kinds.get("luggage", 0)), int(kinds.get("uld", 0)), int(kinds.get("electronics", 0)), int(kinds.get("tool", 0)) + int(kinds.get("parts", 0))],
+		san.containers.size() >= 250 and int(kinds.get("plane_cabin", 0)) >= 2 and int(kinds.get("luggage", 0)) >= 6 and int(kinds.get("uld", 0)) >= 3 and int(kinds.get("electronics", 0)) >= 3)
+	var loot := {}
+	for sd in 20:
+		var lr := RandomNumberGenerator.new()
+		lr.seed = 400 + sd * 11
+		san.roll_containers(lr)
+		for ct in san.containers:
+			for it in ct.items:
+				if it != null:
+					loot[String(it.id)] = int(loot.get(String(it.id), 0)) + int(it.n)
+	_ok("добыча за 20 посещений: электроника, авиадетали, авионика, инструмент, медикаменты, патроны — %s" % str(loot),
+		int(loot.get("electronics", 0)) > 80 and int(loot.get("avia_parts", 0)) > 60 and int(loot.get("avionics", 0)) > 10 and int(loot.get("tool_ind", 0)) > 10 and int(loot.get("medkit", 0)) > 10
+		and int(loot.get("a_flight", 0)) == 20 and int(loot.get("a_docs", 0)) == 20 and int(loot.get("a_cargo", 0)) == 20 and not loot.has("ore") and not loot.has("p_docs"))
+	# --- задание «Последний рейс» ---
+	var qr := RandomNumberGenerator.new()
+	qr.seed = 77
+	san.roll_containers(qr)
+	quest = {"found": {}, "done": false}
+	var fi := int(ap.quest_where.get("a_flight", -1))
+	var di := int(ap.quest_where.get("a_docs", -1))
+	var gi := int(ap.quest_where.get("a_cargo", -1))
+	var docs_ct: Dictionary = san.containers[di] if di >= 0 else {}
+	_ok("задание «%s»: сведения о рейсе — на стойке информации в зале, документация — на втором этаже посадочного крыла (%s), груз — в опечатанном хвостовом отсеке самолёта рейса" % [String(quest_cfg().get("n", "")), String(docs_ct.get("n", "?"))],
+		fi >= 0 and di >= 0 and gi >= 0 and quest_stages().size() == 6 and String(docs_ct.get("bld", "")) == "term_e" and float((docs_ct.get("pos", Vector3.ZERO) as Vector3).y) > 2.0
+		and String(san.containers[gi].get("need", "")) == "a_docs" and int(quest_cfg().get("reward", {}).get("spore", 0)) > 0)
+	if fi >= 0 and di >= 0 and gi >= 0:
+		var take := func(ci: int, id: String) -> bool:
+			var ct: Dictionary = san.containers[ci]
+			for k in (ct.items as Array).size():
+				var it = ct.items[k]
+				if it != null and String(it.id) == id and inv.add(it) == 0:
+					ct.items[k] = null
+					return true
+			return false
+		# груз без документации не взять
+		player.global_position = (snapf.call(san.containers[gi].pos) as Vector3) + Vector3.UP * 0.1
+		await get_tree().create_timer(0.5).timeout
+		_target = {"type": "box", "i": gi}
+		do_action()
+		await get_tree().create_timer(0.3).timeout
+		var locked: bool = not (inv_ui != null and inv_ui.visible)
+		close_inventory()
+		_ok("хвостовой отсек опечатан: без документации рейса не открывается; при этом засчитан этап «самолёт рейса»", locked and quest_progress("plane").x == 1)
+		take.call(fi, "a_flight")
+		await get_tree().create_timer(0.4).timeout
+		_ok("сведения о рейсе взяты — этап отмечен", quest_progress("info").x == 1 and inv.count("a_flight") == 1)
+		player.global_position = (snapf.call(ap.gate_pt) as Vector3) + Vector3.UP * 0.1
+		await get_tree().create_timer(0.5).timeout
+		_ok("вышел к посадочному выходу № 2 — этап отмечен", quest_progress("gate").x == 1)
+		take.call(di, "a_docs")
+		await get_tree().create_timer(0.4).timeout
+		_ok("документация рейса взята — этап отмечен", quest_progress("docs").x == 1)
+		player.global_position = (snapf.call(san.containers[gi].pos) as Vector3) + Vector3.UP * 0.1
+		await get_tree().create_timer(0.5).timeout
+		_target = {"type": "box", "i": gi}
+		do_action()
+		await get_tree().create_timer(0.3).timeout
+		var opened: bool = inv_ui != null and inv_ui.visible
+		take.call(gi, "a_cargo")
+		close_inventory()
+		await get_tree().create_timer(0.4).timeout
+		_ok("с документацией отсек открыт, специальный груз взят — остался выход; награда ещё не выдана", opened and quest_ready() and not bool(quest.get("done", false)) and inv.count("a_cargo") == 1)
+	# маршрут
+	_ok("маршрут: карточка «Заброшенный аэропорт» (самолёт), 120 споранов, 3-й уровень, закреплён в компьютере; на карте мира — далеко на юго-западе; картинки на месте",
+		String(rt.get("icon", "")) == "plane" and bool(rt.get("pin", false)) and ULBase.offers().has("airport") and ResourceLoader.exists(String(rt.get("pic", ""))) and ResourceLoader.exists(String(rt.get("route_pic", "")))
+		and ULMap.PLACES.has("airport") and (ULMap.PLACES.airport.rect as Rect2).get_center().x < (ULMap.PLACES.khutor.rect as Rect2).position.x and (ULMap.PLACES.airport.rect as Rect2).get_center().y > (ULMap.PLACES.home.rect as Rect2).end.y
+		and ResourceLoader.exists(String(ULMap.PLACES.airport.mark)))
+	var w_save: Dictionary = inv.wallet.duplicate()
+	inv.wallet = {"spore": 125}
+	ULBase.data.routes.erase("airport")
+	(ULBase.data.done as Array).erase("airport")
+	var b1 := ULBase.buy_route(inv, "airport")
+	var sp1 := int(inv.wallet.get("spore", 0))
+	var b2 := ULBase.buy_route(inv, "airport")
+	_ok("покупка: со 125 споранами маршрут куплен (осталось %d), повторно не списывается" % sp1, bool(b1.ok) and sp1 == 5 and not bool(b2.ok) and int(inv.wallet.get("spore", 0)) == 5)
+	inv.wallet = w_save
+	ULBase.data.routes.erase("airport")
+	# выход: с грузом — награда
+	var w0 := int(inv.wallet.get("spore", 0))
+	player.global_position = Vector3(ULAirport.A_ENTRY.x, 0.1, ULAirport.AZ + 3.0)
+	var tl := 0.0
+	while not _cs_done and tl < LEAVE_S + 3.0:
+		await get_tree().create_timer(0.2).timeout
+		tl += 0.2
+	var rw: Dictionary = quest_cfg().get("reward", {})
+	_ok("вышел за южный край с грузом — посещение закончено, задание выполнено, награда %d споранов выдана" % int(rw.get("spore", 0)),
+		_cs_done and bool(quest.get("done", false)) and int(inv.wallet.get("spore", 0)) == w0 + int(rw.get("spore", 0)))
+	print("[inv] итог: ошибок %d" % _fails)
+	get_tree().quit()
+
+
 ## снимки аэропорта от героя: [имя, x, z, высота камеры, высота героя]
 func _ap_view() -> void:
 	var t0 := Time.get_ticks_msec()
@@ -16194,6 +16514,26 @@ func _run_test() -> void:
 		return
 	if test == "rd":
 		await _rd_test()
+		return
+	if test == "ap":
+		await _ap_test()
+		return
+	if test == "apnav":
+		# отладка карты проходимости: --as-pts=x,y,z;x,y,z — ближайшая проходимая точка и путь от перрона
+		var tn0 := Time.get_ticks_msec()
+		while not cs_ready and Time.get_ticks_msec() - tn0 < 60000:
+			await get_tree().process_frame
+		var nmap := get_world_3d().navigation_map
+		var from: Vector3 = NavigationServer3D.map_get_closest_point(nmap, Vector3(-22, 0, -10))
+		for a in OS.get_cmdline_user_args():
+			if a.begins_with("--as-pts="):
+				for ps in a.substr(9).split(";"):
+					var f := ps.split(",")
+					var q := Vector3(float(f[0]), float(f[1]), float(f[2]))
+					var cp := NavigationServer3D.map_get_closest_point(nmap, q)
+					var pth := NavigationServer3D.map_get_path(nmap, from, cp, true)
+					print("[nav] %s → ближайшая %s (%.2f м), путь точек %d, конец %s" % [str(q), str(cp.snapped(Vector3(0.01, 0.01, 0.01))), q.distance_to(cp), pth.size(), str(pth[pth.size() - 1].snapped(Vector3(0.1, 0.1, 0.1))) if pth.size() > 0 else "-"])
+		get_tree().quit()
 		return
 	if test == "rdai":
 		await _ai_test()
