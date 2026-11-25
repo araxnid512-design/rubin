@@ -456,7 +456,7 @@ func _a_paint(c: Color) -> StandardMaterial3D:
 ## Лес — только за оградой (внутри — аэродром): ели одной сеткой с повторами, полосой 6–34 м от ограды.
 func _a_forest(rng: RandomNumberGenerator) -> void:
 	var tries := 0
-	while _spruce_xf.size() < 1100 and tries < 16000:
+	while _spruce_xf.size() < 900 and tries < 16000:
 		tries += 1
 		var q := Vector2(rng.randf_range(-AX - 24.0, AX + 24.0), rng.randf_range(-AX - 20.0, AX + 20.0))
 		if not forest_ok(q):
@@ -466,20 +466,37 @@ func _a_forest(rng: RandomNumberGenerator) -> void:
 		var p := Vector3(q.x, 0, q.y)
 		wood_pts.append(p)
 		_spruce_xf.append(Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * rng.randf_range(0.9, 1.5)), p))
-	var mm := MultiMesh.new()
-	mm.transform_format = MultiMesh.TRANSFORM_3D
-	mm.use_custom_data = true
-	mm.use_colors = true
-	mm.mesh = w._spruce_mesh(5.0, 141)
-	mm.instance_count = _spruce_xf.size()
-	for i in _spruce_xf.size():
-		mm.set_instance_transform(i, _spruce_xf[i])
-		mm.set_instance_color(i, Color.WHITE)
-		mm.set_instance_custom_data(i, Color(0, 0, 0, 0))
-	w.canopy.add_multimesh(mm, 5.0)
-	var mi := MultiMeshInstance3D.new()
-	mi.multimesh = mm
-	add_child(mi)
+	# группами по участкам 70 × 70 м — чтобы дальние и те, что за спиной камеры, не рисовались (одной сеткой на всё
+	# поле рисовались бы все 900 всегда). Растворение крон над героем не нужно: лес за оградой, герой туда не ходит.
+	var mesh: ArrayMesh = w._spruce_mesh(5.0, 141)
+	var cells := {}
+	for xf in _spruce_xf:
+		var key := Vector2i(int(floor(xf.origin.x / 70.0)), int(floor(xf.origin.z / 70.0)))
+		if not cells.has(key):
+			cells[key] = []
+		(cells[key] as Array).append(xf)
+	for key in cells:
+		var arr: Array = cells[key]
+		var mid := Vector3.ZERO
+		for xf in arr:
+			mid += (xf as Transform3D).origin / arr.size()
+		var mm := MultiMesh.new()
+		mm.transform_format = MultiMesh.TRANSFORM_3D
+		mm.use_custom_data = true
+		mm.use_colors = true
+		mm.mesh = mesh
+		mm.instance_count = arr.size()
+		for i in arr.size():
+			var xf: Transform3D = arr[i]
+			mm.set_instance_transform(i, Transform3D(xf.basis, xf.origin - mid))
+			mm.set_instance_color(i, Color.WHITE)
+			mm.set_instance_custom_data(i, Color(0, 0, 0, 0))
+		var mi := MultiMeshInstance3D.new()
+		mi.multimesh = mm
+		mi.position = mid
+		mi.visibility_range_end = 190.0
+		mi.visibility_range_end_margin = 10.0
+		add_child(mi)
 
 
 # ---------------- земля и покрытия ----------------
@@ -640,7 +657,13 @@ func _a_number(g: Node3D, txt: String, at: Vector3, dir: float) -> void:
 
 ## много одинаковых секций одной сеткой с повторами (по группам — чтобы дальние отсекались): модель id длиной
 ## length вдоль своей длинной стороны; xfs — где стоит каждая (поворот — вокруг вертикали)
-func _a_repeat(id: String, pts: Array, length: float, vis := 170.0) -> bool:
+## far > 0 — дальше vis метров вместо модели рисуется простая коробка её размеров (до far метров): у ограды
+## 334 секции по 2,8 тыс. треугольников — вдали хватает плиты. Возвращает созданные узлы (в _rep_nodes).
+var _rep_nodes: Array = []
+
+
+func _a_repeat(id: String, pts: Array, length: float, vis := 170.0, far := 0.0, far_mat := "concrete") -> bool:
+	_rep_nodes = []
 	var path := MODELS + id + ".glb"
 	if not ResourceLoader.exists(path) or pts.is_empty():
 		return false
@@ -689,6 +712,25 @@ func _a_repeat(id: String, pts: Array, length: float, vis := 170.0) -> bool:
 		mi.visibility_range_end = vis
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		add_child(mi)
+		_rep_nodes.append(mi)
+		if far > vis:
+			var bm := BoxMesh.new()
+			bm.size = Vector3(length, bb.size.y * k, maxf(minf(bb.size.x, bb.size.z) * k * 0.5, 0.12))
+			var m2 := MultiMesh.new()
+			m2.transform_format = MultiMesh.TRANSFORM_3D
+			m2.mesh = bm
+			m2.instance_count = cnt
+			for j in cnt:
+				var at2: Vector3 = pts[i + j][0]
+				m2.set_instance_transform(j, Transform3D(Basis(Vector3.UP, float(pts[i + j][1])), at2 - mid + Vector3.UP * (bb.size.y * k * 0.5)))
+			var mi2 := MultiMeshInstance3D.new()
+			mi2.multimesh = m2
+			mi2.material_override = _mats.get(far_mat)
+			mi2.position = mid
+			mi2.visibility_range_begin = vis
+			mi2.visibility_range_end = far
+			mi2.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			add_child(mi2)
 		i += cnt
 	return true
 
@@ -707,7 +749,7 @@ func _a_fences(g: Node3D) -> void:
 		while z < A_FS:
 			pts.append([Vector3(sx, 0, z + 2.0), PI * 0.5])
 			z += 4.0
-	if not _a_repeat("qr_concfence", pts, 4.0):
+	if not _a_repeat("qr_concfence", pts, 4.0, 46.0, 300.0):
 		for pp in pts:
 			_bx(g, "concrete", Vector3(4.0, 2.4, 0.2), _at(pp[0] + Vector3.UP * 1.2, float(pp[1])))
 	# столкновения — длинными коробками (южная сторона — с проёмом ворот)
@@ -735,7 +777,7 @@ func _a_fences(g: Node3D) -> void:
 			fp.append([Vector3(f.position.x, 0, fz + 2.0), PI * 0.5])
 		fp.append([Vector3(f.end.x, 0, fz + 2.0), PI * 0.5])
 		fz += 4.0
-	_a_repeat("qr_chainfence", fp, 4.0, 120.0)
+	_a_repeat("qr_chainfence", fp, 4.0, 70.0)
 	_col_xf(Vector3(f.size.x, 2.2, 0.2), _at(Vector3(f.get_center().x, 1.1, f.position.y)))
 	_col_xf(Vector3(f.size.x, 2.2, 0.2), _at(Vector3(f.get_center().x, 1.1, f.end.y)))
 	_col_xf(Vector3(0.2, 2.2, f.size.y), _at(Vector3(f.end.x, 1.1, f.get_center().y)))
@@ -753,6 +795,7 @@ func _a_lamps() -> void:
 	if ResourceLoader.exists(MODELS + "qr_floodlight.glb"):
 		for p in pts:
 			_pm("qr_floodlight", p, 0.0, 9.0, false, false, Color(0.86, 0.84, 0.8), true)
+			_cull(get_child(get_child_count() - 1), 110.0)
 	# огни полосы: низкие столбики по краям через 24 м
 	var g := get_node("Props")
 	var x := RWY.position.x + 6.0
@@ -938,6 +981,9 @@ func _a_plane(g: Node3D, d: Dictionary) -> void:
 		sx += 0.86
 	# кресла салона — одной сеткой с повторами; видны только вблизи (в закрытом самолёте их всё равно не видно)
 	_a_repeat("ap_cabinseats", seat_pts, seat_w - 0.06, 34.0)
+	rec["seats"] = _rep_nodes.duplicate()
+	for sn in rec.seats:
+		(sn as Node3D).visible = false
 	for sgn in [-1.0, 1.0]:
 		var a2 := x0 + 2.2
 		_col_xf(Vector3(last - a2 + 0.3, 1.1, seat_w), xf * Transform3D(Basis(), Vector3((a2 + last + 0.3) * 0.5, fy + 0.55, sgn * (0.6 + seat_w * 0.5))))
@@ -1069,6 +1115,9 @@ func planes_tick(hero: Vector3) -> void:
 			pl.inside = inside
 			for sm in pl.mats:
 				(sm as ShaderMaterial).set_shader_parameter("cut_y", float(pl.fy) + 1.25 if inside else 10000.0)
+			# кресла рисуются только пока салон виден (в закрытом самолёте их не видно, а треугольников — 95 тыс.)
+			for sn in pl.get("seats", []):
+				(sn as Node3D).visible = inside
 
 
 ## в каком самолёте герой (−1 — ни в каком)
@@ -1109,6 +1158,8 @@ func _a_things() -> void:
 		var tint: Color = tints[k % tints.size()] if id in ["ul_car", "ul_bus", "ul_uaz"] else Color(0.82, 0.8, 0.76)
 		k += 1
 		var size := _pm(id, at, float(t[2]), float(t[3]), not tall, true, tint, false, id + ("_%d" % (k % tints.size())) if id in ["ul_car", "ul_bus", "ul_uaz"] else "")
+		if float(t[3]) < 6.0 and get_child_count() > 0:
+			_cull(get_child(get_child_count() - 1), 110.0)
 		if tall:
 			_cyl_col(at, 1.3, 3.0)
 			size = Vector3(1.4, 1.8, 1.4)
