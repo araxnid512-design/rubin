@@ -424,15 +424,19 @@ static func route_pool() -> Array:
 ## больше, чем мест, набор не повторяет прошлый целиком: хотя бы одна локация — новая. Порядок карточек — как в
 ## data/base_shop.json.
 static func _roll_offers(prev: Array = []) -> Array:
+	# случайная часть набора (route_slots) — из незакреплённых; закреплённые маршруты идут сверх неё: список в
+	# компьютере прокручивается, и постоянные локации не вытесняют сменные
 	var pool := route_pool()
-	var n := mini(route_slots(), pool.size())
-	var sh := pool.duplicate()
+	var pins := pinned()
+	var free := pool.filter(func(x): return not pins.has(x))
+	var n := mini(route_slots(), free.size())
+	var sh := free.duplicate()
 	sh.shuffle()
 	var pick := sh.slice(0, n)
-	var fresh := pool.filter(func(x): return not prev.has(x))
-	if pool.size() > n and not fresh.is_empty() and pick.all(func(x): return prev.has(x)):
+	var fresh := free.filter(func(x): return not prev.has(x))
+	if free.size() > n and not fresh.is_empty() and pick.all(func(x): return prev.has(x)):
 		pick[randi() % pick.size()] = fresh[randi() % fresh.size()]
-	_pin_into(pick)
+	pick.append_array(pins)
 	return pool.filter(func(x): return pick.has(x))
 
 
@@ -440,15 +444,18 @@ static func _roll_offers(prev: Array = []) -> Array:
 ## обновлением игры) — дополняется сразу, не дожидаясь таймера
 static func _fix_offers(cur: Array) -> Array:
 	var pool := route_pool()
+	var pins := pinned()
+	var free := pool.filter(func(x): return not pins.has(x))
 	var out := []
 	for id in cur:
-		if pool.has(String(id)) and not out.has(String(id)):
+		if free.has(String(id)) and not out.has(String(id)):
 			out.append(String(id))
-	out = out.slice(0, mini(route_slots(), pool.size()))
-	if out.size() < mini(route_slots(), pool.size()):
-		var add := pool.filter(func(x): return not out.has(x))
+	out = out.slice(0, mini(route_slots(), free.size()))
+	if out.size() < mini(route_slots(), free.size()):
+		var add := free.filter(func(x): return not out.has(x))
 		add.shuffle()
-		out.append_array(add.slice(0, mini(route_slots(), pool.size()) - out.size()))
+		out.append_array(add.slice(0, mini(route_slots(), free.size()) - out.size()))
+	out.append_array(pins)
 	return pool.filter(func(x): return out.has(x))
 
 
@@ -465,10 +472,12 @@ static func routes_listed() -> Array:
 static func offers() -> Array:
 	routes_tick()
 	var of: Array = data.offers
-	if pinned().any(func(x): return not of.has(x)):
-		# закреплённый маршрут появился в игре позже, чем был разыгран набор (обновление): занимает место в наборе
-		_pin_into(of)
-		data.offers = route_pool().filter(func(x): return of.has(x))
+	var pins := pinned()
+	var free_n := of.filter(func(x): return not pins.has(x)).size()
+	if pins.any(func(x): return not of.has(x)) or free_n < mini(route_slots(), route_pool().size() - pins.size()):
+		# закреплённый маршрут появился позже, чем был разыгран набор (обновление), или сменных меньше положенного
+		# (раньше закреплённые занимали их места): набор дополняется сразу
+		data.offers = _fix_offers(of)
 		save_state()
 	return data.offers
 
@@ -486,19 +495,10 @@ static func pinned() -> Array:
 	return route_pool().filter(func(x): return bool(shop().routes[x].get("pin", false)))
 
 
-## закреплённые — в набор: вместо предложений, которые не закреплены и не куплены (с конца)
-static func _pin_into(pick: Array) -> void:
+## сменная часть набора — без закреплённых маршрутов
+static func offers_free() -> Array:
 	var pins := pinned()
-	for p in pins:
-		if pick.has(p):
-			continue
-		var i := pick.size() - 1
-		while i >= 0 and (pins.has(pick[i]) or (data.get("routes", {}) as Dictionary).has(String(pick[i]))):
-			i -= 1
-		if i >= 0:
-			pick[i] = p
-		else:
-			pick.append(p)
+	return offers().filter(func(x): return not pins.has(x))
 
 
 ## Сколько секунд до обновления маршрутов. Время следующего обновления хранится в base.json (unix-время),

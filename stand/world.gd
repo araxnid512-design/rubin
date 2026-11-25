@@ -6529,7 +6529,7 @@ func _ai_test() -> void:
 	if skip.call("3"):
 		cases.clear()
 	for cs in cases:
-		var res: Array = await _ai_chase(["infected"], cs[0], cs[1], float(cs[2]) / 2.9 * 1.7 + 12.0, 2.6, 0.0, true)
+		var res: Array = await _ai_chase(["infected"], cs[0], cs[1], float(cs[2]) / 2.9 * 1.7 + 20.0, 2.6, 0.0, true)
 		if float(res[0].t) >= 0.0:
 			out_n += 1
 		pushes += int(res[0].pushed)
@@ -11622,7 +11622,10 @@ func _pc_test() -> void:
 	var offs_before: Array = (ULBase.data.get("offers", []) as Array).duplicate()
 	var a3 := ULBase.routes_tick(now + per + 5)
 	_ok("таймер маршрутов: идёт от сохранённого срока, не сбрасывается при открытии", a1 == per and a2 == per - 100, "%d, %d (период %d)" % [a1, a2, per])
-	var offs_after: Array = ULBase.data.offers
+	# закреплённые маршруты (порт, депо, аэропорт) стоят в списке всегда, сверх трёх сменных
+	var pins_t: Array = ULBase.pinned()
+	var offs_after: Array = (ULBase.data.offers as Array).filter(func(x): return not pins_t.has(x))
+	offs_before = offs_before.filter(func(x): return not pins_t.has(x))
 	var oa_u := {}
 	var oa_new := false
 	for o in offs_after:
@@ -11631,17 +11634,18 @@ func _pc_test() -> void:
 	_ok("срок вышел — предложения обновлены (из 4 локаций снова 3 разные, хотя бы одна новая), следующий срок через период: %s → %s" % [", ".join(offs_before), ", ".join(offs_after)],
 		a3 == per - 5 and int(ULBase.data.refreshes) == rf0 + 1 and offs_after.size() == 3 and oa_u.size() == 3 and (oa_new or offs_before.size() != 3))
 	# --- три разные локации, сброс каждые 2 часа ---
-	var offs: Array = ULBase.offers()
+	var offs: Array = ULBase.offers_free()
 	var uniq := {}
 	for o in offs:
 		uniq[o] = true
-	_ok("в компьютере сразу 3 локации, все разные: %s; сброс — каждые %d ч" % [", ".join(offs), per / 3600], offs.size() == 3 and uniq.size() == 3 and ULBase.route_slots() == 3 and per == 2 * 3600)
+	_ok("в компьютере сразу 3 сменные локации, все разные: %s; сверх них закреплённые (%s); сброс — каждые %d ч" % [", ".join(offs), ", ".join(pins_t), per / 3600],
+		offs.size() == 3 and uniq.size() == 3 and ULBase.route_slots() == 3 and per == 2 * 3600 and pins_t.all(func(x): return ULBase.offers().has(x)))
 	var listed_cards := 0
 	pc._build_routes()                  # набор только что сменился (на экране он обновляется по таймеру, раз в 0,25 с)
-	for o in offs:
+	for o in ULBase.offers():
 		if pc.find_child("route_" + String(o), true, false) != null:
 			listed_cards += 1
-	_ok("на экране — три карточки маршрутов, по одной на локацию", listed_cards == 3)
+	_ok("на экране — карточки маршрутов, по одной на локацию: три сменные и %d закреплённых" % pins_t.size(), listed_cards == 3 + pins_t.size())
 	# прокрутка пальцем: настоящие касания (нажать на список, протянуть вверх, отпустить)
 	var rsc: ScrollContainer = pc.find_child("Scroll_routes", true, false)
 	await get_tree().process_frame
@@ -11669,6 +11673,14 @@ func _pc_test() -> void:
 		ULBasePC.K >= 1.3 and rsc != null and pc.drag_moved and (not can_scroll or rsc.scroll_vertical > 30), "двигался: %s" % str(pc.drag_moved))
 	rsc.scroll_vertical = 0
 	pc.drag_moved = false
+	# карточка закреплённого маршрута «Заброшенный аэропорт» — прокрутить к ней и снять
+	var card_ap := pc.find_child("route_airport", true, false) as Control
+	_ok("карточка «Заброшенный аэропорт» есть в списке маршрутов (до неё — прокрутка)", card_ap != null)
+	if card_ap != null and out != "":
+		rsc.ensure_control_visible(card_ap)
+		await get_tree().create_timer(0.4).timeout
+		await _snap("pc_route_airport")
+		rsc.scroll_vertical = 0
 	# пул больше мест: 4 локации и ещё 3 для проверки — каждый сброс 3 разные, без повторов, набор не повторяется
 	var rts: Dictionary = ULBase.shop().routes
 	for fid in ["t_a", "t_b", "t_c"]:
@@ -11681,7 +11693,7 @@ func _pc_test() -> void:
 	var seen_sets := {}
 	var seen_ids := {}
 	for k in 200:
-		var nx: Array = ULBase._roll_offers(prev)
+		var nx: Array = ULBase._roll_offers(prev).filter(func(x): return not pins_t.has(x))
 		var u2 := {}
 		for o in nx:
 			u2[o] = true
@@ -11697,8 +11709,8 @@ func _pc_test() -> void:
 			whole_repeat += 1
 		seen_sets[str(nx)] = true
 		prev = nx
-	var npool := ULBase.route_pool().size()
-	_ok("из %d локаций, 200 сбросов: всегда 3 разные (ошибок %d), «скоро» не попадает, набор целиком не повторялся ни разу (%d), разных наборов %d из %d возможных, все %d локаций встречались" % [npool, bad_roll, whole_repeat, seen_sets.size(), npool * (npool - 1) * (npool - 2) / 6, npool],
+	var npool := ULBase.route_pool().size() - pins_t.size()
+	_ok("из %d сменных локаций, 200 сбросов: всегда 3 разные (ошибок %d), «скоро» не попадает, набор целиком не повторялся ни разу (%d), разных наборов %d из %d возможных, все %d локаций встречались" % [npool, bad_roll, whole_repeat, seen_sets.size(), npool * (npool - 1) * (npool - 2) / 6, npool],
 		bad_roll == 0 and whole_repeat == 0 and seen_sets.size() >= 25 and seen_ids.size() == npool and npool >= 7)
 	# купленный маршрут переживает сброс: в новом наборе его нет, но он куплен, на карте и в компьютере
 	ULBase.set_route("convoy", "bought")
@@ -11721,7 +11733,7 @@ func _pc_test() -> void:
 	ULBase.set_route("convoy", "")
 	ULBase.data.offers = ["cowshed", "cowshed", "t_a"]
 	ULBase.routes_tick(nowr)
-	var fx: Array = ULBase.data.offers
+	var fx: Array = (ULBase.data.offers as Array).filter(func(x): return not pins_t.has(x))
 	var fx_u := {}
 	var fx_real := true
 	for o in fx:

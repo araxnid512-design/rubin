@@ -52,6 +52,26 @@ static func roll(id: String, rng: RandomNumberGenerator) -> Dictionary:
 			eaten += 1
 		else:
 			hid += 1
+	# границы по заданию локации (необязательные): не меньше lottery_min и не больше lottery_max лотерейщиков,
+	# не меньше ruber_min руберов — история остаётся связной (спрятавшегося всё-таки нашли; пойманный успел уйти)
+	var rmin := int(p.get("ruber_min", 0))
+	var lmin := int(p.get("lottery_min", 0)) + maxi(rmin - rub, 0)
+	while lot < lmin and pust > 0 and hid > 0:
+		hid -= 1
+		pust -= 1
+		lot += 1
+		eaten += 1
+	while rub < rmin and lot > 0 and hid > 0:
+		hid -= 1
+		lot -= 1
+		rub += 1
+		killed += 1
+	var lmax := int(p.get("lottery_max", 100000))
+	while lot > lmax:
+		lot -= 1
+		pust += 1
+		eaten -= 1
+		hid += 1
 	return {"people": n, "infected": inf, "eaten": eaten, "killed": killed, "hid": hid, "pustysh": pust, "lottery": lot, "ruber": rub}
 
 

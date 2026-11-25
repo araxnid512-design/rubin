@@ -497,6 +497,22 @@ func _run_test() -> void:
 	ULSettings.place = "home"
 	entering = false
 	select("")
+	# аэропорт: до покупки нет, после — далеко на юго-западе (за рекой), красное кольцо; панель: 30 минут
+	var ar := place_rect("airport")
+	ok.call("до покупки маршрута аэропорта на карте нет", not place_shown("airport"))
+	ULBase.set_route("airport", "bought")
+	ok.call("маршрут куплен — «Заброшенный аэропорт» на карте далеко на юго-западе: левее хутора, ниже дома", place_shown("airport") and ar.get_center().x < kr.get_center().x and ar.get_center().y > hr.get_center().y)
+	set_pan((ar.get_center() + hr.get_center()) * 0.5 - size * 0.5)
+	await get_tree().create_timer(0.4).timeout
+	await _snap("p8_airport_far")
+	set_pan(ar.get_center() - size * 0.5)
+	tap(ar.get_center() - pan)
+	await get_tree().create_timer(0.5).timeout
+	ok.call("панель аэропорта: снимок, название, 30 минут (3-й уровень опасности), описание", sel == "airport" and p_pic.texture != null and p_t.text == "Заброшенный аэропорт" and p_x.text.contains("30 минут") and p_d.text.length() > 40,
+		"%s | %s" % [p_t.text, p_x.text])
+	await _snap("p8_airport")
+	ULBase.set_route("airport", "")
+	select("")
 	open_settings()
 	await get_tree().create_timer(0.5).timeout
 	await _snap("p2_settings")
