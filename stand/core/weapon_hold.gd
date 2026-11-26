@@ -761,6 +761,37 @@ func _process_modification_with_delta(delta: float) -> void:
 				_pump_t += delta
 			if rl < 0.0 and _pump() > 0.0:
 				gl[0] = (gl[0] as Vector3) + W.basis.z * (0.085 * k * _pump())
+			if w.mode == "rifle" and not dyn and drawn >= 1.0:
+				# На ходу плечи уходят от стойки (шаг назад и вбок с огнём — корпус развёрнут иначе, чем стоя): левая
+				# рука перестаёт доставать до цевья. Тогда ладонь съезжает по цевью к магазину (не дальше fore_min),
+				# а если мало и этого — оружие чуть ближе к левому плечу. Назад возвращается медленно, без пилы.
+				var f0 := _pt(w.fore)
+				var f1 := _pt(w.get("fore_min", w.fore))
+				var room := f0.distance_to(f1) * (1.0 - float(plan.L.get("u", 0.0)))
+				var sd := (W.basis * (f1 - f0)).normalized() if room > 0.0001 else W.basis.z.normalized()
+				var Hl0: Basis = _target("L", gl[0], gl[1], gl[2])[1]
+				var wr0: Vector3 = (gl[0] as Vector3) - Hl0 * (_hf.L.palm_l as Vector3)
+				var Rl := (float(_hf.L.la) + float(_hf.L.lb)) * 0.975
+				var v0 := wr0 - SL
+				var need := 0.0
+				if v0.length() > Rl:
+					var bq := v0.dot(sd)
+					var disc := bq * bq - (v0.length_squared() - Rl * Rl)
+					need = (-bq - sqrt(disc)) if disc >= 0.0 and bq < 0.0 else room
+				_lslide = clampf(maxf(need, _lslide - delta * 0.06 * k), 0.0, room)
+				var wr1 := wr0 + sd * _lslide
+				var lackl := maxf(0.0, wr1.distance_to(SL) - Rl)
+				_lpull = maxf(minf(lackl, 0.09 * k), _lpull - delta * 0.06 * k)
+				gl[0] = (gl[0] as Vector3) + sd * _lslide
+				if _lpull > 0.0:
+					var sh := (SL - wr1).normalized() * _lpull
+					W.origin += sh
+					gl[0] = (gl[0] as Vector3) + sh
+					tr[0] = (tr[0] as Vector3) + sh
+					tr[2] = (tr[2] as Vector3) + sh
+			else:
+				_lslide = 0.0
+				_lpull = 0.0
 		if chest_l and m_l < 1.0:
 			# пока правая достаёт пистолет, левая ладонь лежит на груди — не перед стволом — и встречает оружие
 			var gc := _chest_goal(T1)
@@ -877,6 +908,8 @@ static var _plans := {}
 var _psi := {"R": 0.6, "L": 0.6}
 var _shift := Vector3.ZERO
 var _reach_k := 1.0
+var _lslide := 0.0                ## на сколько левая ладонь съехала по цевью к магазину (ед. скелета)
+var _lpull := 0.0                 ## на сколько оружие подтянуто к левому плечу (ед. скелета)
 var last_plan := {}
 var _hs := {}                     ## сглаженная ориентация кистей
 var _dyn_i := {}

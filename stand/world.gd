@@ -10192,6 +10192,153 @@ func info_fwd_sign(fwd: Vector3) -> float:
 	return 1.0 if fwd.dot(d) >= 0.0 else -1.0
 
 
+## Движения героя без оружия и с каждым оружием (--as-test=armaudit; вопрос пользователя 26.11: «что по анимациям героя
+## с оружием и без»). Герой по очереди: пустые руки и каждое оружие из каталога; с каждым — стоит, целится, идёт шагом,
+## бежит, крадётся, пятится с огнём, идёт боком с огнём. Меряется: отрыв ладоней от оружия (см), размах таза вбок
+## относительно линии героя (см), скорость (м/с). «!» — отрыв больше 3,5 см или таз гуляет больше 10 см.
+func _arm_audit() -> void:
+	DirAccess.make_dir_recursive_absolute(out)
+	hp_lock = true
+	var ids := [""]
+	for id in ULItems.ITEMS:
+		var dd: Dictionary = ULItems.ITEMS[id]
+		if dd.has("weapon") and String(dd.get("kind", "")) in ["primary", "pistol", "melee"]:
+			ids.append(id)
+	for a9 in OS.get_cmdline_user_args():
+		if a9.begins_with("--as-arm="):
+			ids = Array(a9.trim_prefix("--as-arm=").split(","))
+	var can_sneak := stealth("enabled", 0.0) > 0.0
+	var home_p := Vector3(-30, 0.05, 40)
+	var sk: Skeleton3D = rig.skel
+	var fin := {"side": 0.0}
+	var cb := func() -> void:
+		var rt := Vector3(sin(player.rotation.y + PI * 0.5), 0, cos(player.rotation.y + PI * 0.5))
+		var hp3: Vector3 = sk.global_transform * sk.get_bone_global_pose(sk.find_bone("Hip")).origin
+		fin["side"] = (hp3 - player.global_position).dot(rt)
+	sk.skeleton_updated.connect(cb)
+	var mc := Camera3D.new()
+	player.add_child(mc)                       # едет вместе с героем: на ходу он не уходит из кадра
+	mc.fov = 34.0
+	var bad := 0
+	var rows := 0
+	for id in ids:
+		var d: Dictionary = ULItems.get_def(id) if id != "" else {}
+		var kind := String(d.get("kind", ""))
+		var gun := kind in ["primary", "pistol"]
+		var slot := "primary" if kind == "primary" else "pistol"
+		var states := [["стоит", Vector3.ZERO, 0.0, false, false, 2.8], ["шаг", Vector3(9, 0, 0), 0.45, false, false, 1.6], ["бег", Vector3(12, 0, 0), 1.0, false, false, 1.6]]
+		if can_sneak:
+			states.append(["крадётся", Vector3(9, 0, 0), 1.0, true, false, 1.6])
+		if gun:
+			states.append(["огонь стоя", Vector3.ZERO, 0.0, false, true, 1.8])
+			states.insert(1, ["прицел", Vector3.ZERO, 0.0, false, false, 1.0])
+			states.append(["назад с огнём", Vector3(-12, 0, 0), 1.0, false, true, 1.8])
+			states.append(["боком с огнём", Vector3(0, 0, -12), 1.0, false, true, 1.8])
+		for st in states:
+			clear_enemies()
+			inv.from_dict({})
+			if id != "":
+				inv.set(slot, ULItems.make(id))
+				if gun:
+					inv.get(slot).mag = int(d.get("mag", 1))
+				inv.hand = slot
+			else:
+				inv.hand = ""
+			set_sneak(false)
+			_auto = []
+			player.global_position = home_p
+			player.rotation.y = PI * 0.5
+			player.velocity = Vector3.ZERO
+			_apply_gear()
+			if id != "":
+				await _wait_drawn()
+			else:
+				await get_tree().create_timer(0.8).timeout
+			if bool(st[4]):
+				var e := spawn_enemy("infected", home_p + Vector3(5, 0, 0))
+				e.hp = 100000.0
+				e.set_meta("hp", 100000.0)
+				e.def = e.def.duplicate()
+				e.def.see = 0.0
+				e.def.hear = 0.0
+				e.def.walk = 0.0
+				await get_tree().create_timer(0.3).timeout
+				_hud_touch[99] = "fire"
+				_hud_press("fire")
+			if bool(st[3]):
+				set_sneak(true)
+			if (st[1] as Vector3) != Vector3.ZERO:
+				_auto = [home_p + (st[1] as Vector3)]
+				_auto_k = float(st[2])
+			var t0 := 0.0
+			var dur := float(st[5])
+			var settle := dur - 0.4 if String(st[0]) == "стоит" else 0.5
+			if String(st[0]) == "огонь стоя":
+				settle = 0.3
+			var err := 0.0
+			var er_r := 0.0
+			var er_l := 0.0
+			var hmin := 1e9
+			var hmax := -1e9
+			var p0 := player.global_position
+			var tp := 0.0
+			var modes := {}
+			var stn := {}
+			while t0 < dur:
+				if String(st[0]) == "прицел":
+					_aim_t = 0.0
+					rig.hold.set_stance("aim")
+				if bool(st[4]) and id != "":
+					inv.get(slot).mag = int(d.get("mag", 1))
+				await get_tree().process_frame
+				var dt := get_process_delta_time()
+				t0 += dt
+				if t0 > settle:
+					if tp == 0.0:
+						p0 = player.global_position
+					tp += dt
+					if id != "":
+						var sn := rig.hold.stance_now()
+						stn[sn] = true
+						var onehand := bool((rig.hold.w.stances.get(sn, {}) as Dictionary).get("one", false))
+						er_r = maxf(er_r, rig.hold.err_r)
+						er_l = maxf(er_l, 0.0 if onehand else rig.hold.err_l)
+						err = maxf(er_r, er_l)
+					hmin = minf(hmin, float(fin.side))
+					hmax = maxf(hmax, float(fin.side))
+					if move_mode != "":
+						modes[move_mode] = true
+			if String(st[0]) in ["назад с огнём", "бег"] or (id == "" and String(st[0]) == "шаг"):
+				# снимок сбоку — посмотреть глазами, как держит оружие на ходу
+				var fw := Vector3(sin(player.rotation.y), 0, cos(player.rotation.y))
+				var sdv := fw.cross(Vector3.UP)
+				mc.global_position = player.global_position + sdv * 2.7 + fw * 0.5 + Vector3.UP * 1.45
+				mc.look_at(player.global_position + fw * 0.35 + Vector3.UP * 1.15, Vector3.UP)
+				mc.current = true
+				await _snap("arm_%s_%s" % [id if id != "" else "none", "back" if bool(st[4]) else ("run" if String(st[0]) == "бег" else "walk")])
+				cam.current = true
+			var spd := player.global_position.distance_to(p0) / maxf(tp, 0.01)
+			_hud_touch.erase(99)
+			_auto = []
+			var flag := []
+			if id != "" and err > 0.035:
+				flag.append("ладонь отходит")
+			if (hmax - hmin) > 0.10:
+				flag.append("таз гуляет")
+			if bool(st[3]) and not sneak:
+				flag.append("не крадётся")
+			rows += 1
+			if not flag.is_empty():
+				bad += 1
+			print("[arm] %-14s | %-14s | хват %-12s | ладони пр. %4.1f лев. %4.1f см | таз вбок %4.1f см | %.1f м/с | %s | %s" % [String(d.get("n", "без оружия")) if id != "" else "без оружия", String(st[0]), ",".join(stn.keys()) if id != "" else "—", er_r * 100.0, er_l * 100.0, (hmax - hmin) * 100.0, spd, ",".join(modes.keys()) if not modes.is_empty() else "—", "ок" if flag.is_empty() else "! " + ", ".join(flag)])
+			set_sneak(false)
+			await get_tree().create_timer(0.3).timeout
+	sk.skeleton_updated.disconnect(cb)
+	mc.queue_free()
+	clear_enemies()
+	print("[arm] проверено сочетаний %d, с замечаниями %d" % [rows, bad])
+
+
 func _reload_test() -> void:
 	if temp():
 		var t0 := Time.get_ticks_msec()
@@ -20133,6 +20280,10 @@ func _run_test() -> void:
 		return
 	if test == "animaudit":
 		await _anim_audit()
+		get_tree().quit()
+		return
+	if test == "armaudit":
+		await _arm_audit()
 		get_tree().quit()
 		return
 	if test == "backfire":
