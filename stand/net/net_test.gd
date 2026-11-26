@@ -5,7 +5,7 @@ extends Node
 ##   godot --headless --path . res://net/net_test.tscn -- --port=7790 --phase=1 --dir=<папка>   (клиенты)
 ## phase=2 — после перезапуска сервера: всё ли сохранилось.
 ## phase=3 и 4 — «старт и продолжение» на сервере БЕЗ --grant (своя папка и свой файл данных): каждому новому
-## игроку 50 споранов, хост вышел и вернулся — мир продолжается; phase=4 — то же после перезапуска сервера и вход
+## игроку стартовый запас (coop.start_wallet: 300 споранов и 50 горошин), хост вышел и вернулся — мир продолжается; phase=4 — то же после перезапуска сервера и вход
 ## хоста через экран «МУЛЬТИПЛЕЕР».
 
 var port := 7790
@@ -367,15 +367,27 @@ func _phase2() -> void:
 	_ok("личные кошельки сохранились раздельно (%d и %d)" % [int(me.player.wallet.spore), int(mb.player.wallet.spore)], int(me.player.wallet.spore) != int(mb.player.wallet.spore))
 
 
-## Старт и продолжение: новые игроки получают по 50 споранов один раз; хост закрыл игру и зашёл снова — мир,
+## Старт и продолжение: новые игроки получают стартовый запас (300 споранов и 50 горошин) один раз; хост закрыл игру и зашёл снова — мир,
 ## кошельки, сейфы и миссия на месте
+## Стартовый запас нового игрока на сервере — data/base_shop.json → coop.start_wallet
+func _start() -> Dictionary:
+	return (ULBase.shop().get("coop", {}) as Dictionary).get("start_wallet", {})
+
+
 func _phase3() -> void:
 	var A := _client("A")              # хост
 	var B := _client("B")
 	var okc: bool = await _connect(A, "Хост") and await _connect(B, "Напарник")
 	var ma: Dictionary = await A.ask("me")
 	var mb: Dictionary = await B.ask("me")
-	_ok("новым игрокам при первом входе — по 50 споранов, у каждого свои", okc and int(ma.player.wallet.get("spore", -1)) == 50 and int(mb.player.wallet.get("spore", -1)) == 50 and String(ma.player.pid) != String(mb.player.pid),
+	var st := _start()
+	var s0 := int(st.get("spore", 0))
+	var same := func(w) -> bool:
+		for k in st:
+			if int((w as Dictionary).get(k, -1)) != int(st[k]):
+				return false
+		return true
+	_ok("новым игрокам при первом входе — по %d споранов и %d горошин, у каждого свои" % [s0, int(st.get("pea", 0))], okc and s0 == 300 and int(st.get("pea", 0)) == 50 and same.call(ma.player.wallet) and same.call(mb.player.wallet) and String(ma.player.pid) != String(mb.player.pid),
 		"%s / %s" % [str(ma.get("player", {}).get("wallet")), str(mb.get("player", {}).get("wallet"))])
 	var cw: Dictionary = await A.ask("create_world")
 	var code := String(cw.get("world", {}).get("code", ""))
@@ -386,8 +398,8 @@ func _phase3() -> void:
 	var put: Dictionary = await B.ask("safe_put", {"wid": wid, "k": 1, "item": {"id": "spore", "n": 20}, "op": B.op_id()})
 	var br: Dictionary = await B.ask("buy_route", {"wid": wid, "route": "cowshed", "op": B.op_id()})
 	var cs_price := int(ULBase.shop().routes.cowshed.price.spore)
-	_ok("хост купил хранилище за свои 50 (осталось 0); напарник положил 20 в сейф №1 и купил маршрут за %d (осталось %d)" % [cs_price, 30 - cs_price],
-		up.get("ok", false) and int(up.wallet.spore) == 0 and put.get("ok", false) and br.get("ok", false) and int(br.wallet.spore) == 30 - cs_price)
+	_ok("хост купил хранилище за 50 (осталось %d); напарник положил 20 в сейф №1 и купил маршрут за %d (осталось %d)" % [s0 - 50, cs_price, s0 - 20 - cs_price],
+		up.get("ok", false) and int(up.wallet.spore) == s0 - 50 and put.get("ok", false) and br.get("ok", false) and int(br.wallet.spore) == s0 - 20 - cs_price)
 	var sm: Dictionary = await B.ask("start_mission", {"wid": wid, "route": "cowshed", "ready": [A.pid, B.pid]})
 	var mid := String(sm.get("mission", ""))
 	_ok("совместная миссия начата, оба участники", sm.get("ok", false) and (sm.members as Array).size() == 2)
@@ -401,8 +413,8 @@ func _phase3() -> void:
 	var back: bool = await _connect(A2, "Хост")
 	var me2: Dictionary = await A2.ask("me")
 	var ws: Array = me2.get("worlds", [])
-	_ok("хост зашёл снова: стартовые 50 повторно не выданы (спораны 0), его мир на месте — код тот же, игроков 2",
-		back and int(me2.player.wallet.get("spore", -1)) == 0 and ws.size() == 1 and String(ws[0].code) == code and (ws[0].members as Array).size() == 2, str(me2.get("player", {}).get("wallet")))
+	_ok("хост зашёл снова: стартовый запас повторно не выдан (спораны %d), его мир на месте — код тот же, игроков 2" % (s0 - 50),
+		back and int(me2.player.wallet.get("spore", -1)) == s0 - 50 and ws.size() == 1 and String(ws[0].code) == code and (ws[0].members as Array).size() == 2, str(me2.get("player", {}).get("wallet")))
 	var base: Dictionary = ws[0].base if ws.size() == 1 else {}
 	var s1: Array = base.get("storage", {}).get("safes", {}).get("safe_1", [])
 	_ok("игра продолжается с того же состояния: хранилище ур. 1, в сейфе №1 — 20 споранов напарника, миссия та же и открыта для хоста",
@@ -410,13 +422,13 @@ func _phase3() -> void:
 	var tk: Dictionary = await A2.ask("safe_take", {"wid": wid, "k": 1, "i": 0, "expect": "spore", "n": 5, "op": A2.op_id()})
 	await get_tree().create_timer(0.4).timeout
 	var bs: Array = B.world.get("base", {}).get("storage", {}).get("safes", {}).get("safe_1", [])
-	_ok("хост снова действует в общем мире: взял 5 споранов из сейфа (у него 5), напарнику пришло обновление (в сейфе 15)",
-		tk.get("ok", false) and int(tk.wallet.spore) == 5 and bs.size() == 30 and bs[0] != null and int(bs[0].n) == 15)
+	_ok("хост снова действует в общем мире: взял 5 споранов из сейфа (у него %d), напарнику пришло обновление (в сейфе 15)" % (s0 - 45),
+		tk.get("ok", false) and int(tk.wallet.spore) == s0 - 45 and bs.size() == 30 and bs[0] != null and int(bs[0].n) == 15)
 	var f := FileAccess.open("%s/world.txt" % dir, FileAccess.WRITE)
 	f.store_string(JSON.stringify({"wid": wid, "code": code, "mid": mid}))
 
 
-## После перезапуска сервера: кошельки, мир, сейф и миссия те же; новый игрок получает свои 50; хост входит через
+## После перезапуска сервера: кошельки, мир, сейф и миссия те же; новый игрок получает свой стартовый запас; хост входит через
 ## экран «МУЛЬТИПЛЕЕР» — мир показан, «Продолжить игру» доступна
 func _phase4() -> void:
 	var w = JSON.parse_string(FileAccess.get_file_as_string("%s/world.txt" % dir))
@@ -425,9 +437,10 @@ func _phase4() -> void:
 	var okc: bool = await _connect(A, "Хост") and await _connect(B, "Напарник")
 	var ma: Dictionary = await A.ask("me")
 	var mb: Dictionary = await B.ask("me")
-	var b_left := 30 - int(ULBase.shop().routes.cowshed.price.spore)       # напарник: 50 − 20 в сейф − маршрут коровника
-	_ok("после перезапуска сервера оба входят; кошельки те же (хост 5, напарник %d) — стартовые 50 повторно не выданы" % b_left,
-		okc and int(ma.player.wallet.get("spore", -1)) == 5 and int(mb.player.wallet.get("spore", -1)) == b_left, "%s / %s" % [str(ma.get("player", {}).get("wallet")), str(mb.get("player", {}).get("wallet"))])
+	var s0 := int(_start().get("spore", 0))
+	var b_left := s0 - 20 - int(ULBase.shop().routes.cowshed.price.spore)       # напарник: старт − 20 в сейф − маршрут коровника
+	_ok("после перезапуска сервера оба входят; кошельки те же (хост %d, напарник %d) — стартовый запас повторно не выдан" % [s0 - 45, b_left],
+		okc and int(ma.player.wallet.get("spore", -1)) == s0 - 45 and int(mb.player.wallet.get("spore", -1)) == b_left, "%s / %s" % [str(ma.get("player", {}).get("wallet")), str(mb.get("player", {}).get("wallet"))])
 	var ws: Array = ma.get("worlds", [])
 	var base: Dictionary = ws[0].base if ws.size() == 1 else {}
 	var s1: Array = base.get("storage", {}).get("safes", {}).get("safe_1", [])
@@ -437,7 +450,7 @@ func _phase4() -> void:
 	var C := _client("C")
 	var okn: bool = await _connect(C, "Новичок")
 	var mc: Dictionary = await C.ask("me")
-	_ok("новый игрок и теперь получает свои 50 споранов, чужого мира у него нет", okn and int(mc.player.wallet.get("spore", -1)) == 50 and (mc.worlds as Array).is_empty())
+	_ok("новый игрок и теперь получает свои %d споранов и %d горошин, чужого мира у него нет" % [s0, int(_start().get("pea", 0))], okn and int(mc.player.wallet.get("spore", -1)) == s0 and int(mc.player.wallet.get("pea", -1)) == int(_start().get("pea", 0)) and (mc.worlds as Array).is_empty())
 	# хост входит через экран «МУЛЬТИПЛЕЕР» (его профиль): мир показан сам, игра продолжается
 	var m := ULMpMenu.new()
 	m.profile_path = "%s/profile_A.json" % dir

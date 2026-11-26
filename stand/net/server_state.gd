@@ -98,7 +98,7 @@ func hello(pid: String, token: String, name: String) -> Dictionary:
 
 
 ## Стартовые ресурсы нового игрока — один раз, при первом входе (data/base_shop.json → coop.start_wallet;
-## по умолчанию 50 споранов). Повторный вход ничего не добавляет: кошелёк хранится на сервере.
+## сейчас 300 споранов и 50 горошин). Повторный вход ничего не добавляет: кошелёк хранится на сервере.
 func start_wallet() -> Dictionary:
 	if test_grant >= 0:
 		return {"spore": test_grant}

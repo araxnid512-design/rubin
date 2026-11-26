@@ -4426,6 +4426,13 @@ func _load() -> void:
 	_start_loot()
 
 
+## стартовые ресурсы новой игры (data/base_shop.json → start_wallet): 300 споранов и 50 горошин
+func _start_wallet() -> void:
+	var sw: Dictionary = ULBase.shop().get("start_wallet", {})
+	for id in sw:
+		inv.wallet[String(id)] = int(inv.wallet.get(String(id), 0)) + int(sw[id])
+
+
 ## первый запуск: два ящика у стены кладовой с оружием и патронами, в доме и во дворе — рюкзаки и оружие,
 ## в карманах — бинты, вода, тушёнка
 func _start_loot() -> void:
@@ -4462,10 +4469,7 @@ func _start_loot() -> void:
 		inv.pistol = I.make("tt")
 		ULInventory.put(inv.pockets, I.make("a762x25", 60))
 		ULInventory.put(inv.pockets, I.make("machete"))        # мачете — в кармане: носится в слоте пистолета
-		# стартовые ресурсы (data/base_shop.json → start_wallet): хватает на первый маршрут
-		var sw: Dictionary = ULBase.shop().get("start_wallet", {})
-		for id in sw:
-			inv.wallet[String(id)] = int(inv.wallet.get(String(id), 0)) + int(sw[id])
+		_start_wallet()
 	_spawn_ground(I.make("rusk", 2), H.to_global(Vector3(-2.5, 0, 2.2)), 0.0)
 	_spawn_ground(I.make("tonic", 2), H.to_global(Vector3(-4.6, 0, 2.3)), 0.0)
 	_spawn_ground(I.make("medkit"), H.to_global(Vector3(4.6, 0, -3.0)), 0.0)
@@ -11777,7 +11781,7 @@ func _reload_test() -> void:
 
 
 ## Собранная игра (--as-release=1): без отладочных надписей и кнопок; барахольщик — только «Торговать»;
-## на старте 50 споранов; мачете — в слот пистолета и в слот основного оружия
+## на старте 300 споранов и 50 горошин; мачете — в слот пистолета и в слот основного оружия
 func _ux_test() -> void:
 	await get_tree().create_timer(0.5).timeout
 	var names: Array = _menu_bar.get_children().map(func(b): return (b as Button).text if b is Button else "")
@@ -11788,7 +11792,10 @@ func _ux_test() -> void:
 	open_talk(dl)
 	_ok("у барахольщика — только «Торговать» и «Закрыть», продажи в окошке нет", _talk_trade.visible and not _talk_sell.visible)
 	_talk_ui.visible = false
-	_ok("на старте одиночной игры — 50 споранов (data/base_shop.json)", int((ULBase.shop().get("start_wallet", {}) as Dictionary).get("spore", 0)) == 50)
+	var sw0: Dictionary = ULBase.shop().get("start_wallet", {})
+	inv.wallet = {}
+	_start_wallet()                        # то же, что делает новая игра (в проверках стартовый запас не выдаётся)
+	_ok("на старте одиночной игры — 300 споранов и 50 горошин (data/base_shop.json)", int(sw0.get("spore", 0)) == 300 and int(sw0.get("pea", 0)) == 50 and int(inv.wallet.get("spore", 0)) == 300 and int(inv.wallet.get("pea", 0)) == 50, "в кошельке новой игры: %s" % str(inv.wallet))
 	inv.pistol = null
 	inv.primary = null
 	inv.hand = ""
