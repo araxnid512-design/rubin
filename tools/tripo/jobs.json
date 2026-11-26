@@ -1,70 +1,24 @@
 {
- "stop": true,
+ "stop": false,
  "jobs": [
   {
-   "id": "g95_x_assault",
+   "id": "g96_mut_elite",
    "py": "tools/tripo/chain.py",
    "timeout": 3000,
    "args": [
     "--id",
-    "x_assault_p",
+    "mut_elite_p",
     "--image",
-    "tools/tripo/refs/ext26/x_assault.jpg",
+    "tools/tripo/refs/boss26/mut_elite.jpg",
     "--faces",
-    "14000",
+    "22000",
     "--tex",
     "detailed",
     "--geo",
     "detailed",
     "--pbr",
-    "--rig",
-    "biped",
     "--prompt",
-    "Full body game character in T-pose, same soldier and outfit as in the image: tactical helmet, goggles, black face mask, grey-green camouflage uniform, plate carrier with magazine pouches and radio, gloves, knee pads, military boots. Realistic detailed PBR textures, single character, no weapon, no background, no text."
-   ]
-  },
-  {
-   "id": "g95_x_sniper",
-   "py": "tools/tripo/chain.py",
-   "timeout": 3000,
-   "args": [
-    "--id",
-    "x_sniper_p",
-    "--image",
-    "tools/tripo/refs/ext26/x_sniper.jpg",
-    "--faces",
-    "14000",
-    "--tex",
-    "detailed",
-    "--geo",
-    "detailed",
-    "--pbr",
-    "--rig",
-    "biped",
-    "--prompt",
-    "Full body game character in T-pose, same sniper and outfit as in the image: ghillie hood and shoulder camouflage net with fabric strips, goggles, face mask, dark olive uniform, chest rig with pouches, knee pads, military boots. Realistic detailed PBR textures, single character, no weapon, no background, no text."
-   ]
-  },
-  {
-   "id": "g95_x_titan",
-   "py": "tools/tripo/chain.py",
-   "timeout": 3000,
-   "args": [
-    "--id",
-    "x_titan_p",
-    "--image",
-    "tools/tripo/refs/ext26/x_titan.jpg",
-    "--faces",
-    "14000",
-    "--tex",
-    "detailed",
-    "--geo",
-    "detailed",
-    "--pbr",
-    "--rig",
-    "biped",
-    "--prompt",
-    "Full body game character in T-pose, same heavy armored soldier as in the image: massive dark armored helmet with closed visor, heavy chest plate, large armored pauldrons, arm and leg armor plates, heavy boots, dark gunmetal color. A human in heavy armor, not a robot. Realistic detailed PBR textures, single character, no weapon, no background, no text."
+    "Giant mutated four-legged monster exactly as in the image, standing on all four massive legs in a neutral pose, side-on body: huge toothy open jaw, thick neck, enormous muscular front and hind legs with big claws, thick scarred mutated skin, bone plates and spikes along the back, glowing orange growths on the shoulders, heavy long tail. Whole creature visible from snout to tail tip, single creature, realistic detailed PBR textures, no background, no floor, no text."
    ]
   }
  ]
