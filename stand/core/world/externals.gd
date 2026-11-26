@@ -186,7 +186,26 @@ func x_zones() -> Array:
 	var out := [["x_lift", X_LIFT + Vector3(0, 0.2, 0)]]
 	if level == 0:
 		out.append(["x_capsule", X_CAPSULE])
+		for t in X_TERMS:
+			out.append(["x_term%d" % int(t[0]), t[2]])   # терминалы сборки ящиков (ULCrates)
 	return out
+
+
+## собранный ящик с добычей у терминала n: модель стоит рядом с терминалом, пока в ящике что-то лежит
+var _crate_nodes := {}
+
+
+func crate_show(n: int, model: String, on: bool) -> void:
+	if not _crate_nodes.has(n):
+		if not on:
+			return
+		for t in X_TERMS:
+			if int(t[0]) == n:
+				var at: Vector3 = (t[2] as Vector3) + Vector3(0.0, 0.2, 1.45)
+				_crate_nodes[n] = _xd(model, Vector3(at.x, 0.2, at.z), 0.0, Vector3(1.25, 0.95, 0.9), Vector3.ZERO, 40.0)
+	var nd = _crate_nodes.get(n)
+	if nd != null and is_instance_valid(nd):
+		(nd as Node3D).visible = on
 
 
 ## свои материалы: свечение (красное, зелёное, тёплое), цветное стекло капсул, чёрная порода вокруг этажа

@@ -3720,6 +3720,8 @@ func _on_loot_emptied() -> void:
 func close_inventory() -> void:
 	inv_ui.visible = false
 	inv_ui.auto_close = ""
+	if _crate_open > 0:
+		_crate_closed()                         # ящик с добычей у терминала: остаток — в сохранение базы
 	if _open_corpse != null and is_instance_valid(_open_corpse) and loot_empty(_open_corpse.loot):
 		# обыскано до конца — тело больше не предлагает «Обыскать»
 		_open_corpse.set_meta("looted", true)
@@ -4060,7 +4062,11 @@ func _find_target() -> void:
 	if san is ULExternals:
 		# База Внешников: капсула для красной жемчужины у лифта и пульт в кабине лифта
 		for xz in (san as ULExternals).x_zones():
-			var dx := Vector2((xz[1] as Vector3).x - p.x, (xz[1] as Vector3).z - p.z).length() - (0.6 if String(xz[0]) == "x_capsule" else 1.2)
+			if not _crates_synced:
+				_crates_synced = true
+				for xn in [1, 2, 3]:
+					_crate_model(xn)                 # неразобранные ящики стоят у своих терминалов
+			var dx := Vector2((xz[1] as Vector3).x - p.x, (xz[1] as Vector3).z - p.z).length() - (0.6 if String(xz[0]) == "x_capsule" else (0.75 if String(xz[0]).begins_with("x_term") else 1.2))
 			if dx < minf(bd, 0.9):
 				bd = dx
 				best = {"type": String(xz[0])}
@@ -4207,6 +4213,9 @@ func _target_name() -> String:
 		return "Капсула лифта: комплекс открыт, до перезагрузки — %s" % _hm_text(ULBase.ext_left()) if ULBase.ext_left() > 0 else "Капсула лифта. Нужна красная жемчужина"
 	if _target.type == "x_lift":
 		return "Лифт · %s" % ULExternals.level_title((san as ULExternals).level).to_lower()
+	if String(_target.type).begins_with("x_term"):
+		var xcr := ULCrates.by_terminal(int(String(_target.type).substr(6)))
+		return "%s: в ящике осталась добыча" % String(xcr.get("n", "Ящик")) if crate_left(int(xcr.get("terminal", 0))) else "Терминал %d · %s — %d %s" % [int(xcr.get("terminal", 0)), String(xcr.get("n", "")), int(xcr.get("cost", 0)), String(xcr.get("cost_text", "карт"))]
 	if _target.type == "safe":
 		return "Сейф №%d" % int(_target.k)
 	if _target.type == "chest":
@@ -4231,6 +4240,8 @@ func _action_label() -> String:
 		return "Открыто" if ULBase.ext_left() > 0 else "Вложить жемчужину"
 	if _target.type == "x_lift":
 		return "Лифт"
+	if String(_target.type).begins_with("x_term"):
+		return "Забрать добычу" if crate_left(int(String(_target.type).substr(6))) else "Терминал"
 	if _target.type == "crate":
 		return "Открыть"
 	if _target.type == "box":
@@ -4280,6 +4291,9 @@ func do_action() -> void:
 		return
 	if _target.type == "x_lift":
 		open_lift_ui()
+		return
+	if String(_target.type).begins_with("x_term"):
+		open_crate_ui(int(String(_target.type).substr(6)))
 		return
 	if _target.type == "safe":
 		open_safe(int(_target.k))
@@ -4945,7 +4959,7 @@ func _draw_hud() -> void:
 						_hud_icon(_tex("res://assets/icons/safe.png"), c, r * 1.5, ic)
 					"corpse":
 						_hud_icon(_tex("res://assets/icons/loot_spore.png"), c, r * 1.4, ic)
-					"terminal", "g_term", "g_sel", "x_lift":
+					"terminal", "g_term", "g_sel", "x_lift", "x_term1", "x_term2", "x_term3":
 						_hud_icon(_art("terminal"), c, r * 2.0, ic)
 					"x_capsule":
 						_hud_icon(_tex("res://assets/icons/loot_pearl_red.png"), c, r * 1.4, ic)
@@ -10573,9 +10587,14 @@ func _guns_test() -> void:
 	var found := []
 	var dir_d := DirAccess.open("res://data")
 	for f in dir_d.get_files():
-		if not f.ends_with(".json") or f in ["loot_reserve.json", "weapons.json"]:
-			continue
+		if not f.ends_with(".json") or f in ["loot_reserve.json", "weapons.json", "crates.json"]:
+			continue                               # crates.json — единственный источник редкого оружия (см. ниже)
 		var tx := FileAccess.get_file_as_string("res://data/" + f)
+		if f == "enemies.json":
+			# штурмовик Внешников держит АК-102 в руках (это его оружие, не добыча): смотрим только строки добычи
+			tx = ""
+			for ek in ULEnemy.KINDS:
+				tx += JSON.stringify(ULEnemy.KINDS[ek].get("loot", []))
 		for rid in RES + ["pg7v", "g40"]:
 			if tx.contains("\"%s\"" % rid):
 				found.append("%s: %s" % [f, rid])
@@ -10588,7 +10607,17 @@ func _guns_test() -> void:
 		for r in ULCase.table():
 			if (r.items as Array).has(rid):
 				found.append("оружейный кейс: %s" % rid)
-	_ok("АК-102, РПГ-7Д, M32 и их боеприпасы (ПГ-7В, 40×46) — не продаются и не выпадают нигде (просмотрены все data/*.json, оружейник, кейс)", found.is_empty(), ", ".join(found))
+	var rare3: Array = ULCrates.tier(3).duplicate()
+	rare3.sort()
+	var res_s: Array = RES.duplicate()
+	res_s.sort()
+	var only3 := true
+	for crd in ULCrates.list():
+		for cw in crd.weapons:
+			if int(cw[0]) == 3 and String(crd.id) != "infected":
+				only3 = false
+	_ok("АК-102, РПГ-7Д, M32 и их боеприпасы (ПГ-7В, 40×46) — не продаются и не выпадают нигде, кроме ящика заражённого (3-й тир data/crates.json; просмотрены все data/*.json, оружейник, кейс)",
+		found.is_empty() and rare3 == res_s and only3, ", ".join(found))
 	var lr = JSON.parse_string(FileAccess.get_file_as_string("res://data/loot_reserve.json"))
 	var t: Dictionary = lr.get("externals_military_chest", {}) if lr is Dictionary else {}
 	var ids := []
@@ -10965,7 +10994,7 @@ func _in_scroll(c: Control) -> bool:
 func _ui_close_all() -> void:
 	if inv_ui != null and inv_ui.visible:
 		close_inventory()
-	for nm in ["_car_ui", "_char_ui", "_set_ui", "_book_ui", "_shop_ui", "_term_ui", "_dealer_ui", "_map_ui", "_lift_ui"]:
+	for nm in ["_car_ui", "_char_ui", "_set_ui", "_book_ui", "_shop_ui", "_term_ui", "_dealer_ui", "_map_ui", "_lift_ui", "_crate_ui"]:
 		var u = get(nm)
 		if u != null and is_instance_valid(u):
 			if (u as Node).has_method("close"):
@@ -17527,7 +17556,7 @@ var _name_edit: LineEdit
 
 
 func _modal() -> bool:
-	return (_car_ui != null and is_instance_valid(_car_ui)) or (inv_ui != null and inv_ui.visible) or (_name_ui != null and _name_ui.visible) or (_char_ui != null and is_instance_valid(_char_ui)) or (_talk_ui != null and _talk_ui.visible) or (_set_ui != null and is_instance_valid(_set_ui)) or (_book_ui != null and is_instance_valid(_book_ui)) or (_shop_ui != null and is_instance_valid(_shop_ui)) or (_term_ui != null and is_instance_valid(_term_ui)) or (_dealer_ui != null and is_instance_valid(_dealer_ui)) or _dead_t > 0.0 or (_map_ui != null and is_instance_valid(_map_ui)) or (_lift_ui != null and is_instance_valid(_lift_ui))
+	return (_car_ui != null and is_instance_valid(_car_ui)) or (inv_ui != null and inv_ui.visible) or (_name_ui != null and _name_ui.visible) or (_char_ui != null and is_instance_valid(_char_ui)) or (_talk_ui != null and _talk_ui.visible) or (_set_ui != null and is_instance_valid(_set_ui)) or (_book_ui != null and is_instance_valid(_book_ui)) or (_shop_ui != null and is_instance_valid(_shop_ui)) or (_term_ui != null and is_instance_valid(_term_ui)) or (_dealer_ui != null and is_instance_valid(_dealer_ui)) or _dead_t > 0.0 or (_map_ui != null and is_instance_valid(_map_ui)) or (_lift_ui != null and is_instance_valid(_lift_ui)) or (_crate_ui != null and is_instance_valid(_crate_ui))
 
 
 func _load_profile() -> void:
@@ -18093,6 +18122,501 @@ func x_capsule_use() -> bool:
 ## можно ли ехать: в тесте уровней — всегда; иначе — пока комплекс открыт (с этажа на поверхность — всегда)
 func x_lift_ok(lv: int) -> bool:
 	return lvl or lv == 0 or ULBase.ext_left() > 0
+
+
+# ---------------- ящики с добычей за карты доступа (ULCrates, data/crates.json) ----------------
+var _crate_ui: Control
+var _crate_open := 0                  ## у какого терминала сейчас открыт ящик с добычей (0 — ни у какого)
+var _crates_synced := false
+
+
+## Добыча, оставшаяся в собранном ящике у терминала n. Лежит в сохранении базы (data.xcr): разобрать ящик можно
+## не сразу — после выхода с локации и перезапуска игры добыча на месте.
+func crate_box(n: int) -> Array:
+	ULBase.load_state()
+	var all = ULBase.data.get("xcr", {})
+	if not (all is Dictionary) or not all.has(str(n)) or not (all[str(n)] is Array):
+		return []
+	var arr: Array = all[str(n)]
+	for c in arr:
+		if c is Dictionary:
+			for k in ["n", "mag", "dur"]:
+				if c.has(k):
+					c[k] = int(c[k])               # после чтения из файла числа — дробные
+	return arr
+
+
+func crate_left(n: int) -> bool:
+	for c in crate_box(n):
+		if c != null:
+			return true
+	return false
+
+
+## Собрать ящик у терминала n: карты списываются, добыча ложится в ящик у терминала.
+## false — не хватает карт или прошлый ящик ещё не разобран (ничего не списано).
+func crate_build(n: int, seed_n := -1) -> bool:
+	var c := ULCrates.by_terminal(n)
+	if c.is_empty():
+		return false
+	if crate_left(n):
+		say("Сначала заберите добычу из собранного ящика")
+		return false
+	if not ULCrates.can_build(inv, c):
+		say("Не хватает карт: нужно %d, при себе %d" % [int(c.cost), inv.count(String(c.card))])
+		snd.play("block", player.global_position + Vector3.UP, -8.0)
+		return false
+	var cells := ULCrates.build(inv, c, seed_n if seed_n >= 0 else int(Time.get_ticks_usec() % 2147483647))
+	ULBase.load_state()
+	var all = ULBase.data.get("xcr", {})
+	if not (all is Dictionary):
+		all = {}
+	all[str(n)] = cells
+	ULBase.data["xcr"] = all
+	ULBase.save_state()
+	_crate_model(n)
+	snd.play("cover_open", player.global_position + Vector3.UP, -6.0)
+	return true
+
+
+## открыть собранный ящик у терминала n как хранилище (взять можно не всё: остальное дождётся)
+func crate_take(n: int) -> void:
+	_crate_open = n
+	open_inventory(crate_box(n), String(ULCrates.by_terminal(n).get("n", "Ящик")), false, "crate")
+
+
+func _crate_closed() -> void:
+	var n := _crate_open
+	_crate_open = 0
+	if not crate_left(n):
+		var all = ULBase.data.get("xcr", {})
+		if all is Dictionary:
+			all.erase(str(n))                      # разобран до конца — терминал снова собирает новый
+	ULBase.save_state()
+	_crate_model(n)
+
+
+func _crate_model(n: int) -> void:
+	if san is ULExternals and (san as ULExternals).level == 0:
+		(san as ULExternals).crate_show(n, String(ULCrates.by_terminal(n).get("model", "")), crate_left(n))
+
+
+func _crate_line_icon(c: Dictionary, line: String) -> Texture2D:
+	var l := line.to_lower()
+	if l.contains("3-го тира"):
+		return ULItems.icon(String(ULCrates.tier(3)[0]))
+	if l.contains("2-го тира"):
+		return ULItems.icon("fnfal")
+	if l.contains("1-го тира"):
+		return ULItems.icon("ak74m")
+	if l.contains("патрон"):
+		return ULItems.icon("a545")
+	if l.contains("аптечк"):
+		return ULItems.icon("medkit")
+	if l.contains("запчаст"):
+		return ULItems.icon(String((c.get("parts", [["spare_parts"]]) as Array).back()[0]))
+	return ULItems.icon("spore")
+
+
+func close_crate_ui() -> void:
+	if _crate_ui != null and is_instance_valid(_crate_ui):
+		_crate_ui.queue_free()
+	_crate_ui = null
+
+
+## Окно «Сборка ящиков» у терминала n главного здания Базы Внешников (по макету пользователя): слева — ящик, цена
+## в картах и кнопка «Собрать», справа — что внутри. Если прошлый ящик не разобран — сразу открывается он.
+func open_crate_ui(n: int) -> void:
+	var c := ULCrates.by_terminal(n)
+	if c.is_empty() or (_crate_ui != null and is_instance_valid(_crate_ui)):
+		return
+	if crate_left(n):
+		crate_take(n)
+		return
+	var cc: Array = c.get("color", [0.8, 0.8, 0.8])
+	var col := Color(float(cc[0]), float(cc[1]), float(cc[2]))
+	_crate_ui = Control.new()
+	_hud.get_parent().add_child(_crate_ui)
+	_crate_ui.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	var shade := ColorRect.new()
+	shade.color = Color(0, 0, 0, 0.62)
+	shade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_crate_ui.add_child(shade)
+	var pn := PanelContainer.new()
+	var psb := _style(Color(0.05, 0.055, 0.06, 0.985))
+	psb.border_color = col.darkened(0.2)
+	psb.set_border_width_all(2)
+	pn.add_theme_stylebox_override("panel", psb)
+	_crate_ui.add_child(pn)
+	pn.anchor_left = 0.5
+	pn.anchor_right = 0.5
+	pn.anchor_top = 0.5
+	pn.anchor_bottom = 0.5
+	pn.offset_left = -570
+	pn.offset_right = 570
+	pn.offset_top = -325
+	pn.offset_bottom = 325
+	var mg := MarginContainer.new()
+	for sd in ["left", "right", "top", "bottom"]:
+		mg.add_theme_constant_override("margin_" + sd, 14)
+	pn.add_child(mg)
+	var root := VBoxContainer.new()
+	root.add_theme_constant_override("separation", 10)
+	mg.add_child(root)
+	# шапка
+	var head := HBoxContainer.new()
+	root.add_child(head)
+	var hv := VBoxContainer.new()
+	hv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	hv.add_theme_constant_override("separation", 0)
+	head.add_child(hv)
+	var ttl := Label.new()
+	ttl.text = "СБОРКА ЯЩИКОВ"
+	ttl.add_theme_font_size_override("font_size", ULSettings.fs(28))
+	ttl.add_theme_color_override("font_color", Color(0.94, 0.94, 0.9))
+	hv.add_child(ttl)
+	var sub := Label.new()
+	sub.text = "Обмен карт доступа на ящики с добычей"
+	sub.add_theme_font_size_override("font_size", ULSettings.fs(18))
+	sub.add_theme_color_override("font_color", col)
+	hv.add_child(sub)
+	var xb := _btn("✕", close_crate_ui, 56)
+	xb.name = "close"
+	xb.add_theme_font_size_override("font_size", ULSettings.fs(22))
+	xb.add_theme_color_override("font_color", Color(1.0, 0.4, 0.35))
+	head.add_child(xb)
+	# тело: слева ящик и цена, справа содержимое
+	var body := HBoxContainer.new()
+	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	body.add_theme_constant_override("separation", 14)
+	root.add_child(body)
+	var box_sb := func() -> StyleBoxFlat:
+		var sb := _style(Color(0.08, 0.085, 0.09, 0.95))
+		sb.border_color = col.darkened(0.45)
+		sb.content_margin_left = 12
+		sb.content_margin_right = 12
+		sb.content_margin_top = 10
+		sb.content_margin_bottom = 10
+		return sb
+	var lp := PanelContainer.new()
+	lp.add_theme_stylebox_override("panel", box_sb.call())
+	lp.custom_minimum_size.x = 440
+	body.add_child(lp)
+	var lv := VBoxContainer.new()
+	lv.add_theme_constant_override("separation", 8)
+	lp.add_child(lv)
+	var nm := Label.new()
+	nm.name = "crate_name"
+	nm.text = String(c.n).to_upper()
+	nm.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	nm.add_theme_font_size_override("font_size", ULSettings.fs(28))
+	nm.add_theme_color_override("font_color", Color(0.94, 0.94, 0.9))
+	lv.add_child(nm)
+	var bar := ColorRect.new()
+	bar.color = col
+	bar.custom_minimum_size = Vector2(0, 3)
+	lv.add_child(bar)
+	var pic := TextureRect.new()
+	var ppath := "res://assets/icons/crate_%s.png" % String(c.id)
+	pic.texture = _tex(ppath if ResourceLoader.exists(ppath) else "res://assets/icons/crate.png")
+	pic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	pic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	pic.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	if not ResourceLoader.exists(ppath):
+		pic.modulate = col.lerp(Color.WHITE, 0.45)
+	lv.add_child(pic)
+	var cost := HBoxContainer.new()
+	cost.alignment = BoxContainer.ALIGNMENT_CENTER
+	cost.add_theme_constant_override("separation", 10)
+	lv.add_child(cost)
+	var cic := TextureRect.new()
+	cic.texture = ULItems.icon(String(c.card))
+	cic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	cic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	cic.custom_minimum_size = Vector2(44, 44)
+	cost.add_child(cic)
+	var have := inv.count(String(c.card))
+	var cl := Label.new()
+	cl.name = "cost"
+	cl.text = "Стоимость: %d %s · при себе %d" % [int(c.cost), String(c.get("cost_text", "карт")), have]
+	cl.add_theme_font_size_override("font_size", ULSettings.fs(19))
+	cl.add_theme_color_override("font_color", col if have >= int(c.cost) else Color(0.85, 0.85, 0.85))
+	cost.add_child(cl)
+	var bb := Button.new()
+	bb.name = "build"
+	bb.text = "СОБРАТЬ"
+	bb.focus_mode = Control.FOCUS_NONE
+	bb.custom_minimum_size = Vector2(0, 66)
+	bb.add_theme_font_size_override("font_size", ULSettings.fs(28))
+	bb.add_theme_color_override("font_color", Color(0.97, 0.97, 0.93))
+	bb.add_theme_color_override("font_disabled_color", Color(0.55, 0.55, 0.55))
+	for stn in [["normal", 0.5], ["hover", 0.4], ["pressed", 0.3], ["disabled", 0.8]]:
+		var bsb := _style(col.darkened(float(stn[1])) if String(stn[0]) != "disabled" else Color(0.14, 0.14, 0.15))
+		bsb.border_color = col if String(stn[0]) != "disabled" else Color(0.3, 0.3, 0.3)
+		bsb.set_border_width_all(2)
+		bb.add_theme_stylebox_override(String(stn[0]), bsb)
+	bb.disabled = not ULCrates.can_build(inv, c)
+	bb.pressed.connect(func() -> void:
+		if crate_build(n):
+			close_crate_ui()
+			crate_take(n))
+	lv.add_child(bb)
+	var rp := PanelContainer.new()
+	rp.add_theme_stylebox_override("panel", box_sb.call())
+	rp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	body.add_child(rp)
+	var rv := VBoxContainer.new()
+	rv.add_theme_constant_override("separation", 6)
+	rp.add_child(rv)
+	var ch := Label.new()
+	ch.text = "СОДЕРЖИМОЕ:"
+	ch.add_theme_font_size_override("font_size", ULSettings.fs(22))
+	ch.add_theme_color_override("font_color", Color(1.0, 0.82, 0.3))
+	rv.add_child(ch)
+	for line in c.get("lines", []):
+		var row := PanelContainer.new()
+		var rsb := _style(Color(0.11, 0.115, 0.12, 0.9))
+		rsb.border_color = Color(0.22, 0.24, 0.25)
+		rsb.content_margin_top = 4
+		rsb.content_margin_bottom = 4
+		row.add_theme_stylebox_override("panel", rsb)
+		row.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		rv.add_child(row)
+		var rh := HBoxContainer.new()
+		rh.add_theme_constant_override("separation", 12)
+		row.add_child(rh)
+		var ic := TextureRect.new()
+		ic.texture = _crate_line_icon(c, String(line))
+		ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		ic.custom_minimum_size = Vector2(110, 44)
+		rh.add_child(ic)
+		var dot := ColorRect.new()
+		dot.color = col
+		dot.custom_minimum_size = Vector2(10, 10)
+		dot.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		rh.add_child(dot)
+		var ll := Label.new()
+		ll.text = String(line).to_upper()
+		ll.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		ll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		ll.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		ll.add_theme_font_size_override("font_size", ULSettings.fs(18))
+		ll.add_theme_color_override("font_color", Color(0.92, 0.92, 0.88))
+		rh.add_child(ll)
+	var note := Label.new()
+	note.text = "ⓘ  " + String(c.get("note", ""))
+	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	note.add_theme_font_size_override("font_size", ULSettings.fs(16))
+	note.add_theme_color_override("font_color", Color(1.0, 0.82, 0.3))
+	rv.add_child(note)
+	# низ: уровень ящика
+	var foot := Label.new()
+	foot.name = "foot"
+	foot.text = "ЯЩИК %d УРОВНЯ   ·   %s. Турелей на базе пока нет — запчасти копятся." % [int(c.level), String(c.get("turrets", ""))]
+	foot.add_theme_font_size_override("font_size", ULSettings.fs(16))
+	foot.add_theme_color_override("font_color", col.lerp(Color.WHITE, 0.35))
+	root.add_child(foot)
+	_joy_id = -1
+	_joy_v = Vector2.ZERO
+	_hud_touch.clear()
+
+
+
+## Проверка ящиков с добычей (--as-test=xbcrate): данные, состав по тирам, терминалы, списание карт, окно, остаток
+func _xcrate_test() -> void:
+	var t0 := Time.get_ticks_msec()
+	while not cs_ready and Time.get_ticks_msec() - t0 < 40000:
+		await get_tree().process_frame
+	await get_tree().create_timer(0.5).timeout
+	clear_enemies()
+	inv.from_dict({})
+	ULBase.data.erase("xcr")
+	if out != "":
+		DirAccess.make_dir_recursive_absolute(out)
+	var x := san as ULExternals
+	var L: Array = ULCrates.list()
+	var want := [["common", "Обычный ящик", 1, "card_green", 30], ["assault", "Ящик штурмовика", 2, "card_yellow", 25], ["infected", "Ящик заражённого", 3, "card_red", 20]]
+	var d_ok := L.size() == 3
+	for i in mini(L.size(), 3):
+		var c: Dictionary = L[i]
+		d_ok = d_ok and String(c.id) == String(want[i][0]) and String(c.n) == String(want[i][1]) and int(c.level) == int(want[i][2]) and int(c.terminal) == int(want[i][2]) and String(c.card) == String(want[i][3]) and int(c.cost) == int(want[i][4])
+	_ok("1. три ящика: обычный — 30 зелёных карт (терминал 1), штурмовика — 25 золотых (терминал 2), заражённого — 20 красных (терминал 3)", d_ok)
+	var t_ok := true
+	var seen_w := {}
+	for tn in [1, 2, 3]:
+		for wid in ULCrates.tier(tn):
+			t_ok = t_ok and ULItems.ITEMS.has(String(wid)) and ULItems.get_def(String(wid)).has("weapon") and not seen_w.has(wid)
+			seen_w[wid] = true
+	var t3: Array = ULCrates.tier(3).duplicate()
+	t3.sort()
+	_ok("2. тиры оружия: 1-й — %d стволов, 2-й — %d, 3-й (редкое) — РПГ-7Д, M32 и АК-102; каждый ствол в одном тире" % [ULCrates.tier(1).size(), ULCrates.tier(2).size()],
+		t_ok and t3 == ["ak102", "m32", "rpg7d"] and ULCrates.tier(1).size() >= 3 and ULCrates.tier(2).size() >= 3)
+	_ok("3. запчасти для турелей I, II и III уровня — предметы со значками; карты складываются в стопку до %d" % ULItems.stack("card_green"),
+		ULItems.ITEMS.has("turret_part_1") and ULItems.ITEMS.has("turret_part_2") and ULItems.ITEMS.has("turret_part_3") and ULItems.icon("turret_part_1") != null
+		and ULItems.icon("turret_part_2") != null and ULItems.icon("turret_part_3") != null and ULItems.stack("card_green") >= 30 and ULItems.stack("card_yellow") >= 25 and ULItems.stack("card_red") >= 20)
+	# состав по 300 ящиков каждого вида
+	var num := 4
+	for ci in L.size():
+		var c: Dictionary = L[ci]
+		var bad := ""
+		var lens := {}
+		var rare := {}
+		for sd in 300:
+			var items: Array = ULCrates.roll(c, 1000 + sd * 7 + ci)
+			var by_t := {1: 0, 2: 0, 3: 0}
+			var ids := {}
+			var need_ammo := {}
+			var parts := {}
+			var med := 0
+			for it in items:
+				var id := String(it.id)
+				if not ULItems.ITEMS.has(id) or int(it.n) <= 0:
+					bad = "неизвестный предмет " + id
+				var tr := ULCrates.tier_of(id)
+				if tr > 0:
+					by_t[tr] += 1
+					if ids.has(id):
+						bad = "ствол %s дважды" % id
+					var df := ULItems.get_def(id)
+					if df.has("ammo"):
+						need_ammo[String(df.ammo)] = true
+					var k := float(it.dur) / float(df.dur)
+					if k < float(c.condition[0]) - 0.01 or k > float(c.condition[1]) + 0.01 or int(it.mag) != int(df.mag):
+						bad = "состояние %s %.2f" % [id, k]
+					if tr == 3:
+						rare[id] = true
+				ids[id] = true
+				if id.begins_with("turret_part_"):
+					parts[id] = true
+				if id in ["bandage", "medkit", "tonic"]:
+					med += 1
+			var wt := {1: 0, 2: 0, 3: 0}
+			for w in c.weapons:
+				wt[int(w[0])] = int(w[1])
+			if by_t != wt:
+				bad = "стволов по тирам %s вместо %s" % [str(by_t), str(wt)]
+			for a in need_ammo:
+				if not ids.has(a):
+					bad = "нет патронов " + String(a)
+			if parts.size() != (c.parts as Array).size() or med < 2:
+				bad = "запчасти %s, медицина %d" % [str(parts.keys()), med]
+			var cells: Array = ULCrates.to_cells(items)
+			if cells.size() > int(ULCrates.cfg().cells):
+				bad = "не поместилось в %d ячеек" % int(ULCrates.cfg().cells)
+			lens[items.size()] = true
+		var lk := lens.keys()
+		lk.sort()
+		_ok("%d. %s, 300 штук: стволов по тирам %s, к каждому патроны, полный магазин, состояние %d–%d %%; бинты и аптечки; запчасти уровней 1–%d; предметов в ящике %d–%d%s" % [num, String(c.n),
+			str(c.weapons), int(float(c.condition[0]) * 100), int(float(c.condition[1]) * 100), (c.parts as Array).size(), int(lk[0]), int(lk[-1]), ("; редкое: " + ", ".join(rare.keys())) if not rare.is_empty() else ""],
+			bad == "" and (rare.size() == 3 if int(c.level) == 3 else rare.is_empty()), bad)
+		num += 1
+	# у терминала 1
+	var tp: Vector3 = ULExternals.X_TERMS[0][2]
+	player.global_position = Vector3(tp.x, 0.3, tp.z + 1.15)
+	player.velocity = Vector3.ZERO
+	await get_tree().create_timer(0.8).timeout
+	_ok("7. у терминала 1: цель — терминал, кнопка «Терминал», подпись — обычный ящик", _target != null and String(_target.type) == "x_term1" and _action_label() == "Терминал" and _target_name().contains("Обычный ящик"),
+		"%s / %s" % [str(_target.type) if _target != null else "нет цели", _target_name() if _target != null else ""])
+	_ok("8. без карт ящик не собирается, в ящике пусто", not crate_build(1, 5) and not crate_left(1))
+	inv.add(ULItems.make("card_green", 29))
+	inv.add(ULItems.make("card_red", 20))
+	_ok("9. 29 зелёных карт и 20 красных: обычный ящик не собирается (красные не в счёт), карты целы", not crate_build(1, 5) and inv.count("card_green") == 29 and inv.count("card_red") == 20)
+	open_crate_ui(1)
+	await get_tree().create_timer(0.4).timeout
+	var bb: Button = _crate_ui.find_child("build", true, false) if _crate_ui != null else null
+	_ok("10. окно «Сборка ящиков»: название, цена, кнопка «Собрать» выключена (карт не хватает)", _crate_ui != null and bb != null and bb.disabled and _modal()
+		and (_crate_ui.find_child("crate_name", true, false) as Label).text == "ОБЫЧНЫЙ ЯЩИК" and (_crate_ui.find_child("cost", true, false) as Label).text.contains("30") and (_crate_ui.find_child("cost", true, false) as Label).text.contains("29"))
+	close_crate_ui()
+	await get_tree().process_frame
+	inv.add(ULItems.make("card_green", 1))
+	inv.consume("card_red", 20)
+	open_crate_ui(1)
+	await get_tree().create_timer(0.6).timeout
+	bb = _crate_ui.find_child("build", true, false)
+	_ok("11. 30 зелёных карт: кнопка «Собрать» включена", bb != null and not bb.disabled)
+	if out != "":
+		await _snap("crate_ui_1")
+	bb.pressed.emit()
+	await get_tree().create_timer(0.6).timeout
+	var box: Array = crate_box(1)
+	var nw := 0
+	for cl in box:
+		if cl != null and ULCrates.tier_of(String(cl.id)) == 1:
+			nw += 1
+	_ok("12. «Собрать»: списано ровно 30 карт, окно закрылось, открыт ящик с добычей (стволов 1-го тира — %d)" % nw, inv.count("card_green") == 0 and _crate_ui == null and inv_ui.visible and is_same(inv_ui.cont, box) and nw == 2 and crate_left(1))
+	if out != "":
+		await _snap("crate_loot_1")
+	var cn = x._crate_nodes.get(1)
+	_ok("13. рядом с терминалом стоит собранный ящик (модель%s)" % ("" if cn != null else " ещё не получена — ящик без модели"), cn == null or (cn as Node3D).visible)
+	var snap0 := JSON.stringify(box)
+	close_inventory()
+	await get_tree().create_timer(0.3).timeout
+	_ok("14. окно добычи закрыто: в ящике всё на месте, кнопка у терминала — «Забрать добычу», новый ящик поверх не собирается", crate_left(1) and JSON.stringify(crate_box(1)) == snap0 and _action_label() == "Забрать добычу" and not crate_build(1, 9))
+	var saved: Dictionary = JSON.parse_string(JSON.stringify(ULBase.data))
+	ULBase.data["xcr"] = saved.xcr                # как после чтения сохранения базы с диска (числа дробные)
+	var rb: Array = crate_box(1)
+	var ints := true
+	for cl in rb:
+		if cl != null:
+			ints = ints and typeof(cl.n) == TYPE_INT
+	_ok("15. ящик лежит в сохранении базы и читается обратно (те же предметы, числа целые)", JSON.stringify(rb) == snap0 and ints)
+	open_crate_ui(1)
+	await get_tree().create_timer(0.4).timeout
+	_ok("16. повторный подход к терминалу: открывается тот же ящик, а не окно сборки", _crate_ui == null and inv_ui.visible and JSON.stringify(inv_ui.cont) == snap0)
+	var got_w := ""
+	for i in rb.size():
+		if rb[i] != null:
+			if ULCrates.tier_of(String(rb[i].id)) > 0 and got_w == "":
+				got_w = String(rb[i].id)
+				inv.add(rb[i], false)               # в карман, не в руки
+			rb[i] = null                          # герой забрал всё (здесь — один ствол, остальное выложено)
+	close_inventory()
+	await get_tree().create_timer(0.3).timeout
+	cn = x._crate_nodes.get(1)
+	_ok("17. всё забрано (оружие %s — в инвентаре): ящик у терминала убран, терминал снова собирает («Терминал»)" % got_w, not crate_left(1) and inv.count(got_w) >= 1 and _action_label() == "Терминал" and (cn == null or not (cn as Node3D).visible) and not (ULBase.data.get("xcr", {}) as Dictionary).has("1"))
+	# терминалы 2 и 3
+	for tn in [2, 3]:
+		var c2 := ULCrates.by_terminal(tn)
+		var tp2: Vector3 = ULExternals.X_TERMS[tn - 1][2]
+		player.global_position = Vector3(tp2.x, 0.3, tp2.z + 1.15)
+		await get_tree().create_timer(0.8).timeout
+		inv.from_dict({})
+		inv.add(ULItems.make(String(c2.card), int(c2.cost) + 3))
+		var tgt := String(_target.type) if _target != null else ""
+		open_crate_ui(tn)
+		await get_tree().create_timer(0.6).timeout
+		if out != "":
+			await _snap("crate_ui_%d" % tn)
+		var b2: Button = _crate_ui.find_child("build", true, false) if _crate_ui != null else null
+		if b2 != null:
+			b2.pressed.emit()
+		await get_tree().create_timer(0.6).timeout
+		var bx: Array = crate_box(tn)
+		var by := {1: 0, 2: 0, 3: 0}
+		var pl := {}
+		for cl in bx:
+			if cl != null:
+				if ULCrates.tier_of(String(cl.id)) > 0:
+					by[ULCrates.tier_of(String(cl.id))] += 1
+				if String(cl.id).begins_with("turret_part_"):
+					pl[String(cl.id)] = true
+		var wt2 := {1: 0, 2: 0, 3: 0}
+		for w in c2.weapons:
+			wt2[int(w[0])] = int(w[1])
+		_ok("%d. терминал %d — %s: цель %s, списано %d карт (осталось 3), в ящике стволов по тирам %s, запчасти %s" % [16 + tn, tn, String(c2.n), tgt, int(c2.cost), str(by), str(pl.keys())],
+			tgt == "x_term%d" % tn and inv.count(String(c2.card)) == 3 and by == wt2 and pl.size() == (c2.parts as Array).size() and inv_ui.visible)
+		if out != "" and tn == 3:
+			await _snap("crate_loot_3")
+		close_inventory()
+		await get_tree().create_timer(0.3).timeout
+	if out != "":
+		# общий вид: собранные ящики у терминалов 2 и 3
+		cam_dist = 9.0
+		_cam_ready = false
+		await get_tree().create_timer(1.2).timeout
+		await _snap("crate_at_terminal")
+	print("[xbcrate] итог: ошибок %d" % _fails)
 
 
 ## пульт лифта: выбор уровня — поверхность и три подземных этажа
@@ -20071,6 +20595,10 @@ func _run_test() -> void:
 	if test == "xbsold":
 		await _xb_soldiers()
 		print("[inv] итог: ошибок %d" % _fails)
+		get_tree().quit()
+		return
+	if test == "xbcrate":
+		await _xcrate_test()
 		get_tree().quit()
 		return
 	if test == "xbcards":
