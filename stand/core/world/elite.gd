@@ -46,6 +46,7 @@ var turn_max := 0.0                      ## самый быстрый повор
 var cur_state := ""                      ## состояние дерева движений
 var dmg_after_death := 0                 ## урон герою после гибели (должно быть 0)
 var dead_done := false                   ## падение доиграло — можно обыскивать
+var last_miss := ""                      ## почему последний удар не попал (для проверок)
 
 var _sp := 0.0                           ## скорость сейчас, м/с
 var _move := Vector3.ZERO                ## куда хочет идти (единичный)
@@ -228,11 +229,13 @@ func _strike(what: String, dmg: float, reach: float) -> void:
 	var p := strike_point(what)
 	var hero := _hero_p + Vector3.UP * 0.9
 	var d := Vector2(p.x - hero.x, p.z - hero.z).length()
-	if d <= reach and absf(p.y - hero.y) < 2.2 and _clear(p, hero):
+	# луч «нет ли стены» — от точки удара чуть выше земли (когти в миг удара касаются её)
+	if d <= reach and absf(p.y - hero.y) < 2.2 and _clear(Vector3(p.x, maxf(p.y, global_position.y + 0.6), p.z), hero):
 		hits_done += 1
 		hit_player.emit(dmg, global_position)
 	else:
 		misses += 1
+		last_miss = "%s: до героя %.2f м (достаёт %.2f), по высоте %.2f, стена %s" % [what, d, reach, p.y - hero.y, str(not _clear(Vector3(p.x, maxf(p.y, global_position.y + 0.6), p.z), hero))]
 
 
 ## между двумя точками нет стены (тело самой Элиты и герой не в счёт)
@@ -321,8 +324,9 @@ func tick(delta: float, p: Vector3, can_see: bool, hero_alive: bool) -> void:
 			face = _move
 		"alert":
 			_alert_t -= delta
+			# голова к герою — сразу (ULEliteLook), корпус разворачивается следом, тяжело
 			face = to
-			turn = float(c.turn_walk) * 1.3
+			turn = float(c.turn_walk) * 0.8
 			if _alert_t <= 0.0:
 				state = "chase"
 				_route_t = 0.0
@@ -444,27 +448,35 @@ func _nav(target: Vector3, _delta: float) -> Vector3:
 		_route = NavigationServer3D.map_get_path(map, global_position, target, true)
 		_route_ok = _route.size() >= 2
 		if _route_ok:
-			# проверка ширины прохода по пути — через каждые 1,5 м
+			# Путь по карте проходимости прижимается к углам (он для человека). Для огромного тела — через каждые
+			# 1,5 м точка пути, где тело не помещается, отодвигается от стен (до 2,4 м в сторону); не нашлось места —
+			# дальше не пройти: ждать там, докуда прошла.
+			var wide := PackedVector3Array()
+			wide.append(_route[0])
 			var prev := _route[0]
 			for i in range(1, _route.size()):
 				var seg := _route[i] - prev
-				var n := int(ceil(seg.length() / 1.5))
+				var n := maxi(int(ceil(seg.length() / 1.5)), 1)
 				for k in n:
 					var q := prev + seg * (float(k + 1) / float(n))
-					if q.distance_to(global_position) < 1.0:
+					var last := wide[wide.size() - 1]
+					if q.distance_to(global_position) < 1.0 or (_roomy(q) and _sweep_ok(last, q)):
+						wide.append(q)
 						continue
-					if not _roomy(q):
+					var moved := _make_room(q, map, wide[wide.size() - 1])
+					if moved == Vector3.INF:
 						_route_ok = false
-						# дальше этой точки тело не пройдёт — ждать здесь
-						_wait_at = prev + seg * (float(k) / float(maxi(n, 1)))
+						_wait_at = wide[wide.size() - 1]
 						break
+					wide.append(moved)
 				if not _route_ok:
 					break
 				prev = _route[i]
+			if _route_ok:
+				_route = wide
 	if not _route_ok:
 		# куда можно — дойти до прохода и ждать там
 		if _wait_at != Vector3.INF and global_position.distance_to(_wait_at) > 1.5 and state == "chase":
-			_blocked_t = 0.0
 			var vw := _wait_at - global_position
 			vw.y = 0.0
 			return vw.normalized()
@@ -476,6 +488,45 @@ func _nav(target: Vector3, _delta: float) -> Vector3:
 		if v2.length() > 1.2 or i == _route.size() - 1:
 			return v2.normalized() if v2.length() > 0.3 else Vector3.ZERO
 	return Vector3.ZERO
+
+
+## тело проходит от a до b целиком (шар nav_r на высоте груди скользит по отрезку и ничего не задевает: косяки
+## дверей и узкие проходы между точками пути тоже не пропускаются)
+var _q_move: PhysicsShapeQueryParameters3D
+
+
+func _sweep_ok(a: Vector3, b: Vector3) -> bool:
+	if not is_inside_tree() or a.distance_to(b) < 0.05:
+		return true
+	if _q_move == null:
+		_q_move = PhysicsShapeQueryParameters3D.new()
+		var sp := SphereShape3D.new()
+		sp.radius = float(c.nav_r) * 0.92
+		_q_move.shape = sp
+		_q_move.collision_mask = 1 | 2
+	var ex: Array[RID] = [get_rid()]
+	ex.append_array(exclude)
+	_q_move.exclude = ex
+	var lift := Vector3.UP * (float(c.nav_r) + 0.45)
+	_q_move.transform = Transform3D(Basis(), a + lift)
+	_q_move.motion = (b + lift) - (a + lift)
+	var r := get_world_3d().direct_space_state.cast_motion(_q_move)
+	return r.size() >= 1 and float(r[0]) >= 0.999
+
+
+## ближайшее место рядом с q (до 2,4 м), где тело помещается, которое на карте проходимости и до которого от
+## прошлой точки пути from нет стены (не «по ту сторону» стены); INF — нет такого
+func _make_room(q: Vector3, map: RID, from: Vector3) -> Vector3:
+	for r in [0.6, 1.2, 1.8, 2.4]:
+		for k in 8:
+			var a := TAU * k / 8.0
+			var c: Vector3 = q + Vector3(cos(a), 0, sin(a)) * float(r)
+			var cn := NavigationServer3D.map_get_closest_point(map, c)
+			if Vector2(cn.x - c.x, cn.z - c.z).length() > 0.4 or absf(cn.y - q.y) > 0.6:
+				continue
+			if _roomy(cn) and _sweep_ok(from, cn):
+				return cn
+	return Vector3.INF
 
 
 func _start_wait(p: Vector3) -> void:

@@ -165,6 +165,13 @@ func _ready() -> void:
 			kc.lottery = [kc.lottery[1], kc.lottery[1]]
 			kc.ruber_chances = [0, 1]                    # и Рубер — всего 40
 			ULKhutor._kcfg = kc
+	if test == "elite":
+		# Элита: --as-place=airport (3-й уровень, по умолчанию), depot / port / lair (2-й), quarry (1-й)
+		ULSettings.arena = false
+		ULSettings.place = "airport"
+		for a in OS.get_cmdline_user_args():
+			if a.begins_with("--as-place="):
+				ULSettings.place = a.substr(11)
 	if test.begins_with("ap"):
 		# проверки аэропорта: --as-test=ap (посещение и проходимость), apbake (карты и кэш), apview (снимки), apperf
 		ULSettings.arena = false
@@ -3964,7 +3971,8 @@ func _find_target() -> void:
 			best = {"type": "safe", "k": k + 1}
 	for e in enemies:
 		if not e.alive() and not e.has_meta("looted"):
-			var d := e.body_pos().distance_to(p) - 0.3
+			# огромное тело (Элита) обыскивается с любого бока: loot_r — сколько от середины до края
+			var d := e.body_pos().distance_to(p) - maxf(0.3, float(e.def.get("loot_r", 0.3)))
 			if d < bd:
 				bd = d
 				best = {"type": "corpse", "e": e}
@@ -5325,7 +5333,9 @@ func _nearest_of(max_d: float, cone_deg: float, los: bool, foes: bool):
 			continue                                    # другой этаж
 		v.y = 0
 		var dist := v.length()
-		if dist < bd and dist > 0.05 and rad_to_deg(f.angle_to(v / dist)) <= cone_deg and (not los or _sees(t)):
+		if t is ULEnemy:
+			dist = maxf(0.06, dist - float((t as ULEnemy).def.get("hit_r", 0.0)))   # длинное тело: бьют по ближнему краю
+		if dist < bd and dist > 0.05 and rad_to_deg(f.angle_to(v / v.length())) <= cone_deg and (not los or _sees(t)):
 			bd = dist
 			best = t
 	return best
@@ -7092,6 +7102,345 @@ func _rd_test() -> void:
 ## проходимости: КПП, стоянка, перрон, трап и салон самолёта, оба этажа терминала, вышка до кабины, ангар, склад,
 ## топливо, выход), крыши и срез фюзеляжа, входы, навигация заражённых, враги, тайники, задание «Последний рейс»,
 ## маршрут. --as-skip-walk — без обхода (остальные проверки).
+## Элита (--as-test=elite [--as-place=…] [--as-out=папка]) — проверки по заданию пользователя 26.11: на локации
+## 3-го уровня — одна Элита на просторном открытом месте, на 1-м и 2-м — ни одной; модель 5 × 3 м, четыре лапы,
+## скелет, челюсти, хвост; шесть движений в дереве; спокойствие → дозор → заметил (голова, разворот) → погоня
+## галопом; укус и удары каждой лапой — урон в миг метки движения, один раз за взмах; отошёл — промах; через стену —
+## не бьёт и не проходит, ждёт; обход препятствия; гибель — тело лежит, урона нет; обыск — та же добыча, второй раз
+## новой нет; вероятности жемчужин на 20 000 розыгрышах.
+func _elite_test() -> void:
+	var t0 := Time.get_ticks_msec()
+	while not cs_ready and Time.get_ticks_msec() - t0 < 120000:
+		await get_tree().process_frame
+	var lvl_n := (san as ULSanatorium).danger_level() if san is ULSanatorium else 0
+	var els: Array = enemies.filter(func(x): return String(x.kind) == "elite")
+	var in_plan := cs_plan.filter(func(x): return String(x[0]) == "elite")
+	if lvl_n != 3:
+		_ok("%s — %d-й уровень опасности: Элиты нет ни в расстановке, ни на месте" % [place, lvl_n], cs_ready and els.is_empty() and in_plan.is_empty(), "врагов %d" % enemies.size())
+		_test_done()
+		return
+	_ok("%s — 3-й уровень: ровно одна Элита (в расстановке и на месте)" % place, els.size() == 1 and in_plan.size() == 1, "на месте %d, в расстановке %d" % [els.size(), in_plan.size()])
+	if els.is_empty():
+		_test_done()
+		return
+	var e: ULElite = els[0]
+	var ec := ULElite.cfg()
+	var zn := String(in_plan[0][2]) if not in_plan.is_empty() and (in_plan[0] as Array).size() > 2 else ""
+	var de := Vector2(e.global_position.x - zone_entry().x, e.global_position.z - zone_entry().z).length()
+	_ok("28. стоит на просторном открытом месте: зона «%s», %.0f м от входа, тело помещается" % [zn, de],
+		(ec.spawn.zones as Dictionary).has(zn) and de >= float(ec.spawn.safe_r) and e._roomy(e.global_position) and san.locate(e.global_position + Vector3.UP * 0.5).x < 0)
+	# остальные враги не мешают проверке
+	for x in enemies.duplicate():
+		if x != e:
+			enemies.erase(x)
+			targets.erase(x)
+			x.queue_free()
+	hp_lock = true
+	var hits_sig := [0, 0.0]
+	e.hit_player.connect(func(d: float, _f: Vector3) -> void:
+		hits_sig[0] = int(hits_sig[0]) + 1
+		hits_sig[1] = e._el_t)
+	var map := get_world_3d().navigation_map
+	var snapf := func(q: Vector3) -> Vector3:
+		return NavigationServer3D.map_get_closest_point(map, q)
+	var fwd := func() -> Vector3:
+		return Vector3(sin(e.rotation.y), 0, cos(e.rotation.y))
+	var states := {}
+	var watch := func(sec: float, until: Callable) -> bool:
+		var tw := 0.0
+		while tw < sec:
+			await get_tree().physics_frame
+			tw += get_physics_process_delta_time()
+			states[e.cur_state] = true
+			if until.call():
+				return true
+		return false
+	# ---- модель ----
+	var body: MeshInstance3D = e.model.find_child("Body", true, false) if e.model != null else null
+	var bb := body.get_aabb() if body != null else AABB()
+	_ok("1. размер: длина %.1f м, высота %.1f м (задание: 5 × 3 м)" % [bb.size.z, bb.size.y], absf(bb.size.z - 5.0) < 0.35 and absf(bb.size.y - 3.0) < 0.25, "ширина %.1f м" % bb.size.x)
+	var sk := e.skel
+	var need := ["Root", "Pelvis", "Spine1", "Spine2", "Chest", "Neck1", "Neck2", "Head", "JawUp", "Jaw", "Tail1", "Tail2", "Tail3", "Tail4", "Tail5"]
+	for sd in ["L_", "R_"]:
+		need.append_array([sd + "Scapula", sd + "UpperArm", sd + "Forearm", sd + "Hand", sd + "Claws", sd + "Thigh", sd + "Shin", sd + "Foot", sd + "Toes"])
+	var miss: Array = need.filter(func(b): return sk == null or sk.find_bone(String(b)) < 0)
+	_ok("2–3. четыре лапы и полный скелет: %d костей (таз, позвоночник, шея, голова, верхняя и нижняя челюсти, лопатки, лапы с кистями и стопами, 5 частей хвоста)" % (sk.get_bone_count() if sk else 0), miss.is_empty() and body != null and body.skin != null, "нет: %s" % str(miss))
+	var anims: Array = ["elite_idle", "elite_walk", "elite_run", "elite_bite_attack", "elite_claw_attack", "elite_death"]
+	var smn := (e.tree.tree_root as AnimationNodeBlendTree).get_node("sm") as AnimationNodeStateMachine if e.tree != null else null
+	_ok("шесть движений и дерево состояний Idle / Walk / Run / BiteAttack / ClawAttack / Death", anims.all(func(a): return e.anim.has_animation(String(a))) and smn != null
+		and ["Idle", "Walk", "Run", "BiteAttack", "ClawAttack", "Death"].all(func(n): return smn.has_node(String(n))),
+		str(e.anim.get_animation_list()))
+	# ---- спокойствие и дозор (героя не видит и не слышит) ----
+	var hero_far: Vector3 = snapf.call(e.global_position + Vector3(0, 0, 30))
+	player.global_position = hero_far + Vector3.UP * 0.1
+	hero_unseen = true
+	var tail0: Vector3 = sk.global_transform * sk.get_bone_global_pose(sk.find_bone("Tail5")).origin
+	var acc := {"tail": 0.0, "walk": 0.0, "head": 0.0, "run": 0.0, "inside": false}     # лямбды меняют словарь (числа в них — копии)
+	var tail_rel0: Vector3 = e.global_transform.affine_inverse() * tail0
+	await watch.call(20.0, func() -> bool:
+		var tp: Vector3 = sk.global_transform * sk.get_bone_global_pose(sk.find_bone("Tail5")).origin
+		acc.tail = maxf(acc.tail, (e.global_transform.affine_inverse() * tp).distance_to(tail_rel0))
+		if e.cur_state == "Walk":
+			acc.walk = maxf(acc.walk, e._sp)
+		return states.has("Idle") and states.has("Walk") and float(acc.walk) > 1.0 and float(acc.tail) > 0.05)
+	_ok("16–17 (спокойствие): стоит (Idle), потом обходит площадку шагом (Walk, %.1f м/с); хвост ходит (%.2f м)" % [acc.walk, acc.tail], states.has("Idle") and states.has("Walk") and float(acc.walk) > 1.0 and float(acc.walk) < 2.2 and float(acc.tail) > 0.05, "состояние %s/%s" % [e.state, e.cur_state])
+	# ---- заметил: голова, разворот, погоня галопом ----
+	hero_unseen = false
+	e.state = "idle"
+	e._t = 30.0
+	var hp0: Vector3 = snapf.call(e.global_position + fwd.call().rotated(Vector3.UP, 1.75) * 16.0)
+	player.global_position = hp0 + Vector3.UP * 0.1
+	var noticed: bool = await watch.call(4.0, func() -> bool: return e.state == "alert")
+	# поворот головы — поправка поверх движения (ULEliteLook): поза с ней видна только в её сигнале
+	var on_look := func() -> void:
+		var hb: Transform3D = sk.global_transform * sk.get_bone_global_pose(sk.find_bone("Head"))
+		var hf := hb.basis * Vector3(0, 0, 1)
+		acc.head = maxf(acc.head, rad_to_deg(absf(angle_difference(e.rotation.y, atan2(hf.x, hf.z)))))
+	e.look.modification_processed.connect(on_look)
+	await watch.call(1.0, func() -> bool: return false)
+	e.look.modification_processed.disconnect(on_look)
+	_ok("9/16. заметил героя в %.0f м: насторожился, поворачивает голову к нему (на %.0f° от корпуса)" % [Vector2(hp0.x - e.global_position.x, hp0.z - e.global_position.z).length(), acc.head], noticed and float(acc.head) > 8.0, "состояние %s, поворот к герою — %.0f°" % [e.state, rad_to_deg(absf(angle_difference(e.rotation.y, atan2(hp0.x - e.global_position.x, hp0.z - e.global_position.z))))])
+	var d_start := e.global_position.distance_to(player.global_position)
+	var chased: bool = await watch.call(8.0, func() -> bool:
+		acc.run = maxf(acc.run, e._sp)
+		return e.state == "attack" or e.global_position.distance_to(player.global_position) < 4.0)
+	_ok("17. погоня галопом (Run): разогнался до %.1f м/с — быстрее пустыша (%.1f) и героя (4,4)" % [acc.run, float(ULEnemy.KINDS.infected.run)], chased and states.has("Run") and float(acc.run) > 5.0,
+		"было %.1f м, стало %.1f м" % [d_start, e.global_position.distance_to(player.global_position)])
+	# ---- атаки: укус, правая, левая — урон в миг метки ----
+	var place_at := func(kind: String) -> void:
+		e.state = "chase"
+		e._atk_left = 0.0
+		e._atk_ready = 0.0
+		e.force_clip = kind
+		var f: Vector3 = fwd.call()
+		var right := Vector3(-f.z, 0, f.x)
+		var off := f * (float(ec.body[0]) * 0.47 + 0.55)
+		if kind == "claw_r":
+			off += right * 0.7
+		elif kind == "claw_l":
+			off -= right * 0.7
+		player.global_position = e.global_position + off + Vector3.UP * 0.05
+	var stats := {}
+	for kind in ["bite", "claw_r", "claw_l"]:
+		await place_at.call(kind)
+		var h0 := e.hits_done
+		var s0 := int(hits_sig[0])
+		var ev0 := e.events.size()
+		var started: bool = await watch.call(3.0, func() -> bool: return e.state == "attack")
+		var tstart := e._el_t
+		await watch.call(2.4, func() -> bool: return e.state != "attack")
+		var evs: Array = e.events.slice(ev0).filter(func(x): return String(x[1]).ends_with("_hit"))
+		var ev_t := float(evs[0][0]) - tstart if not evs.is_empty() else -1.0
+		var dmg_t := float(hits_sig[1]) - tstart
+		stats[kind] = [started, e.hits_done - h0, int(hits_sig[0]) - s0, evs.size(), ev_t, dmg_t, e.last_miss]
+	var names := {"bite": "19. укус пастью", "claw_r": "20. удар правой лапой", "claw_l": "20. удар левой лапой"}
+	var evn := {"bite": "bite_hit", "claw_r": "claw_r_hit", "claw_l": "claw_l_hit"}
+	for kind in stats:
+		var st: Array = stats[kind]
+		_ok("%s: удар начат, метка «%s» в движении через %.2f с, урон — в тот же миг (%.2f с), один раз" % [names[kind], evn[kind], float(st[4]), float(st[5])],
+			bool(st[0]) and int(st[1]) == 1 and int(st[2]) == 1 and int(st[3]) == 1 and absf(float(st[4]) - float(st[5])) < 0.05 and float(st[4]) > 0.3,
+			"попаданий %d, сигналов %d, меток %d%s" % [int(st[1]), int(st[2]), int(st[3]), (", " + String(st[6])) if int(st[1]) == 0 else ""])
+	_ok("10–13. движения ударов в дереве: укус — BiteAttack, лапы — ClawAttack; переходы между состояниями", states.has("BiteAttack") and states.has("ClawAttack") and states.has("Idle") and states.has("Run"), str(states.keys()))
+	# ---- промах: герой отошёл во время замаха ----
+	await place_at.call("bite")
+	var h1 := e.hits_done
+	var m1 := e.misses
+	await watch.call(3.0, func() -> bool: return e.state == "attack")
+	await get_tree().create_timer(0.2).timeout
+	player.global_position = snapf.call(e.global_position - fwd.call() * 7.0) + Vector3.UP * 0.1       # отскочил за спину
+	await watch.call(2.4, func() -> bool: return e.state != "attack")
+	_ok("21. отошёл во время замаха — промах: урона нет", e.hits_done == h1 and e.misses > m1, "промахов %d → %d" % [m1, e.misses])
+	e.force_clip = ""
+	# ---- через стену не бьёт и не проходит: ждёт ----
+	var found := false
+	var wa := Vector3.ZERO
+	var wb := Vector3.ZERO
+	if place == "airport":
+		# крыло терминала (двери 1,6–2,4 м, этаж 3,6 м): Элите туда не пролезть
+		for side in [[-58.0, 1.0], [-74.0, -1.0]]:
+			for xi in range(34, 70, 2):
+				var a: Vector3 = snapf.call(Vector3(xi, 0, float(side[0]) + 3.3 * float(side[1])))
+				var b := Vector3(xi, 0, float(side[0]) - 0.9 * float(side[1]))
+				var bq: Vector3 = snapf.call(b)
+				if san.locate(bq + Vector3.UP * 0.5).x < 0 or Vector2(bq.x - b.x, bq.z - b.z).length() > 0.5 or not e._roomy(a):
+					continue
+				var q := PhysicsRayQueryParameters3D.create(a + Vector3.UP * 1.4, bq + Vector3.UP * 1.0)
+				q.exclude = [player.get_rid(), e.get_rid()]
+				if get_world_3d().direct_space_state.intersect_ray(q).is_empty():
+					continue
+				found = true
+				wa = a
+				wb = bq
+				break
+			if found:
+				break
+	if found:
+		e.global_position = wa + Vector3.UP * 0.05
+		e.rotation.y = atan2(wb.x - wa.x, wb.z - wa.z)
+		player.global_position = wb + Vector3.UP * 0.05
+		e.state = "chase"
+		e._route_t = 0.0
+		var h2 := e.hits_done
+		var w2 := e.waits
+		var dbg := {"t": 0.0}
+		await watch.call(16.0, func() -> bool:
+			acc.inside = bool(acc.inside) or san.locate(e.global_position + Vector3.UP * 0.5).x >= 0
+			dbg.t = float(dbg.t) + get_physics_process_delta_time()
+			if float(dbg.t) > 2.0:
+				dbg.t = 0.0
+				print("[elite] у стены: %s, место %s, путь %s (%d точек), ждать у %s, до героя %.1f м" % [e.state, str(e.global_position.snapped(Vector3.ONE * 0.1)), str(e._route_ok), e._route.size(), str(e._wait_at.snapped(Vector3.ONE * 0.1)) if e._wait_at != Vector3.INF else "—", e.global_position.distance_to(player.global_position)])
+			return e.waits > w2 and e.state == "wait")
+		_ok("22/15. герой в крыле терминала за стеной (%.1f м): не бьёт сквозь стену, в здание не лезет — ждёт у стены" % Vector2(wa.x - wb.x, wa.z - wb.z).length(), e.hits_done == h2 and not bool(acc.inside) and (e.waits > w2 or e.state == "wait"), "состояние %s, ожиданий %d, внутри %s" % [e.state, e.waits, str(acc.inside)])
+	else:
+		_ok("22. стена для проверки — только в аэропорту", true)
+	# ---- обход препятствия ----
+	var ok_round := false
+	var how := "нет подходящего места"
+	if place == "airport":
+		var tw: Vector2 = Vector2(-24, -103)
+		for dv in [Vector3(0, 0, 1), Vector3(1, 0, 0), Vector3(-1, 0, 0)]:
+			var a: Vector3 = snapf.call(Vector3(tw.x, 0, tw.y) - dv * 10.0)
+			var b: Vector3 = snapf.call(Vector3(tw.x, 0, tw.y) + dv * 10.0)
+			if not e._roomy(a) or not e._roomy(b):
+				continue
+			var q := PhysicsRayQueryParameters3D.create(a + Vector3.UP * 1.4, b + Vector3.UP * 1.4)
+			q.exclude = [player.get_rid(), e.get_rid()]
+			if get_world_3d().direct_space_state.intersect_ray(q).is_empty():
+				continue
+			e.global_position = a + Vector3.UP * 0.05
+			e.rotation.y = atan2(b.x - a.x, b.z - a.z)
+			player.global_position = b + Vector3.UP * 0.05
+			e.state = "chase"
+			e._wait_at = Vector3.INF
+			e._route_t = 0.0
+			var t_r := 0.0
+			var reached: bool = await watch.call(30.0, func() -> bool:
+				return e.global_position.distance_to(player.global_position) < 5.0 or e.state == "attack")
+			ok_round = reached
+			how = "вышка: от %s к %s, %s" % [str(a.snapped(Vector3.ONE)), str(b.snapped(Vector3.ONE)), "добрался" if reached else "не добрался (%s, %.1f м)" % [e.state, e.global_position.distance_to(player.global_position)]]
+			break
+	_ok("18. обход крупного препятствия (диспетчерская вышка между ним и героем)", ok_round, how)
+	# ---- гибель ----
+	player.global_position = snapf.call(e.global_position + fwd.call() * 9.0) + Vector3.UP * 0.1
+	e.state = "chase"
+	await get_tree().create_timer(0.4).timeout
+	var loot0 := e.loot.duplicate(true)
+	_damage(e, 1e6, e.global_position + Vector3.UP * 1.5)
+	var hd := e.hits_done
+	var sg := int(hits_sig[0])
+	await watch.call(0.3, func() -> bool: return false)
+	var dead_ok := not e.alive() and e.cur_state == "Death" and e.collision_layer == 0
+	e._anim_event("bite_hit")
+	e._anim_event("claw_r_hit")
+	await watch.call(4.0, func() -> bool: return e.dead_done)
+	var land := e.events.filter(func(x): return String(x[1]) == "land").size()
+	var low := 99.0
+	var hip: Vector3 = sk.global_transform * sk.get_bone_global_pose(sk.find_bone("Spine2")).origin
+	_ok("13/22. гибель: падение (Death), удар о землю (метка land), лежит; после гибели урона нет, атаки и погоня прекращены",
+		dead_ok and e.dead_done and land >= 1 and e.hits_done == hd and int(hits_sig[0]) == sg and hip.y < 1.3,
+		"середина тела на высоте %.2f м, меток land %d" % [hip.y, land])
+	await get_tree().create_timer(6.0).timeout
+	_ok("тело лежит (через 10 с после гибели — на месте, в списке врагов)", is_instance_valid(e) and enemies.has(e) and not e.alive())
+	# ---- обыск ----
+	var ids := ["spore", "pea", "pearl_black", "pearl_red"]
+	var have0 := {}
+	for id in ids:
+		have0[id] = inv.count(id)
+	var want := {}
+	for it in loot0:
+		if it != null:
+			want[String(it.id)] = int(want.get(String(it.id), 0)) + int(it.n)
+	var bp := e.body_pos()
+	player.global_position = snapf.call(bp + Vector3(2.2, 0, 0)) + Vector3.UP * 0.05
+	await get_tree().create_timer(0.4).timeout
+	var tgt_ok: bool = _target != null and String(_target.get("type", "")) == "corpse" and _target.e == e
+	do_action()
+	await get_tree().process_frame
+	var opened := inv_ui.visible and _open_corpse == e
+	if out != "":
+		await _snap("elite_loot")
+	if opened:
+		inv_ui._take_all()
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var got := {}
+	for id in ids:
+		got[id] = inv.count(id) - int(have0[id])
+	var same := true
+	for id in ids:
+		if int(got.get(id, 0)) != int(want.get(id, 0)):
+			same = false
+	_ok("27/11. обыск: та же добыча, что разыграна при появлении — %s; получено %s" % [str(want), str(got)], tgt_ok and opened and same, "цель %s, окно %s" % [str(tgt_ok), str(opened)])
+	await get_tree().create_timer(0.4).timeout
+	var again: bool = _target != null and String(_target.get("type", "")) == "corpse" and _target.e == e
+	_ok("27. второй обыск новой добычи не даёт: тело больше не предлагает «Обыскать», в нём пусто", not again and e.has_meta("looted") and ULWorld_loot_empty(e.loot))
+	# ---- вероятности добычи (20 000 розыгрышей) ----
+	var N := 20000
+	var nb := [0, 0, 0]
+	var nr := [0, 0]
+	var both := 0
+	var bad := 0
+	var always := 0
+	for sd in N:
+		var cells := ULEnemy.roll_loot("elite", 900000 + sd)
+		var b := 0
+		var r := 0
+		var spn := 0
+		var pea := 0
+		for it in cells:
+			if it == null:
+				continue
+			match String(it.id):
+				"pearl_black":
+					b += int(it.n)
+				"pearl_red":
+					r += int(it.n)
+				"spore":
+					spn += int(it.n)
+				"pea":
+					pea += int(it.n)
+		if b > 2 or r > 1:
+			bad += 1
+		if spn > 0 and pea > 0:
+			always += 1
+		nb[mini(b, 2)] += 1
+		nr[mini(r, 1)] += 1
+		if b > 0 and r > 0:
+			both += 1
+	var pb := float(nb[1] + nb[2]) / N
+	var pr := float(nr[1]) / N
+	var pboth := float(both) / N
+	var tbl: Array = ULEnemy.KINDS.elite.loot
+	var row := func(id: String) -> Array:
+		for l in tbl:
+			if String(l[0]) == id:
+				return l
+		return []
+	var lb: Array = row.call("pearl_black")
+	var lr: Array = row.call("pearl_red")
+	_ok("23/26. чёрная жемчужина: проверка 50 %%, количество 0–2 (ноль допустим) — по таблице %s; выпала в %.1f %% тел (ждём 50 %% × 2/3 = 33,3 %%), 1 шт. — %.1f %%, 2 шт. — %.1f %%" % [str(lb), pb * 100.0, float(nb[1]) * 100.0 / N, float(nb[2]) * 100.0 / N],
+		lb.size() == 4 and int(lb[1]) == 0 and int(lb[2]) == 2 and is_equal_approx(float(lb[3]), 0.5) and absf(pb - 1.0 / 3.0) < 0.015 and absf(float(nb[1]) - float(nb[2])) / N < 0.015 and bad == 0)
+	_ok("24/26. красная жемчужина: проверка 10 %%, количество 0–1 — по таблице %s; выпала в %.2f %% тел (ждём 10 %% × 1/2 = 5 %%)" % [str(lr), pr * 100.0], lr.size() == 4 and int(lr[1]) == 0 and int(lr[2]) == 1 and is_equal_approx(float(lr[3]), 0.1) and absf(pr - 0.05) < 0.006 and bad == 0)
+	_ok("25. проверки независимы: обе сразу — %.2f %% (произведение %.2f %%); обычная добыча (спораны, горох) — отдельно, есть всегда (%d из %d)" % [pboth * 100.0, pb * pr * 100.0, always, N], absf(pboth - pb * pr) < 0.004 and always == N)
+	# ---- нагрузка ----
+	var tri := 0
+	if body != null:
+		for si in body.mesh.get_surface_count():
+			tri += int(body.mesh.surface_get_array_len(si) / 3) if body.mesh.surface_get_array_index_len(si) <= 0 else int(body.mesh.surface_get_array_index_len(si) / 3)
+	print("[elite] модель: %d треугольников, %d костей, текстуры 2048; время кадра ИИ Элиты — см. elite_perf" % [tri, sk.get_bone_count()])
+	_test_done()
+
+
+static func ULWorld_loot_empty(arr) -> bool:
+	if not (arr is Array):
+		return true
+	for it in arr:
+		if it != null:
+			return false
+	return true
+
+
+
 func _ap_test() -> void:
 	var t0 := Time.get_ticks_msec()
 	while not cs_ready and Time.get_ticks_msec() - t0 < 60000:
@@ -14488,7 +14837,7 @@ func _enemies_tick(delta: float) -> void:
 			if e.state == "chase" or e.state == "attack":
 				san.open_near(e.global_position, 0.95)
 		# кто бросает камни издали (Рубер) — движется полностью и вдалеке: бросок должен быть виден
-		e.set_active(d < (18.0 if temp() and not e.def.has("rock") and not e.def.has("gun") else 36.0))
+		e.set_active(d < (18.0 if temp() and not e.def.has("rock") and not e.def.has("gun") and not e.def.has("elite") else 36.0))
 		if temp() and e.rig != null:
 			e.rig.set_detail(d < 12.0)              # на экране (ближе 12 м) — полные движения и постановка стоп
 		if not e.active:
@@ -16834,6 +17183,9 @@ func _run_test() -> void:
 		return
 	if test == "ap":
 		await _ap_test()
+		return
+	if test == "elite":
+		await _elite_test()
 		return
 	if test == "apnav":
 		# отладка карты проходимости: --as-pts=x,y,z;x,y,z — ближайшая проходимая точка и путь от перрона

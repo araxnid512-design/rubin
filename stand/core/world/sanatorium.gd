@@ -1514,6 +1514,15 @@ func danger_level() -> int:
 	return int(ULBase.shop().get("routes", {}).get(place, {}).get("level", 0))
 
 
+## сколько Элит на локации такого уровня опасности (data/elite.json → spawn: per_place, levels)
+static func elite_n(level: int) -> int:
+	var sp: Dictionary = ULElite.cfg().get("spawn", {})
+	for l in sp.get("levels", [3]):
+		if int(l) == level:
+			return int(sp.get("per_place", 1))
+	return 0
+
+
 ## Элита (мини-босс, data/elite.json → spawn): одна на локацию 3-го уровня, только на просторном открытом месте —
 ## тело 5 × 1,9 м должно помещаться (шар nav_r на высоте груди ничего не задевает) и вокруг, на 4 м, тоже
 func _plan_elite(rng: RandomNumberGenerator, snap: Callable, pools: Dictionary, taken: Array[Vector3], out: Array) -> void:
@@ -1521,7 +1530,7 @@ func _plan_elite(rng: RandomNumberGenerator, snap: Callable, pools: Dictionary, 
 		return                                   # модели ещё нет — Элита не выходит
 	var ec := ULElite.cfg()
 	var sp: Dictionary = ec.get("spawn", {})
-	var n := int(counts.elite) if counts.has("elite") else (int(sp.get("per_place", 1)) if (sp.get("levels", [3]) as Array).has(danger_level()) else 0)
+	var n := int(counts.elite) if counts.has("elite") else elite_n(danger_level())
 	if n <= 0:
 		return
 	_extra_pools(pools)
