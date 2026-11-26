@@ -191,12 +191,12 @@ const D_XD := {
 		# операционная: стол под лампой, каталки, сканер, инкубаторы
 		["xd_surgery", Vector3(-25.0, 0, 26.0), 0.0, Vector3(1.6, 2.4, 2.6), true], ["xd_medbed", Vector3(-34.2, 0, 19.0), 0.0, Vector3(1.3, 1.8, 2.2), true],
 		["xd_medbed", Vector3(-34.2, 0, 23.0), 0.0, Vector3(1.3, 1.8, 2.2), true], ["xd_labtable", Vector3(-20.0, 0, 35.0), PI * 0.5, Vector3(1.2, 1.7, 2.3), true],
-		["xd_scanner", Vector3(-31.0, 0, 32.0), 0.0, Vector3(2.4, 2.2, 2.8), true], ["xd_incubator", Vector3(-15.0, 0, 20.0), PI, Vector3(1.0, 2.0, 2.6), true],
+		["xd_scanner", Vector3(-31.0, 0, 32.0), 0.0, Vector3(2.8, 2.0, 2.05), true], ["xd_incubator", Vector3(-15.0, 0, 20.0), PI, Vector3(1.0, 2.0, 2.6), true],
 		# исследовательская лаборатория: инкубаторы у южной стены; капсулы с образцами: биобаки по углам
 		["xd_incubator", Vector3(16.0, 0, -10.9), PI * 0.5, Vector3(1.0, 2.0, 2.6), true], ["xd_biotank", Vector3(-12.2, 0, 17.0), 0.0, Vector3(1.8, 3.0, 1.8), true, "glow"],
 		["xd_biotank", Vector3(12.2, 0, 17.0), PI, Vector3(1.8, 3.0, 1.8), true, "glow"],
 		# обеззараживающий шлюз: арка в проходе между стеклянными рамами
-		["xd_decon", Vector3(28.0, 0, -31.0), 0.0, Vector3(3.0, 2.8, 1.6), false],
+		["xd_decon", Vector3(28.0, 0, -31.0), PI * 0.5, Vector3(1.4, 3.0, 2.9), false],
 		# капсулы с образцами: трубы у северной стены
 		["xd_pipes", Vector3(-12.2, 0, 34.4), 0.0, Vector3(1.7, 1.6, 2.0), true], ["xd_pipes", Vector3(12.2, 0, 34.4), PI, Vector3(1.7, 1.6, 2.0), true],
 	],
@@ -219,13 +219,13 @@ const D_XD := {
 		["xd_vent", Vector3(-22.8, 0, 14.6), -PI * 0.5, Vector3(1.5, 2.0, 1.2), true], ["xd_pipes", Vector3(-13.6, 0, 20.0), PI, Vector3(1.7, 1.6, 2.0), true],
 		# реактор: баллоны у северной стены; генераторная: настоящие генераторы — см. D_OLD
 		["xd_gastank", Vector3(21.0, 0, -34.6), PI * 0.5, Vector3(1.1, 2.3, 2.0), true], ["xd_gastank", Vector3(33.0, 0, -34.6), PI * 0.5, Vector3(1.1, 2.3, 2.0), true],
-		["xd_generator", Vector3(27.0, 0, -8.0), 0.0, Vector3(3.2, 2.0, 1.7), true], ["xd_generator", Vector3(27.0, 0, -2.5), 0.0, Vector3(3.2, 2.0, 1.7), true],
-		["xd_generator", Vector3(27.0, 0, 3.0), 0.0, Vector3(3.2, 2.0, 1.7), true],
+		["xd_generator", Vector3(27.0, 0, -8.0), 0.0, Vector3(3.4, 1.65, 1.4), true], ["xd_generator", Vector3(27.0, 0, -2.5), 0.0, Vector3(3.4, 1.65, 1.4), true],
+		["xd_generator", Vector3(27.0, 0, 3.0), 0.0, Vector3(3.4, 1.65, 1.4), true],
 		# зал «Высокая опасность»: клетки для образцов у стен; кладовая: груз под сетью
-		["xd_cage", Vector3(-9.6, 0, 33.0), 0.0, Vector3(2.2, 2.2, 2.2), true], ["xd_cage", Vector3(9.6, 0, 33.0), 0.0, Vector3(2.2, 2.2, 2.2), true],
-		["xd_supply", Vector3(-30.0, 0, 26.0), 0.3, Vector3(3.0, 1.6, 2.4), true],
+		["xd_cage", Vector3(-9.4, 0, 33.2), 0.0, Vector3(2.7, 1.95, 2.1), true], ["xd_cage", Vector3(9.4, 0, 33.2), PI, Vector3(2.7, 1.95, 2.1), true],
+		["xd_supply", Vector3(-30.0, 0, 26.0), 0.3, Vector3(2.4, 2.1, 3.0), true],
 		# биолаборатория: инкубаторы, сканер, биобак
-		["xd_incubator", Vector3(35.2, 0, 22.0), PI, Vector3(1.0, 2.0, 2.6), true], ["xd_scanner", Vector3(18.0, 0, 26.0), 0.0, Vector3(2.4, 2.2, 2.8), true],
+		["xd_incubator", Vector3(35.2, 0, 22.0), PI, Vector3(1.0, 2.0, 2.6), true], ["xd_scanner", Vector3(18.0, 0, 26.0), 0.0, Vector3(2.8, 2.0, 2.05), true],
 		["xd_biotank", Vector3(34.0, 0, 33.8), PI, Vector3(1.8, 3.0, 1.8), true, "swap glow"], ["xd_samplebox", Vector3(24.0, 0, 34.6), PI * 0.5, Vector3(1.2, 1.9, 1.75), true],
 		# биолаборатория: столы с приборами у южной стены
 		["xd_labtable", Vector3(18.0, 0, 35.0), PI * 0.5, Vector3(1.2, 1.7, 2.3), true], ["xd_labtable", Vector3(30.0, 0, 35.0), PI * 0.5, Vector3(1.2, 1.7, 2.3), true],
@@ -299,7 +299,7 @@ func x_cache() -> String:
 
 
 func x_sig_n() -> int:
-	return hash(str(D_ROOMS[level]) + str(D_LINKS[level]) + str(D_FURN[level]) + str(D_XD[level]) + str(D_WALL[level]) + str(D_FLOOR[level]) + str(D_ROOM_FLOOR[level]) + "|v4|" + str(ULBlock.GEN_V))
+	return hash(str(D_ROOMS[level]) + str(D_LINKS[level]) + str(D_FURN[level]) + str(D_XD[level]) + str(D_WALL[level]) + str(D_FLOOR[level]) + str(D_ROOM_FLOOR[level]) + "|v5|" + str(ULBlock.GEN_V))
 
 
 func x_defs() -> Array:
@@ -496,7 +496,7 @@ func _d_glass_box(g: Node3D, c: Vector3, w: float, d: float, glass := "x_gglass"
 	for sx in [-1.0, 1.0]:
 		for sz in [-1.0, 1.0]:
 			_bx(g, "x_steel", Vector3(0.16, 2.3, 0.16), _at(c + Vector3(sx * w * 0.5, 1.35, sz * d * 0.5)))
-	if _xd("xd_cage", c, 0.0, Vector3(minf(w, d) * 0.5, 1.9, minf(w, d) * 0.5), Vector3.ZERO, 40.0) == null:
+	if _xd("xd_cage", c, 0.0, Vector3(minf(w, d) * 0.6, minf(w, d) * 0.43, minf(w, d) * 0.47), Vector3.ZERO, 40.0) == null:
 		_bx(g, "x_black", Vector3(w * 0.3, 0.5, d * 0.3), _at(c + Vector3(0, 0.47, 0)))
 	_bx(g, "x_green" if glass == "x_gglass" else "x_red", Vector3(w - 0.4, 0.04, 0.1), _at(c + Vector3(0, 0.24, d * 0.5 - 0.25)))
 	# внутрь не пройти

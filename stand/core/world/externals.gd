@@ -117,6 +117,14 @@ const X_THINGS := [
 	["xd_heli", Vector3(-25.5, 0, -27.5), 0.6, 13.0, "", ""], ["xd_apc", Vector3(-21.0, 0, 27.0), 0.0, 7.4, "", ""], ["xd_apc", Vector3(26.0, 0, 4.0), PI * 0.5, 7.4, "", ""],
 	["ul_gaz66", Vector3(20.0, 0, 30.5), PI * 0.5, 6.0, "truck", "Грузовик"], ["ul_kung", Vector3(-30.0, 0, -8.5), 0.0, 6.5, "kung", "Кунг"],
 ]
+## Декорации двора — модели Tripo (xd_*): [модель, где, поворот, длина большей стороны, м]. Нет файла — не ставится.
+const X_XD := [
+	["xd_radar", Vector3(10.5, 0, -27.0), 0.4, 5.0], ["xd_supply", Vector3(-9.0, 0, -28.5), 0.2, 3.6], ["xd_fueltank", Vector3(30.0, 0, -14.6), PI * 0.5, 6.0],
+	["xd_labmodule", Vector3(-29.6, 0, -15.2), PI * 0.5, 6.0], ["xd_searchlight", Vector3(-11.5, 0, 31.0), 0.5, 1.6], ["xd_searchlight", Vector3(11.5, 0, 31.0), -0.5, 1.6],
+	["xd_barrier", Vector3(-7.5, 0, 41.5), PI * 0.5, 3.6], ["xd_barrier", Vector3(7.5, 0, 41.5), PI * 0.5, 3.6], ["xd_supply", Vector3(26.5, 0, 30.5), -0.3, 3.4],
+]
+## старые модели двора, которые заменяются новыми, когда те есть в игре
+const X_SWAP := {"ul_gaz66": "xd_truck"}
 ## штабеля: [x, z, сколько, вид, обыскивается]
 const X_PILES := [
 	[-33, 20, 3, "crate", true], [-33, 26, 2, "pallet", true], [-12, -33.5, 3, "crate", true], [-17, -33.5, 2, "barrel", false], [26, -19, 2, "crate", true],
@@ -250,7 +258,7 @@ func spawn_limit() -> float:
 
 
 static func x_sig() -> int:
-	return hash(str(X_BUILDINGS) + str(X_FURN) + str(X_TERMS) + "|" + str(ULBlock.GEN_V))
+	return hash(str(X_BUILDINGS) + str(X_FURN) + str(X_TERMS) + str(X_XD) + "|" + str(ULBlock.GEN_V))
 
 
 static func in_base(q: Vector2) -> bool:
@@ -704,10 +712,16 @@ func _x_furn(b: ULBlock, table: Array) -> void:
 # ---------------- двор ----------------
 
 func _x_things() -> void:
+	for xt in X_XD:
+		if ResourceLoader.exists(MODELS + String(xt[0]) + ".glb"):
+			_pm(String(xt[0]), xt[1], float(xt[2]), float(xt[3]), true, true, Color(0.86, 0.85, 0.82))
 	for t in X_THINGS:
 		var at: Vector3 = t[1]
 		var tall := String(t[0]) == "pt_tank_v" or String(t[0]) == "qr_satdish"
-		var size := _pm(String(t[0]), at, float(t[2]), float(t[3]), not tall, false, Color(0.82, 0.8, 0.76), tall)
+		var tid := String(t[0])
+		if X_SWAP.has(tid) and ResourceLoader.exists(MODELS + String(X_SWAP[tid]) + ".glb"):
+			tid = String(X_SWAP[tid])
+		var size := _pm(tid, at, float(t[2]), float(t[3]), not tall, tid != String(t[0]), Color(0.82, 0.8, 0.76), tall)
 		if tall:
 			_cyl_col(at, 1.4, 4.0)
 		if String(t[4]) != "":
