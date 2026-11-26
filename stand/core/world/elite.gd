@@ -68,6 +68,8 @@ var _look_t := 0.0
 var _hero_rid := RID()
 var _el_t := 0.0                         ## часы для меток в events
 var _death_len := 3.0
+var _cur_clip := ""                      ## движение идущего удара
+var _ev_t := {}                          ## [движение, метка] → время метки
 
 
 static func cfg() -> Dictionary:
@@ -150,6 +152,13 @@ func _model() -> void:
 	for mi in model.find_children("*", "MeshInstance3D", true, false):
 		_meshes.append(mi)
 		(mi as GeometryInstance3D).set_meta("elite", true)
+		var m3 := mi as MeshInstance3D
+		var src := m3.mesh.surface_get_material(0) as StandardMaterial3D if m3.mesh != null else null
+		if src != null:
+			var tint: Array = c.get("tint", [0.84, 0.74, 0.72])
+			var mt := src.duplicate() as StandardMaterial3D
+			mt.albedo_color = Color(float(tint[0]), float(tint[1]), float(tint[2]))
+			m3.set_surface_override_material(0, mt)
 	_rim(model)
 	if anim == null:
 		return
@@ -226,7 +235,10 @@ func _strike(what: String, dmg: float, reach: float) -> void:
 	_hit_open[what] = false                  # один взмах — одно попадание, не больше
 	if not alive():
 		return
-	var p := strike_point(what)
+	# точка удара — из самого движения в миг метки (не из позы кадра: метка срабатывает раньше, чем дерево
+	# движений применит позу этого мгновения, и при редких кадрах лапа была бы ещё на замахе)
+	var ev: String = {"bite": "bite_hit", "claw_r": "claw_r_hit", "claw_l": "claw_l_hit"}[what]
+	var p := clip_point(_cur_clip, _event_time(_cur_clip, ev), what) if _cur_clip != "" else strike_point(what)
 	var hero := _hero_p + Vector3.UP * 0.9
 	var d := Vector2(p.x - hero.x, p.z - hero.z).length()
 	# луч «нет ли стены» — от точки удара чуть выше земли (когти в миг удара касаются её)
@@ -236,6 +248,50 @@ func _strike(what: String, dmg: float, reach: float) -> void:
 	else:
 		misses += 1
 		last_miss = "%s: до героя %.2f м (достаёт %.2f), по высоте %.2f, стена %s" % [what, d, reach, p.y - hero.y, str(not _clear(Vector3(p.x, maxf(p.y, global_position.y + 0.6), p.z), hero))]
+
+
+## время метки ev в движении clip (по дорожке «вызов метода»)
+func _event_time(clip: String, ev: String) -> float:
+	var key := clip + "|" + ev
+	if not _ev_t.has(key):
+		var t := -1.0
+		if anim != null and anim.has_animation(clip):
+			var a := anim.get_animation(clip)
+			for ti in a.get_track_count():
+				if a.track_get_type(ti) == Animation.TYPE_METHOD:
+					for k in a.track_get_key_count(ti):
+						if String(a.method_track_get_params(ti, k)[0]) == ev:
+							t = a.track_get_key_time(ti, k)
+		_ev_t[key] = t
+	return float(_ev_t[key])
+
+
+## Точка удара (кончик челюсти или когти) в движении clip в момент t — по дорожкам костей от корня до неё
+func clip_point(clip: String, t: float, what: String) -> Vector3:
+	if anim == null or skel == null or not anim.has_animation(clip) or t < 0.0:
+		return strike_point(what)
+	var a := anim.get_animation(clip)
+	var bn: String = {"bite": "Jaw", "claw_r": "R_Claws", "claw_l": "L_Claws"}.get(what, "Jaw")
+	var o: Vector3 = model.get_meta("bite_off" if what == "bite" else "claw_off", Vector3.ZERO)
+	if what == "claw_r":
+		o.x = -o.x
+	var chain: Array = []
+	var bi := skel.find_bone(bn)
+	while bi >= 0:
+		chain.push_front(bi)
+		bi = skel.get_bone_parent(bi)
+	var tr := Transform3D()
+	for b in chain:
+		var path := NodePath("Skel:" + skel.get_bone_name(b))
+		var ti := a.find_track(path, Animation.TYPE_ROTATION_3D)
+		var q := a.rotation_track_interpolate(ti, t) if ti >= 0 else Quaternion.IDENTITY
+		var org := skel.get_bone_rest(b).origin
+		if skel.get_bone_parent(b) < 0:
+			var tp := a.find_track(path, Animation.TYPE_POSITION_3D)
+			if tp >= 0:
+				org = a.position_track_interpolate(tp, t)
+		tr = tr * Transform3D(Basis(q), org)
+	return skel.global_transform * (tr * o)
 
 
 ## между двумя точками нет стены (тело самой Элиты и герой не в счёт)
@@ -598,6 +654,7 @@ func _el_attack(p: Vector3) -> void:
 			_hit_open["claw_r"] = true
 			_hit_open["claw_l"] = true
 	last_attack = pick
+	_cur_clip = clip
 	if tree != null and st == "ClawAttack":
 		var smn := (tree.tree_root as AnimationNodeBlendTree).get_node("sm") as AnimationNodeStateMachine
 		(smn.get_node("ClawAttack") as AnimationNodeAnimation).animation = clip

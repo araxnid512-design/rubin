@@ -7116,7 +7116,7 @@ func _elite_test() -> void:
 	var els: Array = enemies.filter(func(x): return String(x.kind) == "elite")
 	var in_plan := cs_plan.filter(func(x): return String(x[0]) == "elite")
 	if lvl_n != 3:
-		_ok("%s — %d-й уровень опасности: Элиты нет ни в расстановке, ни на месте" % [place, lvl_n], cs_ready and els.is_empty() and in_plan.is_empty(), "врагов %d" % enemies.size())
+		_ok("%s — %s (уровень в данных: %d): Элиты нет ни в расстановке, ни на месте" % [place, String(ULBase.shop().routes.get(place, {}).get("danger", "?")), lvl_n], cs_ready and els.is_empty() and in_plan.is_empty(), "врагов %d" % enemies.size())
 		_test_done()
 		return
 	_ok("%s — 3-й уровень: ровно одна Элита (в расстановке и на месте)" % place, els.size() == 1 and in_plan.size() == 1, "на месте %d, в расстановке %d" % [els.size(), in_plan.size()])
@@ -7185,6 +7185,11 @@ func _elite_test() -> void:
 		return states.has("Idle") and states.has("Walk") and float(acc.walk) > 1.0 and float(acc.tail) > 0.05)
 	_ok("16–17 (спокойствие): стоит (Idle), потом обходит площадку шагом (Walk, %.1f м/с); хвост ходит (%.2f м)" % [acc.walk, acc.tail], states.has("Idle") and states.has("Walk") and float(acc.walk) > 1.0 and float(acc.walk) < 2.2 and float(acc.tail) > 0.05, "состояние %s/%s" % [e.state, e.cur_state])
 	# ---- заметил: голова, разворот, погоня галопом ----
+	if out != "":
+		# снимок: стоит на рулёжке, герой рядом (его не видит)
+		player.global_position = snapf.call(e.global_position + fwd.call().rotated(Vector3.UP, 1.2) * 8.0) + Vector3.UP * 0.1
+		await get_tree().create_timer(1.2).timeout
+		await _snap("elite_idle")
 	hero_unseen = false
 	e.state = "idle"
 	e._t = 30.0
@@ -7203,6 +7208,9 @@ func _elite_test() -> void:
 	var d_start := e.global_position.distance_to(player.global_position)
 	var chased: bool = await watch.call(8.0, func() -> bool:
 		acc.run = maxf(acc.run, e._sp)
+		if out != "" and e.cur_state == "Run" and not acc.has("snap_run") and e.global_position.distance_to(player.global_position) < 11.0:
+			acc.snap_run = true
+			_snap("elite_run")
 		return e.state == "attack" or e.global_position.distance_to(player.global_position) < 4.0)
 	_ok("17. погоня галопом (Run): разогнался до %.1f м/с — быстрее пустыша (%.1f) и героя (4,4)" % [acc.run, float(ULEnemy.KINDS.infected.run)], chased and states.has("Run") and float(acc.run) > 5.0,
 		"было %.1f м, стало %.1f м" % [d_start, e.global_position.distance_to(player.global_position)])
@@ -7228,6 +7236,9 @@ func _elite_test() -> void:
 		var ev0 := e.events.size()
 		var started: bool = await watch.call(3.0, func() -> bool: return e.state == "attack")
 		var tstart := e._el_t
+		if out != "":
+			await watch.call(0.5 if kind != "bite" else 0.55, func() -> bool: return false)
+			await _snap("elite_" + kind)
 		await watch.call(2.4, func() -> bool: return e.state != "attack")
 		var evs: Array = e.events.slice(ev0).filter(func(x): return String(x[1]).ends_with("_hit"))
 		var ev_t := float(evs[0][0]) - tstart if not evs.is_empty() else -1.0
@@ -7321,7 +7332,7 @@ func _elite_test() -> void:
 			break
 	_ok("18. обход крупного препятствия (диспетчерская вышка между ним и героем)", ok_round, how)
 	# ---- гибель ----
-	player.global_position = snapf.call(e.global_position + fwd.call() * 9.0) + Vector3.UP * 0.1
+	player.global_position = snapf.call(e.global_position + fwd.call() * 6.5) + Vector3.UP * 0.1
 	e.state = "chase"
 	await get_tree().create_timer(0.4).timeout
 	var loot0 := e.loot.duplicate(true)
@@ -7332,7 +7343,12 @@ func _elite_test() -> void:
 	var dead_ok := not e.alive() and e.cur_state == "Death" and e.collision_layer == 0
 	e._anim_event("bite_hit")
 	e._anim_event("claw_r_hit")
+	if out != "":
+		await watch.call(1.0, func() -> bool: return false)
+		await _snap("elite_falling")
 	await watch.call(4.0, func() -> bool: return e.dead_done)
+	if out != "":
+		await _snap("elite_dead")
 	var land := e.events.filter(func(x): return String(x[1]) == "land").size()
 	var low := 99.0
 	var hip: Vector3 = sk.global_transform * sk.get_bone_global_pose(sk.find_bone("Spine2")).origin
