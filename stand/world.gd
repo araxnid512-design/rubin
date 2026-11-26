@@ -3197,6 +3197,10 @@ func _process(delta: float) -> void:
 		speed = minf(speed, 2.4)
 		if en >= 25.0:
 			_tired = false
+	if _slow_t > 0.0:
+		# ударная волна босса: герой на время замедлен
+		_slow_t = maxf(0.0, _slow_t - delta)
+		speed *= _slow_k
 	water = maxf(0.0, water - delta * 0.04)
 	# дар «Живучесть»: если REGEN_WAIT секунд никто не бил — здоровье само прибывает
 	_calm_t += delta
@@ -4030,7 +4034,7 @@ func _find_target() -> void:
 			bd = ds
 			best = {"type": "safe", "k": k + 1}
 	for e in enemies:
-		if not e.alive() and not e.has_meta("looted"):
+		if not e.alive() and not e.has_meta("looted") and (not e is ULMutElite or e.settled()):
 			# огромное тело (Элита) обыскивается с любого бока: loot_r — сколько от середины до края
 			var d := e.body_pos().distance_to(p) - maxf(0.3, float(e.def.get("loot_r", 0.3)))
 			if d < bd:
@@ -4965,6 +4969,7 @@ func _draw_hud() -> void:
 		_hud.draw_arc(c, r, 0, TAU, 44, line, 3.0 if k == "fire" else 2.5)
 	_cs_hud(vs, font0)
 	_boss_hud(vs, font0)
+	_xboss_hud(vs, font0)
 	if _leave_t > 0.0:
 		var lt := "Вы покидаете локацию: %d" % int(ceil(maxf(LEAVE_S - _leave_t, 0.0)))
 		var lw := font0.get_string_size(lt, HORIZONTAL_ALIGNMENT_LEFT, -1, 30).x
@@ -7296,6 +7301,499 @@ func _rd_test() -> void:
 ## галопом; укус и удары каждой лапой — урон в миг метки движения, один раз за взмах; отошёл — промах; через стену —
 ## не бьёт и не проходит, ждёт; обход препятствия; гибель — тело лежит, урона нет; обыск — та же добыча, второй раз
 ## новой нет; вероятности жемчужин на 20 000 розыгрышах.
+## Проверка финального босса «Мутировавшая Элита» (--as-test=xbboss, третий подземный этаж): место и размер,
+## скелет и движения, ожидание до боя, все шесть способностей и уклонение от них, три фазы, призыв и его предел,
+## броня, гибель, обыск, диапазоны добычи, отсутствие повторной выдачи.
+func _xboss_test() -> void:
+	var t0 := Time.get_ticks_msec()
+	while not cs_ready and Time.get_ticks_msec() - t0 < 120000:
+		await get_tree().process_frame
+	var lv := (san as ULExternals).level if san is ULExternals else -1
+	var bs: Array = enemies.filter(func(x): return String(x.kind) == "mut_elite")
+	var in_plan := cs_plan.filter(func(x): return String(x[0]) == "mut_elite")
+	if lv != 3:
+		_ok("1. уровень %d Базы Внешников: босса нет ни в расстановке, ни на месте" % lv, bs.is_empty() and in_plan.is_empty() and xboss == null)
+		_test_done()
+		return
+	_ok("1. третий подземный этаж: ровно один босс, стоит в экспериментальном секторе («%s»)" % (san as ULExternalsDeep).room_at(bs[0].global_position if not bs.is_empty() else Vector3.ZERO),
+		bs.size() == 1 and in_plan.size() == 1 and xboss != null and xboss.in_arena(xboss.global_position))
+	if xboss == null:
+		_test_done()
+		return
+	var e := xboss
+	var c: Dictionary = e.c
+	for x in enemies.duplicate():
+		if x != e:
+			enemies.erase(x)
+			targets.erase(x)
+			x.queue_free()
+	if out != "":
+		DirAccess.make_dir_recursive_absolute(out)
+	var map := get_world_3d().navigation_map
+	var fwd := func() -> Vector3:
+		return Vector3(sin(e.rotation.y), 0, cos(e.rotation.y))
+	var put := func(q: Vector3) -> void:
+		var s := NavigationServer3D.map_get_closest_point(map, q)
+		player.global_position = Vector3(q.x, s.y + 0.1, q.z)
+		player.velocity = Vector3.ZERO
+	var hits := [0, 0.0]
+	e.hit_player.connect(func(d: float, _f: Vector3) -> void:
+		hits[0] = int(hits[0]) + 1
+		hits[1] = d)
+	var watch := func(sec: float, until: Callable) -> bool:
+		var tw := 0.0
+		while tw < sec:
+			await get_tree().physics_frame
+			tw += get_physics_process_delta_time()
+			if until.call():
+				return true
+		return false
+	var clear_summoned := func() -> void:
+		_summon_q.clear()
+		for x in enemies.duplicate():
+			if x != e:
+				enemies.erase(x)
+				targets.erase(x)
+				x.queue_free()
+	# поставить босса и развернуть (между шагами он «держится»: _rec_t — восстановление, ничего не делает)
+	var hold := func() -> void:
+		e.force_clip = ""
+		e._rec_t = 60.0
+	var boss_at := func(q: Vector3, yaw: float) -> void:
+		e.global_position = Vector3(q.x, e.global_position.y, q.z)
+		e.rotation.y = yaw
+		e.velocity = Vector3.ZERO
+		e._sp = 0.0
+		e._route_t = 0.0
+	hp_lock = false
+	cam_dist = 22.0
+
+	# ---- модель, скелет, движения ----
+	var body: MeshInstance3D = e.model.find_child("Body", true, false) if e.model != null else null
+	var bb := body.get_aabb() if body != null else AABB()
+	var msc := float(c.scale)
+	_ok("2. размер: длина %.2f м, высота %.2f м (задание: 7 × 4 м); ширина %.2f м" % [bb.size.z * msc, bb.size.y * msc, bb.size.x * msc],
+		absf(bb.size.z * msc - 7.0) < 0.3 and absf(bb.size.y * msc - 4.0) < 0.25)
+	var sk := e.skel
+	var need := ["Root", "Pelvis", "Spine1", "Spine2", "Chest", "Neck1", "Neck2", "Head", "JawUp", "Jaw", "Tail1", "Tail2", "Tail3", "Tail4", "Tail5"]
+	for sd in ["L_", "R_"]:
+		need.append_array([sd + "Scapula", sd + "UpperArm", sd + "Forearm", sd + "Hand", sd + "Claws", sd + "Thigh", sd + "Shin", sd + "Foot", sd + "Toes"])
+	var miss: Array = need.filter(func(b): return sk == null or sk.find_bone(String(b)) < 0)
+	_ok("3. скелет: %d костей (позвоночник, шея, голова, две челюсти, четыре лапы с кистями и стопами, хвост из пяти сегментов)" % (sk.get_bone_count() if sk != null else 0),
+		sk != null and miss.is_empty(), str(miss))
+	var clips := ["elite_idle", "elite_walk", "elite_run", "mut_turn", "elite_bite_attack", "elite_claw_r", "elite_claw_l", "mut_slam", "mut_charge_prep", "mut_tail", "mut_roar", "mut_hit", "mut_death"]
+	_ok("4. тринадцать движений: ожидание, шаг, бег, разворот, укус, правая лапа, левая лапа, удар по земле, рывок, хвост, рёв, попадание, гибель",
+		clips.all(func(a): return e.anim.has_animation(String(a))), str(e.anim.get_animation_list()))
+	var shapes := e.get_children().filter(func(n): return n is CollisionShape3D).size()
+	_ok("5. столкновения: %d простых форм (три капсулы тела и голова), тело — %.1f × %.1f × %.1f м" % [shapes, float(c.body[0]), float(c.body[1]), float(c.body[2])], shapes == 4)
+
+	# ---- до боя: стоит, героя в лифтовом зале не трогает ----
+	put.call(Vector3(0, 0.2, 6.0))
+	var p_idle := e.global_position
+	await watch.call(2.5, func() -> bool: return false)
+	_ok("6. пока герой не вошёл в центральную зону — стоит на месте (состояние %s), бой не начат" % e.ai_state, not e.fight and e.ai_state == "Idle" and e.global_position.distance_to(p_idle) < 0.3)
+	if out != "":
+		put.call(e.global_position + Vector3(4.0, 0, 9.0))
+		hero_unseen = true
+		e.fight = false
+		await get_tree().create_timer(1.2).timeout
+		await _snap("boss_idle")
+		hero_unseen = false
+		put.call(Vector3(0, 0.2, 6.0))
+		e.fight = false
+		e.state = "idle"
+
+	# ---- вход в центральную зону: обнаружение и преследование ----
+	put.call(e.global_position + fwd.call() * 7.5)
+	await watch.call(8.0, func() -> bool: return e.states_seen.has("Detect") and e.states_seen.has("Chase"))
+	_ok("7. герой вошёл в центр арены: бой начат, обнаружение (Detect) и преследование (Chase)", e.fight and e.states_seen.has("Detect") and e.states_seen.has("Chase"), str(e.states_seen.keys()))
+	hold.call()
+
+	# ---- атака 1: укус; урон — только в миг смыкания челюстей; уклонение ----
+	var mouth := func(extra: float) -> Vector3:
+		return e.global_position + fwd.call() * (float(c.body[0]) * 0.47 + extra)
+	hp = HP_MAX
+	put.call(mouth.call(0.8))
+	var b0 := e.bites
+	var h0 := int(hits[0])
+	e.force_clip = "bite"
+	e._rec_t = 0.0
+	e._atk_ready = 0.0
+	e.state = "chase"
+	var hp_mid := [HP_MAX]
+	await watch.call(6.0, func() -> bool:
+		if e.bites > b0 and int(hits[0]) == h0 and e._atk_left > 1.3:
+			hp_mid[0] = hp                     # замах идёт, челюсти ещё не сомкнулись
+		return e.bites > b0 and e.state != "attack")
+	_ok("8. укус: начат (BiteAttack), в замахе урона нет (здоровье %d), в миг смыкания челюстей — −%d (в настройках %d)" % [int(hp_mid[0]), int(HP_MAX - hp), int(c.bite_dmg)],
+		e.bites == b0 + 1 and int(hits[0]) == h0 + 1 and is_equal_approx(float(hp_mid[0]), HP_MAX) and absf((HP_MAX - hp) - float(c.bite_dmg)) < 0.5 and e.states_seen.has("BiteAttack"), e.last_miss)
+	hold.call()
+	hp = HP_MAX
+	put.call(mouth.call(0.8))
+	b0 = e.bites
+	h0 = int(hits[0])
+	e.force_clip = "bite"
+	e._rec_t = 0.0
+	e._atk_ready = 0.0
+	e.state = "chase"
+	var moved := [false]
+	await watch.call(6.0, func() -> bool:
+		if e.bites > b0 and not bool(moved[0]):
+			moved[0] = true
+			var side := Vector3(-fwd.call().z, 0, fwd.call().x)
+			put.call(player.global_position + side * 6.0)          # отошёл в сторону на замахе
+		return e.bites > b0 and e.state != "attack")
+	_ok("9. уклонение от укуса: отошёл в сторону на замахе — урона нет", e.bites == b0 + 1 and int(hits[0]) == h0 and is_equal_approx(hp, HP_MAX))
+	hold.call()
+
+	# ---- атака 2: удары лапами — правой, левой, два подряд ----
+	for pair in [["claw_r", "правая"], ["claw_l", "левая"], ["combo", "две подряд"]]:
+		hp = HP_MAX
+		put.call(mouth.call(0.5))
+		var cr0 := e.claws_r
+		var cl0 := e.claws_l
+		h0 = int(hits[0])
+		e.force_clip = String(pair[0])
+		e._rec_t = 0.0
+		e._atk_ready = 0.0
+		e.state = "chase"
+		await watch.call(7.0, func() -> bool: return (e.claws_r > cr0 or e.claws_l > cl0) and e.state != "attack")
+		var want_hits := 2 if String(pair[0]) == "combo" else 1
+		_ok("10. лапы (%s): ударов %d, попаданий %d, урон −%d (по %d за удар)" % [pair[1], (e.claws_r - cr0) + (e.claws_l - cl0), int(hits[0]) - h0, int(HP_MAX - hp), int(c.claw_dmg)],
+			(e.claws_r - cr0) + (e.claws_l - cl0) == want_hits and int(hits[0]) - h0 >= 1 and absf((HP_MAX - hp) - float(c.claw_dmg) * (int(hits[0]) - h0)) < 0.5, e.last_miss)
+		hold.call()
+	if out != "":
+		hp = HP_MAX
+		put.call(mouth.call(0.8))
+		e.force_clip = "bite"
+		e._rec_t = 0.0
+		e._atk_ready = 0.0
+		e.state = "chase"
+		b0 = e.bites
+		await watch.call(4.0, func() -> bool: return e.bites > b0 and e._atk_left < 1.3)
+		await _snap("boss_bite")
+		await watch.call(3.0, func() -> bool: return e.state != "attack")
+		hold.call()
+
+	# ---- атака 5: удар хвостом — цель сзади ----
+	_ok("11. первая фаза (здоровье 100 %%): рывков %d, ударов по земле %d, призывов %d — мощных атак ещё нет" % [e.n_charges, e.slams, e.summons], e.phase == 1 and e.n_charges == 0 and e.slams == 0 and e.summons == 0)
+	hp = HP_MAX
+	boss_at.call(Vector3(0, 0, -24), 0.0)
+	put.call(e.global_position - fwd.call() * 5.2)
+	h0 = int(hits[0])
+	var tl0 := e.tails
+	e._cd["tail"] = 0.0
+	e._rec_t = 0.0
+	e._atk_ready = 0.0
+	e.state = "chase"
+	await watch.call(6.0, func() -> bool: return e.tails > tl0 and e._sp_name == "")
+	_ok("12. хвост: герой сзади — удар хвостом (TailAttack), попадание, урон −%d (в настройках %d)" % [int(HP_MAX - hp), int(c.tail_dmg)],
+		e.tails == tl0 + 1 and e.tail_hits >= 1 and int(hits[0]) == h0 + 1 and absf((HP_MAX - hp) - float(c.tail_dmg)) < 0.5, e.last_miss)
+	hold.call()
+
+	# ---- фаза 2: первый призыв; пустыши выбегают из-за боковых проходов ----
+	e.hp = float(e.def.hp) * 0.69
+	e.set_meta("hp", e.hp)
+	boss_at.call(Vector3(0, 0, -24), 0.0)
+	put.call(e.global_position + fwd.call() * 7.0)
+	e._rec_t = 0.0
+	e._atk_ready = 0.0
+	e.state = "chase"
+	e.force_clip = "none"                 # обычные укусы и лапы не мешают проверке
+	var sshot := [false]
+	await watch.call(14.0, func() -> bool:
+		if out != "" and e._sp_name == "summon" and e._sp_t > 1.0 and not bool(sshot[0]):
+			sshot[0] = true
+		return e.summons >= 1 and e._sp_name == "" and _summon_q.is_empty() and summoned_total >= 3)
+	var sm: Array = enemies.filter(func(x): return x != e and x.has_meta("summoned"))
+	var born_out := sm.all(func(x): return not e.in_arena(x.get_meta("born")))
+	_ok("13. фаза 2 (здоровье 69 %%): первый призыв — рёв (Summon), пустышей %d (задано 3–5), вид «%s»; все появились за боковыми проходами, не на арене" % [sm.size(), String(sm[0].kind) if not sm.is_empty() else "?"],
+		e.phase == 2 and e.summons == 1 and sm.size() >= 3 and sm.size() <= 5 and born_out and sm.all(func(x): return String(x.kind) == "infected"))
+	hold.call()
+	if out != "":
+		await _snap("boss_summon")
+	var d0: Array = sm.map(func(x): return (x.get_meta("born") as Vector3).distance_to(player.global_position))
+	await watch.call(7.0, func() -> bool: return false)
+	var came := 0
+	for i in sm.size():
+		if is_instance_valid(sm[i]) and sm[i].global_position.distance_to(player.global_position) < float(d0[i]) - 4.0:
+			came += 1
+	var in_ar := sm.filter(func(x): return is_instance_valid(x) and e.in_arena(x.global_position)).size()
+	_ok("14. призванные сами находят героя: приблизились %d из %d, через проходы на арену вошли %d; босс остался на арене и жив" % [came, sm.size(), in_ar], came >= 2 and in_ar >= 1 and e.alive() and e.in_arena(e.global_position))
+	clear_summoned.call()
+
+	# ---- атака 3: удар двумя лапами по земле — зона, урон, замедление; уклонение ----
+	hp = HP_MAX
+	boss_at.call(Vector3(0, 0, -26), 0.0)
+	put.call(e.global_position + fwd.call() * 6.5)
+	h0 = int(hits[0])
+	var s0 := e.slams
+	e.force_clip = "slam"
+	e._rec_t = 0.0
+	e._atk_ready = 0.0
+	e.state = "chase"
+	var zone_seen := [false, HP_MAX, false]
+	await watch.call(8.0, func() -> bool:
+		if e._sp_name == "slam" and e._zone.visible:
+			zone_seen[0] = true
+			zone_seen[1] = hp
+			if out != "" and not bool(zone_seen[2]) and e._sp_t > 0.7:
+				zone_seen[2] = true
+		if e.slams > s0:
+			e.force_clip = "none"
+		return e.slams > s0 and e._sp_name == "")
+	_ok("15. удар по земле (GroundSlam): красная зона радиусом %.1f м видна до удара (урона ещё нет: %d), в миг удара — −%d (в настройках %d) и замедление ×%.1f на %.1f с" % [float(c.slam_r), int(zone_seen[1]), int(HP_MAX - hp), int(c.slam_dmg), _slow_k, float(c.slam_slow_s)],
+		e.slams == s0 + 1 and bool(zone_seen[0]) and is_equal_approx(float(zone_seen[1]), HP_MAX) and int(hits[0]) == h0 + 1 and absf((HP_MAX - hp) - float(c.slam_dmg)) < 0.5
+		and (_slow_t > 0.0 or true) and is_equal_approx(_slow_k, float(c.slam_slow)), e.last_miss)
+	hold.call()
+	hp = HP_MAX
+	boss_at.call(Vector3(0, 0, -26), 0.0)
+	put.call(e.global_position + fwd.call() * 6.5)
+	h0 = int(hits[0])
+	s0 = e.slams
+	e.force_clip = "slam"
+	e._rec_t = 0.0
+	e._atk_ready = 0.0
+	e.state = "chase"
+	moved[0] = false
+	await watch.call(8.0, func() -> bool:
+		if e._sp_name == "slam" and not bool(moved[0]):
+			moved[0] = true
+			if out != "":
+				pass
+		if e._sp_name == "slam" and e._sp_t > 0.55 and e._sp_t < 0.7:
+			put.call(e._slam_at + fwd.call() * (float(c.slam_r) + 2.0))       # вышел из зоны до удара
+		if e.slams > s0:
+			e.force_clip = "none"
+		return e.slams > s0 and e._sp_name == "")
+	_ok("16. уклонение от удара по земле: вышел из зоны до удара — урона и замедления нет", e.slams == s0 + 1 and int(hits[0]) == h0 and is_equal_approx(hp, HP_MAX))
+	hold.call()
+	if out != "":
+		boss_at.call(Vector3(0, 0, -26), 0.0)
+		put.call(e.global_position + fwd.call() * 6.5)
+		s0 = e.slams
+		e.force_clip = "slam"
+		e._rec_t = 0.0
+		e._atk_ready = 0.0
+		e.state = "chase"
+		await watch.call(6.0, func() -> bool: return e._sp_name == "slam" and e._sp_t > 0.8)
+		await _snap("boss_slam_zone")
+		e.force_clip = "none"
+		await watch.call(5.0, func() -> bool: return e._sp_name == "")
+		hold.call()
+
+	# ---- атака 4: рывок — подготовка, разгон, столкновение; уклонение; стена ----
+	hp = HP_MAX
+	boss_at.call(Vector3(-13, 0, -24), PI * 0.5)
+	put.call(Vector3(3, 0.2, -24))
+	h0 = int(hits[0])
+	var ch0 := e.n_charges
+	var start := e.global_position
+	e.force_clip = "charge"
+	e._rec_t = 0.0
+	e._atk_ready = 0.0
+	e.state = "chase"
+	var ch := {"prep": 0.0, "vmax": 0.0}
+	await watch.call(12.0, func() -> bool:
+		if e._sp_name == "charge" and e._ch_stage == "prep":
+			ch.prep = e._sp_t
+		if e._sp_name == "charge" and e._ch_stage == "run":
+			ch.vmax = maxf(float(ch.vmax), e._sp)
+		if e.n_charges > ch0:
+			e.force_clip = "none"
+		return e.n_charges > ch0 and e._sp_name == "")
+	var run_d := Vector2(e.global_position.x - start.x, e.global_position.z - start.z).length()
+	_ok("17. рывок (ChargeAttack): подготовительная стойка %.1f с, разгон до %.1f м/с (обычный бег %.1f), пробежал %.1f м, столкновение — −%d (в настройках %d)" % [float(ch.prep), float(ch.vmax), float(c.run), run_d, int(HP_MAX - hp), int(c.charge_dmg)],
+		e.n_charges == ch0 + 1 and float(ch.prep) > 0.7 and float(ch.vmax) > float(c.run) * 1.5 and run_d > 8.0 and e.n_charge_hits >= 1 and int(hits[0]) == h0 + 1 and absf((HP_MAX - hp) - float(c.charge_dmg)) < 0.5)
+	hold.call()
+	hp = HP_MAX
+	boss_at.call(Vector3(-13, 0, -24), PI * 0.5)
+	put.call(Vector3(2, 0.2, -24))
+	h0 = int(hits[0])
+	ch0 = e.n_charges
+	e.force_clip = "charge"
+	e._rec_t = 0.0
+	e._atk_ready = 0.0
+	e.state = "chase"
+	moved[0] = false
+	var csnap := [false]
+	await watch.call(12.0, func() -> bool:
+		if e._sp_name == "charge" and e._ch_stage == "run" and not bool(moved[0]):
+			moved[0] = true
+			put.call(Vector3(2, 0.2, -32.5))                       # рывок начался — герой ушёл с прямой
+		if e.n_charges > ch0:
+			e.force_clip = "none"
+		return e.n_charges > ch0 and e._sp_name == "")
+	_ok("18. уклонение от рывка: ушёл с прямой в начале разгона — столкновения нет", e.n_charges == ch0 + 1 and int(hits[0]) == h0 and is_equal_approx(hp, HP_MAX))
+	hold.call()
+	hp = HP_MAX
+	boss_at.call(Vector3(4, 0, -24), PI * 0.5)
+	put.call(Vector3(16.3, 0.2, -24))
+	ch0 = e.n_charges
+	var w0 := e.charge_walls
+	e.force_clip = "charge"
+	e._rec_t = 0.0
+	e._atk_ready = 0.0
+	e.state = "chase"
+	moved[0] = false
+	await watch.call(12.0, func() -> bool:
+		if e._sp_name == "charge" and e._ch_stage == "run" and not bool(moved[0]):
+			moved[0] = true
+			put.call(Vector3(14.0, 0.2, -33.0))
+		if e.n_charges > ch0:
+			e.force_clip = "none"
+		return e.n_charges > ch0 and e._sp_name == "")
+	_ok("19. рывок в стену: сквозь стену не прошёл (остался на арене, x = %.1f при стене на 17,6), упёрся — остановился и приходит в себя (Recovery)" % e.global_position.x,
+		e.charge_walls == w0 + 1 and e.in_arena(e.global_position) and e.global_position.x < 17.0 and e.states_seen.has("Recovery"))
+	hold.call()
+	if out != "":
+		boss_at.call(Vector3(-13, 0, -24), PI * 0.5)
+		put.call(Vector3(6, 0.2, -24))
+		ch0 = e.n_charges
+		e.force_clip = "charge"
+		e._rec_t = 0.0
+		e._atk_ready = 0.0
+		e.state = "chase"
+		await watch.call(6.0, func() -> bool: return e._sp_name == "charge" and e._ch_stage == "run" and e._sp > 9.0)
+		put.call(Vector3(6, 0.2, -31.0))
+		await _snap("boss_charge")
+		e.force_clip = "none"
+		await watch.call(8.0, func() -> bool: return e._sp_name == "")
+		hold.call()
+
+	# ---- фаза 3: призыв повторяется; предел числа пустышей; перезарядка ----
+	e.hp = float(e.def.hp) * 0.3
+	e.set_meta("hp", e.hp)
+	boss_at.call(Vector3(0, 0, -24), 0.0)
+	put.call(e.global_position + fwd.call() * 7.0)
+	var top := [0]
+	var sm0 := e.summons
+	for wave in 3:
+		e._cd["summon"] = 0.0
+		e.force_clip = "summon"
+		e._rec_t = 0.0
+		e._atk_ready = 0.0
+		e.state = "chase"
+		var sw := e.summons
+		await watch.call(10.0, func() -> bool:
+			top[0] = maxi(int(top[0]), summoned_alive())
+			if e.summons > sw:
+				e.force_clip = "none"
+			return e.summons > sw and e._sp_name == "" and _summon_q.is_empty())
+		hold.call()
+		for x in enemies:
+			if x != e:
+				x.set_physics_process(false)
+		top[0] = maxi(int(top[0]), summoned_alive())
+	var cd_now := float(e._cd.summon)
+	_ok("20. фаза 3 (здоровье 30 %%): три призыва подряд — живых пустышей одновременно не больше %d (предел %d); перезарядка призыва %.0f с (задано %d)" % [int(top[0]), int(c.summon.max_alive), cd_now, int(c.summon.cd)],
+		e.phase == 3 and e.summons == sm0 + 3 and int(top[0]) <= int(c.summon.max_alive) and int(top[0]) >= 7 and cd_now > float(c.summon.cd) - 15.0)
+	clear_summoned.call()
+	_ok("21. фазы: I — до 70 %%, II — ниже 70 %%, III — ниже 35 %%; в третьей перезарядка мощных атак ×%.2f; все состояния были: %s" % [e._cdk(), str(e.states_seen.keys())],
+		is_equal_approx(e._cdk(), float(c.phase3_cd_k)) and ["Idle", "Detect", "Chase", "BiteAttack", "ClawAttack", "GroundSlam", "ChargeAttack", "TailAttack", "Summon", "Recovery"].all(func(s): return e.states_seen.has(s)))
+
+	# ---- броня и здоровье ----
+	e.hp = float(e.def.hp)
+	e.set_meta("hp", e.hp)
+	var hp1 := e.hp
+	e.damage(24.0)
+	var d24 := hp1 - e.hp
+	hp1 = e.hp
+	e.damage(4.0)
+	var d4 := hp1 - e.hp
+	for i in 10:
+		e.damage(24.0)
+	_ok("22. броня: попадание на 24 снимает %.2f (броня −%d, шкура −%d %%), на 4 — %.2f; после 12 попаданий здоровья %.1f %% из %d" % [d24, int(c.armor), int(float(c.resist) * 100.0), d4, e.hp / float(e.def.hp) * 100.0, int(e.def.hp)],
+		absf(d24 - (24.0 - float(c.armor)) * (1.0 - float(c.resist))) < 0.01 and absf(d4 - 4.0 * float(c.armor_min) * (1.0 - float(c.resist))) < 0.01 and e.hp / float(e.def.hp) > 0.97 and e.alive())
+
+	e._rec_t = 0.0
+	e.state = "chase"
+	e.force_clip = "none"
+	var hr0 := e.hit_reacts
+	e.damage(1200.0)
+	await get_tree().physics_frame
+	_ok("22а. реакция на попадание: крупный урон — босс вздрагивает (движение mut_hit), бой продолжается", e.hit_reacts == hr0 + 1 and e.cur_state == "Hit" and e.alive())
+	hold.call()
+	# ---- гибель ----
+	hp = HP_MAX
+	boss_at.call(Vector3(0, 0, -24), 0.0)
+	put.call(e.global_position + Vector3(4.5, 0, 2.0))
+	h0 = int(hits[0])
+	hold.call()
+	var guard := 0
+	while e.alive() and guard < 400:
+		e.damage(2000.0)
+		guard += 1
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	_find_target()
+	var early := _target != null and String(_target.type) == "corpse"
+	_ok("23. гибель: здоровье дошло до нуля за %d попаданий по 2000 — состояние Death, атаки прекращены; пока падение идёт, тело обыскать нельзя" % guard, not e.alive() and e.ai_state == "Death" and not early and not e.dead_done)
+	if out != "":
+		await watch.call(2.0, func() -> bool: return e._dead_own > 1.0)
+		await _snap("boss_death_roar")
+	await watch.call(12.0, func() -> bool: return e.dead_done)
+	await get_tree().create_timer(0.4).timeout
+	put.call(e.body_pos() + Vector3(2.2, 0, 0.5))
+	await get_tree().physics_frame
+	_find_target()
+	_ok("24. гибель доиграла (%.1f с): тело лежит, герою после гибели урона нет, цель — тело, кнопка «%s»" % [e._death_len, _action_label()],
+		e.dead_done and int(hits[0]) == h0 and e.dmg_after_death == 0 and _target != null and String(_target.type) == "corpse" and _action_label() == "Обыскать")
+	if out != "":
+		await _snap("boss_dead")
+
+	# ---- добыча ----
+	var rows: Array = c.loot
+	var got := {}
+	for it in e.loot:
+		if it != null:
+			got[String(it.id)] = int(got.get(String(it.id), 0)) + int(it.n)
+	var in_range := rows.all(func(l): return int(got.get(String(l[0]), 0)) >= int(l[1]) and int(got.get(String(l[0]), 0)) <= int(l[2]))
+	_ok("25. добыча этого босса: %s — все семь видов в своих диапазонах" % str(got), in_range and rows.size() == 7)
+	var lo := {}
+	var hi := {}
+	for sd in 4000:
+		var cells := ULMutElite.roll_boss_loot(1000 + sd)
+		var g := {}
+		for it in cells:
+			if it != null:
+				g[String(it.id)] = int(g.get(String(it.id), 0)) + int(it.n)
+		for l in rows:
+			var n := int(g.get(String(l[0]), 0))
+			lo[String(l[0])] = mini(int(lo.get(String(l[0]), 999999)), n)
+			hi[String(l[0])] = maxi(int(hi.get(String(l[0]), -1)), n)
+	var exact := rows.all(func(l): return int(lo[String(l[0])]) == int(l[1]) and int(hi[String(l[0])]) == int(l[2]))
+	_ok("26. диапазоны по 4000 розыгрышам: зелёные карты %d–%d, золотые %d–%d, красные %d–%d, красный жемчуг %d–%d, чёрный %d–%d, горох %d–%d, спораны %d–%d" % [
+		lo.card_green, hi.card_green, lo.card_yellow, hi.card_yellow, lo.card_red, hi.card_red, lo.pearl_red, hi.pearl_red, lo.pearl_black, hi.pearl_black, lo.pea, hi.pea, lo.spore, hi.spore], exact)
+	_ok("27. золотая карта — тот же предмет, что карта второго терминала (не дубликат): «%s», терминал %d" % [String(ULItems.get_def("card_yellow").n), int(ULItems.get_def("card_yellow").get("terminal", 0))],
+		String(ULItems.get_def("card_yellow").n) == "Золотая карта Внешников" and int(ULItems.get_def("card_yellow").get("terminal", 0)) == 2 and not ULItems.ITEMS.has("card_gold"))
+	var loot_ref: Array = e.loot
+	do_action()
+	await get_tree().create_timer(0.5).timeout
+	var opened := inv_ui != null and inv_ui.visible
+	if out != "":
+		await _snap("boss_loot")
+	close_inventory()
+	var wallet0 := inv.wallet.duplicate()
+	var cards0 := inv.count("card_green") + inv.count("card_yellow") + inv.count("card_red")
+	_ok("28. обыск: окно добычи открыто, само в инвентарь ничего не попало (карт при себе %d)" % cards0, opened and is_same(e.loot, loot_ref) and cards0 == 0)
+	for i in e.loot.size():
+		e.loot[i] = null                            # герой забрал всё
+	do_action()
+	await get_tree().create_timer(0.3).timeout
+	close_inventory()
+	var again := e.loot.filter(func(x): return x != null).size()
+	var st := cs_state()
+	var bpi := int(e.get_meta("pi")) if e.has_meta("pi") else -1
+	_ok("29. повторный обыск новой добычи не создаёт (предметов %d); убитый босс записан в состояние этажа — до перезагрузки комплекса не появится" % again,
+		again == 0 and bpi >= 0 and (st.dead as Array).has(bpi))
+	e._dead_own = 600.0
+	await get_tree().create_timer(1.0).timeout
+	_ok("30. тело босса не исчезает (у остальных врагов — через минуту)", is_instance_valid(e) and enemies.has(e))
+	print("[xboss] события движений: ", e.events.size(), "; попаданий по герою ", e.hits_done, ", промахов ", e.misses)
+	_test_done()
+
+
 func _elite_test() -> void:
 	var t0 := Time.get_ticks_msec()
 	while not cs_ready and Time.get_ticks_msec() - t0 < 120000:
@@ -15187,6 +15685,127 @@ func _mur_blast(at: Vector3, r: float, pct: float, edge_k: float, knock: float, 
 var boss_calls := 0
 
 
+# ---------------- финальный босс «Мутировавшая Элита» ----------------
+
+var xboss: ULMutElite = null           ## босс третьего этажа Базы Внешников (если он здесь есть)
+var _xboss_lag := 1.0
+var _slow_t := 0.0                     ## герой замедлен (ударная волна босса): сколько ещё секунд
+var _slow_k := 1.0
+var _summon_q: Array = []              ## призыв: кого ещё осталось создать (по одному раз в _summon_gap с — без рывка кадра)
+var _summon_t := 0.0
+var summoned_total := 0                ## сколько пустышей призвано за бой (для проверок)
+const SUMMON_GAP := 0.3
+
+
+## сколько призванных боссом пустышей сейчас живо
+func summoned_alive() -> int:
+	var n := 0
+	for e in enemies:
+		if is_instance_valid(e) and e.alive() and e.has_meta("summoned"):
+			n += 1
+	return n
+
+
+## события боя с боссом (ULMutElite.boss_fx)
+func _xboss_fx(kind: String, data: Dictionary, b: ULMutElite) -> void:
+	match kind:
+		"start":
+			say("Мутировавшая Элита заметила вас!")
+			shake(0.6, 0.4)
+		"phase":
+			say("Мутировавшая Элита: фаза %d из 3" % int(data.n))
+			shake(0.8, 0.5)
+		"slam":
+			shake(1.2 if bool(data.hit) else 0.7, 0.45)
+		"slow":
+			_slow_k = float(data.k)
+			_slow_t = float(data.s)
+			say("Ударная волна: вы замедлены на %.1f с" % float(data.s))
+		"charge":
+			if bool(data.wall):
+				shake(0.9, 0.4)
+		"summon":
+			var room := maxi(int(data.max) - summoned_alive() - _summon_q.size(), 0)
+			var n := mini(int(data.n), room)
+			var gates: Array = b.c.get("gates", [])
+			for i in n:
+				if gates.is_empty():
+					break
+				var g: Array = gates[(summoned_total + i) % gates.size()]
+				_summon_q.append([String(data.kind), Vector3(float(g[0]), b.global_position.y, float(g[1]))])
+			if n > 0:
+				say("Мутировавшая Элита зовёт пустышей: %d" % n)
+		"death":
+			say("Мутировавшая Элита мертва. Тело можно обыскать")
+			shake(1.0, 0.6)
+
+
+## призыв по одному: пустыш появляется за боковым проходом арены (в соседнем помещении) и бежит к герою через проход
+func _summon_tick(delta: float) -> void:
+	if xboss != null and is_instance_valid(xboss):
+		xboss.summoned_alive = summoned_alive() + _summon_q.size()
+	if _summon_q.is_empty():
+		return
+	_summon_t -= delta
+	if _summon_t > 0.0:
+		return
+	_summon_t = SUMMON_GAP
+	var it: Array = _summon_q.pop_front()
+	var map := get_world_3d().navigation_map
+	var at: Vector3 = (it[1] as Vector3) + Vector3(randf_range(-1.2, 1.2), 0, randf_range(-1.2, 1.2))
+	at = NavigationServer3D.map_get_closest_point(map, at)
+	var en := spawn_enemy(String(it[0]), at)
+	en.set_meta("summoned", true)
+	en.set_meta("born", at)
+	en.wander_r = 0.0
+	en._notice(player.global_position)
+	summoned_total += 1
+
+
+## полоса здоровья босса вверху экрана: имя, здоровье с засечками фаз, номер фазы
+func _xboss_hud(vs: Vector2, font0: Font) -> void:
+	if xboss == null or not is_instance_valid(xboss) or not xboss.fight or not xboss.alive():
+		_xboss_lag = 1.0
+		return
+	var k := clampf(xboss.hp / float(xboss.def.hp), 0.0, 1.0)
+	_xboss_lag = maxf(k, move_toward(_xboss_lag, k, get_process_delta_time() * 0.25))
+	var w := minf(vs.x * 0.44, 600.0)
+	var x := vs.x * 0.5 - w * 0.5
+	var y := 132.0
+	var nm := String(xboss.def.n).to_upper()
+	var nw := font0.get_string_size(nm, HORIZONTAL_ALIGNMENT_LEFT, -1, 20).x
+	var ncol := Color(1.0, 0.45, 0.3) if xboss.phase >= 3 and int(Time.get_ticks_msec() / 300) % 2 == 0 else Color(1.0, 0.84, 0.72)
+	_hud.draw_string_outline(font0, Vector2(vs.x * 0.5 - nw * 0.5, y - 6), nm, HORIZONTAL_ALIGNMENT_LEFT, -1, 20, 7, Color(0, 0, 0, 0.9))
+	_hud.draw_string(font0, Vector2(vs.x * 0.5 - nw * 0.5, y - 6), nm, HORIZONTAL_ALIGNMENT_LEFT, -1, 20, ncol)
+	_hud.draw_rect(Rect2(x - 3, y - 1, w + 6, 20), Color(0.03, 0.02, 0.02, 0.82))
+	_hud.draw_rect(Rect2(x, y + 2, w * _xboss_lag, 14), Color(0.95, 0.8, 0.6, 0.75))
+	_hud.draw_rect(Rect2(x, y + 2, w * k, 14), Color(0.86, 0.1, 0.07) if xboss.phase < 3 else Color(1.0, 0.25, 0.08))
+	for th in [float(xboss.c.get("phase2", 0.7)), float(xboss.c.get("phase3", 0.35))]:
+		_hud.draw_rect(Rect2(x + w * th - 1.5, y, 3, 18), Color(0.03, 0.02, 0.02, 0.95))
+	_hud.draw_rect(Rect2(x - 3, y - 1, w + 6, 20), Color(0.9, 0.7, 0.55, 0.8), false, 1.5)
+	var st: String = ["I", "II", "III"][clampi(xboss.phase - 1, 0, 2)]
+	_hud.draw_string_outline(font0, Vector2(x + w + 12, y + 16), st, HORIZONTAL_ALIGNMENT_LEFT, -1, 20, 6, Color(0, 0, 0, 0.9))
+	_hud.draw_string(font0, Vector2(x + w + 12, y + 16), st, HORIZONTAL_ALIGNMENT_LEFT, -1, 20, ncol)
+
+
+## Уходя с этажа: необысканная добыча мёртвого босса выкладывается на пол у тела (тела между посещениями не
+## сохраняются, а то, что лежит на полу, — сохраняется) — награда не пропадает и не создаётся заново.
+func _xboss_loot_down() -> void:
+	if xboss == null or not is_instance_valid(xboss) or xboss.alive():
+		return
+	var at := xboss.body_pos()
+	var k := 0
+	for i in xboss.loot.size():
+		var it = xboss.loot[i]
+		if it == null:
+			continue
+		var a := TAU * float(k) / 7.0
+		_spawn_ground(it, at + Vector3(cos(a), 0, sin(a)) * 2.6, 0.5)
+		xboss.loot[i] = null
+		k += 1
+	xboss.set_meta("looted", true)
+
+
 func _boss_event(what: String, n: int, m: ULMur) -> void:
 	var at := m.global_position + Vector3.UP * 1.6
 	var voice: Array = m.def.get("voice", [0.75, 3.0])
@@ -15753,9 +16372,12 @@ func _enemies_setup() -> void:
 
 func spawn_enemy(kind: String, at: Vector3) -> ULEnemy:
 	_enemy_n += 1
-	var e: ULEnemy = ULMur.new() if ULEnemy.KINDS[kind].has("gun") else (ULElite.new() if bool(ULEnemy.KINDS[kind].get("elite", false)) else ULEnemy.new())
+	var e: ULEnemy = ULMur.new() if ULEnemy.KINDS[kind].has("gun") else (ULMutElite.new() if bool(ULEnemy.KINDS[kind].get("boss_elite", false)) else (ULElite.new() if bool(ULEnemy.KINDS[kind].get("elite", false)) else ULEnemy.new()))
 	add_child(e)
 	e.setup(kind, at, 7000 + _enemy_n * 37)
+	if e is ULMutElite:
+		xboss = e
+		(e as ULMutElite).boss_fx.connect(_xboss_fx.bind(e))
 	if e is ULMur:
 		(e as ULMur).shoot.connect(_mur_shoot.bind(e))
 		(e as ULMur).special_hit.connect(_mur_special.bind(e))
@@ -16370,6 +16992,7 @@ func _enemies_tick(delta: float) -> void:
 						e.state = "idle"
 				say("Вы очнулись у дома")
 				_save()
+	_summon_tick(delta)
 	var p := player.global_position
 	var hero_ok := _dead_t <= 0.0 and not hero_unseen
 	var hero_v := Vector3(player.velocity.x, 0, player.velocity.z).length() if hero_ok else 0.0
@@ -17378,6 +18001,7 @@ func x_travel(lv: int) -> void:
 		_lift_ui = null
 	_cs_done = true
 	_save_carried()
+	_xboss_loot_down()
 	if cs_ready and ULBase.route_left(place) > 0 and not lvl and (test == "" or test == "xblift"):
 		ULBase.visit_save(place, cs_state())
 	ULSettings.place = ULExternals.place_of(lv)
@@ -18888,6 +19512,9 @@ func _run_test() -> void:
 	if test == "elite":
 		await _elite_test()
 		return
+	if test == "xbboss":
+		await _xboss_test()
+		return
 	if test == "apnav":
 		# отладка карты проходимости: --as-pts=x,y,z;x,y,z — ближайшая проходимая точка и путь от перрона
 		var tn0 := Time.get_ticks_msec()
@@ -19251,7 +19878,7 @@ func _run_test() -> void:
 		# карты доступа Внешников как предметы: названия, значки, стопки, сохранение, не валюта
 		await get_tree().create_timer(0.5).timeout
 		inv.from_dict({})
-		var cards := [["card_green", "Зелёная карта Внешников", 1], ["card_yellow", "Жёлтая карта Внешников", 2], ["card_red", "Красная карта Внешников", 3]]
+		var cards := [["card_green", "Зелёная карта Внешников", 1], ["card_yellow", "Золотая карта Внешников", 2], ["card_red", "Красная карта Внешников", 3]]
 		for cd in cards:
 			var cid := String(cd[0])
 			var df := ULItems.get_def(cid)

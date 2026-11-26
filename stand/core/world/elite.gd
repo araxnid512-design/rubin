@@ -26,6 +26,7 @@ static var _cfg := {}
 static var _scene: PackedScene
 
 var c := {}                              ## data/elite.json
+var states: Dictionary = ST              ## состояния дерева движений и их движения (у босса «Мутировавшая Элита» — свои)
 var model: Node3D
 var skel: Skeleton3D
 var anim: AnimationPlayer
@@ -79,9 +80,20 @@ static func cfg() -> Dictionary:
 	return _cfg
 
 
+## настройки и сцена модели — у наследника (финальный босс ULMutElite) свои
+func _conf() -> Dictionary:
+	return cfg()
+
+
+func _packed() -> PackedScene:
+	if _scene == null and ResourceLoader.exists(SCENE):
+		_scene = load(SCENE)
+	return _scene
+
+
 func setup(k: String, at: Vector3, seed_n: int) -> void:
 	kind = k
-	c = cfg()
+	c = _conf()
 	def = KINDS[k].duplicate(true)
 	for key in ["hp", "walk", "run", "see", "hear", "hear_run", "hear_walk", "lose", "lose_s", "alert_s", "stagger_dmg"]:
 		if c.has(key):
@@ -137,16 +149,19 @@ func _shapes() -> void:
 
 
 func _model() -> void:
-	if _scene == null and ResourceLoader.exists(SCENE):
-		_scene = load(SCENE)
-	if _scene == null:
+	var ps := _packed()
+	if ps == null:
 		push_warning("Элита: нет модели %s" % SCENE)
 		return
-	model = _scene.instantiate()
+	model = ps.instantiate()
 	model.name = "Model"
 	add_child(model)
-	walk_v = float(model.get_meta("walk_v", walk_v))
-	run_v = float(model.get_meta("run_v", run_v))
+	# модель собрана в «рамке Элиты» (5 м в длину); scale в настройках увеличивает её целиком — шаг и галоп
+	# записаны на скорость, которая растёт во столько же раз (лапы не скользят)
+	var msc := float(c.get("scale", 1.0))
+	model.scale = Vector3.ONE * msc
+	walk_v = float(model.get_meta("walk_v", walk_v)) * msc
+	run_v = float(model.get_meta("run_v", run_v)) * msc
 	skel = model.find_child("Skel", true, false) as Skeleton3D
 	anim = model.find_child("Anim", true, false) as AnimationPlayer
 	for mi in model.find_children("*", "MeshInstance3D", true, false):
@@ -165,17 +180,17 @@ func _model() -> void:
 	# дерево движений: шесть состояний; шаг и галоп — с подстройкой скорости проигрывания (TimeScale)
 	var smn := AnimationNodeStateMachine.new()
 	var pos := 0
-	for st in ST:
+	for st in states:
 		var an := AnimationNodeAnimation.new()
-		an.animation = ST[st]
+		an.animation = states[st]
 		smn.add_node(st, an, Vector2(pos * 160, 0))
 		pos += 1
-	for a in ST:
-		for b in ST:
+	for a in states:
+		for b in states:
 			if a == b or a == "Death":
 				continue
 			var tr := AnimationNodeStateMachineTransition.new()
-			tr.xfade_time = 0.12 if b == "Death" else (0.18 if b in ["BiteAttack", "ClawAttack"] else 0.3)
+			tr.xfade_time = 0.12 if b == "Death" else (0.18 if not b in ["Idle", "Walk", "Run", "Turn"] else 0.3)
 			smn.add_transition(a, b, tr)
 	var bt := AnimationNodeBlendTree.new()
 	bt.add_node("sm", smn, Vector2(0, 0))
@@ -192,7 +207,7 @@ func _model() -> void:
 	sm = tree.get("parameters/sm/playback")
 	sm.start("Idle")
 	cur_state = "Idle"
-	_death_len = anim.get_animation(ST.Death).length if anim.has_animation(ST.Death) else 3.0
+	_death_len = anim.get_animation(states.Death).length if anim.has_animation(states.Death) else 3.0
 	if skel != null:
 		look = ULEliteLook.new()
 		look.name = "Look"
@@ -630,7 +645,7 @@ func _el_attack(p: Vector3) -> void:
 	state = "attack"
 	_hit_open.clear()
 	var st := "BiteAttack"
-	var clip := ST.BiteAttack
+	var clip: String = states.BiteAttack
 	match pick:
 		"bite":
 			bites += 1
@@ -649,7 +664,7 @@ func _el_attack(p: Vector3) -> void:
 			combos += 1
 			claws_r += 1
 			claws_l += 1
-			clip = ST.ClawAttack
+			clip = states.ClawAttack
 			st = "ClawAttack"
 			_hit_open["claw_r"] = true
 			_hit_open["claw_l"] = true
