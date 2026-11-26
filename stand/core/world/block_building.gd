@@ -150,7 +150,7 @@ void fragment() {
 
 ## средняя светлота (линейная) фототекстур построек — для сбивки повтора пятнами (SHADER_BODY, mean_l); посчитана
 ## по последнему мип-уровню импортированной текстуры — то же, что раньше читал шейдер на каждой точке
-const MEAN_LUM := {"bark_brown_02": 0.0889, "brick_4": 0.1866, "brown_mud_02": 0.0551, "concrete_floor_worn_001": 0.0882, "damaged_concrete_floor": 0.0429, "dirty_tiles": 0.0251, "dry_ground_01": 0.1958, "herringbone_parquet": 0.1764, "long_white_tiles": 0.5692, "old_linoleum_flooring_01": 0.2646, "old_planks_02": 0.0903, "old_wood_floor": 0.0693, "rectangular_facade_tiles": 0.0864, "rusty_corrugated_iron": 0.0384, "rusty_metal_02": 0.2942, "weathered_brown_planks": 0.0734, "weathered_plank_siding": 0.0505, "wood_planks_grey": 0.0561, "worn_asphalt": 0.0429, "worn_corrugated_iron": 0.1752, "worn_plaster_wall": 0.1460, "worn_tile_floor": 0.0548}
+const MEAN_LUM := {"concrete_tiles_02": 0.1266, "metal_plate_02": 0.0703, "hangar_concrete_floor": 0.0303, "concrete_wall_008": 0.2374, "concrete_wall_006": 0.0865, "bark_brown_02": 0.0889, "brick_4": 0.1866, "brown_mud_02": 0.0551, "concrete_floor_worn_001": 0.0882, "damaged_concrete_floor": 0.0429, "dirty_tiles": 0.0251, "dry_ground_01": 0.1958, "herringbone_parquet": 0.1764, "long_white_tiles": 0.5692, "old_linoleum_flooring_01": 0.2646, "old_planks_02": 0.0903, "old_wood_floor": 0.0693, "rectangular_facade_tiles": 0.0864, "rusty_corrugated_iron": 0.0384, "rusty_metal_02": 0.2942, "weathered_brown_planks": 0.0734, "weathered_plank_siding": 0.0505, "wood_planks_grey": 0.0561, "worn_asphalt": 0.0429, "worn_corrugated_iron": 0.1752, "worn_plaster_wall": 0.1460, "worn_tile_floor": 0.0548}
 
 ## материалы: текстура (assets/world/tex/<имя>_c.jpg), размер плитки текстуры, м, оттенок, грязь, шероховатость
 const MATS := {
@@ -216,9 +216,16 @@ const MATS := {
 	"cellar_wall": ["worn_plaster_wall", 1.6, Color(1.3, 1.18, 1.0), 0.35, 0.95, {"streaks": 0.45, "sat": 0.5}],
 	"cellar_floor": ["damaged_concrete_floor", 2.2, Color(1.5, 1.3, 1.05), 0.4, 0.95, {}],
 	"potato": ["dry_ground_01", 0.45, Color(1.35, 1.05, 0.72), 0.0, 1.0, {}],
+	# База Внешников (бункер): бетонные стены и плиты пола, стальной настил, тёмный наливной пол — текстуры Poly Haven (CC0)
+	"xb_floor": ["concrete_tiles_02", 2.6, Color(0.92, 0.91, 0.88), 0.35, 0.85, {"sat": 0.5}],
+	"xb_plate": ["metal_plate_02", 2.2, Color(1.15, 1.15, 1.2), 0.2, 0.55, {"metal": 0.3, "sat": 0.45}],
+	"xb_dark": ["hangar_concrete_floor", 3.2, Color(1.45, 1.45, 1.45), 0.2, 0.9, {"sat": 0.4}],
+	"xb_wall": ["concrete_wall_008", 2.8, Color(0.66, 0.66, 0.63), 0.85, 0.92, {"streaks": 0.7, "sat": 0.45, "storey": 1000.0}],
+	"xb_wall_lab": ["concrete_wall_008", 2.8, Color(0.84, 0.88, 0.86), 0.45, 0.8, {"streaks": 0.3, "sat": 0.3, "storey": 1000.0}],
+	"xb_wall_dark": ["concrete_wall_006", 2.8, Color(0.6, 0.57, 0.55), 1.0, 0.92, {"streaks": 0.8, "sat": 0.6, "storey": 1000.0}],
 }
 ## какие материалы срезаются на этаже героя (стены и двери)
-const CUTTABLE := ["facade", "facade2", "plaster", "brick", "plinth", "trim", "int_blue", "int_green", "int_beige", "int_grey", "int_beige1", "int_grey1", "tile_wall", "door", "frame", "slab", "wood", "metal", "wmetal", "gmetal", "glass", "canvas", "canvas_in", "armygreen", "panel", "rust", "planks", "planks_blue", "planks_green", "planks_brown", "int_wood", "shutter", "wframe", "earth", "cellar_wall", "logs", "gapwood", "roof_tin", "q_rust", "q_tin", "glass_lit"]
+const CUTTABLE := ["xb_wall", "xb_wall_lab", "xb_wall_dark", "facade", "facade2", "plaster", "brick", "plinth", "trim", "int_blue", "int_green", "int_beige", "int_grey", "int_beige1", "int_grey1", "tile_wall", "door", "frame", "slab", "wood", "metal", "wmetal", "gmetal", "glass", "canvas", "canvas_in", "armygreen", "panel", "rust", "planks", "planks_blue", "planks_green", "planks_brown", "int_wood", "shutter", "wframe", "earth", "cellar_wall", "logs", "gapwood", "roof_tin", "q_rust", "q_tin", "glass_lit"]
 
 static var mats := {}             ## общие материалы (make_materials)
 static var cut_mats := {}         ## их срезанные копии
@@ -275,7 +282,7 @@ static func make_materials(noise: Texture2D) -> void:
 		m.set_shader_parameter("noise", noise)
 		m.set_shader_parameter("albedo_tex", load(T + String(d[0]) + "_c.jpg"))
 		m.set_shader_parameter("mean_l", float(MEAN_LUM.get(String(d[0]), 0.12)))
-		if ResourceLoader.exists(T + String(d[0]) + "_n.jpg") and k in ["facade", "facade2", "plaster", "brick", "tiles", "roof", "int_blue", "int_green", "int_beige", "int_grey", "int_beige1", "int_grey1", "lino", "planks", "planks_blue", "planks_green", "planks_brown", "roof_tin", "floorboard", "earth", "cellar_wall", "cellar_floor", "potato", "wood", "int_wood"]:
+		if ResourceLoader.exists(T + String(d[0]) + "_n.jpg") and k in ["xb_floor", "xb_plate", "xb_dark", "xb_wall", "xb_wall_lab", "xb_wall_dark", "facade", "facade2", "plaster", "brick", "tiles", "roof", "int_blue", "int_green", "int_beige", "int_grey", "int_beige1", "int_grey1", "lino", "planks", "planks_blue", "planks_green", "planks_brown", "roof_tin", "floorboard", "earth", "cellar_wall", "cellar_floor", "potato", "wood", "int_wood"]:
 			m.set_shader_parameter("normal_tex", load(T + String(d[0]) + "_n.jpg"))
 			m.set_shader_parameter("has_normal", true)
 		if ResourceLoader.exists(T + String(d[0]) + "_r.jpg"):
@@ -1258,7 +1265,15 @@ func _floor(bi: int, f: int) -> void:
 		fr = _hall_rooms(bi, f)
 	# покрытие пола по комнатам
 	for r in fr:
+		# пол: по типу помещения; у блока или у всей постройки может быть своя таблица (floor_mat: {тип: материал, «*»: остальные})
 		var fm := String(_floor_mat(String(r.type)))
+		for src in [bk.get("floor_mat", {}), def.get("floor_mat", {})]:
+			if (src as Dictionary).has(String(r.type)):
+				fm = String(src[String(r.type)])
+				break
+			if (src as Dictionary).has("*"):
+				fm = String(src["*"])
+				break
 		var fy := y + (0.012 if f == 0 else 0.0)
 		# в лестничной клетке покрытие — в обход проёма над маршем
 		# (в зальном блоке с лестницей марш идёт прямо в зале — проём вырезается и там)

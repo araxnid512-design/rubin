@@ -1748,6 +1748,15 @@ func _env() -> void:
 		e.adjustment_saturation *= float(stl.get("sat_k", 1.08))
 		var fc: Array = stl.get("fog", [0.62, 0.6, 0.52])
 		e.fog_light_color = Color(fc[0], fc[1], fc[2])
+	if ULSettings.place.begins_with("externals_f") and not arena:
+		# Под землёй солнца нет: слабый верхний свет и цветной рассеянный — тёплый на жилом этаже, зеленоватый в
+		# лаборатории, красный аварийный на нижнем. Лампы помещений и светящиеся полосы на этом фоне заметнее.
+		var xl := clampi(int(ULSettings.place.substr(11)), 1, 3)
+		sun.light_energy *= 0.42
+		sun.light_color = [Color(1.0, 0.92, 0.8), Color(0.88, 1.0, 0.93), Color(1.0, 0.76, 0.7)][xl - 1]
+		e.ambient_light_color = [Color(0.8, 0.74, 0.64), Color(0.62, 0.8, 0.7), Color(0.82, 0.5, 0.46)][xl - 1]
+		e.ambient_light_energy *= 0.78
+		e.background_color = Color(0.01, 0.01, 0.012)
 	_sun_e0 = sun.light_energy
 	_sun_c0 = sun.light_color
 	# тени солнца — на всех локациях (и на базе) по настройкам графики: одна карта теней на 34 м (камера видит

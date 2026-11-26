@@ -137,6 +137,24 @@ const D_POSTS := {
 	3: {"ext_sniper": [9, 5, 6, 3, 2], "ext_titan": [3, 9, 9, 2, 5, 6, 4], "ext_assault": [2, 3, 5, 6, 12, 10, 11, 4, 7, 8]},
 }
 
+## Материалы этажей (бункер): стены — бетон (этаж 1 — серый, этаж 2 — светлый лабораторный, этаж 3 — тёмный в
+## потёках); полы — бетонные плиты, в технических помещениях — стальной настил или тёмный наливной пол.
+const D_WALL := {1: "xb_wall", 2: "xb_wall_lab", 3: "xb_wall_dark"}
+const D_FLOOR := {
+	1: {"*": "xb_floor", "kitchen": "ktiles", "wc": "ktiles", "proc": "ktiles", "m_quarters": "floorboard"},
+	2: {"*": "xb_floor", "proc": "ktiles"},
+	3: {"*": "xb_floor", "proc": "ktiles"},
+}
+## пол отдельных помещений (по названию)
+const D_ROOM_FLOOR := {
+	1: {"Лифтовой зал": "xb_plate", "Оружейная": "xb_plate", "Склад личных вещей": "xb_dark", "Комната связи": "xb_dark", "Казарма A": "xb_dark", "Казарма B": "xb_dark",
+		"Пост охраны": "xb_plate"},
+	2: {"Лифтовой зал": "xb_plate", "Серверная": "xb_plate", "Морозильное хранилище биоматериала": "xb_plate", "Химическое хранилище": "xb_dark",
+		"Склад контейнеров и образцов": "xb_dark", "Капсулы с образцами": "xb_plate", "Обеззараживающий шлюз": "xb_plate"},
+	3: {"Лифтовой зал": "xb_plate", "Экспериментальный сектор": "xb_dark", "Реактор": "xb_plate", "Генераторная": "xb_plate", "Зал «Высокая опасность»": "xb_dark",
+		"Зал капсул": "xb_plate", "Кладовая": "xb_dark", "Техническая": "xb_plate"},
+}
+
 static var _ugcfg := {}
 
 
@@ -177,7 +195,7 @@ func x_cache() -> String:
 
 
 func x_sig_n() -> int:
-	return hash(str(D_ROOMS[level]) + str(D_LINKS[level]) + str(D_FURN[level]) + "|" + str(ULBlock.GEN_V))
+	return hash(str(D_ROOMS[level]) + str(D_LINKS[level]) + str(D_FURN[level]) + str(D_WALL[level]) + str(D_FLOOR[level]) + str(D_ROOM_FLOOR[level]) + "|v2|" + str(ULBlock.GEN_V))
 
 
 func x_defs() -> Array:
@@ -189,10 +207,12 @@ func x_defs() -> Array:
 		var z1 := float(r[5])
 		blocks.append({"c": Vector2((x0 + x1) * 0.5, (z0 + z1) * 0.5), "L": x1 - x0, "W": z1 - z0, "axis": "x", "floors": 1, "layout": "hall", "row": [],
 			"hall_type": String(r[1]), "entr": [], "blind": ["s+", "s-", "e+", "e-"]})
+		if (D_ROOM_FLOOR[level] as Dictionary).has(String(r[0])):
+			blocks[blocks.size() - 1]["floor_mat"] = {"*": String(D_ROOM_FLOOR[level][String(r[0])])}
 	var links: Array = []
 	for p in D_LINKS[level]:
 		links.append([p, 1])
-	return [{"id": "ug", "n": level_title(level), "kind": "hq", "skin": "plaster", "int": "tile_wall" if level == 2 else "int_grey1", "storey": 3.6, "te": 0.4,
+	return [{"id": "ug", "n": level_title(level), "kind": "hq", "skin": "plaster", "int": D_WALL[level], "floor_mat": D_FLOOR[level], "storey": 3.6, "te": 0.4,
 		"links": links, "blocks": blocks}]
 
 
