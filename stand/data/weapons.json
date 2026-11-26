@@ -3283,7 +3283,7 @@
   },
   "sound": {
    "shot": "shot_ak",
-   "pitch": 1.04
+   "pitch": 0.97
   },
   "case": [
    0.039,
@@ -3555,7 +3555,7 @@
   },
   "sound": {
    "shot": "shot_ak",
-   "pitch": 1.12
+   "pitch": 1.04
   },
   "case": [
    0.045,
@@ -3814,9 +3814,7 @@
    ]
   },
   "sound": {
-   "shot": "shot_ak",
-   "pitch": 1.18,
-   "db": -1
+   "shot": "shot_ak"
   },
   "case": [
    0.045,
@@ -4073,7 +4071,7 @@
   },
   "sound": {
    "shot": "shot_pkp",
-   "pitch": 1.14,
+   "pitch": 1.07,
    "db": -1
   },
   "case": [
@@ -4339,7 +4337,7 @@
   "sound": {
    "shot": "shot_vss",
    "db": -5,
-   "pitch": 0.94,
+   "pitch": 0.96,
    "tail": false,
    "weight": 0.18
   },
@@ -4494,7 +4492,7 @@
    "ready": {
     "anchor": "butt",
     "pos": [
-     0.03,
+     -0.02,
      -0.09,
      0.13
     ],
@@ -4824,7 +4822,7 @@
   },
   "sound": {
    "shot": "shot_ak",
-   "pitch": 1.24,
+   "pitch": 1.06,
    "db": -1
   },
   "case": [
@@ -5021,7 +5019,7 @@
   },
   "sound": {
    "shot": "shot_spas",
-   "pitch": 0.62,
+   "pitch": 0.82,
    "db": -1,
    "weight": 0.9
   },
@@ -5216,12 +5214,8 @@
    ]
   },
   "sound": {
-   "shot": "shot_spas",
-   "pitch": 0.5,
-   "db": 2,
-   "shot2": "swoosh",
-   "db2": 2,
-   "pitch2": 0.8,
+   "shot": "shot_rpg",
+   "db": 3,
    "weight": 1.0
   },
   "case": false

@@ -5361,6 +5361,42 @@ func _attack_target():
 	return _nearest_target(float(d.get("range", 28.0)), 180.0, true)
 
 
+## Цель не «прыгает» между врагами на одном расстоянии (стая идёт на героя — ближайший меняется каждые полсекунды,
+## и героя, который пятится со стрельбой, мотало от одного к другому): прежняя цель держится, пока она жива, видна и
+## в досягаемости, а новая не ближе её больше чем на метр с небольшим (в ближнем бою — на треть досягаемости).
+func _keep_target(nt):
+	var old = _mark_t
+	if old == null or nt == null or old == nt or not is_instance_valid(old):
+		return nt
+	if float(old.get_meta("hp")) <= 0.0 or (nt is ULEnemy) != (old is ULEnemy):
+		return nt
+	var it = _hand_item()
+	var gun := false
+	var max_d := 1.7
+	if it != null:
+		var d := ULItems.get_def(String(it.id))
+		gun = String(d.kind) != "melee"
+		max_d = float(d.get("range", 28.0)) if gun else 2.1
+	var vo: Vector3 = old.global_position - player.global_position
+	var vn: Vector3 = nt.global_position - player.global_position
+	if absf(vo.y) > 1.6:
+		return nt
+	vo.y = 0
+	vn.y = 0
+	var d_old := vo.length() - (float((old as ULEnemy).def.get("hit_r", 0.0)) if old is ULEnemy else 0.0)
+	var d_new := vn.length() - (float((nt as ULEnemy).def.get("hit_r", 0.0)) if nt is ULEnemy else 0.0)
+	if d_old > max_d:
+		return nt
+	if gun:
+		# прежняя цель заслонена стеной — менять; заслонена другим заражённым из той же стаи — держать
+		var q := PhysicsRayQueryParameters3D.create(player.global_position + Vector3.UP * 1.35, old.global_position + Vector3.UP * 1.2)
+		q.exclude = [player.get_rid()]
+		var hit := get_world_3d().direct_space_state.intersect_ray(q)
+		if not hit.is_empty() and hit.collider != old and not (hit.collider is ULEnemy):
+			return nt
+	return old if d_new > d_old - minf(1.2, max_d * 0.33) else nt
+
+
 func _aim_at(t) -> void:
 	if t != null:
 		var v: Vector3 = t.global_position - player.global_position
@@ -5462,7 +5498,7 @@ func _shoot(it: Dictionary, d: Dictionary) -> void:
 	_atk_cd = minf(_atk_cd, 0.0) + 1.0 / float(d.rate)    # остаток прошлого кадра идёт в зачёт (темп не зависит от FPS)
 	_aim_t = 0.0
 	rig.hold.set_stance("aim")
-	var t = _nearest_target(float(d.get("range", 28.0)), 180.0, true)
+	var t = _keep_target(_nearest_target(float(d.get("range", 28.0)), 180.0, true))
 	if t == null:
 		_why_no_target(float(d.get("range", 28.0)))
 	_aim_at(t)
@@ -5514,6 +5550,7 @@ func _shoot(it: Dictionary, d: Dictionary) -> void:
 		blg["sdmg"] = float(d.dmg)
 		if String(d.ammo) == "pg7v":
 			_rocket_trail(blg)
+			snd.play("rocket_fly", vis_from, -5.0, 0.03, 0.08)      # гул двигателя уходящей гранаты (настоящая запись)
 		pellets = 0
 	for i in pellets:
 		var dir := (f + Vector3(randf_range(-1, 1), randf_range(-0.4, 0.4), randf_range(-1, 1)) * tan(spread)).normalized()
@@ -6080,7 +6117,7 @@ func _combat_tick(delta: float) -> void:
 	_bullets_tick(delta)
 	# метка под целью
 	if Engine.get_process_frames() % 4 == 0:
-		_mark_t = _attack_target()
+		_mark_t = _keep_target(_attack_target())
 	if _mark:
 		_mark.visible = false                   # красный круг под целью не рисуется (цель выбирается как прежде)
 		if _mark.visible:
@@ -9898,6 +9935,118 @@ func _count_item(id: String) -> int:
 		if it != null and String(it.id) == id:
 			n += 1
 	return n
+
+
+## Герой пятится и стреляет (--as-test=backfire; жалоба пользователя 26.11: «когда стреляет и идёт назад, он не ровно
+## идёт, а его бросает из стороны в сторону»): группа заражённых идёт на героя, он отходит назад с огнём. Мерка —
+## сколько раз за проход сменилась цель, на сколько градусов и сколько раз туда-сюда качнулся взгляд, насколько
+## таз и голова уходят вбок от линии хода.
+func _backfire_test() -> void:
+	DirAccess.make_dir_recursive_absolute(out)
+	hp_lock = true
+	inv.from_dict({})
+	inv.primary = ULItems.make("ak74m")
+	inv.primary.mag = 30
+	inv.add(ULItems.make("a545", 90))
+	inv.add(ULItems.make("a545", 90))
+	inv.hand = "primary"
+	var home_p := Vector3(-30, 0.05, 40)
+	for sc in [["назад, один враг прямо", [Vector3(9, 0, 0)], Vector3(-14, 0, 0)], ["назад, стая из пяти", [Vector3(8, 0, -2.2), Vector3(8.4, 0, 2.0), Vector3(9.5, 0, 0.3), Vector3(10.5, 0, -1.2), Vector3(10.8, 0, 1.6)], Vector3(-14, 0, 0)],
+			["боком влево, враг прямо", [Vector3(9, 0, 0)], Vector3(0, 0, -12)], ["боком вправо, враг прямо", [Vector3(9, 0, 0)], Vector3(0, 0, 12)]]:
+		clear_enemies()
+		player.global_position = home_p
+		player.rotation.y = PI * 0.5
+		player.velocity = Vector3.ZERO
+		_apply_gear()
+		await _wait_drawn()
+		inv.primary.mag = 30
+		for off in sc[1]:
+			var e := spawn_enemy("infected", home_p + (off as Vector3))
+			e.hp = 100000.0
+			e.set_meta("hp", 100000.0)
+			if (sc[1] as Array).size() > 1:
+				e.state = "chase"
+				e._last = player.global_position
+			else:
+				e.def = e.def.duplicate()
+				e.def.see = 0.0
+				e.def.hear = 0.0
+				e.def.walk = 0.0
+		await get_tree().create_timer(0.4).timeout
+		_hud_touch[99] = "fire"
+		_hud_press("fire")
+		_auto = [home_p + (sc[2] as Vector3)]
+		_auto_k = 1.0
+		var t0 := 0.0
+		var yaw_prev := player.rotation.y
+		var swing := 0.0            # сумма поворотов взгляда, град
+		var flips := 0              # смен направления поворота (качнулся туда — обратно)
+		var last_sign := 0
+		var run_deg := 0.0
+		var tgt = null
+		var tgt_changes := 0
+		var z_min := 1e9
+		var z_max := -1e9
+		var hip_min := 1e9
+		var hip_max := -1e9
+		var fwd_min := 1e9
+		var fwd_max := -1e9
+		var modes := {}
+		var sk: Skeleton3D = rig.skel
+		var snaps := 0
+		var fin := {"side": 0.0, "fwd": 0.0, "head": 0.0}
+		var cb := func() -> void:
+			var rt := Vector3(sin(player.rotation.y + PI * 0.5), 0, cos(player.rotation.y + PI * 0.5))
+			var fwd := Vector3(sin(player.rotation.y), 0, cos(player.rotation.y))
+			var hp3: Vector3 = sk.global_transform * sk.get_bone_global_pose(sk.find_bone("Hip")).origin
+			var hd3: Vector3 = sk.global_transform * sk.get_bone_global_pose(sk.find_bone("Head")).origin
+			fin["side"] = (hp3 - player.global_position).dot(rt)
+			fin["fwd"] = (hp3 - player.global_position).dot(fwd)
+			fin["head"] = (hd3 - player.global_position).dot(rt)
+		if not sk.skeleton_updated.is_connected(cb):
+			sk.skeleton_updated.connect(cb)
+		var log_s := []
+		while t0 < 4.0:
+			await get_tree().process_frame
+			var dt := get_process_delta_time()
+			t0 += dt
+			inv.primary.mag = 30
+			var dy := rad_to_deg(wrapf(player.rotation.y - yaw_prev, -PI, PI))
+			yaw_prev = player.rotation.y
+			if t0 > 0.5:
+				swing += absf(dy)
+				# качание: поворот в одну сторону больше чем на 4°, затем — в обратную
+				if absf(dy) > 0.05:
+					var sg := 1 if dy > 0.0 else -1
+					if sg != last_sign:
+						if absf(run_deg) > 4.0:
+							flips += 1
+						run_deg = 0.0
+					run_deg += dy
+					last_sign = sg
+				if _mark_t != tgt:
+					if tgt != null:
+						tgt_changes += 1
+						print("[backfire]   %.2f с: цель %s → %s" % [t0, ("%.1f м" % (tgt as Node3D).global_position.distance_to(player.global_position)) if is_instance_valid(tgt) else "нет", ("%.1f м" % (_mark_t as Node3D).global_position.distance_to(player.global_position)) if _mark_t != null else "нет"])
+					tgt = _mark_t
+				z_min = minf(z_min, player.global_position.z)
+				z_max = maxf(z_max, player.global_position.z)
+				var side := float(fin.side)
+				fwd_min = minf(fwd_min, float(fin.fwd))
+				fwd_max = maxf(fwd_max, float(fin.fwd))
+				log_s.append("%.0f/%.0f/%.0f" % [float(fin.side) * 100.0, float(fin.head) * 100.0, float(fin.fwd) * 100.0])
+				hip_min = minf(hip_min, side)
+				hip_max = maxf(hip_max, side)
+				modes[move_mode] = int(modes.get(move_mode, 0)) + 1
+			if t0 > 1.2 + snaps * 0.9 and snaps < 3:
+				snaps += 1
+				await _snap("bf_%d_%d" % [int((sc[1] as Array).size()), snaps])
+		_hud_touch.erase(99)
+		_auto = []
+		sk.skeleton_updated.disconnect(cb)
+		print("[backfire] %s: смен цели %d, взгляд повернулся всего на %.0f°, резко качнулся (больше 4° и обратно) %d раз; таз относительно линии героя: вбок %.1f см, вперёд-назад %.1f см; режимы шага %s" % [String(sc[0]), tgt_changes, swing, flips, (hip_max - hip_min) * 100.0, (fwd_max - fwd_min) * 100.0, str(modes)])
+		await get_tree().create_timer(0.6).timeout
+	clear_enemies()
 
 
 func _reload_test() -> void:
@@ -19836,6 +19985,10 @@ func _run_test() -> void:
 				"вылетело %d, дымков %d, видно %d, лежит %d" % [rig.hold.fx.ejected - e7, rig.hold.fx.puffed - p7, int(cs7[0]), int(cs7[1])])
 			await _snap("a8_cases")
 		print("[inv] итог: ошибок %d" % _fails)
+		get_tree().quit()
+		return
+	if test == "backfire":
+		await _backfire_test()
 		get_tree().quit()
 		return
 	if test == "guns":

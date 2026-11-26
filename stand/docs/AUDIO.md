@@ -29,8 +29,11 @@ CC-BY, NC, с неясной лицензией и вырезанных из ч�
 | `mag_drop` | магазин упал | — | BMacZero / rubberduck | CC0 |
 | `hit_wood` | попадание в мишень | — | rubberduck «75 CC0 breaking / falling / hit sfx» | CC0 |
 | `step` | шаги по бетону | `footstep_concrete_000…004` | Kenney «Impact Sounds» | CC0 |
-| `step_concrete`, `step_wood`, `step_metal` | шаги по бетону, дереву, металлу | — | собственный синтез, `tools/make_sfx.py` | своё |
-| `door_creak`, `gate_open` | скрип двери, лязг ворот гаража | — | собственный синтез, `tools/make_sfx.py` | своё |
+| `step_concrete` | шаги по бетону | те же записи, что `step` | Kenney «Impact Sounds» | CC0 |
+| `step_wood` | шаги по дереву | `sfx100v2_footstep_wood_01…04` | rubberduck «100 CC0 SFX #2», opengameart.org/content/100-cc0-sfx-2 | CC0 |
+| `step_metal` | шаги по металлу | `bfh1_metal_hit_01, 04, 05, 06` (начало удара, приглушено) | rubberduck «75 CC0 breaking / falling / hit sfx» | CC0 |
+| `door_creak` | дверь | `qubodup-DoorOpen01`, `DoorOpen04` | qubodup «Door Open / Door Close Set», opengameart.org/content/door-open-door-close-set | CC0 |
+| `gate_open` | ворота гаража | начало `blast_door` (см. `bunker/docs/AUDIO_SOURCES.md`: «Metal Interactions», «old elevator door», rubberduck) | — | CC0 |
 | `cloth` | ткань, снаряжение | — | HaelDB «Footsteps Leather, Cloth, Armor», Fantozzi/qubodup | CC0 |
 | `zip` | молния рюкзака | — | AntumDeluge «Zipper», Kenney | CC0 |
 | `swoosh`, `swing` | взмах рукой, ногой, мачете | — | artisticdude «Swishes Sound Pack» | CC0 |
@@ -39,5 +42,32 @@ CC-BY, NC, с неясной лицензией и вырезанных из ч�
 | `body_fall` | падение тела | — | qubodup «12 wet towel …», Kenney | CC0 |
 | `breath_run` | дыхание на бегу | — | mikeask «Breathing Tired» | CC0 |
 | `block` | блок мачете | — | rubberduck, Kenney | CC0 |
-| `rock_rip`, `rock_throw`, `rock_hit` | Рубер вырывает камень, бросок, удар камня | синтез с нуля (шум, низкие тона, щелчки осыпи) | свой: `stand/tools/make_rock_sounds.py` | свой |
+| `rock_rip`, `rock_hit` | Рубер вырывает камень, удар камня | `bfh1_rock_breaking_01, 02`, `bfh1_rock_falling_01, 03`, замедлено до 0,8 (крупнее) | rubberduck «75 CC0 breaking / falling / hit sfx» | CC0 |
+| `rock_throw` | бросок камня | взмах `swoosh`, замедлен до 0,6 | artisticdude «Swishes Sound Pack» | CC0 |
+| `growl`, `roar`, `zdeath` | голоса заражённых: стон, крик при броске, предсмертный хрип | `zombie-17, 18, 21, 15` / `zombie-10, 12, 8` / `zombie-2, 22, 13` — человеческий голос | artisticdude «Zombies Sound Pack», opengameart.org/content/zombies-sound-pack | CC0 |
+| `chew` | заражённый ест | `crunch.2, 4, 6`, замедлено до 0,88 | StarNinjas «7 Eating Crunches», opengameart.org/content/7-eating-crunches | CC0 |
+| `grenade_boom` | разрыв гранаты, ракеты, снаряда | `gren_1`, `gren_2`, `expl_2` из `game/sfx` (подрыв заряда — видео морской пехоты США; «Chunky Explosion», Joth) | см. `game/sfx/CREDITS.md` | PD / CC0 |
+| `grenade_tink` | граната стукнула о пол | `clink1` | BMacZero «Metal Impact Sounds» | CC0 |
+| `shot_deagle` | Desert Eagle главаря | карабин Marlin 336 (.30-30) | FFSL | CC0 |
+| `shot_rpg`, `rocket_fly` | выстрел РПГ-7Д и гул уходящей гранаты | настоящий РПГ-7 и двигатель ракеты (`rpg_1…3`, `rpg_fly` из `game/sfx`) — видео армии и морской пехоты США | общественное достояние | PD |
+| `thump_light`, `thump_mid`, `thump_heavy` | «вес» выстрела — низ настоящего выстрела (всё выше ~200 Гц срезано) | Colt 1911, АК-47, винтовка Мосина | FFSL | CC0 |
+| `tail_open`, `tail_room` | раскат выстрела на улице, короткий отзвук в помещении | дальний микрофон тех же записей (`rifle_f1`, `sniper_f1`, `pistol_f1`, `smg_f1` из `game/sfx`) | FFSL | CC0 |
+| `engine_loop` | двигатель УАЗа | `car_engine_loop_1` | GGBotNet «Car Sound Effects Pack», opengameart.org/content/car-sound-effects-pack-low-quality | CC0 |
+| `rain_loop` | дождь | `2.ogg`, 12 с, шов цикла сглажен | «Rain (loopable)», opengameart.org/content/rain-loopable | CC0 |
 - `music_menu.mp3` — музыка главного меню и карты мира: «Dead Sector», прислана пользователем (его композиция).
+
+## 26.11: синтезированных звуков больше нет
+
+Пользователь: «Звуки мух убрать и звуки нормальные сделать, а не мультяшные». Раньше часть звуков считалась
+программой (синус, шум): шаги по дереву, металлу и бетону, скрип двери, ворота, взрыв гранаты, Desert Eagle, камни
+Рубера, чавканье, двигатель УАЗа, дождь, слои «веса» и «хвоста» выстрела, жужжание мух; а голоса заражённых были
+рыками «существ» из наборов для RPG. Теперь всё перечисленное — настоящие записи (таблица выше), собирается
+`tools/real_sounds.py` (обрезка тишины, фейды, моно, громкость — как у прежнего файла). Жужжание мух убрано совсем
+(мухи над телами только видны). Высота тона у новых стволов больше не уводится далеко от записи (не больше ±7 %,
+M16A4 звучит записью AR-15 как есть; M32 — дробовик, замедленный до 0,82; РПГ-7Д — настоящий РПГ-7).
+Прежние генераторы (`tools/make_sfx.py`, `make_rock_sounds.py`, `make_chew_sounds.py`, `make_boss_sounds.py`,
+звуковая часть `make_weather_assets.py` и `make_car_assets.py`) в игре больше не используются.
+Не менялись два служебных сигнала интерфейса: `beep` (писк таймера) и `alarm` (сирена перед перезагрузкой
+кластера) — электронные сигналы; откуда эти два файла, в описании не записано (добавлены со сборкой 36).
+У крупных мутантов голос по-прежнему ниже (поле `voice` в `data/enemies.json`: запись проигрывается медленнее).
+
