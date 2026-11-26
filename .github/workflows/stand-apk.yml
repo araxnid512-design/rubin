@@ -47,7 +47,14 @@ jobs:
         working-directory: stand/android
         run: |
           mkdir -p app/libs
-          curl -sfL --retry 5 -o app/libs/godot-4.6.3.stable.aar https://repo1.maven.org/maven2/org/godotengine/godot/4.6.3.stable/godot-4.6.3.stable.aar
+          # библиотека Godot: Maven Central иногда отвечает «слишком много запросов» (429) — тогда берётся тот же файл
+          # с официального зеркала Maven Central у Google; файл сверяется по контрольной сумме
+          AAR=org/godotengine/godot/4.6.3.stable/godot-4.6.3.stable.aar
+          for U in https://repo1.maven.org/maven2 https://maven-central.storage-download.googleapis.com/maven2 https://repo.maven.apache.org/maven2 https://repo1.maven.org/maven2; do
+            if curl -sfL --retry 4 --retry-all-errors -o app/libs/godot-4.6.3.stable.aar "$U/$AAR" && echo "d10e62b444c5cf3fcfc573fd0ed21c588331c7b8  app/libs/godot-4.6.3.stable.aar" | sha1sum -c -; then break; fi
+            echo "не скачалось с $U — пробую следующий источник"; rm -f app/libs/godot-4.6.3.stable.aar; sleep 20
+          done
+          test -s app/libs/godot-4.6.3.stable.aar
           echo "sdk.dir=$ANDROID_HOME" > local.properties
           chmod +x gradlew
           ./gradlew assembleRelease --no-daemon -q
