@@ -14,7 +14,7 @@ const PATH := "user://settings.json"
 ## ULGroundBake).
 const GFX := [
 	{"n": "Низкая", "scale": 1.0, "msaa": 0, "grass": 0.3, "range": 16.0, "shadows": 0, "aniso": false, "ground": false},
-	{"n": "Средняя", "scale": 1.0, "msaa": 2, "grass": 0.6, "range": 24.0, "shadows": 1, "aniso": false, "ground": true},
+	{"n": "Средняя", "scale": 1.0, "msaa": 2, "grass": 0.6, "range": 24.0, "shadows": 1, "aniso": false, "ground": false},
 	{"n": "Высокая", "scale": 1.0, "msaa": 2, "grass": 0.85, "range": 30.0, "shadows": 2, "aniso": true, "ground": true},
 	{"n": "Ультра", "scale": 1.0, "msaa": 4, "grass": 1.0, "range": 40.0, "shadows": 3, "aniso": true, "ground": true},
 ]
@@ -25,6 +25,10 @@ const SHADOW_OPTS := [-1, 0, 2, 3]
 const GRASS_OPTS := [-1.0, 0.3, 0.6, 1.0]
 const GROUND_OPTS := [-1, 1, 0]            ## земля: как в качестве / подробная / быстрая (запечённая)
 static var res_pct := 0
+## Память подстройки: на чём она остановилась в прошлый раз (сглаживание, тени, земля, проходы поверх кадра,
+## разрешение). Раньше каждая локация начиналась с полного качества, и подстройка заново спускалась по ступеням —
+## полминуты рывков при каждом входе. Теперь вход начинается с запомненного, вверх — как обычно, когда кадров хватает.
+static var adapt_mem := {}
 static var shadows_o := -1
 static var grass_o := -1.0
 static var ground_o := -1
@@ -41,6 +45,11 @@ const CAMS := [
 ## снимки с телефона: 39–42 %); прежде чем снижать разрешение, подстройка снимает сглаживание, тени и подробную
 ## землю (world.gd, _auto_res). Своё разрешение ниже этого игрок может выбрать сам — тогда предел — его выбор.
 const SCALE_MIN := 0.85
+## Крайний предел — только когда игра совсем не тянет (меньше FPS_HARD кадров/с уже без сглаживания, теней, подробной
+## земли и проходов резкости): 5–10 кадров/с на телефоне хуже мягкой картинки (жалоба пользователя 26.11:
+## «фпс поднять, а то 5–10 на обычной карте»). Как только кадров хватает — разрешение возвращается.
+const SCALE_LOW := 0.55
+const FPS_HARD := 24.0
 const FPS_MIN := 30.0             ## частота кадров, ниже которой разрешение снижается сразу и крупным шагом
 const C_BG := Color(0.06, 0.09, 0.13, 0.98)
 const C_LINE := Color(0.35, 0.75, 0.95, 0.7)
@@ -123,6 +132,10 @@ static func load_cfg() -> void:
 			grass_o = float(d.get("grass", -1.0))
 			ground_o = int(d.get("ground", -1)) if GROUND_OPTS.has(int(d.get("ground", -1))) else -1
 			auto_fps = bool(d.get("auto", true))
+			var am = d.get("am", {})
+			if am is Dictionary and am.has("scale"):
+				adapt_mem = {"msaa": bool(am.get("msaa", true)), "shadows": bool(am.get("shadows", true)), "ground": bool(am.get("ground", true)),
+					"post": bool(am.get("post", true)), "scale": clampf(float(am.get("scale", 1.0)), 0.3, 1.0)}
 			sharp = clampi(int(d.get("sharp", 1)), 0, 2)
 			volume = clampf(float(d.get("volume", 0.8)), 0.0, 1.0)
 			cam = clampi(int(d.get("cam", 1)), 0, CAMS.size() - 1)
@@ -131,7 +144,7 @@ static func load_cfg() -> void:
 static func save_cfg() -> void:
 	var f := FileAccess.open(PATH, FileAccess.WRITE)
 	if f:
-		f.store_string(JSON.stringify({"gfx": gfx, "volume": volume, "cam": cam, "res": res_pct, "shadows": shadows_o, "grass": grass_o, "ground": ground_o, "auto": auto_fps, "sharp": sharp}))
+		f.store_string(JSON.stringify({"gfx": gfx, "volume": volume, "cam": cam, "res": res_pct, "shadows": shadows_o, "grass": grass_o, "ground": ground_o, "auto": auto_fps, "sharp": sharp, "am": adapt_mem}))
 
 
 ## действующие настройки графики: пресет и свои поправки поверх
@@ -153,13 +166,18 @@ static func shadows() -> int:
 	return int(q().shadows)
 
 
+## упрощение моделей с расстоянием, точек экрана (см. apply)
+static func lod_px() -> float:
+	return [8.0, 4.0, 2.0, 1.0][clampi(gfx, 0, 3)]
+
+
 ## применить к окну: разрешение трёхмерной картинки, сглаживание, громкость
 static func apply(vp: Viewport) -> void:
 	load_cfg()
 	vp.scaling_3d_scale = float(q().scale)
 	# упрощение моделей с расстоянием (уровни детализации, созданные при импорте): насколько пикселей может
 	# «сдвинуться» силуэт — на «Низкой» сильнее, на «Ультра» как есть; толпа заражённых — главная доля треугольников
-	vp.mesh_lod_threshold = [6.0, 3.0, 1.5, 1.0][clampi(gfx, 0, 3)]
+	vp.mesh_lod_threshold = lod_px()
 	# сглаживание краёв: на мобильных видеочипах (плиточная отрисовка) 2× и 4× почти бесплатны
 	var ms := int(q().msaa)
 	vp.msaa_3d = Viewport.MSAA_4X if ms >= 4 else (Viewport.MSAA_2X if ms >= 2 else Viewport.MSAA_DISABLED)
@@ -276,7 +294,7 @@ static func panel(parent: Node, changed: Callable, extra: Array = []) -> Control
 	choice.call("Земля", ["Как в качестве", "Подробная", "Быстрая"], func() -> int: return GROUND_OPTS.find(ground_o), func(j: int) -> void: ground_o = int(GROUND_OPTS[j]))
 	choice.call("Резкость", ["Выкл", "Мягкая", "Сильная"], func() -> int: return sharp, func(j: int) -> void: sharp = j)
 	choice.call("Подстройка FPS", ["Вкл", "Выкл"], func() -> int: return 0 if auto_fps else 1, func(j: int) -> void: auto_fps = j == 0)
-	vb.add_child(lab.call("Подстройка держит плавность: при нехватке FPS сначала снимает сглаживание, потом тени, затем переходит на быструю землю и только потом понижает разрешение (не ниже %d %%). Трава и тени меняются при следующем входе на локацию." % int(round(SCALE_MIN * 100.0)), 13, Color(0.62, 0.68, 0.76)))
+	vb.add_child(lab.call("Подстройка держит плавность: при нехватке FPS сначала снимает сглаживание, потом тени, затем переходит на быструю землю убирает резкость с виньеткой и только потом понижает разрешение (не ниже %d %%; если кадров меньше %d — до %d %%). Трава и тени меняются при следующем входе на локацию." % [int(round(SCALE_MIN * 100.0)), int(FPS_HARD), int(round(SCALE_LOW * 100.0))], 13, Color(0.62, 0.68, 0.76)))
 	var scr := DisplayServer.window_get_size()
 	vb.add_child(lab.call("Экран: %d×%d точек. 3D-картинка рисуется в разрешении экрана (100 %%) на любом качестве — персонажи и локация так же чёткие, как надписи; «Разрешение 3D» ниже 100 %% — только если сами захотите больше кадров/с." % [maxi(scr.x, scr.y), mini(scr.x, scr.y)], 13, Color(0.62, 0.68, 0.76)))
 	# камера: сверху / с наклоном / по диагонали

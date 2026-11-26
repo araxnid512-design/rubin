@@ -129,6 +129,70 @@ const D_FURN := {
 	],
 }
 
+## Декорации-модели Tripo (assets/world/xd_*.glb): [модель, где, поворот, размер по осям самой модели (X, высота, Z),
+## столкновение, эффект]. Поворот: 0 — «лицо» модели (её +X) смотрит на восток, −π/2 — на юг, π/2 — на север, π — на запад.
+## Нет файла модели — предмет не ставится (на его месте остаётся прежняя обстановка, см. D_OLD).
+const D_XD := {
+	1: [
+		# казармы: шкафчики у западной стены
+		["xd_locker", Vector3(-35.3, 0, -7.5), 0.0, Vector3(0.65, 1.9, 2.3), true], ["xd_locker", Vector3(-35.3, 0, 7.5), 0.0, Vector3(0.65, 1.9, 2.3), true],
+		# склад личных вещей: шкафчики у южной стены
+		["xd_locker", Vector3(22.5, 0, 14.35), PI * 0.5, Vector3(0.65, 1.9, 2.3), true], ["xd_locker", Vector3(25.0, 0, 14.35), PI * 0.5, Vector3(0.65, 1.9, 2.3), true],
+		# оружейная: пирамиды с автоматами у северной стены, штабель патронных ящиков
+		["xd_gunrack", Vector3(18.0, 0, -5.2), PI * 0.5, Vector3(0.7, 1.9, 2.4), true], ["xd_gunrack", Vector3(21.5, 0, -5.2), PI * 0.5, Vector3(0.7, 1.9, 2.4), true],
+		["xd_gunrack", Vector3(25.0, 0, -5.2), PI * 0.5, Vector3(0.7, 1.9, 2.4), true], ["xd_ammo", Vector3(29.4, 0, -4.6), 0.3, Vector3(1.9, 1.5, 1.9), true],
+		["xd_ammo", Vector3(33.4, 0, 3.4), -0.4, Vector3(1.7, 1.35, 1.7), true],
+		# комната связи: серверные стойки
+		["xd_server", Vector3(31.0, 0, -14.4), -PI * 0.5, Vector3(1.0, 2.1, 0.85), true], ["xd_server", Vector3(32.0, 0, -14.4), -PI * 0.5, Vector3(1.0, 2.1, 0.85), true],
+		["xd_server", Vector3(33.0, 0, -14.4), -PI * 0.5, Vector3(1.0, 2.1, 0.85), true],
+		# лифтовой зал и коридоры: вентиляция, трубы
+		["xd_vent", Vector3(-12.6, 0, 0.0), 0.0, Vector3(1.5, 2.0, 1.2), true], ["xd_pipes", Vector3(34.6, 0, -18.0), 0.0, Vector3(1.7, 1.6, 2.0), true],
+		["xd_pipes", Vector3(-34.6, 0, 18.0), PI, Vector3(1.7, 1.6, 2.0), true],
+	],
+	2: [
+		# серверная: два ряда стоек лицом на юг
+		["xd_server", Vector3(24.0, 0, -19.9), -PI * 0.5, Vector3(1.0, 2.1, 0.85), true], ["xd_server", Vector3(25.0, 0, -19.9), -PI * 0.5, Vector3(1.0, 2.1, 0.85), true],
+		["xd_server", Vector3(26.0, 0, -19.9), -PI * 0.5, Vector3(1.0, 2.1, 0.85), true], ["xd_server", Vector3(31.0, 0, -19.9), -PI * 0.5, Vector3(1.0, 2.1, 0.85), true],
+		["xd_server", Vector3(32.0, 0, -19.9), -PI * 0.5, Vector3(1.0, 2.1, 0.85), true], ["xd_server", Vector3(33.0, 0, -19.9), -PI * 0.5, Vector3(1.0, 2.1, 0.85), true],
+		["xd_server", Vector3(26.0, 0, -14.4), -PI * 0.5, Vector3(1.0, 2.1, 0.85), true], ["xd_server", Vector3(27.0, 0, -14.4), -PI * 0.5, Vector3(1.0, 2.1, 0.85), true],
+		["xd_server", Vector3(31.0, 0, -14.4), -PI * 0.5, Vector3(1.0, 2.1, 0.85), true], ["xd_server", Vector3(32.0, 0, -14.4), -PI * 0.5, Vector3(1.0, 2.1, 0.85), true],
+		["xd_vent", Vector3(22.0, 0, -11.0), PI * 0.5, Vector3(1.5, 2.0, 1.2), true],
+		# морозильное хранилище: лари с биоматериалом вдоль северной стены
+		["xd_cryo", Vector3(-33.6, 0, -34.9), PI * 0.5, Vector3(1.15, 1.05, 2.4), true], ["xd_cryo", Vector3(-30.6, 0, -34.9), PI * 0.5, Vector3(1.15, 1.05, 2.4), true],
+		["xd_cryo", Vector3(-27.6, 0, -34.9), PI * 0.5, Vector3(1.15, 1.05, 2.4), true], ["xd_cryo", Vector3(-24.0, 0, -34.9), PI * 0.5, Vector3(1.15, 1.05, 2.4), true],
+		["xd_cryo", Vector3(-34.9, 0, -29.0), 0.0, Vector3(1.15, 1.05, 2.4), true],
+		# химическое хранилище: бочки и канистры на поддонах
+		["xd_chem", Vector3(-33.6, 0, -19.0), 0.0, Vector3(2.1, 1.25, 1.75), true], ["xd_chem", Vector3(-33.6, 0, -15.6), PI * 0.5, Vector3(2.1, 1.25, 1.75), true],
+		["xd_chem", Vector3(-33.6, 0, -12.2), 0.0, Vector3(2.1, 1.25, 1.75), true], ["xd_pipes", Vector3(-25.0, 0, -11.2), -PI * 0.5, Vector3(1.7, 1.6, 2.0), true],
+		# исследовательская лаборатория: столы с приборами
+		["xd_labtable", Vector3(6.6, 0, -19.9), PI * 0.5, Vector3(1.2, 1.7, 2.3), true], ["xd_labtable", Vector3(17.6, 0, -19.9), PI * 0.5, Vector3(1.2, 1.7, 2.3), true],
+		# капсулы с образцами: трубы у северной стены
+		["xd_pipes", Vector3(-12.2, 0, 34.4), 0.0, Vector3(1.7, 1.6, 2.0), true], ["xd_pipes", Vector3(12.2, 0, 34.4), PI, Vector3(1.7, 1.6, 2.0), true],
+	],
+	3: [
+		# арена: гермоворота в северной стене, пилоны сдерживания у боковых стен
+		["xd_blastdoor", Vector3(0.0, 0, -35.3), -PI * 0.5, Vector3(1.3, 4.2, 6.0), false], ["xd_pylon", Vector3(16.5, 0, -29.0), 0.0, Vector3(1.4, 4.4, 1.8), true, "glow"],
+		["xd_pylon", Vector3(-16.5, 0, -29.0), PI, Vector3(1.4, 4.4, 1.8), true, "glow"],
+		# зал «Высокая опасность»: гермоворота в южной стене
+		["xd_blastdoor", Vector3(0.0, 0, 35.25), PI * 0.5, Vector3(1.4, 3.8, 7.2), false],
+		# командный пункт: серверные стойки
+		["xd_server", Vector3(-34.6, 0, -34.9), -PI * 0.5, Vector3(1.0, 2.1, 0.85), true], ["xd_server", Vector3(-33.6, 0, -34.9), -PI * 0.5, Vector3(1.0, 2.1, 0.85), true],
+		["xd_server", Vector3(-32.6, 0, -34.9), -PI * 0.5, Vector3(1.0, 2.1, 0.85), true],
+		# реактор: трубы и вентиляция по углам
+		["xd_pipes", Vector3(34.4, 0, -14.0), 0.0, Vector3(1.9, 1.8, 2.3), true], ["xd_pipes", Vector3(19.8, 0, -14.0), PI, Vector3(1.9, 1.8, 2.3), true],
+		["xd_vent", Vector3(34.8, 0, -30.0), PI, Vector3(1.5, 2.0, 1.2), true],
+		# зал капсул и генераторная
+		["xd_pipes", Vector3(-14.0, 0, 6.0), PI, Vector3(1.7, 1.6, 2.0), true], ["xd_vent", Vector3(13.4, 0, -10.6), 0.0, Vector3(1.5, 2.0, 1.2), true],
+		# кладовая: ящики с патронами; техническая: вентиляция и трубы
+		["xd_ammo", Vector3(-33.6, 0, 16.0), 0.2, Vector3(1.9, 1.5, 1.9), true], ["xd_ammo", Vector3(-26.4, 0, 34.0), -0.5, Vector3(1.7, 1.35, 1.7), true],
+		["xd_vent", Vector3(-22.8, 0, 14.6), -PI * 0.5, Vector3(1.5, 2.0, 1.2), true], ["xd_pipes", Vector3(-13.6, 0, 20.0), PI, Vector3(1.7, 1.6, 2.0), true],
+		# биолаборатория: столы с приборами у южной стены
+		["xd_labtable", Vector3(18.0, 0, 35.0), PI * 0.5, Vector3(1.2, 1.7, 2.3), true], ["xd_labtable", Vector3(30.0, 0, 35.0), PI * 0.5, Vector3(1.2, 1.7, 2.3), true],
+	],
+}
+## прежняя обстановка (D_FURN), которую заменяют модели Tripo: убирается, только когда новая модель есть в игре
+const D_OLD := {"ul_gun_rack": "xd_gunrack", "hm_rack": "xd_server", "gr_barrels": "xd_chem"}
+
 ## посты: в каких помещениях стоят снайперы (длинные залы и коридоры) и Титаны (проходы и ключевые залы)
 const D_POSTS := {
 	1: {"ext_sniper": [], "ext_titan": [1, 2, 11, 15], "ext_assault": [3, 4, 7, 8, 8, 9, 9, 10, 11, 12, 13, 14, 15, 16, 17, 1, 2, 4, 8, 9]},
@@ -194,7 +258,7 @@ func x_cache() -> String:
 
 
 func x_sig_n() -> int:
-	return hash(str(D_ROOMS[level]) + str(D_LINKS[level]) + str(D_FURN[level]) + str(D_WALL[level]) + str(D_FLOOR[level]) + str(D_ROOM_FLOOR[level]) + "|v3|" + str(ULBlock.GEN_V))
+	return hash(str(D_ROOMS[level]) + str(D_LINKS[level]) + str(D_FURN[level]) + str(D_XD[level]) + str(D_WALL[level]) + str(D_FLOOR[level]) + str(D_ROOM_FLOOR[level]) + "|v3|" + str(ULBlock.GEN_V))
 
 
 func x_defs() -> Array:
@@ -244,13 +308,36 @@ func _junk_spots() -> Array:
 
 
 func _x_inside(b: ULBlock) -> void:
-	_x_furn(b, D_FURN[level])
+	var furn: Array = []
+	for it in D_FURN[level]:
+		# морозильные шкафы этажа 2 (помещение 4) заменяют лари; остальное — по таблице замен
+		var old := String(it[0])
+		if D_OLD.has(old) and _has_xd(String(D_OLD[old])) and not (old == "gr_barrels" and int(it[1]) != 7):
+			continue
+		if level == 2 and old == "gr_cabinet" and int(it[1]) == 4 and _has_xd("xd_cryo"):
+			continue
+		furn.append(it)
+	_x_furn(b, furn)
+
+
+func _has_xd(id: String) -> bool:
+	return ResourceLoader.exists(MODELS + id + ".glb")
+
+
+## декорации-модели этажа по таблице D_XD
+func _d_models() -> void:
+	for it in D_XD[level]:
+		var sz: Vector3 = it[3]
+		var at: Vector3 = it[1]
+		_xd(String(it[0]), Vector3(at.x, 0.2, at.z), float(it[2]), sz, Vector3(sz.x * 0.9, sz.y, sz.z * 0.9) if bool(it[4]) else Vector3.ZERO, 46.0,
+			String(it[5]) if it.size() > 5 else "")
 
 
 func _x_outdoor(rng: RandomNumberGenerator, props: Node3D) -> void:
 	half = DH_
 	_d_ground()
 	_x_lift(props)
+	_d_models()
 	match level:
 		1:
 			_d_floor1(props)
@@ -398,7 +485,8 @@ func _d_floor1(g: Node3D) -> void:
 	# казармы A и B: по два ряда армейских коек (изголовьем к стене) и тумбочки
 	for zrow in [-12.6, -2.4, 2.4, 12.6]:
 		for bx in [-33.5, -30.5, -27.5, -21.5, -18.5]:
-			_d_bed(g, Vector3(bx, 0.2, zrow))
+			if _xd("xd_bunk", Vector3(bx, 0.2, zrow), 0.0, Vector3(1.05, 1.8, 2.1), Vector3(1.0, 1.8, 2.0), 46.0) == null:
+				_d_bed(g, Vector3(bx, 0.2, zrow))
 	# душевая: перегородки кабин вдоль северной стены
 	for i in 5:
 		_bx(g, "x_steel", Vector3(0.08, 1.9, 1.4), _at(Vector3(1.6 + i * 1.9, 1.15, -34.6)), true)
@@ -481,8 +569,9 @@ func _d_floor3(g: Node3D) -> void:
 	# зал «Высокая опасность»: красно-жёлтая разметка и большие ворота в южной стене (закрыты, за ними ничего нет)
 	_bx(g, "x_red", Vector3(14.0, 0.03, 0.5), _at(Vector3(0, 0.235, 15.0)))
 	_bx(g, "x_yellow", Vector3(14.0, 0.03, 0.25), _at(Vector3(0, 0.235, 15.8)))
-	_bx(g, "x_steel", Vector3(7.0, 1.15, 0.3), _at(Vector3(0, 0.78, 35.3)))
-	_bx(g, "x_yellow", Vector3(7.0, 0.12, 0.32), _at(Vector3(0, 1.2, 35.3)))
+	if not _has_xd("xd_blastdoor"):
+		_bx(g, "x_steel", Vector3(7.0, 1.15, 0.3), _at(Vector3(0, 0.78, 35.3)))
+		_bx(g, "x_yellow", Vector3(7.0, 0.12, 0.32), _at(Vector3(0, 1.2, 35.3)))
 
 
 # ---------------- солдаты ----------------

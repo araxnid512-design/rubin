@@ -356,8 +356,18 @@ func _cyl_col(at: Vector3, r: float, h: float) -> void:
 	body.add_child(cs)
 
 
+## участок общей сетки мелочей: раньше все мелочи локации одного материала были одной сеткой и рисовались целиком,
+## где бы ни стоял герой (хутор — 55 тыс. треугольников в каждом кадре и ещё раз в тенях); по участкам PROP_CELL м
+## видеочип рисует только те, что в кадре
+const PROP_CELL := 36.0
+
+
+func _prop_cell(p: Vector3) -> Vector2i:
+	return Vector2i(int(floor(p.x / PROP_CELL)), int(floor(p.z / PROP_CELL)))
+
+
 func _bx(g: Node3D, m: String, size: Vector3, xf: Transform3D, col := false) -> void:
-	var key := [g, m]
+	var key := [g, m, _prop_cell(xf.origin)]
 	if not _st.has(key):
 		var st := SurfaceTool.new()
 		st.begin(Mesh.PRIMITIVE_TRIANGLES)
@@ -369,7 +379,7 @@ func _bx(g: Node3D, m: String, size: Vector3, xf: Transform3D, col := false) -> 
 
 
 func _cy(g: Node3D, m: String, r0: float, r1: float, h: float, xf: Transform3D, seg := 12) -> void:
-	var key := [g, m]
+	var key := [g, m, _prop_cell(xf.origin)]
 	if not _st.has(key):
 		var st := SurfaceTool.new()
 		st.begin(Mesh.PRIMITIVE_TRIANGLES)

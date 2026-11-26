@@ -4498,6 +4498,8 @@ func _sharp_apply() -> void:
 		_sharp = ULSharpen.new()
 		add_child(_sharp)
 	var lv := ULSettings.sharp if test == "" else maxi(_sharp_test, 0)
+	if _post_drop:
+		lv = 0                                  # подстройка: кадров не хватает — без прохода резкости
 	_sharp.set_level(lv, get_viewport().scaling_3d_scale)
 	if _grade_cur.is_empty() or not grade_on():
 		_grade_apply(true)
@@ -4604,7 +4606,7 @@ func _grade_set(l: Dictionary, now: bool) -> void:
 
 
 func _grade_vig(l: Dictionary) -> void:
-	var on := ULSettings.gfx >= 1
+	var on := ULSettings.gfx >= 1 and not _post_drop
 	var vt: Array = l.get("vig_tint", [1.0, 1.0, 1.0])
 	var vs := get_viewport().get_visible_rect().size
 	if _sharp:
@@ -9399,6 +9401,20 @@ func _qr_test() -> void:
 
 ## точки замера нагрузки по локации: [название, где]
 func _perf_points() -> Array:
+	if san is ULExternalsDeep:
+		# подземный этаж базы Внешников: лифтовой зал и середины четырёх самых больших помещений
+		var xr: Array = ULExternalsDeep.D_ROOMS[(san as ULExternals).level].duplicate()
+		xr.remove_at(0)
+		xr.sort_custom(func(p, q): return (float(p[4]) - float(p[2])) * (float(p[5]) - float(p[3])) > (float(q[4]) - float(q[2])) * (float(q[5]) - float(q[3])))
+		var xo: Array = [["лифтовой зал", Vector3(0, 0.2, 4.5)]]
+		for i in mini(4, xr.size()):
+			var xc := NavigationServer3D.map_get_closest_point(get_world_3d().navigation_map, Vector3((float(xr[i][2]) + float(xr[i][4])) * 0.5, 0.2, (float(xr[i][3]) + float(xr[i][5])) * 0.5 + 1.5))
+			xo.append([String(xr[i][0]).to_lower(), Vector3(xc.x, 0.2, xc.z)])
+		xo.append(["лифтовой зал, все враги гонятся", Vector3(0, 0.2, 4.5)])
+		return xo
+	if place == "externals":
+		return [["вход", Vector3(0, 0, 66)], ["ворота", Vector3(0, 0, 42)], ["двор", Vector3(0, 0, 28)], ["лифтовой зал", Vector3(0, 0.2, 5.5)],
+			["вертолётная площадка", Vector3(-25.5, 0, -27.5)], ["техническая зона", Vector3(27.5, 0, -22)], ["двор, все враги гонятся", Vector3(0, 0, 28)]]
 	if place == "airport":
 		return [["въезд, КПП", ULAirport.A_ENTRY + Vector3(0, 0, -8)], ["стоянка машин", Vector3(-34, 0, 108)], ["взлётная полоса", Vector3(0, 0, 56)],
 			["перрон у самолёта", Vector3(-20, 0, -14)], ["зал терминала", Vector3(0, 0.2, -74)], ["багажное крыло", Vector3(-50, 0.2, -66)],
@@ -14956,6 +14972,21 @@ func _inv_test() -> void:
 		for c in cr.get_meta("items"):
 			if c != null:
 				in_crates[String(c.id)] = true
+	# новые стволы (задание «Оружие и боеприпасы») в ящики базы не кладутся: шесть продаёт оружейник, три лежат в
+	# резерве Внешников (data/loot_reserve.json) — они тоже считаются доступными
+	for sk in ["weapons", "ammo"]:
+		for srow in SHOP.get(sk, []):
+			in_crates[String(srow[0])] = true
+	var rsv = JSON.parse_string(FileAccess.get_file_as_string("res://data/loot_reserve.json"))
+	if rsv is Dictionary:
+		for rk in rsv:
+			if not (rsv[rk] is Dictionary):
+				continue
+			for rrow in (rsv[rk] as Dictionary).get("items", []):
+				if rrow is Dictionary:
+					in_crates[String(rrow.get("id", ""))] = true
+					for ram in rrow.get("ammo", []):
+						in_crates[String(ram[0])] = true
 	var miss := ""
 	for wid2 in I.ITEMS:
 		var wd: Dictionary = I.ITEMS[wid2]
@@ -14963,7 +14994,7 @@ func _inv_test() -> void:
 			miss += wid2 + " "
 		if wd.has("ammo") and not in_crates.has(String(wd.ammo)):
 			miss += String(wd.ammo) + " "
-	_ok("в ящиках всё оружие игры и патроны к нему", miss == "", miss)
+	_ok("всё оружие игры и патроны к нему есть в ящиках базы, у оружейника или в резерве Внешников", miss == "", miss)
 	# --- кнопка взаимодействия, житель, имя героя ---
 	inv.hand = ""
 	_apply_gear()
@@ -15026,7 +15057,18 @@ func _inv_test() -> void:
 	var sc_low := 1.0
 	for i in 12:
 		sc_low = res_step(sc_low, 15.0, 1.0, true)
-	_ok("ниже %d %% разрешение само не опускается (картинка не мылится)" % int(round(ULSettings.SCALE_MIN * 100.0)), is_equal_approx(sc_low, ULSettings.SCALE_MIN), "%.2f" % sc_low)
+	_ok("совсем не тянет (15 кадров/с): разрешение опускается до крайнего предела %d %% и не ниже" % int(round(ULSettings.SCALE_LOW * 100.0)), is_equal_approx(sc_low, ULSettings.SCALE_LOW), "%.2f" % sc_low)
+	var sc_mid := 1.0
+	for i in 12:
+		sc_mid = res_step(sc_mid, 27.0, 1.0, true)
+	_ok("27 кадров/с: ниже %d %% разрешение не опускается (картинка не мылится)" % int(round(ULSettings.SCALE_MIN * 100.0)), is_equal_approx(sc_mid, ULSettings.SCALE_MIN), "%.2f" % sc_mid)
+	_ok("на крайнем пределе при 27 кадрах/с разрешение не скачет вверх", is_equal_approx(res_step(ULSettings.SCALE_LOW, 27.0, 1.0, true), ULSettings.SCALE_LOW))
+	var p0 := {"scale": 1.0, "msaa": false, "shadows": false, "cap": 1.0, "can_msaa": false, "can_shadows": false, "ground": false, "can_ground": true, "has_fast": true, "post": true, "can_post": true}
+	var p1 := adapt_step(p0, 25.0, true)
+	_ok("перед разрешением снимаются проходы поверх кадра (резкость, виньетка)", not bool(p1.post) and is_equal_approx(float(p1.scale), 1.0))
+	_ok("и только потом — разрешение", float(adapt_step(p1, 25.0, true).scale) < 1.0)
+	var p2 := adapt_step({"scale": 1.0, "msaa": false, "shadows": false, "cap": 1.0, "can_msaa": false, "can_shadows": false, "ground": false, "can_ground": true, "has_fast": true, "post": false, "can_post": true}, 60.0, true)
+	_ok("кадров хватает: проходы возвращаются раньше подробной земли", bool(p2.post) and not bool(p2.ground))
 	var sc_own := res_step(0.6, 15.0, 0.6, true)
 	_ok("игрок сам выбрал 60 %: подстройка не поднимает разрешение выше выбора", is_equal_approx(sc_own, 0.6), "%.2f" % sc_own)
 	var pres_ok := true
@@ -15325,7 +15367,7 @@ func _inv_test() -> void:
 	var book_txt := ""
 	for l in _book_ui.find_children("*", "Label", true, false):
 		book_txt += (l as Label).text + "\n"
-	_ok("справочник: заражённый — как ходит, как нападает, что в теле", book_txt.contains("Заражённый") and book_txt.contains("Ходит") and book_txt.contains("Нападает") and book_txt.contains("спораны — от 0 до 3"))
+	_ok("справочник: заражённый — как ходит, как нападает, что в теле", book_txt.contains("Заражённый") and book_txt.contains("Ходит") and book_txt.contains("Нападает") and book_txt.contains("спораны — от 0 до 4"))
 	_book_ui.queue_free()
 	await get_tree().process_frame
 	# --- ресурсы: кошелёк и торговля ---
@@ -15355,7 +15397,11 @@ func _inv_test() -> void:
 	var sp_keep := inv.count("spore")
 	inv.wallet["spore"] = 30                 # на обмен в 4 горошины (40 споранов) тоже не хватает
 	var sp2 := inv.count("spore")
-	_ok("не хватает ни горошин, ни споранов на обмен — покупки нет, ничего не списано", not buy("supplies", 7) and inv.count("spore") == sp2 and inv.count("pack_medium") == 0)
+	var pm_i := 0
+	for spi in SHOP.supplies.size():
+		if String(SHOP.supplies[spi][0]) == "pack_medium":
+			pm_i = spi
+	_ok("не хватает ни горошин, ни споранов на обмен — покупки нет, ничего не списано", not buy("supplies", pm_i) and inv.count("spore") == sp2 and inv.count("pack_medium") == 0)
 	inv.wallet["spore"] = sp_keep
 	inv.wallet["pea"] = 2
 	var wsnap := JSON.stringify({"inv": inv.to_dict()})
@@ -17244,6 +17290,9 @@ func open_settings() -> void:
 		_res_fails = 0
 		_res_hold = 0.0
 		_ground_drop = false
+		_post_drop = false
+		ULSettings.adapt_mem = {}                  # новое качество — подстройка начинает с него, прежняя память не в счёт
+		ULSettings.save_cfg()
 		_ground_apply(ground_want_fast())
 		_sharp_apply()
 		_sun_shadow_apply()
@@ -17278,6 +17327,9 @@ func open_settings() -> void:
 func _auto_res(delta: float) -> void:
 	if test != "" or not ULSettings.auto_fps:
 		return
+	if not _adapt_restored:
+		_adapt_restored = true
+		adapt_restore()
 	# первые секунды на локации не считаются: постройка, загрузка и первая закраска дают рывки — по ним прежняя
 	# подстройка сразу роняла разрешение (снимки с телефона: 39–42 % при 58–60 кадрах/с)
 	if _res_warm > 0.0:
@@ -17303,7 +17355,7 @@ func _auto_res(delta: float) -> void:
 	var nx := adapt_step(st, fps, _res_hold <= 0.0)
 	if nx == st:
 		return
-	var down: bool = float(nx.scale) < float(st.scale) or (not bool(nx.msaa) and bool(st.msaa)) or (not bool(nx.shadows) and bool(st.shadows)) or (not bool(nx.ground) and bool(st.ground))
+	var down: bool = float(nx.scale) < float(st.scale) or (not bool(nx.msaa) and bool(st.msaa)) or (not bool(nx.shadows) and bool(st.shadows)) or (not bool(nx.ground) and bool(st.ground)) or (not bool(nx.post) and bool(st.post))
 	if down:
 		_res_hold = minf(60.0, 6.0 * pow(2.0, float(_res_fails)))
 		if _res_raised_t >= 0.0 and Time.get_ticks_msec() * 0.001 - _res_raised_t < 20.0:
@@ -17319,11 +17371,44 @@ func _auto_res(delta: float) -> void:
 	if bool(nx.ground) == ground_fast:
 		_ground_drop = not bool(nx.ground)
 		_ground_apply(_ground_drop or ground_want_fast())
+	if bool(nx.post) == _post_drop:
+		_post_drop = not bool(nx.post)
+		# вместе с проходами — модели вдали упрощаются вдвое раньше (толпа и мелочи — главная доля треугольников)
+		vp.mesh_lod_threshold = ULSettings.lod_px() * (2.0 if _post_drop else 1.0)
 	_sharp_apply()                                     # сила резкости — по новой доле разрешения
 	_sun_shadow_apply()                                # тени сняты — на землю ложатся запечённые; вернулись — снимаются
+	ULSettings.adapt_mem = {"msaa": bool(nx.msaa), "shadows": bool(nx.shadows), "ground": bool(nx.ground), "post": bool(nx.post), "scale": float(nx.scale)}
+	ULSettings.save_cfg()
+
+
+var _adapt_restored := false
+
+
+## Вход на локацию: сразу то, на чём подстройка остановилась в прошлый раз (ULSettings.adapt_mem) — только вниз
+## от выбранного качества; вверх подстройка поднимет сама, когда кадров хватит.
+func adapt_restore() -> void:
+	var m: Dictionary = ULSettings.adapt_mem
+	if m.is_empty():
+		return
+	var vp := get_viewport()
+	var cap := float(ULSettings.q().scale)
+	if not bool(m.get("msaa", true)):
+		vp.msaa_3d = Viewport.MSAA_DISABLED
+	if not bool(m.get("shadows", true)) and sun:
+		sun.shadow_enabled = false
+	if not bool(m.get("ground", true)) and ground_fast_ok() and not ground_fast:
+		_ground_drop = true
+		_ground_apply(true)
+	if not bool(m.get("post", true)):
+		_post_drop = true
+		vp.mesh_lod_threshold = ULSettings.lod_px() * 2.0
+	vp.scaling_3d_scale = clampf(float(m.get("scale", cap)), ULSettings.SCALE_LOW if cap >= ULSettings.SCALE_MIN else cap, cap)
+	_sharp_apply()
+	_sun_shadow_apply()
 
 
 var _res_fails := 0
+var _post_drop := false               ## подстройка сняла проходы поверх кадра (резкость, виньетка, зерно)
 var _res_warm := 5.0
 var _res_dts: Array[float] = []
 var _res_raised_t := -1.0
@@ -17336,7 +17421,13 @@ func adapt_state() -> Dictionary:
 	return {"scale": snappedf(vp.scaling_3d_scale, 0.001), "msaa": vp.msaa_3d != Viewport.MSAA_DISABLED,
 		"shadows": sun != null and sun.shadow_enabled, "cap": float(ULSettings.q().scale),
 		"can_msaa": int(ULSettings.q().msaa) > 0, "can_shadows": _shadow_pref,
-		"ground": not ground_fast, "can_ground": not ground_want_fast(), "has_fast": ground_fast_ok()}
+		"ground": not ground_fast, "can_ground": not ground_want_fast(), "has_fast": ground_fast_ok(),
+		"post": not _post_drop and post_wanted(), "can_post": post_wanted()}
+
+
+## есть ли что снимать из проходов поверх кадра: резкость включена в настройках или у качества есть виньетка и зерно
+func post_wanted() -> bool:
+	return ULSettings.sharp > 0 or ULSettings.gfx >= 1
 
 
 ## следующий шаг подстройки (отдельно — чтобы проверять): вниз — MSAA, тени, быстрая земля, разрешение; вверх — наоборот
@@ -17349,12 +17440,16 @@ func adapt_step(st: Dictionary, fps: float, may_raise: bool) -> Dictionary:
 			nx.shadows = false
 		elif bool(st.get("ground", false)) and bool(st.get("has_fast", false)):
 			nx.ground = false                          # земля — готовой картинкой (ULGroundBake): на вид почти то же
+		elif bool(st.get("post", false)):
+			nx.post = false                            # проходы поверх кадра (резкость, виньетка, зерно): каждый — весь экран заново
 		else:
 			nx.scale = res_step(float(st.scale), fps, float(st.cap), may_raise)
 		return nx
 	if fps > 52.0 and may_raise:
 		if float(st.scale) < float(st.cap) - 0.001:
 			nx.scale = res_step(float(st.scale), fps, float(st.cap), may_raise)
+		elif bool(st.get("can_post", false)) and not bool(st.get("post", true)):
+			nx.post = true
 		elif bool(st.get("can_ground", false)) and not bool(st.get("ground", true)):
 			nx.ground = true
 		elif bool(st.can_shadows) and not bool(st.shadows):
@@ -17367,6 +17462,8 @@ func adapt_step(st: Dictionary, fps: float, may_raise: bool) -> Dictionary:
 ## новое разрешение по текущему, частоте кадров и пределу качества
 func res_step(sc: float, fps: float, cap: float, may_raise: bool) -> float:
 	var lo := minf(ULSettings.SCALE_MIN, cap)          # игрок сам выбрал меньше предела — не поднимать выше выбора
+	if fps < ULSettings.FPS_HARD and cap >= ULSettings.SCALE_MIN:
+		lo = ULSettings.SCALE_LOW                      # совсем не тянет: плавность важнее чёткости (до SCALE_LOW)
 	if fps < ULSettings.FPS_MIN:
 		return minf(sc, maxf(lo, sc - 0.06))
 	if fps < 40.0:
@@ -19703,7 +19800,7 @@ func _run_test() -> void:
 		print("[inv] итог: ошибок %d" % _fails)
 		get_tree().quit()
 		return
-	if test == "csperf" or test == "snperf" or test == "cvperf" or test == "khperf" or test == "lrperf" or test == "qrperf" or test == "ptperf" or test == "rdperf" or test == "apperf":
+	if test == "csperf" or test == "snperf" or test == "cvperf" or test == "khperf" or test == "lrperf" or test == "qrperf" or test == "ptperf" or test == "rdperf" or test == "apperf" or test == "xbperf":
 		var t1 := Time.get_ticks_msec()
 		while not cs_ready and Time.get_ticks_msec() - t1 < 25000:
 			await get_tree().process_frame
