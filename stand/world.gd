@@ -12686,7 +12686,7 @@ func _sn_test() -> void:
 	spk.sort()
 	var pk := pea_seen.keys()
 	pk.sort()
-	_ok("в Рубере: споранов %s, горошин %s — всегда; чёрная жемчужина — в %.1f %% тел (шанс 15 %%), красных и белых нет" % [str(spk), str(pk), pearl_n / 40.0], spk == [3, 4, 5, 6, 7, 8, 9] and pk == [1, 2, 3] and pearl_n > 500 and pearl_n < 700 and other.is_empty(), str(other))
+	_ok("в Рубере: споранов %s, горошин %s — всегда; чёрная жемчужина — в %.1f %% тел (шанс 18 %%), красных и белых нет" % [str(spk), str(pk), pearl_n / 40.0], spk == [4, 5, 6, 7, 8, 9, 10, 11] and pk == [1, 2, 3, 4] and pearl_n > 620 and pearl_n < 820 and other.is_empty(), str(other))
 	var RB: Dictionary = ULEnemy.KINDS.ruber
 	var LT: Dictionary = ULEnemy.KINDS.lottery
 	var lt_max := 0.0
@@ -13311,10 +13311,10 @@ func _cv_test() -> void:
 				got4[String(it4.id)] = int(it4.n)
 			else:
 				rl_ok = false
-		if int(got4.spore) < 3 or int(got4.spore) > 9 or int(got4.pea) < 1 or int(got4.pea) > 3 or int(got4.pearl_black) > 1:
+		if int(got4.spore) < 4 or int(got4.spore) > 11 or int(got4.pea) < 1 or int(got4.pea) > 4 or int(got4.pearl_black) > 1:
 			rl_ok = false
 		pearl_n += int(got4.pearl_black)
-	_ok("в Рубере: 3–9 споранов и 1–3 горошины всегда, чёрная жемчужина — в %.1f %% тел (шанс 15 %%), других жемчужин нет" % (pearl_n / 20.0), rl_ok and pearl_n > 230 and pearl_n < 370)
+	_ok("в Рубере: 4–11 споранов и 1–4 горошины всегда, чёрная жемчужина — в %.1f %% тел (шанс 18 %%), других жемчужин нет" % (pearl_n / 20.0), rl_ok and pearl_n > 290 and pearl_n < 430)
 	# 11: хлам кучками у техники и в помещениях
 	var jn := 0
 	var j_in := 0
@@ -15160,8 +15160,8 @@ func _inv_test() -> void:
 				bad = bad or String(c.id) != "spore"
 				n_sp += int(c.n)
 		seen[n_sp] = true
-		bad = bad or n_sp < 0 or n_sp > 3
-	_ok("в теле — от нуля до трёх споранов (встречается 0, 1, 2 и 3)", not bad and seen.size() == 4, str(seen.keys()))
+		bad = bad or n_sp < 0 or n_sp > 4
+	_ok("в теле — от нуля до четырёх споранов (встречается 0, 1, 2, 3 и 4)", not bad and seen.size() == 5, str(seen.keys()))
 	e.loot = [ULItems.make("spore", 2), null, null, null]
 	var sp0 := inv.count("spore")
 	var tl0 := Time.get_ticks_msec()
@@ -15270,8 +15270,8 @@ func _inv_test() -> void:
 				pea_n += 1
 			if c3 != null and String(c3.id) == "spore":
 				has_sp = int(c3.n)
-		sp_bad = sp_bad or has_sp < 1 or has_sp > 4
-	_ok("в Лоторейщике: спораны 1–4 всегда, горошина — примерно в трети тел", not sp_bad and pea_n > 45 and pea_n < 95, "горошина в %d из 200" % pea_n)
+		sp_bad = sp_bad or has_sp < 2 or has_sp > 5
+	_ok("в Лоторейщике: спораны 2–5 всегда, горошина — примерно в 42 % тел", not sp_bad and pea_n > 62 and pea_n < 106, "горошина в %d из 200" % pea_n)
 	for e9 in [lt, lt2, lt3]:
 		e9.dead_t = ULEnemy.CORPSE_S
 	await get_tree().create_timer(0.3).timeout
