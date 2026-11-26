@@ -260,6 +260,38 @@ static func route_keep(why: String) -> bool:
 	return bool((shop().get("route_keep", {}) as Dictionary).get(why, false))
 
 
+# ---------------- База Внешников: доступ в подземный комплекс ----------------
+
+## подземные этажи Базы Внешников — отдельные места со своим состоянием посещения (поверхность — «externals»)
+const EXT_FLOORS := ["externals_f1", "externals_f2", "externals_f3"]
+
+
+## до какого времени открыт подземный комплекс (0 — закрыт): красная жемчужина в капсуле лифта открывает его на
+## data/externals.json → lift.hours часов; потом комплекс перезагружается и закрывается
+static func ext_end() -> float:
+	load_state()
+	var x = data.get("ext", {})
+	var e := float((x as Dictionary).get("end", 0.0)) if x is Dictionary else 0.0
+	return e if e > Time.get_unix_time_from_system() else 0.0
+
+
+static func ext_left() -> int:
+	var e := ext_end()
+	return maxi(int(ceil(e - Time.get_unix_time_from_system())), 0) if e > 0.0 else 0
+
+
+## жемчужина вложена: комплекс открыт на hours часов; этажи — с чистого листа (перезагрузка комплекса)
+static func ext_open(hours: float) -> float:
+	load_state()
+	var now := Time.get_unix_time_from_system()
+	data["ext"] = {"end": now + hours * 3600.0, "at": int(now)}
+	for id in EXT_FLOORS:
+		(data.routes as Dictionary).erase(id)
+		visit_clear(id)
+	save_state()
+	return float(data.ext.end)
+
+
 static func visit_path(id: String) -> String:
 	return "user://visit_%s.json" % id
 
@@ -295,7 +327,7 @@ static func visits_wipe() -> void:
 	_visits.clear()
 	if memory_only:
 		return
-	for id in route_pool():
+	for id in route_pool() + EXT_FLOORS + ["externals"]:
 		if FileAccess.file_exists(visit_path(String(id))):
 			DirAccess.remove_absolute(ProjectSettings.globalize_path(visit_path(String(id))))
 

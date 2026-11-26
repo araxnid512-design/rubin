@@ -184,8 +184,14 @@ func _ready() -> void:
 			ULAirport._acfg = apc
 	if test.begins_with("xb"):
 		# база Внешников: --as-test=xbbake (карты и кэш построек), xbpano (обзорные снимки), xb (проверка)
+		# подземные этажи: --as-floor=1…3 (xbbake, xbdeep, xbview); xblift — лифт и жемчужина (несколько загрузок сцены)
 		ULSettings.arena = false
-		ULSettings.place = "externals"
+		var xfl := 0
+		for a in OS.get_cmdline_user_args():
+			if a.begins_with("--as-floor="):
+				xfl = int(a.substr(11))
+		if not (test == "xblift" and int(ULSettings.test_data.get("phase", 1)) > 1):
+			ULSettings.place = ULExternals.place_of(xfl)
 	if test.begins_with("rd"):
 		# проверки железнодорожного депо: --as-test=rd (посещение и проходимость), rdbake (карты и кэш), rdview (снимки), rdperf
 		ULSettings.arena = false
@@ -242,13 +248,13 @@ func _ready() -> void:
 	if test != "" or lvl:
 		# проверки и тест уровней: база только в памяти; оружейник установлен (кроме проверки компьютера — там он покупается)
 		ULBase.memory_only = true
-		if not (test == "revisit" and int(ULSettings.test_data.get("phase", 1)) > 1):
+		if not ((test == "revisit" or test == "xblift") and int(ULSettings.test_data.get("phase", 1)) > 1):
 			ULBase.load_state(true)
 		if test != "pc":
 			ULBase.data.upgrades["gunsmith"] = 1
 			ULBase.data.staff["gunsmith"] = true
 	arena = ULSettings.arena
-	place = ULSettings.place if not arena and ULSettings.place in ["cowshed", "sanatorium", "convoy", "khutor", "lair", "quarry", "port", "depot", "airport", "externals"] else "home"
+	place = ULSettings.place if not arena and ULSettings.place in ["cowshed", "sanatorium", "convoy", "khutor", "lair", "quarry", "port", "depot", "airport", "externals", "externals_f1", "externals_f2", "externals_f3"] else "home"
 	ULSettings.apply(get_viewport())
 	if test == "" or test == "enterview":
 		ULSettings.step("загрузка: " + place)
@@ -358,7 +364,7 @@ func _bake_nav(path := NAV_MESH) -> void:
 		nm.filter_ledge_spans = true            # без «островков» на столах, кроватях и шкафах
 		nm.region_min_size = 9.0
 	nm.geometry_parsed_geometry_type = NavigationMesh.PARSED_GEOMETRY_STATIC_COLLIDERS
-	var hgt := 18.0 if place == "sanatorium" or place == "airport" else (7.0 if place == "convoy" or place == "khutor" or place == "lair" or place == "quarry" or place == "port" or place == "depot" or place == "externals" else 5.0)   # в санатории — все этажи корпусов; в конвое — вышка
+	var hgt := 18.0 if place == "sanatorium" or place == "airport" else (7.0 if place == "convoy" or place == "khutor" or place == "lair" or place == "quarry" or place == "port" or place == "depot" or xbase() else 5.0)   # в санатории — все этажи корпусов; в конвое — вышка
 	var y0 := -3.4 if place == "khutor" else (-15.0 if place == "quarry" else -1.0)   # на хуторе — погреба на 2,6 м под землёй; в карьере — дно на −13,5 м
 	nm.filter_baking_aabb = AABB(Vector3(-size_m * 0.5 - 12.0, y0, -size_m * 0.5 - 12.0), Vector3(size_m + 24.0, hgt - y0 - 1.0, size_m + 24.0))
 	nm.geometry_collision_mask = 1                              # без дверей (слой 2): путь идёт через проём
@@ -471,7 +477,12 @@ var zone: Node3D                  ## текущий временный клас�
 
 
 func _san_world() -> void:
-	san = ULExternals.new() if place == "externals" else ULAirport.new() if place == "airport" else ULDepot.new() if place == "depot" else ULPort.new() if place == "port" else ULKhutor.new() if place == "khutor" else (ULConvoy.new() if place == "convoy" else (ULLair.new() if place == "lair" else (ULQuarry.new() if place == "quarry" else ULSanatorium.new())))
+	san = ULExternalsDeep.new() if place.begins_with("externals_f") else ULExternals.new() if place == "externals" else ULAirport.new() if place == "airport" else ULDepot.new() if place == "depot" else ULPort.new() if place == "port" else ULKhutor.new() if place == "khutor" else (ULConvoy.new() if place == "convoy" else (ULLair.new() if place == "lair" else (ULQuarry.new() if place == "quarry" else ULSanatorium.new())))
+	if san is ULExternals:
+		# База Внешников: какой уровень (0 — поверхность, 1–3 — подземные этажи) и приехал ли герой на лифте
+		(san as ULExternals).level = ULExternals.level_of(place)
+		(san as ULExternals).arrived = ULSettings.x_arrive
+		ULSettings.x_arrive = false
 	size_m = float(san.conf().get("size", 150.0))
 	san.name = {"khutor": "Khutor", "convoy": "Convoy", "lair": "Lair", "quarry": "Quarry", "port": "Port", "depot": "Depot", "airport": "Airport", "externals": "Externals"}.get(place, "Sanatorium")
 	size_z = float(san.conf().get("size_z", size_m))
@@ -479,8 +490,9 @@ func _san_world() -> void:
 	zone = san
 	san.build(self)
 	_noise_tex = san._noise_tex
-	_edge_fog()
-	var nav := ULExternals.X_NAV if place == "externals" else ULAirport.A_NAV if place == "airport" else ULDepot.D_NAV if place == "depot" else ULPort.P_NAV if place == "port" else ULKhutor.K_NAV if place == "khutor" else (ULConvoy.C_NAV if place == "convoy" else (ULLair.L_NAV if place == "lair" else (ULQuarry.Q_NAV if place == "quarry" else NAV_SANATORIUM)))
+	if not place.begins_with("externals_f"):
+		_edge_fog()                                 # под землёй тумана у края нет: вокруг этажа — порода
+	var nav := (san as ULExternals).nav_path() if xbase() else ULAirport.A_NAV if place == "airport" else ULDepot.D_NAV if place == "depot" else ULPort.P_NAV if place == "port" else ULKhutor.K_NAV if place == "khutor" else (ULConvoy.C_NAV if place == "convoy" else (ULLair.L_NAV if place == "lair" else (ULQuarry.Q_NAV if place == "quarry" else NAV_SANATORIUM)))
 	if test == "snbake" or test == "cvbake" or test == "khbake" or test == "lrbake" or test == "qrbake" or test == "ptbake" or test == "rdbake" or test == "apbake" or test == "xbbake":
 		_bake_nav(nav)
 	_nav_load(nav)
@@ -488,7 +500,12 @@ func _san_world() -> void:
 
 ## кластер с помещениями, в которые можно зайти (санаторий, конвой): этажи, двери, тайники, свет внутри
 func indoor() -> bool:
-	return place == "sanatorium" or place == "convoy" or place == "khutor" or place == "lair" or place == "quarry" or place == "port" or place == "depot" or place == "airport" or place == "externals"
+	return place == "sanatorium" or place == "convoy" or place == "khutor" or place == "lair" or place == "quarry" or place == "port" or place == "depot" or place == "airport" or xbase()
+
+
+## База Внешников: поверхность («externals») или подземный этаж («externals_f1…3»)
+func xbase() -> bool:
+	return place.begins_with("externals")
 
 
 ## временный кластер (коровник, санаторий) — не база и не полигон
@@ -497,8 +514,8 @@ func temp() -> bool:
 
 
 func zone_cfg() -> Dictionary:
-	if place == "externals":
-		return ULExternals.xcfg()
+	if xbase():
+		return san.conf() if san != null else ULExternals.xcfg()
 	if place == "airport":
 		return ULAirport.acfg()
 	if place == "depot":
@@ -517,8 +534,8 @@ func zone_cfg() -> Dictionary:
 
 
 func zone_name() -> String:
-	if place == "externals":
-		return ULExternals.X_TITLE
+	if xbase():
+		return san.title() if san != null else ULExternals.X_TITLE
 	if place == "airport":
 		return ULAirport.A_TITLE
 	if place == "depot":
@@ -537,8 +554,8 @@ func zone_name() -> String:
 
 
 func zone_entry() -> Vector3:
-	if place == "externals":
-		return ULExternals.X_ENTRY
+	if xbase():
+		return san.entry() if san != null else ULExternals.X_ENTRY
 	if place == "airport":
 		return ULAirport.A_ENTRY
 	if place == "depot":
@@ -578,7 +595,7 @@ func _cowshed_enter() -> void:
 	var c := zone_cfg()
 	# Возвращение: посещение этой локации уже идёт (маршрут хранит срок перезагрузки кластера и случайность) —
 	# срок прежний, всё расставляется по той же случайности, а затем приводится к тому, как было оставлено.
-	var track := (test == "" or test == "revisit") and not lvl
+	var track := (test == "" or test == "revisit" or test == "xblift") and not lvl
 	var vst := {}
 	if track and ULBase.route_left(place) > 0:
 		var ri := ULBase.route_info(place)
@@ -592,6 +609,9 @@ func _cowshed_enter() -> void:
 		# minutes ≤ 0 в настройках локации — срока нет (постоянная локация, например База Внешников): таймер не идёт
 		var mins0 := ULBase.minutes_for(place, float(c.get("minutes", 10)))
 		_cs_end = cs_start + mins0 * 60.0 if mins0 > 0.0 else 0.0
+		if place.begins_with("externals_f"):
+			# подземный этаж: срок — до перезагрузки комплекса (сутки с того момента, как вложена жемчужина)
+			_cs_end = ULBase.ext_end()
 	if test == "" and lvl and ULBase.route_state(place) != "active" and _cs_end > 0.0:
 		ULBase.set_route(place, "active")
 	if cs_seed == 0:
@@ -673,7 +693,9 @@ func _cowshed_enter() -> void:
 	_blobs_build()
 	if san != null:
 		zone_changed()
-	if cs_resumed:
+	if xbase() and _cs_end > 0.0:
+		say(zone_name() if place == "externals" else "%s. До перезагрузки комплекса — %s" % [zone_name(), _hm_text(int(cs_left()))])
+	elif cs_resumed:
 		var lf := int(cs_left())
 		say("%s. Вы вернулись: до перезагрузки кластера — %d:%02d" % [zone_name(), lf / 60, lf % 60])
 	elif _cs_end <= 0.0:
@@ -721,7 +743,7 @@ func cs_state() -> Dictionary:
 
 ## записать состояние посещения (force — сейчас же; иначе не чаще раза в 8 с)
 func _cs_state_save(force := false) -> void:
-	if not temp() or lvl or not cs_ready or _cs_over or (test != "" and test != "revisit"):
+	if not temp() or lvl or not cs_ready or _cs_over or (test != "" and test != "revisit" and test != "xblift"):
 		return
 	if ULBase.route_left(place) <= 0:
 		return
@@ -1065,6 +1087,15 @@ func _cs_tick(delta: float) -> void:
 		_cs_auto = 0.0
 		_cs_state_save()
 	var left := cs_left()
+	if place == "externals":
+		# поверхность Базы Внешников: своего срока у неё нет — идёт только отсчёт до перезагрузки подземного
+		# комплекса (пока он открыт, поверхность помнится: убитые не оживают). Вышел — лифт снова закрыт.
+		if left <= 0.0:
+			_cs_end = 0.0
+			say("Подземный комплекс Базы Внешников перезагрузился: лифт закрыт")
+			if Vector2(player.global_position.x, player.global_position.z).length() > 3.2:
+				(san as ULExternals).set_lift_open(false)
+		return
 	var c := zone_cfg()
 	for wv in c.get("warn_s", [300, 120]):
 		var ws := int(wv)
@@ -1080,7 +1111,7 @@ func _cs_tick(delta: float) -> void:
 			snd.play("alarm", player.global_position + Vector3.UP * 2.0, -4.0, 0.0)
 			if not _cs_warned.has(-1):
 				_cs_warned[-1] = true
-				say("ТРЕВОГА! Кластер перезагружается — уходите за край поля!")
+				say("ТРЕВОГА! Комплекс перезагружается — поднимайтесь на лифте!" if xbase() else "ТРЕВОГА! Кластер перезагружается — уходите за край поля!")
 	if left <= 0.0 and lvl:
 		# тест уровня: кластер не убивает — таймер просто начинается заново
 		_cs_end = Time.get_unix_time_from_system() + ULBase.minutes_for(place, float(c.get("minutes", 10))) * 60.0
@@ -1372,11 +1403,11 @@ func _cs_load() -> void:
 
 ## таймер кластера сверху посередине: белый, за 2 минуты — оранжевый, последние 30 с — красный и мигает
 func _cs_hud(vs: Vector2, font0: Font) -> void:
-	if not temp() or _cs_end <= 0.0:
+	if not temp() or _cs_end <= 0.0 or place == "externals":
 		return
 	var left := cs_left()
 	var sec := int(ceil(left))
-	var t := "%02d:%02d" % [sec / 60, sec % 60]
+	var t := "%02d:%02d" % [sec / 60, sec % 60] if sec < 3600 else "%d:%02d:%02d" % [sec / 3600, (sec % 3600) / 60, sec % 60]
 	var col := Color(0.96, 0.96, 0.92)
 	if left <= float(zone_cfg().get("alarm_s", 30)):
 		col = Color(1.0, 0.25, 0.2) if int(Time.get_ticks_msec() / 350) % 2 == 0 else Color(1.0, 0.6, 0.5)
@@ -1384,7 +1415,7 @@ func _cs_hud(vs: Vector2, font0: Font) -> void:
 		col = Color(1.0, 0.65, 0.25)
 	var fs := 34
 	var tw := font0.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
-	var cap := "до перезагрузки кластера"
+	var cap := "до перезагрузки комплекса" if xbase() else "до перезагрузки кластера"
 	var cw := font0.get_string_size(cap, HORIZONTAL_ALIGNMENT_LEFT, -1, 13).x
 	var bw := maxf(tw, cw) + 36.0
 	_hud.draw_rect(Rect2(vs.x * 0.5 - bw * 0.5, 8, bw, 62), Color(0.04, 0.03, 0.02, 0.62))
@@ -3418,9 +3449,12 @@ func _where() -> String:
 	if place == "cowshed":
 		return "Опасный коровник" + (", коровник" if cowshed.in_barn(player.global_position) >= 0 else "")
 	if indoor():
+		if san is ULExternalsDeep:
+			var xrn := (san as ULExternalsDeep).room_at(player.global_position)
+			return "%s, %s" % [zone_name(), xrn.to_lower()] if xrn != "" else zone_name()
 		if san.hero_b < 0:
 			return zone_name()
-		if place == "convoy" or place == "khutor" or place == "lair" or place == "port" or place == "depot" or place == "externals" or ((place == "quarry" or place == "airport") and san.blds[san.hero_b].floors <= 1):
+		if place == "convoy" or place == "khutor" or place == "lair" or place == "port" or place == "depot" or xbase() or ((place == "quarry" or place == "airport") and san.blds[san.hero_b].floors <= 1):
 			return "%s, %s" % [zone_name(), san.blds[san.hero_b].title.to_lower()]
 		return "%s, %s, %d этаж" % [zone_name(), san.blds[san.hero_b].title.to_lower(), san.hero_f + 1]
 	if not house.contains(player.global_position):
@@ -4010,6 +4044,13 @@ func _find_target() -> void:
 		var dc := ((san as ULLair).chest_pos as Vector3).distance_to(p) - 0.5
 		if dc < 1.3:
 			best = {"type": "chest"}
+	if san is ULExternals:
+		# База Внешников: капсула для красной жемчужины у лифта и пульт в кабине лифта
+		for xz in (san as ULExternals).x_zones():
+			var dx := Vector2((xz[1] as Vector3).x - p.x, (xz[1] as Vector3).z - p.z).length() - (0.6 if String(xz[0]) == "x_capsule" else 1.2)
+			if dx < minf(bd, 0.9):
+				bd = dx
+				best = {"type": String(xz[0])}
 	var node: Node3D = null
 	if best != null:
 		match String(best.type):
@@ -4149,6 +4190,10 @@ func _target_name() -> String:
 		return "%s (тело)" % String((_target.e as ULEnemy).def.n)
 	if _target.type == "terminal":
 		return "компьютер базы"
+	if _target.type == "x_capsule":
+		return "Капсула лифта: комплекс открыт, до перезагрузки — %s" % _hm_text(ULBase.ext_left()) if ULBase.ext_left() > 0 else "Капсула лифта. Нужна красная жемчужина"
+	if _target.type == "x_lift":
+		return "Лифт · %s" % ULExternals.level_title((san as ULExternals).level).to_lower()
 	if _target.type == "safe":
 		return "Сейф №%d" % int(_target.k)
 	if _target.type == "chest":
@@ -4169,6 +4214,10 @@ func _action_label() -> String:
 		return "Машина"
 	if String(_target.type).begins_with("g_"):
 		return "Открыть"
+	if _target.type == "x_capsule":
+		return "Открыто" if ULBase.ext_left() > 0 else "Вложить жемчужину"
+	if _target.type == "x_lift":
+		return "Лифт"
 	if _target.type == "crate":
 		return "Открыть"
 	if _target.type == "box":
@@ -4212,6 +4261,12 @@ func do_action() -> void:
 		return
 	if _target.type == "terminal":
 		open_terminal()
+		return
+	if _target.type == "x_capsule":
+		x_capsule_use()
+		return
+	if _target.type == "x_lift":
+		open_lift_ui()
 		return
 	if _target.type == "safe":
 		open_safe(int(_target.k))
@@ -4873,8 +4928,10 @@ func _draw_hud() -> void:
 						_hud_icon(_tex("res://assets/icons/safe.png"), c, r * 1.5, ic)
 					"corpse":
 						_hud_icon(_tex("res://assets/icons/loot_spore.png"), c, r * 1.4, ic)
-					"terminal", "g_term", "g_sel":
+					"terminal", "g_term", "g_sel", "x_lift":
 						_hud_icon(_art("terminal"), c, r * 2.0, ic)
+					"x_capsule":
+						_hud_icon(_tex("res://assets/icons/loot_pearl_red.png"), c, r * 1.4, ic)
 					"g_fuel", "g_cab", "g_bench":
 						_hud_icon(_tex("res://assets/icons/crate.png"), c, r * 1.5, ic)
 					_:
@@ -10352,7 +10409,7 @@ func _in_scroll(c: Control) -> bool:
 func _ui_close_all() -> void:
 	if inv_ui != null and inv_ui.visible:
 		close_inventory()
-	for nm in ["_car_ui", "_char_ui", "_set_ui", "_book_ui", "_shop_ui", "_term_ui", "_dealer_ui", "_map_ui"]:
+	for nm in ["_car_ui", "_char_ui", "_set_ui", "_book_ui", "_shop_ui", "_term_ui", "_dealer_ui", "_map_ui", "_lift_ui"]:
 		var u = get(nm)
 		if u != null and is_instance_valid(u):
 			if (u as Node).has_method("close"):
@@ -16685,7 +16742,7 @@ var _name_edit: LineEdit
 
 
 func _modal() -> bool:
-	return (_car_ui != null and is_instance_valid(_car_ui)) or (inv_ui != null and inv_ui.visible) or (_name_ui != null and _name_ui.visible) or (_char_ui != null and is_instance_valid(_char_ui)) or (_talk_ui != null and _talk_ui.visible) or (_set_ui != null and is_instance_valid(_set_ui)) or (_book_ui != null and is_instance_valid(_book_ui)) or (_shop_ui != null and is_instance_valid(_shop_ui)) or (_term_ui != null and is_instance_valid(_term_ui)) or (_dealer_ui != null and is_instance_valid(_dealer_ui)) or _dead_t > 0.0 or (_map_ui != null and is_instance_valid(_map_ui))
+	return (_car_ui != null and is_instance_valid(_car_ui)) or (inv_ui != null and inv_ui.visible) or (_name_ui != null and _name_ui.visible) or (_char_ui != null and is_instance_valid(_char_ui)) or (_talk_ui != null and _talk_ui.visible) or (_set_ui != null and is_instance_valid(_set_ui)) or (_book_ui != null and is_instance_valid(_book_ui)) or (_shop_ui != null and is_instance_valid(_shop_ui)) or (_term_ui != null and is_instance_valid(_term_ui)) or (_dealer_ui != null and is_instance_valid(_dealer_ui)) or _dead_t > 0.0 or (_map_ui != null and is_instance_valid(_map_ui)) or (_lift_ui != null and is_instance_valid(_lift_ui))
 
 
 func _load_profile() -> void:
@@ -17209,6 +17266,128 @@ func _npcs_tick(delta: float) -> void:
 
 
 ## разговор с жителем: его имя и слова; торговля появится здесь же
+# ---------------- База Внешников: капсула для жемчужины и лифт ----------------
+
+var _lift_ui: Control
+
+
+static func _hm_text(sec: int) -> String:
+	return "%d ч %02d мин" % [sec / 3600, (sec % 3600) / 60]
+
+
+## Капсула у лифта: одна красная жемчужина открывает подземный комплекс на сутки (data/externals.json → lift:
+## key, count, hours). Жемчужина списывается из кошелька; до перезагрузки комплекса новая не нужна. Красная карта
+## Титана жемчужину не заменяет. Пока комплекс открыт, поверхность тоже помнится (убитые не оживают).
+func x_capsule_use() -> bool:
+	var x := san as ULExternals
+	if x == null or x.level != 0:
+		return false
+	var lc: Dictionary = ULExternals.xcfg().get("lift", {})
+	var key := String(lc.get("key", "pearl_red"))
+	var need := int(lc.get("count", 1))
+	if ULBase.ext_left() > 0:
+		say("Комплекс уже открыт: до перезагрузки — %s" % _hm_text(ULBase.ext_left()))
+		return false
+	if not inv.can_pay({key: need}):
+		say("Капсула пуста. Нужна красная жемчужина: она откроет подземный комплекс на %d часа" % int(lc.get("hours", 24)))
+		snd.play("block", ULExternals.X_CAPSULE + Vector3.UP, -8.0)
+		return false
+	inv.pay({key: need})
+	var end := ULBase.ext_open(float(lc.get("hours", 24)))
+	if (test == "" or test == "xblift") and not lvl:
+		ULBase.route_begin("externals", cs_seed, cs_start, end)
+		_cs_end = end
+		_cs_state_save(true)
+		_save_carried()
+	x.set_lift_open(true)
+	snd.play("beep", ULExternals.X_CAPSULE + Vector3.UP, 0.0, 0.0)
+	say("Жемчужина вложена. Подземный комплекс открыт на %d часа: все двери открыты, лифт работает" % int(lc.get("hours", 24)))
+	return true
+
+
+## можно ли ехать: в тесте уровней — всегда; иначе — пока комплекс открыт (с этажа на поверхность — всегда)
+func x_lift_ok(lv: int) -> bool:
+	return lvl or lv == 0 or ULBase.ext_left() > 0
+
+
+## пульт лифта: выбор уровня — поверхность и три подземных этажа
+func open_lift_ui() -> void:
+	var x := san as ULExternals
+	if x == null or (_lift_ui != null and is_instance_valid(_lift_ui)):
+		return
+	if x.level == 0 and not x_lift_ok(1):
+		say("Лифт не работает: подземный комплекс закрыт. Вложите красную жемчужину в капсулу у лифта")
+		snd.play("block", player.global_position + Vector3.UP, -8.0)
+		return
+	_lift_ui = Control.new()
+	_hud.get_parent().add_child(_lift_ui)
+	_lift_ui.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	var shade := ColorRect.new()
+	shade.color = Color(0, 0, 0, 0.45)
+	shade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_lift_ui.add_child(shade)
+	var pn := PanelContainer.new()
+	pn.add_theme_stylebox_override("panel", _style(Color(0.06, 0.09, 0.13, 0.97)))
+	_lift_ui.add_child(pn)
+	pn.anchor_left = 0.5
+	pn.anchor_right = 0.5
+	pn.anchor_top = 0.5
+	pn.anchor_bottom = 0.5
+	pn.offset_left = -230
+	pn.offset_right = 230
+	pn.offset_top = -200
+	pn.offset_bottom = 200
+	var mg := MarginContainer.new()
+	for sd in ["left", "right", "top", "bottom"]:
+		mg.add_theme_constant_override("margin_" + sd, 16)
+	pn.add_child(mg)
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 10)
+	mg.add_child(vb)
+	var ttl := Label.new()
+	ttl.text = "Лифт Базы Внешников"
+	ttl.add_theme_font_size_override("font_size", 22)
+	ttl.add_theme_color_override("font_color", Color(1.0, 0.86, 0.5))
+	vb.add_child(ttl)
+	var sub := Label.new()
+	sub.text = "Тест уровня: лифт открыт" if lvl else ("До перезагрузки комплекса — %s" % _hm_text(ULBase.ext_left()) if ULBase.ext_left() > 0 else "Комплекс закрыт: лифт идёт только наверх")
+	sub.add_theme_font_size_override("font_size", 18)
+	sub.add_theme_color_override("font_color", C_TEXT)
+	vb.add_child(sub)
+	for lv in 4:
+		var b := _btn(ULExternals.level_title(lv) + (" — вы здесь" if lv == x.level else ""), func() -> void: x_travel(lv), 420)
+		b.disabled = lv == x.level or not x_lift_ok(lv)
+		b.custom_minimum_size.y = 52
+		vb.add_child(b)
+	vb.add_child(_btn("Закрыть", func() -> void:
+		_lift_ui.queue_free()
+		_lift_ui = null, 420))
+	_joy_id = -1
+	_joy_v = Vector2.ZERO
+	_hud_touch.clear()
+
+
+## Поездка на лифте: то, что при себе, и состояние покидаемого уровня записываются; загружается другой уровень,
+## герой появляется в кабине лифта.
+func x_travel(lv: int) -> void:
+	var x := san as ULExternals
+	if x == null or lv == x.level or _cs_done or _leaving or not x_lift_ok(lv):
+		return
+	if _lift_ui != null and is_instance_valid(_lift_ui):
+		_lift_ui.queue_free()
+		_lift_ui = null
+	_cs_done = true
+	_save_carried()
+	if cs_ready and ULBase.route_left(place) > 0 and not lvl and (test == "" or test == "xblift"):
+		ULBase.visit_save(place, cs_state())
+	ULSettings.place = ULExternals.place_of(lv)
+	ULSettings.x_arrive = true
+	ULSettings.arrival_note = ""
+	snd.play("door_creak", player.global_position + Vector3.UP, -6.0, 0.1)
+	if test == "":
+		_leave_to("res://world.tscn", "лифт: %s → %s" % [place, ULSettings.place])
+
+
 func open_talk(n: Node3D) -> void:
 	if _talk_ui == null:
 		_talk_ui = Control.new()
@@ -19106,6 +19285,141 @@ func _run_test() -> void:
 		print("[inv] итог: ошибок %d" % _fails)
 		get_tree().quit()
 		return
+	if test == "xblift":
+		# Лифт Базы Внешников (несколько загрузок сцены в одном запуске): капсула и красная жемчужина, доступ на
+		# сутки, поездки поверхность → этаж 1 → 3 → 2 → 1 → поверхность, убитые не оживают, после срока комплекс
+		# перезагружается и снова требует жемчужину.
+		var tl0 := Time.get_ticks_msec()
+		while not cs_ready and Time.get_ticks_msec() - tl0 < 90000:
+			await get_tree().process_frame
+		hp_lock = true
+		for e in enemies:
+			e.set_physics_process(false)             # проверка логики: солдаты стоят и не стреляют
+		var td: Dictionary = ULSettings.test_data
+		var x := san as ULExternals
+		var by_kind := func() -> Dictionary:
+			var d := {}
+			for e in enemies:
+				if is_instance_valid(e) and e.alive():
+					d[e.kind] = int(d.get(e.kind, 0)) + 1
+			return d
+		var alive_n := func() -> int:
+			var n := 0
+			for e in enemies:
+				if is_instance_valid(e) and e.alive():
+					n += 1
+			return n
+		var go := func(lv: int) -> void:
+			x_travel(lv)
+			td["phase"] = int(td.get("phase", 1)) + 1
+			td["fails"] = _fails
+			td["from"] = x.level
+			await get_tree().create_timer(0.3).timeout
+			get_tree().change_scene_to_file("res://world.tscn")
+		var ph := int(td.get("phase", 1))
+		_fails += int(td.get("fails", 0)) if ph > 1 else 0
+		var sc: Dictionary = ULExternals.xcfg().get("soldiers", {})
+		var want := func(key: String) -> String:
+			var d: Dictionary = sc.get(key, {})
+			return "%d/%d/%d" % [int(d.get("ext_assault", 0)), int(d.get("ext_sniper", 0)), int(d.get("ext_titan", 0))]
+		var have := func() -> String:
+			var d: Dictionary = by_kind.call()
+			return "%d/%d/%d" % [int(d.get("ext_assault", 0)), int(d.get("ext_sniper", 0)), int(d.get("ext_titan", 0))]
+		if ph == 1:
+			_ok("1. поверхность: комплекс закрыт, створки лифта закрыты, ехать вниз нельзя", place == "externals" and ULBase.ext_left() == 0 and not x.lift_open and not x_lift_ok(1) and _cs_end <= 0.0)
+			player.global_position = ULExternals.X_CAPSULE + Vector3(0.0, 0.25, 0.9)
+			await get_tree().create_timer(0.5).timeout
+			_find_target()
+			_ok("2. у капсулы: цель — капсула, кнопка «Вложить жемчужину»", _target != null and String(_target.type) == "x_capsule" and _action_label() == "Вложить жемчужину", str(_target))
+			inv.wallet["pearl_red"] = 0
+			_ok("3. без жемчужины капсула не срабатывает", not x_capsule_use() and ULBase.ext_left() == 0 and not x.lift_open)
+			inv.add(ULItems.make("card_red", 3))
+			_ok("4. красная карта Титана жемчужину не заменяет (три карты при себе — лифт закрыт)", inv.count("card_red") == 3 and not x_capsule_use() and ULBase.ext_left() == 0)
+			inv.wallet["pearl_red"] = 2
+			var used := x_capsule_use()
+			var lf := ULBase.ext_left()
+			_ok("5. жемчужина вложена: списана одна (осталась %d), комплекс открыт на %s, створки открыты" % [int(inv.wallet.get("pearl_red", 0)), _hm_text(lf)],
+				used and int(inv.wallet.get("pearl_red", 0)) == 1 and lf > 86000 and lf <= 86400 and x.lift_open and x_lift_ok(3))
+			_ok("6. вторая жемчужина до перезагрузки не тратится", not x_capsule_use() and int(inv.wallet.get("pearl_red", 0)) == 1)
+			_ok("7. поверхность запоминается до перезагрузки комплекса (посещение идёт, таймера на поверхности нет)", ULBase.route_state("externals") == "active" and ULBase.route_left("externals") > 86000)
+			_ok("8. солдат на поверхности %s (по настройке %s)" % [have.call(), want.call("surface")], have.call() == want.call("surface"))
+			var wp: Array = enemies.filter(func(e): return e.alive() and e.has_meta("pi"))
+			for i in 2:
+				(wp[i * 3] as ULEnemy).damage(1000000.0)
+			await get_tree().create_timer(0.6).timeout
+			td["surf_alive"] = alive_n.call()
+			player.global_position = ULExternals.X_LIFT_IN + Vector3(0, 0.1, 0)
+			await get_tree().create_timer(0.5).timeout
+			_find_target()
+			_ok("9. в кабине: цель — пульт лифта, кнопка «Лифт»; герой вошёл через открытые створки", _target != null and String(_target.type) == "x_lift" and _action_label() == "Лифт", str(_target))
+			open_lift_ui()
+			await get_tree().create_timer(0.4).timeout
+			_ok("10. окно лифта открыто: четыре уровня", _lift_ui != null and is_instance_valid(_lift_ui) and _modal())
+			if out != "":
+				DirAccess.make_dir_recursive_absolute(out)
+				await _snap("lift_ui")
+			await go.call(1)
+			return
+		var names := {2: "11", 3: "14", 4: "16", 5: "18", 6: "20", 7: "24"}
+		if ph == 2:
+			_ok("11. этаж 1: герой в кабине лифта, место — «%s»" % zone_name(), place == "externals_f1" and x.level == 1 and player.global_position.distance_to(ULExternals.X_LIFT_IN) < 1.5 and x.lift_open)
+			_ok("12. этаж 1: солдат %s (по настройке %s); срок — до перезагрузки комплекса (%s)" % [have.call(), want.call("floor1"), _hm_text(int(cs_left()))],
+				have.call() == want.call("floor1") and cs_left() > 85000.0 and ULBase.route_state("externals_f1") == "active" and not cs_resumed)
+			var wp2: Array = enemies.filter(func(e): return e.alive() and e.has_meta("pi"))
+			for i in 3:
+				(wp2[i * 2] as ULEnemy).damage(1000000.0)
+			await get_tree().create_timer(0.6).timeout
+			td["f1_alive"] = alive_n.call()
+			_ok("13. этаж 1: трое убиты (осталось %d)" % alive_n.call(), alive_n.call() == 17)
+			await go.call(3)
+			return
+		if ph == 3:
+			_ok("14. этаж 3: солдат %s (по настройке %s)" % [have.call(), want.call("floor3")], place == "externals_f3" and have.call() == want.call("floor3"))
+			_ok("15. этаж 3: герой у лифта, в помещении «%s»" % _where(), player.global_position.distance_to(ULExternals.X_LIFT_IN) < 1.5)
+			await go.call(2)
+			return
+		if ph == 4:
+			_ok("16. этаж 2: солдат %s (по настройке %s)" % [have.call(), want.call("floor2")], place == "externals_f2" and have.call() == want.call("floor2"))
+			var tot := {}
+			for k in ["surface", "floor1", "floor2", "floor3"]:
+				for kk in (sc.get(k, {}) as Dictionary):
+					tot[kk] = int(tot.get(kk, 0)) + int(sc[k][kk])
+			_ok("17. всего по базе: штурмовиков %d, снайперов %d, Титанов %d (задано 50 / 16 / 20)" % [int(tot.get("ext_assault", 0)), int(tot.get("ext_sniper", 0)), int(tot.get("ext_titan", 0))],
+				int(tot.get("ext_assault", 0)) == 50 and int(tot.get("ext_sniper", 0)) == 16 and int(tot.get("ext_titan", 0)) == 20)
+			await go.call(1)
+			return
+		if ph == 5:
+			_ok("18. снова этаж 1: посещение продолжено, убитые не ожили (живых %d, было %d)" % [alive_n.call(), int(td.get("f1_alive", -1))],
+				place == "externals_f1" and cs_resumed and alive_n.call() == int(td.get("f1_alive", -1)))
+			_ok("19. срок тот же — до перезагрузки комплекса (%s)" % _hm_text(int(cs_left())), absf(cs_left() - float(ULBase.ext_left())) < 3.0)
+			await go.call(0)
+			return
+		if ph == 6:
+			_ok("20. поверхность: герой приехал в кабину лифта, убитые наверху не ожили (живых %d, было %d)" % [alive_n.call(), int(td.get("surf_alive", -1))],
+				place == "externals" and player.global_position.distance_to(ULExternals.X_LIFT_IN) < 1.5 and cs_resumed and alive_n.call() == int(td.get("surf_alive", -1)) and x.lift_open)
+			# сутки прошли: срок комплекса и посещений — в прошлом
+			var past := Time.get_unix_time_from_system() - 5.0
+			ULBase.data.ext.end = past
+			_cs_end = past
+			for rid in ["externals", "externals_f1", "externals_f2", "externals_f3"]:
+				if ULBase.data.routes.has(rid):
+					ULBase.data.routes[rid]["end"] = past
+			_ok("21. сутки прошли: комплекс закрыт, вниз лифт не идёт, состояния этажей стёрты", ULBase.ext_left() == 0 and not x_lift_ok(1) and x_lift_ok(0)
+				and ULBase.route_state("externals_f1") == "" and ULBase.visit_load("externals_f1").is_empty() and ULBase.route_state("externals") == "")
+			await get_tree().create_timer(1.0).timeout
+			_ok("22. на поверхности перезагрузка героя не убивает (здоровье %d), таймер снят" % int(hp), hp > 1.0 and _dead_t <= 0.0 and _cs_end <= 0.0)
+			inv.wallet["pearl_red"] = 1
+			_ok("23. новая жемчужина — новый цикл на сутки", x_capsule_use() and int(inv.wallet.get("pearl_red", 0)) == 0 and ULBase.ext_left() > 86000 and x_lift_ok(1))
+			_cs_done = false
+			await go.call(1)
+			return
+		if ph == 7:
+			_ok("24. этаж 1 после перезагрузки комплекса: всё заново — солдат %s (по настройке %s)" % [have.call(), want.call("floor1")],
+				place == "externals_f1" and not cs_resumed and have.call() == want.call("floor1"))
+		print("[xblift] итог: ошибок %d" % _fails)
+		ULSettings.test_data = {}
+		get_tree().quit()
+		return
 	if test == "xbview":
 		# снимки базы Внешников камерой игры: у ворот, во дворе и в каждом помещении главного здания
 		var tv0 := Time.get_ticks_msec()
@@ -19116,6 +19430,14 @@ func _run_test() -> void:
 			["a4_lift", 0.0, 5.5, 15.0], ["a5_term1", 17.0, 2.5, 15.0], ["a6_term2", -17.0, 2.5, 15.0], ["a7_term3", 0.0, -12.0, 15.0],
 			["a8_generator", -12.5, 14.0, 15.0], ["a9_warehouse", 12.5, 14.0, 15.0], ["b0_store_nw", -13.0, -15.0, 14.0], ["b1_store_ne", 13.0, -15.0, 14.0],
 			["b2_helipad", -25.5, -27.5, 20.0], ["b3_techzone", 27.5, -22.0, 18.0], ["b4_guard", -15.0, 33.5, 11.0]]
+		if san is ULExternalsDeep:
+			# подземный этаж (--as-floor=1…3): по снимку на каждое помещение, герой — в свободной точке у его середины
+			vspots = [["r00_lift", 0.0, 4.5, 15.0]]
+			var xrooms: Array = ULExternalsDeep.D_ROOMS[(san as ULExternals).level]
+			for ri in range(1, xrooms.size()):
+				var xr: Array = xrooms[ri]
+				var xc := NavigationServer3D.map_get_closest_point(get_world_3d().navigation_map, Vector3((float(xr[2]) + float(xr[4])) * 0.5, 0.2, (float(xr[3]) + float(xr[5])) * 0.5 + 1.5))
+				vspots.append(["r%02d" % ri, xc.x, xc.z, clampf(maxf(float(xr[4]) - float(xr[2]), float(xr[5]) - float(xr[3])) * 0.7, 13.0, 22.0)])
 		var vonly := ""
 		for a in OS.get_cmdline_user_args():
 			if a.begins_with("--as-only="):
@@ -19141,6 +19463,9 @@ func _run_test() -> void:
 		var xshots := [["p0_south", Vector3(0, 34, 96), Vector3(0, 0, 14), 46.0], ["p1_gate", Vector3(10, 16, 62), Vector3(0, 2, 30), 50.0],
 			["p2_main", Vector3(0, 40, 44), Vector3(0, 0, -2), 46.0], ["p3_nw", Vector3(-52, 30, -52), Vector3(-10, 0, -10), 46.0],
 			["p4_ne", Vector3(52, 30, -52), Vector3(10, 0, -10), 46.0], ["p5_top", Vector3(0, 120, 0.01), Vector3.ZERO, 0.0]]
+		if san is ULExternalsDeep:
+			xshots = [["u0_top", Vector3(0, 92, 0.01), Vector3.ZERO, 0.0], ["u1_south", Vector3(0, 52, 62), Vector3(0, 0, 2), 46.0],
+				["u2_ne", Vector3(46, 40, -46), Vector3(4, 0, -4), 46.0]]
 		var xonly := ""
 		for a in OS.get_cmdline_user_args():
 			if a.begins_with("--as-only="):

@@ -52,6 +52,7 @@ static var bench := false                  ## «Тест уровней» с з�
 static var place := "home"                 ## какую локацию строит world.tscn: home — дом, cowshed — «Опасный коровник», sanatorium — «Санаторий Луч»
 static var arrival_note := ""              ## что сказать герою по прибытии (после гибели в кластере и т. п.)
 static var arrival_title := ""             ## заголовок записки (название кластера)
+static var x_arrive := false                ## База Внешников: герой приехал на лифте — появляется в кабине, а не у ворот
 static var test_data := {}                 ## проверки в две загрузки сцены (revisit): что запомнено между ними
 static var stand_who := "hero"             ## кого показывает стенд 3D: hero — герой, иначе вид врага (ULEnemy.KINDS)
 static var stand_hero := ""                ## внешность героя на стенде (ULHeroes); пусто — выбранная игроком

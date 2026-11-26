@@ -123,6 +123,16 @@ const X_PILES := [
 ]
 
 static var _xcfg := {}
+static var _xm := {}                    ## свои материалы базы (свечение ламп, стекло капсул) — «x_…»
+
+var level := 0                          ## 0 — поверхность; 1–3 — подземные этажи (ULExternalsDeep)
+var _door_body: StaticBody3D            ## створки лифта: закрыты, пока комплекс не открыт жемчужиной
+var _door_l: MeshInstance3D
+var _door_r: MeshInstance3D
+var _caps_glow: MeshInstance3D          ## жемчужина в капсуле (видна, пока комплекс открыт)
+var lift_open := false
+var arrived := false                    ## герой приехал на лифте: появляется в кабине, а не у ворот
+const X_LIFT_IN := Vector3(0, 0.2, 0.3)  ## где герой стоит в кабине лифта (и появляется, приехав на лифте)
 
 
 static func xcfg() -> Dictionary:
@@ -137,7 +147,71 @@ func conf() -> Dictionary:
 
 
 func entry() -> Vector3:
-	return X_ENTRY
+	return X_LIFT_IN if arrived else X_ENTRY
+
+
+## как называется место для игрока и для сохранения: поверхность — «externals», этажи — «externals_f1…3»
+static func place_of(lv: int) -> String:
+	return "externals" if lv <= 0 else "externals_f%d" % lv
+
+
+static func level_of(pl: String) -> int:
+	return int(pl.substr(11)) if pl.begins_with("externals_f") else 0
+
+
+static func level_title(lv: int) -> String:
+	return "Поверхность" if lv <= 0 else "Подземный этаж %d" % lv
+
+
+## что строится: постройки, их кэш, карта проходимости, подпись кэша — у подземных этажей свои
+func x_defs() -> Array:
+	return X_BUILDINGS
+
+
+func x_cache() -> String:
+	return X_CACHE
+
+
+func nav_path() -> String:
+	return X_NAV
+
+
+func x_sig_n() -> int:
+	return x_sig()
+
+
+## точки взаимодействия: [вид, где] — капсула для жемчужины (только на поверхности) и пульт в кабине лифта
+func x_zones() -> Array:
+	var out := [["x_lift", X_LIFT + Vector3(0, 0.2, 0)]]
+	if level == 0:
+		out.append(["x_capsule", X_CAPSULE])
+	return out
+
+
+## свои материалы: свечение (красное, зелёное, тёплое), цветное стекло капсул, чёрная порода вокруг этажа
+func _mat(m: String) -> Material:
+	if not m.begins_with("x_"):
+		return super._mat(m)
+	if not _xm.has(m):
+		var sm := StandardMaterial3D.new()
+		var cols := {"x_red": Color(1.0, 0.16, 0.12), "x_green": Color(0.3, 1.0, 0.42), "x_warm": Color(1.0, 0.86, 0.6), "x_blue": Color(0.45, 0.8, 1.0),
+			"x_yellow": Color(0.95, 0.75, 0.1), "x_dark": Color(0.035, 0.035, 0.04), "x_rglass": Color(1.0, 0.2, 0.15, 0.2), "x_gglass": Color(0.3, 1.0, 0.45, 0.17),
+			"x_glass": Color(0.7, 0.85, 0.9, 0.22), "x_steel": Color(0.3, 0.32, 0.34), "x_black": Color(0.08, 0.08, 0.09)}
+		var c: Color = cols.get(m, Color(1, 0, 1))
+		sm.albedo_color = c
+		if m in ["x_red", "x_green", "x_warm", "x_blue"]:
+			sm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		elif m.ends_with("glass"):
+			sm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+			sm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+			sm.cull_mode = BaseMaterial3D.CULL_DISABLED
+		elif m == "x_dark":
+			sm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		else:
+			sm.roughness = 0.6
+			sm.metallic = 0.4 if m == "x_steel" else 0.0
+		_xm[m] = sm
+	return _xm[m]
 
 
 func title() -> String:
@@ -212,14 +286,14 @@ func build(world: Node3D) -> void:
 	rng.seed = 4407
 	var t0 := Time.get_ticks_msec()
 	var cache: ULBlockCache = null
-	if w.test != "xbbake" and ResourceLoader.exists(X_CACHE):
-		var r = load(X_CACHE)
-		if r is ULBlockCache and (r as ULBlockCache).sig == x_sig():
+	if w.test != "xbbake" and ResourceLoader.exists(x_cache()):
+		var r = load(x_cache())
+		if r is ULBlockCache and (r as ULBlockCache).sig == x_sig_n():
 			cache = r
 		else:
 			push_warning("база Внешников: кэш построек устарел — пересоберите --as-test=xbbake")
 	var made := {}
-	for d in X_BUILDINGS:
+	for d in x_defs():
 		var b := ULBlock.new()
 		add_child(b)
 		var st0 := rng.state
@@ -237,8 +311,7 @@ func build(world: Node3D) -> void:
 			if not _door_grid.has(k):
 				_door_grid[k] = []
 			_door_grid[k].append(dd)
-		if String(d.id) == "main":
-			_x_main(b)
+		_x_inside(b)
 		_place_models(b)
 	if cache != null:
 		rng.state = cache.rng_state
@@ -247,6 +320,28 @@ func build(world: Node3D) -> void:
 	var props := Node3D.new()
 	props.name = "Props"
 	add_child(props)
+	_x_outdoor(rng, props)
+	add_child(body)
+	set_lift_open(level > 0 or ULBase.ext_left() > 0 or bool(w.lvl))
+	if w.test == "xbbake":
+		var cr := ULBlockCache.new()
+		cr.sig = x_sig_n()
+		cr.rng_state = bld_state
+		cr.blds = made
+		cr.dist = _bake_dist()
+		var err := ResourceSaver.save(cr, x_cache(), ResourceSaver.FLAG_COMPRESS)
+		print("[bake] кэш построек базы Внешников: %s (%s)" % [x_cache(), error_string(err)])
+	print("[externals] база (уровень %d) собрана: %d мс, построек %d, столкновений %d" % [level, Time.get_ticks_msec() - t0, blds.size(), body.get_child_count()])
+
+
+## обстановка построек, которую ставит не генератор (терминалы, компьютеры, мебель по таблице)
+func _x_inside(b: ULBlock) -> void:
+	if b.id == "main":
+		_x_main(b)
+
+
+## всё вокруг построек: лес, земля, стена с вышками, лифт, техника, штабеля, свет, точки двора
+func _x_outdoor(rng: RandomNumberGenerator, props: Node3D) -> void:
 	_c_forest(rng)
 	_x_ground()
 	_x_walls(props)
@@ -259,16 +354,6 @@ func build(world: Node3D) -> void:
 	_c_vegetation()
 	_x_spots(rng)
 	_light_pool()
-	add_child(body)
-	if w.test == "xbbake":
-		var cr := ULBlockCache.new()
-		cr.sig = x_sig()
-		cr.rng_state = bld_state
-		cr.blds = made
-		cr.dist = _bake_dist()
-		var err := ResourceSaver.save(cr, X_CACHE, ResourceSaver.FLAG_COMPRESS)
-		print("[bake] кэш построек базы Внешников: %s (%s)" % [X_CACHE, error_string(err)])
-	print("[externals] база собрана: %d мс, построек %d, столкновений %d" % [Time.get_ticks_msec() - t0, blds.size(), body.get_child_count()])
 
 
 # ---------------- земля ----------------
@@ -398,9 +483,10 @@ func _x_walls(g: Node3D) -> void:
 
 # ---------------- лифт и капсула ----------------
 
-## Шахта лифта посреди лифтового зала: восьмиугольное основание с жёлто-чёрной каймой, четыре стойки с балками,
-## закрытая кабина. Рядом — капсула для красной жемчужины (тумба с красным стеклянным колпаком).
-## Кабина закрыта: работа лифта и подземные этажи — следующим этапом.
+## Лифт посреди лифтового зала: восьмиугольное основание, четыре стойки с балками, кабина-платформа с низкими
+## бортами (герой в ней виден сверху) и створками с юга. Створки закрыты, пока комплекс не открыт красной
+## жемчужиной; открыт — створки разведены, в кабину можно войти. Рядом (только на поверхности) — капсула для
+## жемчужины: тумба со стеклянным колпаком; пока комплекс открыт, в колпаке светится жемчужина.
 func _x_lift(g: Node3D) -> void:
 	var c := X_LIFT
 	_cy(g, "plinth", 4.6, 4.8, 0.12, _at(c + Vector3(0, 0.26, 0)), 8)
@@ -410,15 +496,70 @@ func _x_lift(g: Node3D) -> void:
 	for sgn in [-1.0, 1.0]:
 		_bx(g, "gmetal", Vector3(5.1, 0.35, 0.4), _at(c + Vector3(0, 3.2, sgn * 2.3)))
 		_bx(g, "gmetal", Vector3(0.4, 0.35, 5.1), _at(c + Vector3(sgn * 2.3, 3.2, 0)))
-	# кабина: стенки и закрытые створки с юга
-	_bx(g, "plinth", Vector3(4.1, 2.9, 4.1), _at(c + Vector3(0, 1.65, 0)), true)
-	_bx(g, "metal", Vector3(1.2, 2.4, 0.1), _at(c + Vector3(-0.62, 1.42, 2.1)))
-	_bx(g, "metal", Vector3(1.2, 2.4, 0.1), _at(c + Vector3(0.62, 1.42, 2.1)))
-	# капсула
-	var k := X_CAPSULE
-	_cy(g, "metal", 0.34, 0.42, 1.0, _at(k + Vector3(0, 0.7, 0)), 10)
-	_cy(g, "glass", 0.24, 0.24, 0.42, _at(k + Vector3(0, 1.41, 0)), 10)
-	_cyl_col(k, 0.45, 1.6)
+	# кабина: пол, борта с трёх сторон (столкновение — на всю высоту), жёлтая кайма у входа
+	_bx(g, "x_steel", Vector3(4.2, 0.06, 4.2), _at(c + Vector3(0, 0.35, 0)))
+	_bx(g, "x_steel", Vector3(4.2, 1.15, 0.2), _at(c + Vector3(0, 0.9, -2.2)))
+	_col_xf(Vector3(4.2, 3.0, 0.2), _at(c + Vector3(0, 1.7, -2.2)))
+	for sgn in [-1.0, 1.0]:
+		_bx(g, "x_steel", Vector3(0.2, 1.15, 4.2), _at(c + Vector3(sgn * 2.2, 0.9, 0)))
+		_col_xf(Vector3(0.2, 3.0, 4.2), _at(c + Vector3(sgn * 2.2, 1.7, 0)))
+		_bx(g, "x_steel", Vector3(0.75, 1.15, 0.2), _at(c + Vector3(sgn * 1.83, 0.9, 2.2)), true)
+	_bx(g, "x_yellow", Vector3(2.9, 0.03, 0.3), _at(c + Vector3(0, 0.37, 2.25)))
+	# пульт в кабине
+	_bx(g, "x_black", Vector3(0.5, 1.1, 0.25), _at(c + Vector3(1.75, 0.9, -1.85)))
+	_bx(g, "x_blue", Vector3(0.36, 0.26, 0.03), _at(c + Vector3(1.75, 1.25, -1.71)))
+	# створки (отдельно от остального: открываются)
+	_door_body = StaticBody3D.new()
+	_door_body.name = "LiftDoors"
+	var dcs := CollisionShape3D.new()
+	var dbs := BoxShape3D.new()
+	dbs.size = Vector3(3.0, 3.0, 0.25)
+	dcs.shape = dbs
+	dcs.position = c + Vector3(0, 1.7, 2.2)
+	_door_body.add_child(dcs)
+	if not String(w.test).ends_with("bake"):
+		add_child(_door_body)                       # при запекании карты проходимости створок нет: в кабину есть путь
+	for sgn in [-1.0, 1.0]:
+		var mi := MeshInstance3D.new()
+		var bm := BoxMesh.new()
+		bm.size = Vector3(1.46, 2.3, 0.1)
+		mi.mesh = bm
+		mi.material_override = _mat("x_steel")
+		mi.position = c + Vector3(sgn * 0.74, 1.5, 2.2)
+		add_child(mi)
+		if sgn < 0.0:
+			_door_l = mi
+		else:
+			_door_r = mi
+	if level == 0:
+		var k := X_CAPSULE
+		_cy(g, "metal", 0.34, 0.42, 1.0, _at(k + Vector3(0, 0.7, 0)), 10)
+		_cy(g, "x_glass", 0.24, 0.24, 0.42, _at(k + Vector3(0, 1.41, 0)), 10)
+		_cyl_col(k, 0.45, 1.6)
+		_caps_glow = MeshInstance3D.new()
+		var sp := SphereMesh.new()
+		sp.radius = 0.09
+		sp.height = 0.18
+		_caps_glow.mesh = sp
+		_caps_glow.material_override = _mat("x_red")
+		_caps_glow.position = k + Vector3(0, 1.36, 0)
+		_caps_glow.visible = false
+		add_child(_caps_glow)
+
+
+## створки лифта: открыты — разведены в стороны и не мешают пройти; закрыты — стена
+func set_lift_open(on: bool) -> void:
+	lift_open = on
+	if _door_body == null:
+		return
+	(_door_body.get_child(0) as CollisionShape3D).set_deferred("disabled", on)
+	_door_body.collision_layer = 0 if on else 1
+	_door_l.position.x = X_LIFT.x - (1.83 if on else 0.74)
+	_door_r.position.x = X_LIFT.x + (1.83 if on else 0.74)
+	_door_l.scale = Vector3(0.5, 1.0, 1.6) if on else Vector3.ONE
+	_door_r.scale = Vector3(0.5, 1.0, 1.6) if on else Vector3.ONE
+	if _caps_glow != null:
+		_caps_glow.visible = on and level == 0 and ULBase.ext_left() > 0
 
 
 # ---------------- главное здание: терминалы, компьютеры ----------------
@@ -436,7 +577,12 @@ func _x_main(b: ULBlock) -> void:
 		if ResourceLoader.exists(MODELS + "ul_computer.glb"):
 			b.models.append(["ul_computer", Vector3(pp.x, 0.2, pp.z), float(t[5]), Vector3(1.8, 1.4, 0.9), "b%d/n0" % bi, 0.0])
 		_col_xf(Vector3(1.7, 1.2, 0.9), Transform3D(Basis(Vector3.UP, float(t[5])), Vector3(pp.x, 0.8, pp.z)))
-	for it in X_FURN:
+	_x_furn(b, X_FURN)
+
+
+## обстановка-модели по таблице: [модель, блок, где, поворот, размер] — на полу блока, со столкновением-коробкой
+func _x_furn(b: ULBlock, table: Array) -> void:
+	for it in table:
 		if not ResourceLoader.exists(MODELS + String(it[0]) + ".glb"):
 			continue
 		var sz: Vector3 = it[4]
