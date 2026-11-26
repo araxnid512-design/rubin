@@ -1,12 +1,12 @@
 {
- "stop": true,
+ "stop": false,
  "jobs": [
   {
-   "id": "g91_g_rpg7d_b",
+   "id": "g92_g_g36c_c",
    "py": "tools/tripo/chain.py",
    "args": [
     "--id",
-    "g_rpg7d_b",
+    "g_g36c_c",
     "--faces",
     "8000",
     "--tex",
@@ -15,16 +15,16 @@
     "detailed",
     "--pbr",
     "--prompt",
-    "RPG-7 shoulder-fired rocket launcher: one long straight smooth steel launch tube with no magazine and no stock; light brown wooden heat-guard sleeve wrapped around the middle of the tube; two grips hanging under the tube - a pistol grip with trigger guard and a second pistol grip behind it; flared bell-shaped blast cone at the rear end of the tube; small optical sight on the left side; olive green PG-7V rocket loaded in the front muzzle with a large bulbous cone-shaped warhead sticking out in front. Realistic game weapon model, accurate real-world proportions and scale, side view, single object, no hands, no person, no background, no text."
+    "Compact German 5.56 carbine G36C in black polymer: the whole top of the receiver is a tall flat-topped bridge-shaped carry handle with a long rail, rising high above the barrel line; the buttstock is a skeleton loop - an open polymer frame with one big hole, folded straight back, no tube, no adjustable M4 stock; slightly curved translucent smoky magazine with small lugs on its side; short ventilated polymer handguard; short barrel with a four-prong flash hider; polymer pistol grip molded into the lower receiver with an integrated trigger guard. Realistic game weapon model, accurate real-world proportions and scale, side view, single object, no hands, no person, no background, no text."
    ],
    "timeout": 3000
   },
   {
-   "id": "g91_g_rpg7d_c",
+   "id": "g92_g_g36c_d",
    "py": "tools/tripo/chain.py",
    "args": [
     "--id",
-    "g_rpg7d_c",
+    "g_g36c_d",
     "--faces",
     "8000",
     "--tex",
@@ -33,97 +33,7 @@
     "detailed",
     "--pbr",
     "--prompt",
-    "Soviet RPG-7D paratrooper anti-tank grenade launcher, long thin steel tube, wooden heat shield around the center of the tube, two pistol grips under the tube, flared exhaust venturi cone at the back, loaded with an olive drab PG-7V rocket grenade whose fat egg-shaped warhead protrudes from the front of the tube, no magazine, no buttstock, no rifle receiver. Realistic game weapon model, accurate real-world proportions and scale, side view, single object, no hands, no person, no background, no text."
-   ],
-   "timeout": 3000
-  },
-  {
-   "id": "g91_g_m32_b",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "g_m32_b",
-    "--faces",
-    "8000",
-    "--tex",
-    "detailed",
-    "--geo",
-    "detailed",
-    "--pbr",
-    "--prompt",
-    "M32 MGL six-shot revolver grenade launcher: a very large fat cylindrical revolving drum magazine with six round 40 mm chambers is the central and biggest part; short thick 40 mm barrel in front of the drum with picatinny rails; vertical foregrip under the barrel; pistol grip with trigger behind the drum; collapsible adjustable stock at the back; flip-up sight on top; matte black metal and polymer. Realistic game weapon model, accurate real-world proportions and scale, side view, single object, no hands, no person, no background, no text."
-   ],
-   "timeout": 3000
-  },
-  {
-   "id": "g91_g_m32_c",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "g_m32_c",
-    "--faces",
-    "8000",
-    "--tex",
-    "detailed",
-    "--geo",
-    "detailed",
-    "--pbr",
-    "--prompt",
-    "Milkor M32 multi-shot 40mm grenade launcher, huge round six-chamber revolving cylinder drum like a giant revolver, short fat barrel with quad rail, vertical forward grip, pistol grip, telescoping stock, reflex sight on top rail, black finish, no box magazine. Realistic game weapon model, accurate real-world proportions and scale, side view, single object, no hands, no person, no background, no text."
-   ],
-   "timeout": 3000
-  },
-  {
-   "id": "g91_g_val_b",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "g_val_b",
-    "--faces",
-    "8000",
-    "--tex",
-    "detailed",
-    "--geo",
-    "detailed",
-    "--pbr",
-    "--prompt",
-    "AS Val Russian silenced assault rifle: very thick long cylindrical integrated suppressor that covers the whole barrel and forms the front half of the weapon (front end is a fat tube with a small front sight), AK-style stamped steel receiver with ribbed dust cover, 20-round straight vertical box magazine, brown polymer pistol grip, side-folding skeleton steel tube stock, dark blued steel, no rails. Realistic game weapon model, accurate real-world proportions and scale, side view, single object, no hands, no person, no background, no text."
-   ],
-   "timeout": 3000
-  },
-  {
-   "id": "g91_g_scarh_b",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "g_scarh_b",
-    "--faces",
-    "8000",
-    "--tex",
-    "detailed",
-    "--geo",
-    "detailed",
-    "--pbr",
-    "--prompt",
-    "FN SCAR-H battle rifle, one single weapon only, flat dark earth tan color: aluminum upper receiver with one long continuous top picatinny rail, short side rails at the front, polymer lower receiver, folding polymer stock with cheek riser, straight 20-round 7.62 box magazine, pistol grip, barrel with flash hider, folding iron sights. Realistic game weapon model, accurate real-world proportions and scale, side view, single object, no hands, no person, no background, no text."
-   ],
-   "timeout": 3000
-  },
-  {
-   "id": "g91_g_g36c_b",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "g_g36c_b",
-    "--faces",
-    "8000",
-    "--tex",
-    "detailed",
-    "--geo",
-    "detailed",
-    "--pbr",
-    "--prompt",
-    "Heckler and Koch G36C compact assault carbine: black polymer body, tall integrated carry handle with picatinny rail on top along the whole receiver, skeletonized side-folding polymer stock with large hole, translucent smoky curved 30-round magazine, short barrel with four-prong flash hider, short vented handguard, polymer pistol grip with trigger guard. Realistic game weapon model, accurate real-world proportions and scale, side view, single object, no hands, no person, no background, no text."
+    "Heckler and Koch G36 carbine with a very short barrel, smooth one-piece black plastic body (not an AR-15, no buffer tube), large integrated carrying handle on top that looks like a long hump, hollow skeleton folding stock shaped like an open rectangle frame, transparent curved magazine, perforated short forend. Realistic game weapon model, accurate real-world proportions and scale, side view, single object, no hands, no person, no background, no text."
    ],
    "timeout": 3000
   }
