@@ -3185,8 +3185,8 @@ func _process(delta: float) -> void:
 		_aim_yaw = player.rotation.y
 	speed *= ULGifts.val("swift", "k", 1.0)             # дар «Скороход»
 	if sneak:
-		if car_in or fire_held and gun:
-			sneak = false                             # за рулём и стреляя не крадутся
+		if car_in or (fire_held and gun and not _quiet_gun(hi0)):
+			sneak = false                             # за рулём и стреляя не крадутся (кроме бесшумного оружия)
 		else:
 			speed = minf(speed, stealth("speed", 1.6))
 	var want := dir.normalized() * speed if mag > 0.12 else Vector3.ZERO
@@ -3346,6 +3346,12 @@ func set_sneak(v: bool) -> void:
 	sneak = v
 	if v:
 		say("Крадётесь: шаги не слышны, со спины вас почти не видно")
+
+
+## бесшумное оружие (поле quiet у предмета): выстрел из него не поднимает крадущегося героя в рост
+## (quiet_keep в data/stealth.json; 0 — любой выстрел выдаёт)
+func _quiet_gun(it) -> bool:
+	return it != null and float(ULItems.get_def(String(it.id)).get("quiet", 0.0)) > 0.0 and stealth("quiet_keep", 1.0) > 0.0
 
 
 ## насколько ближе спокойный враг e замечает крадущегося героя (1 — как обычно)
@@ -5494,7 +5500,8 @@ func _shoot(it: Dictionary, d: Dictionary) -> void:
 	if not lvl:
 		it.mag = int(it.mag) - 1                # в тесте уровня патроны не кончаются
 	shots += 1
-	sneak = false                             # выстрел выдаёт: герой встаёт в рост
+	if not _quiet_gun(it):
+		sneak = false                           # выстрел выдаёт: герой встаёт в рост (бесшумное оружие — нет)
 	_atk_cd = minf(_atk_cd, 0.0) + 1.0 / float(d.rate)    # остаток прошлого кадра идёт в зачёт (темп не зависит от FPS)
 	_aim_t = 0.0
 	rig.hold.set_stance("aim")
@@ -20851,8 +20858,8 @@ func _run_test() -> void:
 		for e0 in enemies.duplicate():
 			e0.damage(1000000.0)
 		set_sneak(true)
-		_ok("0. скрытность выключена в настройках: режим не включается, кнопки с глазом на экране нет", not sneak and _hud_hit(_hud_pos("sneak")) != "sneak")
-		_stealth_cfg["enabled"] = 1               # дальше проверяется сам режим (на случай, если его вернут)
+		_ok("0. скрытность включена в настройках: режим включается, кнопка с глазом на экране есть", sneak and _hud_hit(_hud_pos("sneak")) == "sneak")
+		set_sneak(false)
 		var zp := Vector3(20.0, 0.0, 40.0)
 		var z := spawn_enemy("infected", zp)
 		z.def = z.def.duplicate(true)
@@ -20925,6 +20932,45 @@ func _run_test() -> void:
 		var off := not sneak
 		_hud_press("sneak")
 		_ok("7. кнопка «Красться» выключает и включает", off and sneak)
+		# 8–9. выстрел: обычное оружие поднимает в рост; бесшумное — нет, и дальше своей слышимости его не слышат
+		for row in [["ak74m", false], ["val", true], ["vss", true]]:
+			var gid := String(row[0])
+			var gd := ULItems.get_def(gid)
+			inv.from_dict({})
+			inv.primary = ULItems.make(gid)
+			inv.primary.mag = int(gd.mag)
+			inv.hand = "primary"
+			_apply_gear()
+			await _wait_drawn()
+			var zq := spawn_enemy("infected", zp + Vector3(0, 0, 14.0))     # дальше слышимости бесшумного
+			zq.def = zq.def.duplicate(true)
+			zq.def.see = 0.0
+			zq.state = "idle"
+			zq._t = 99.0
+			player.global_position = zp + Vector3(0, 0.05, 0)
+			player.rotation.y = PI
+			set_sneak(true)
+			await get_tree().create_timer(0.5).timeout
+			_shoot(inv.primary, gd)
+			var kept := sneak
+			await get_tree().process_frame
+			var heard := not zq._calm()
+			var qd := float(gd.get("quiet", 0.0))
+			if bool(row[1]):
+				_ok("9. %s (бесшумное, слышно до %d м): выстрел не поднимает в рост, враг за 14 м не слышит" % [String(gd.n), int(qd)], kept and not heard and qd > 0.0, "крадётся %s, услышал %s" % [str(kept), str(heard)])
+			else:
+				_ok("8. %s: выстрел поднимает в рост, враг за 14 м слышит" % String(gd.n), not kept and heard, "крадётся %s, услышал %s" % [str(kept), str(heard)])
+			zq.damage(1000000.0)
+			set_sneak(false)
+		if out != "":
+			inv.primary = ULItems.make("val")
+			inv.primary.mag = 20
+			inv.hand = "primary"
+			_apply_gear()
+			await _wait_drawn()
+			set_sneak(true)
+			await get_tree().create_timer(0.8).timeout
+			await _snap("stealth_val")
 		if out != "":
 			await get_tree().create_timer(0.4).timeout
 			await _snap("stealth_hud")
