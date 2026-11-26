@@ -13,6 +13,7 @@ import json
 import os
 import re
 import shutil
+import signal
 import subprocess
 import sys
 import time
@@ -116,11 +117,23 @@ def main():
                     log(f"- {jid}: скрипт {script} не из tools/tripo/ — пропущен")
                     continue
                 log(f"\n### {jid}: python3 {script} {' '.join(args)[:300]}")
+                # своя группа процессов: по истечении времени убивается вся цепочка (скрипт и запущенная им программа
+                # tripo). Раньше убивался только скрипт, а ожидание вывода висело на его потомке — задание, зависшее
+                # на стороне Tripo, останавливало всю очередь до конца запуска (так встали «секция стены» и «щитовая»)
+                p = subprocess.Popen(["python3", script, *args], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, start_new_session=True)
                 try:
-                    p = subprocess.run(["python3", script, *args], capture_output=True, text=True, timeout=int(job.get("timeout", 1800)))
-                    code, out = p.returncode, (p.stdout + ("\n" + p.stderr if p.stderr.strip() else "")).strip()
+                    so, se = p.communicate(timeout=int(job.get("timeout", 1800)))
+                    code, out = p.returncode, (so + ("\n" + se if se.strip() else "")).strip()
                 except subprocess.TimeoutExpired:
-                    code, out = -1, "превышено время"
+                    try:
+                        os.killpg(p.pid, signal.SIGKILL)
+                    except ProcessLookupError:
+                        pass
+                    try:
+                        so, se = p.communicate(timeout=30)
+                    except subprocess.TimeoutExpired:
+                        so, se = "", ""
+                    code, out = -1, ("превышено время\n" + so[-1500:] + se[-500:]).strip()
             else:
                 log(f"\n### {jid}: tripo {' '.join(args)[:300]}")
                 code, out = tripo(args, timeout=int(job.get("timeout", 1800)))
