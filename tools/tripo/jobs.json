@@ -1,12 +1,12 @@
 {
- "stop": true,
+ "stop": false,
  "jobs": [
   {
-   "id": "g90_g_ak107",
+   "id": "g91_g_rpg7d_b",
    "py": "tools/tripo/chain.py",
    "args": [
     "--id",
-    "g_ak107",
+    "g_rpg7d_b",
     "--faces",
     "8000",
     "--tex",
@@ -15,16 +15,16 @@
     "detailed",
     "--pbr",
     "--prompt",
-    "AK-107 assault rifle, black polymer and dark steel, AK-style receiver with long gas tube and balanced recoil system cylinder above the barrel, curved black 30-round 5.45 magazine, side-folding black skeleton-free solid polymer stock, slotted muzzle brake, rear tangent sight. Realistic game weapon model, accurate real-world proportions and scale, side view, single object, no hands, no person, no background, no text."
+    "RPG-7 shoulder-fired rocket launcher: one long straight smooth steel launch tube with no magazine and no stock; light brown wooden heat-guard sleeve wrapped around the middle of the tube; two grips hanging under the tube - a pistol grip with trigger guard and a second pistol grip behind it; flared bell-shaped blast cone at the rear end of the tube; small optical sight on the left side; olive green PG-7V rocket loaded in the front muzzle with a large bulbous cone-shaped warhead sticking out in front. Realistic game weapon model, accurate real-world proportions and scale, side view, single object, no hands, no person, no background, no text."
    ],
    "timeout": 3000
   },
   {
-   "id": "g90_g_ak102",
+   "id": "g91_g_rpg7d_c",
    "py": "tools/tripo/chain.py",
    "args": [
     "--id",
-    "g_ak102",
+    "g_rpg7d_c",
     "--faces",
     "8000",
     "--tex",
@@ -33,16 +33,16 @@
     "detailed",
     "--pbr",
     "--prompt",
-    "AK-102 short assault carbine, black polymer and dark steel, short barrel with cylindrical muzzle device, AK receiver, curved black 30-round 5.56 magazine, side-folding black polymer stock, black polymer handguard and pistol grip. Realistic game weapon model, accurate real-world proportions and scale, side view, single object, no hands, no person, no background, no text."
+    "Soviet RPG-7D paratrooper anti-tank grenade launcher, long thin steel tube, wooden heat shield around the center of the tube, two pistol grips under the tube, flared exhaust venturi cone at the back, loaded with an olive drab PG-7V rocket grenade whose fat egg-shaped warhead protrudes from the front of the tube, no magazine, no buttstock, no rifle receiver. Realistic game weapon model, accurate real-world proportions and scale, side view, single object, no hands, no person, no background, no text."
    ],
    "timeout": 3000
   },
   {
-   "id": "g90_g_rpg7d",
+   "id": "g91_g_m32_b",
    "py": "tools/tripo/chain.py",
    "args": [
     "--id",
-    "g_rpg7d",
+    "g_m32_b",
     "--faces",
     "8000",
     "--tex",
@@ -51,16 +51,16 @@
     "detailed",
     "--pbr",
     "--prompt",
-    "RPG-7D paratrooper rocket-propelled grenade launcher, dark steel tube with brown wooden heat-shield handguard in the middle, two pistol grips with wooden grip panels, flared bell-shaped rear venturi, iron sights on top, loaded with an olive green PG-7V rocket warhead in the front. Realistic game weapon model, accurate real-world proportions and scale, side view, single object, no hands, no person, no background, no text."
+    "M32 MGL six-shot revolver grenade launcher: a very large fat cylindrical revolving drum magazine with six round 40 mm chambers is the central and biggest part; short thick 40 mm barrel in front of the drum with picatinny rails; vertical foregrip under the barrel; pistol grip with trigger behind the drum; collapsible adjustable stock at the back; flip-up sight on top; matte black metal and polymer. Realistic game weapon model, accurate real-world proportions and scale, side view, single object, no hands, no person, no background, no text."
    ],
    "timeout": 3000
   },
   {
-   "id": "g90_g_m32",
+   "id": "g91_g_m32_c",
    "py": "tools/tripo/chain.py",
    "args": [
     "--id",
-    "g_m32",
+    "g_m32_c",
     "--faces",
     "8000",
     "--tex",
@@ -69,16 +69,16 @@
     "detailed",
     "--pbr",
     "--prompt",
-    "M32 multiple grenade launcher (Milkor MGL style), large 6-shot revolver drum cylinder, short thick 40mm barrel, black matte metal, top picatinny rail with flip-up sight, vertical foregrip under the barrel, collapsible adjustable stock, pistol grip. Realistic game weapon model, accurate real-world proportions and scale, side view, single object, no hands, no person, no background, no text."
+    "Milkor M32 multi-shot 40mm grenade launcher, huge round six-chamber revolving cylinder drum like a giant revolver, short fat barrel with quad rail, vertical forward grip, pistol grip, telescoping stock, reflex sight on top rail, black finish, no box magazine. Realistic game weapon model, accurate real-world proportions and scale, side view, single object, no hands, no person, no background, no text."
    ],
    "timeout": 3000
   },
   {
-   "id": "g90_g_val",
+   "id": "g91_g_val_b",
    "py": "tools/tripo/chain.py",
    "args": [
     "--id",
-    "g_val",
+    "g_val_b",
     "--faces",
     "8000",
     "--tex",
@@ -87,16 +87,16 @@
     "detailed",
     "--pbr",
     "--prompt",
-    "AS Val special assault rifle, long thick integrated cylindrical suppressor along the whole barrel, black steel receiver, short straight 20-round 9x39 magazine, brown polymer pistol grip, skeletal side-folding steel wire stock. Realistic game weapon model, accurate real-world proportions and scale, side view, single object, no hands, no person, no background, no text."
+    "AS Val Russian silenced assault rifle: very thick long cylindrical integrated suppressor that covers the whole barrel and forms the front half of the weapon (front end is a fat tube with a small front sight), AK-style stamped steel receiver with ribbed dust cover, 20-round straight vertical box magazine, brown polymer pistol grip, side-folding skeleton steel tube stock, dark blued steel, no rails. Realistic game weapon model, accurate real-world proportions and scale, side view, single object, no hands, no person, no background, no text."
    ],
    "timeout": 3000
   },
   {
-   "id": "g90_g_m249",
+   "id": "g91_g_scarh_b",
    "py": "tools/tripo/chain.py",
    "args": [
     "--id",
-    "g_m249",
+    "g_scarh_b",
     "--faces",
     "8000",
     "--tex",
@@ -105,16 +105,16 @@
     "detailed",
     "--pbr",
     "--prompt",
-    "M249 SAW light machine gun, black, folded bipod under the barrel, carrying handle, feed tray cover on top with an ammunition belt of brass 5.56 cartridges entering from the left side, olive green plastic ammunition box under the receiver, black polymer stock and pistol grip. Realistic game weapon model, accurate real-world proportions and scale, side view, single object, no hands, no person, no background, no text."
+    "FN SCAR-H battle rifle, one single weapon only, flat dark earth tan color: aluminum upper receiver with one long continuous top picatinny rail, short side rails at the front, polymer lower receiver, folding polymer stock with cheek riser, straight 20-round 7.62 box magazine, pistol grip, barrel with flash hider, folding iron sights. Realistic game weapon model, accurate real-world proportions and scale, side view, single object, no hands, no person, no background, no text."
    ],
    "timeout": 3000
   },
   {
-   "id": "g90_g_m16a4",
+   "id": "g91_g_g36c_b",
    "py": "tools/tripo/chain.py",
    "args": [
     "--id",
-    "g_m16a4",
+    "g_g36c_b",
     "--faces",
     "8000",
     "--tex",
@@ -123,84 +123,9 @@
     "detailed",
     "--pbr",
     "--prompt",
-    "M16A4 assault rifle, black, long 20-inch barrel with triangular front sight post, round ribbed handguard, flat-top receiver with detachable carry handle sight on top, straight 30-round STANAG magazine, fixed full-length rifle stock, A2 flash hider. Realistic game weapon model, accurate real-world proportions and scale, side view, single object, no hands, no person, no background, no text."
+    "Heckler and Koch G36C compact assault carbine: black polymer body, tall integrated carry handle with picatinny rail on top along the whole receiver, skeletonized side-folding polymer stock with large hole, translucent smoky curved 30-round magazine, short barrel with four-prong flash hider, short vented handguard, polymer pistol grip with trigger guard. Realistic game weapon model, accurate real-world proportions and scale, side view, single object, no hands, no person, no background, no text."
    ],
    "timeout": 3000
-  },
-  {
-   "id": "g90_g_scarh",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "g_scarh",
-    "--faces",
-    "8000",
-    "--tex",
-    "detailed",
-    "--geo",
-    "detailed",
-    "--pbr",
-    "--prompt",
-    "FN SCAR-H battle rifle, tan flat dark earth color polymer and aluminium, long top picatinny rail, side rails, black barrel with flash hider, straight 20-round 7.62 magazine in tan, folding adjustable tan stock with cheek riser, flip-up iron sights. Realistic game weapon model, accurate real-world proportions and scale, side view, single object, no hands, no person, no background, no text."
-   ],
-   "timeout": 3000
-  },
-  {
-   "id": "g90_g_g36c",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "g_g36c",
-    "--faces",
-    "8000",
-    "--tex",
-    "detailed",
-    "--geo",
-    "detailed",
-    "--pbr",
-    "--prompt",
-    "HK G36C compact assault rifle, black polymer, integrated carrying handle with top rail, short barrel with flash hider, translucent-looking dark 30-round 5.56 magazine, side-folding skeleton polymer stock, short handguard. Realistic game weapon model, accurate real-world proportions and scale, side view, single object, no hands, no person, no background, no text."
-   ],
-   "timeout": 3000
-  },
-  {
-   "id": "g90_am_556",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "am_556",
-    "--faces",
-    "4000",
-    "--prompt",
-    "open cardboard box of 5.56x45 mm rifle cartridges with loose brass cartridges with copper bullets lying next to it, realistic, single prop, no text. Realistic game asset, PBR, no background."
-   ],
-   "timeout": 1800
-  },
-  {
-   "id": "g90_am_40mm",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "am_40mm",
-    "--faces",
-    "4000",
-    "--prompt",
-    "olive green metal ammunition can with several 40x46 mm grenade launcher rounds lying next to it, rounds have olive-grey warheads and short brass cases, realistic, single prop group. Realistic game asset, PBR, no background."
-   ],
-   "timeout": 1800
-  },
-  {
-   "id": "g90_am_pg7v",
-   "py": "tools/tripo/chain.py",
-   "args": [
-    "--id",
-    "am_pg7v",
-    "--faces",
-    "4000",
-    "--prompt",
-    "PG-7V anti-tank rocket grenade for RPG-7, olive green conical warhead with copper band and tail fin assembly, lying next to an olive green metal transport case, realistic, single prop group. Realistic game asset, PBR, no background."
-   ],
-   "timeout": 1800
   }
  ]
 }
