@@ -74,11 +74,11 @@ const D_FURN := {
 		["gr_cabinet", 12, Vector3(33.6, 0, 6.0), 0.0, Vector3(1.2, 1.9, 0.6)], ["ul_crate", 12, Vector3(19.0, 0, 13.4), 0.4, Vector3(1.1, 0.9, 1.1)],
 		["ul_army_crate", 12, Vector3(30.0, 0, 13.6), 0.0, Vector3(1.3, 0.8, 0.9)], ["ul_army_crate", 12, Vector3(32.0, 0, 13.5), 0.2, Vector3(1.3, 0.8, 0.9)],
 		# пост охраны: пульт с компьютерами
-		["ul_computer", 15, Vector3(-3.0, 0, 31.6), PI, Vector3(1.8, 1.4, 0.9)], ["ul_computer", 15, Vector3(3.0, 0, 31.6), PI, Vector3(1.8, 1.4, 0.9)],
+		["xd_console", 15, Vector3(0.0, 0, 31.4), PI, Vector3(3.6, 1.5, 2.5)],
 		["gr_cabinet", 15, Vector3(-7.6, 0, 27.0), PI * 0.5, Vector3(1.2, 1.9, 0.6)],
 		# комната связи: аппаратура
 		["hm_rack", 10, Vector3(31.0, 0, -14.0), 0.0, Vector3(1.0, 2.0, 0.8)], ["hm_rack", 10, Vector3(32.4, 0, -14.0), 0.0, Vector3(1.0, 2.0, 0.8)],
-		["hm_rack", 10, Vector3(33.8, 0, -14.0), 0.0, Vector3(1.0, 2.0, 0.8)], ["ul_computer", 10, Vector3(22.0, 0, -7.2), PI, Vector3(1.8, 1.4, 0.9)],
+		["hm_rack", 10, Vector3(33.8, 0, -14.0), 0.0, Vector3(1.0, 2.0, 0.8)], ["xd_console", 10, Vector3(22.0, 0, -7.5), PI, Vector3(3.2, 1.4, 2.3)],
 		# лифтовой зал: ящики по углам (укрытия)
 		["ul_army_crate", 0, Vector3(-11.5, 0, -12.5), 0.3, Vector3(1.3, 0.8, 0.9)], ["ul_crate", 0, Vector3(11.5, 0, -12.5), 0.0, Vector3(1.1, 0.9, 1.1)],
 		["ul_crate", 0, Vector3(-11.5, 0, 12.5), 0.6, Vector3(1.1, 0.9, 1.1)], ["ul_army_crate", 0, Vector3(11.5, 0, 12.5), 0.0, Vector3(1.3, 0.8, 0.9)],
@@ -90,9 +90,8 @@ const D_FURN := {
 		["hm_rack", 10, Vector3(26.0, 0, -14.0), 0.0, Vector3(1.0, 2.0, 0.8)], ["hm_rack", 10, Vector3(27.4, 0, -14.0), 0.0, Vector3(1.0, 2.0, 0.8)],
 		["hm_rack", 10, Vector3(31.0, 0, -14.0), 0.0, Vector3(1.0, 2.0, 0.8)], ["hm_rack", 10, Vector3(32.4, 0, -14.0), 0.0, Vector3(1.0, 2.0, 0.8)],
 		# комната наблюдения: пульты с экранами
-		["ul_computer", 12, Vector3(20.0, 0, -8.6), 0.0, Vector3(1.8, 1.4, 0.9)], ["ul_computer", 12, Vector3(25.0, 0, -8.6), 0.0, Vector3(1.8, 1.4, 0.9)],
-		["ul_computer", 12, Vector3(30.0, 0, -8.6), 0.0, Vector3(1.8, 1.4, 0.9)], ["ul_computer", 12, Vector3(34.4, 0, -2.0), -PI * 0.5, Vector3(1.8, 1.4, 0.9)],
-		["ul_computer", 12, Vector3(34.4, 0, 4.0), -PI * 0.5, Vector3(1.8, 1.4, 0.9)], ["gr_cabinet", 12, Vector3(20.0, 0, 8.8), PI, Vector3(1.2, 1.9, 0.6)],
+		["xd_console", 12, Vector3(20.5, 0, -8.5), 0.0, Vector3(3.4, 1.5, 2.4)], ["xd_console", 12, Vector3(28.5, 0, -8.5), 0.0, Vector3(3.4, 1.5, 2.4)],
+		["xd_console", 12, Vector3(34.4, 0, 1.0), -PI * 0.5, Vector3(3.4, 1.5, 2.4)], ["gr_cabinet", 12, Vector3(20.0, 0, 8.8), PI, Vector3(1.2, 1.9, 0.6)],
 		# морозильное хранилище: шкафы-морозильники
 		["gr_cabinet", 4, Vector3(-34.0, 0, -34.8), 0.0, Vector3(1.2, 1.9, 0.6)], ["gr_cabinet", 4, Vector3(-32.4, 0, -34.8), 0.0, Vector3(1.2, 1.9, 0.6)],
 		["gr_cabinet", 4, Vector3(-30.8, 0, -34.8), 0.0, Vector3(1.2, 1.9, 0.6)], ["gr_cabinet", 4, Vector3(-25.0, 0, -34.8), 0.0, Vector3(1.2, 1.9, 0.6)],
@@ -112,8 +111,8 @@ const D_FURN := {
 	],
 	3: [
 		# командный пункт наблюдения: пульты дугой
-		["ul_computer", 2, Vector3(-30.0, 0, -29.0), 0.5, Vector3(1.8, 1.4, 0.9)], ["ul_computer", 2, Vector3(-27.0, 0, -30.0), 0.0, Vector3(1.8, 1.4, 0.9)],
-		["ul_computer", 2, Vector3(-24.0, 0, -29.0), -0.5, Vector3(1.8, 1.4, 0.9)], ["hm_rack", 2, Vector3(-34.6, 0, -34.6), 0.0, Vector3(1.0, 2.0, 0.8)],
+		["xd_console", 2, Vector3(-27.0, 0, -29.5), 0.0, Vector3(4.4, 1.6, 3.1)], ["xd_console", 2, Vector3(-21.0, 0, -24.0), -PI * 0.5, Vector3(3.2, 1.4, 2.3)],
+		["hm_rack", 2, Vector3(-34.6, 0, -34.6), 0.0, Vector3(1.0, 2.0, 0.8)],
 		["hm_rack", 2, Vector3(-33.2, 0, -34.6), 0.0, Vector3(1.0, 2.0, 0.8)], ["gr_cabinet", 2, Vector3(-20.0, 0, -34.8), 0.0, Vector3(1.2, 1.9, 0.6)],
 		# генераторная: три генератора, трансформаторы
 		["hm_generator", 6, Vector3(27.0, 0, -8.0), 0.0, Vector3(2.6, 1.7, 1.5)], ["hm_generator", 6, Vector3(27.0, 0, -2.5), 0.0, Vector3(2.6, 1.7, 1.5)],
@@ -195,7 +194,7 @@ func x_cache() -> String:
 
 
 func x_sig_n() -> int:
-	return hash(str(D_ROOMS[level]) + str(D_LINKS[level]) + str(D_FURN[level]) + str(D_WALL[level]) + str(D_FLOOR[level]) + str(D_ROOM_FLOOR[level]) + "|v2|" + str(ULBlock.GEN_V))
+	return hash(str(D_ROOMS[level]) + str(D_LINKS[level]) + str(D_FURN[level]) + str(D_WALL[level]) + str(D_FLOOR[level]) + str(D_ROOM_FLOOR[level]) + "|v3|" + str(ULBlock.GEN_V))
 
 
 func x_defs() -> Array:
@@ -318,6 +317,16 @@ func _d_room_glow(g: Node3D, ri: int, m: String, inset := 0.75) -> void:
 ## силуэт-заглушка (заражённых и образцов пока нет — создаются отдельно)
 func _d_capsule(g: Node3D, p: Vector3, r: float, h: float, glass: String, lying := false) -> void:
 	var glow := "x_green" if glass == "x_gglass" else "x_red"
+	# модели Tripo: стоячая капсула (сама зелёная) и лежачая (сама красная); другой цвет — перестановкой в шейдере
+	if lying:
+		if _xd("xd_pod", p, PI * 0.5, Vector3(1.9, 2.0, h + 0.5), Vector3.ZERO, 55.0, "glow" if glass == "x_rglass" else "swap glow") != null:
+			_bx(g, glow, Vector3(h, 0.04, 0.1), _at(p + Vector3(0, 0.045, 1.15)))
+			_col_xf(Vector3(h + 0.5, 2.0, 1.9), _at(p + Vector3(0, 1.0, 0)))
+			return
+	elif _xd("xd_capsule", p, 0.0, Vector3(r * 1.9, h + 1.3, r * 1.9), Vector3.ZERO, 55.0, "glow" if glass == "x_gglass" else "swap glow") != null:
+		_cy(g, glow, r + 0.06, r + 0.06, 0.03, _at(p + Vector3(0, 0.035, 0)), 14)
+		_cyl_col(Vector3(p.x, 0.2, p.z), r * 0.95 + 0.1, 2.2)
+		return
 	if lying:
 		# лежачая капсула вдоль X: стеклянный цилиндр на ложементах
 		var rot := Basis(Vector3(0, 0, 1), PI * 0.5)
@@ -446,12 +455,16 @@ func _d_floor3(g: Node3D) -> void:
 			_d_capsule(g, ec + Vector3(sx * 14.5, 0, -9.0 if sz < 0.0 else 5.5), 0.9, 1.8, "x_rglass")
 	# реактор: основание, корпус с красным поясом, купол, баки и трубы
 	var rc := Vector3(27.0, 0.2, -23.0)
-	_cy(g, "x_steel", 5.2, 5.5, 0.4, _at(rc + Vector3(0, 0.2, 0)), 16)
-	_cy(g, "x_steel", 3.6, 4.0, 1.6, _at(rc + Vector3(0, 1.2, 0)), 16)
-	_cy(g, "x_red", 3.7, 3.7, 0.5, _at(rc + Vector3(0, 1.5, 0)), 16)
-	_cy(g, "x_rglass", 3.3, 3.6, 0.9, _at(rc + Vector3(0, 2.45, 0)), 16)
-	_cy(g, "x_steel", 1.6, 2.6, 0.7, _at(rc + Vector3(0, 3.2, 0)), 16)
-	_cyl_col(rc, 4.0, 3.0)
+	if _xd("xd_reactor", rc, 0.0, Vector3(10.0, 4.8, 10.0), Vector3.ZERO, 70.0, "glow") != null:
+		_cy(g, "x_red", 5.18, 5.18, 0.03, _at(rc + Vector3(0, 0.035, 0)), 28)
+		_cyl_col(rc, 4.7, 3.0)
+	else:
+		_cy(g, "x_steel", 5.2, 5.5, 0.4, _at(rc + Vector3(0, 0.2, 0)), 16)
+		_cy(g, "x_steel", 3.6, 4.0, 1.6, _at(rc + Vector3(0, 1.2, 0)), 16)
+		_cy(g, "x_red", 3.7, 3.7, 0.5, _at(rc + Vector3(0, 1.5, 0)), 16)
+		_cy(g, "x_rglass", 3.3, 3.6, 0.9, _at(rc + Vector3(0, 2.45, 0)), 16)
+		_cy(g, "x_steel", 1.6, 2.6, 0.7, _at(rc + Vector3(0, 3.2, 0)), 16)
+		_cyl_col(rc, 4.0, 3.0)
 	for i in 2:
 		var tp := Vector3(24.0 + i * 5.5, 0.2, -33.6)
 		_cy(g, "x_steel", 1.3, 1.3, 2.4, _at(tp + Vector3(0, 1.2, 0)), 12)

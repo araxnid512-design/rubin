@@ -2,222 +2,6 @@
  "stop": false,
  "jobs": [
   {
-   "id": "g97_xd_capsule",
-   "py": "tools/tripo/chain.py",
-   "timeout": 2400,
-   "args": [
-    "--id",
-    "xd_capsule",
-    "--faces",
-    "9000",
-    "--tex",
-    "detailed",
-    "--geo",
-    "detailed",
-    "--pbr",
-    "--prompt",
-    "Tall vertical cylindrical stasis capsule for a mutant specimen: thick glass tube filled with glowing green liquid, dark creature silhouette inside, heavy steel base with hoses and cables, steel top cap with pipes. Single game prop, realistic weathered PBR textures, dark military science-fiction bunker style, whole object visible, no background, no floor, no people, no text."
-   ]
-  },
-  {
-   "id": "g97_xd_pod",
-   "py": "tools/tripo/chain.py",
-   "timeout": 2400,
-   "args": [
-    "--id",
-    "xd_pod",
-    "--faces",
-    "9000",
-    "--tex",
-    "detailed",
-    "--geo",
-    "detailed",
-    "--pbr",
-    "--prompt",
-    "Horizontal containment pod lying on a steel cradle: long glass cylinder with red glowing liquid and a dark creature silhouette inside, steel end caps, cables, warning stripes. Single game prop, realistic weathered PBR textures, dark military science-fiction bunker style, whole object visible, no background, no floor, no people, no text."
-   ]
-  },
-  {
-   "id": "g97_xd_reactor",
-   "py": "tools/tripo/chain.py",
-   "timeout": 2400,
-   "args": [
-    "--id",
-    "xd_reactor",
-    "--faces",
-    "12000",
-    "--tex",
-    "detailed",
-    "--geo",
-    "detailed",
-    "--pbr",
-    "--prompt",
-    "Large underground industrial reactor core: massive steel dome on a round base, ring of glowing red windows, thick pipes, valves, ladders, hazard markings. Single game prop, realistic weathered PBR textures, dark military science-fiction bunker style, whole object visible, no background, no floor, no people, no text."
-   ]
-  },
-  {
-   "id": "g97_xd_lift",
-   "py": "tools/tripo/chain.py",
-   "timeout": 2400,
-   "args": [
-    "--id",
-    "xd_lift",
-    "--faces",
-    "9000",
-    "--tex",
-    "detailed",
-    "--geo",
-    "detailed",
-    "--pbr",
-    "--prompt",
-    "Heavy industrial freight elevator cage platform, open front, four steel corner pillars with top beams, low mesh side walls, yellow-black hazard stripes on the floor edge, control panel inside. Single game prop, realistic weathered PBR textures, dark military science-fiction bunker style, whole object visible, no background, no floor, no people, no text."
-   ]
-  },
-  {
-   "id": "g97_xd_console",
-   "py": "tools/tripo/chain.py",
-   "timeout": 2400,
-   "args": [
-    "--id",
-    "xd_console",
-    "--faces",
-    "8000",
-    "--tex",
-    "detailed",
-    "--geo",
-    "detailed",
-    "--pbr",
-    "--prompt",
-    "Military command console desk in an arc with five monitors showing green data, keyboards, switches, an office chair. Single game prop, realistic weathered PBR textures, dark military science-fiction bunker style, whole object visible, no background, no floor, no people, no text."
-   ]
-  },
-  {
-   "id": "g97_xd_tower",
-   "py": "tools/tripo/chain.py",
-   "timeout": 2400,
-   "args": [
-    "--id",
-    "xd_tower",
-    "--faces",
-    "9000",
-    "--tex",
-    "detailed",
-    "--geo",
-    "detailed",
-    "--pbr",
-    "--prompt",
-    "Concrete military guard watchtower: tall square concrete base, observation cabin with dark windows on top, flat roof, searchlight, ladder, barbed wire. Single game prop, realistic weathered PBR textures, dark military science-fiction bunker style, whole object visible, no background, no floor, no people, no text."
-   ]
-  },
-  {
-   "id": "g97_xd_gate",
-   "py": "tools/tripo/chain.py",
-   "timeout": 2400,
-   "args": [
-    "--id",
-    "xd_gate",
-    "--faces",
-    "9000",
-    "--tex",
-    "detailed",
-    "--geo",
-    "detailed",
-    "--pbr",
-    "--prompt",
-    "Military base entrance gate: two massive concrete pylons with a steel beam on top, heavy steel gate leaves swung open, warning signs, lamps. Single game prop, realistic weathered PBR textures, dark military science-fiction bunker style, whole object visible, no background, no floor, no people, no text."
-   ]
-  },
-  {
-   "id": "g97_xd_terminal",
-   "py": "tools/tripo/chain.py",
-   "timeout": 2400,
-   "args": [
-    "--id",
-    "xd_terminal",
-    "--faces",
-    "7000",
-    "--tex",
-    "detailed",
-    "--geo",
-    "detailed",
-    "--pbr",
-    "--prompt",
-    "Standing access terminal kiosk: steel pedestal with an angled glowing screen, card reader slot, keypad, cables, military markings. Single game prop, realistic weathered PBR textures, dark military science-fiction bunker style, whole object visible, no background, no floor, no people, no text."
-   ]
-  },
-  {
-   "id": "g97_xd_pearl",
-   "py": "tools/tripo/chain.py",
-   "timeout": 2400,
-   "args": [
-    "--id",
-    "xd_pearl",
-    "--faces",
-    "6000",
-    "--tex",
-    "detailed",
-    "--geo",
-    "detailed",
-    "--pbr",
-    "--prompt",
-    "Small pedestal device with a glass dome socket on top for inserting a small sphere, steel column, cables, red indicator lights. Single game prop, realistic weathered PBR textures, dark military science-fiction bunker style, whole object visible, no background, no floor, no people, no text."
-   ]
-  },
-  {
-   "id": "g97_xd_heli",
-   "py": "tools/tripo/chain.py",
-   "timeout": 2400,
-   "args": [
-    "--id",
-    "xd_heli",
-    "--faces",
-    "10000",
-    "--tex",
-    "detailed",
-    "--geo",
-    "detailed",
-    "--pbr",
-    "--prompt",
-    "Modern military transport helicopter, dark olive, intact, standing on its landing gear, rotor blades. Single game prop, realistic weathered PBR textures, dark military science-fiction bunker style, whole object visible, no background, no floor, no people, no text."
-   ]
-  },
-  {
-   "id": "g97_xd_apc",
-   "py": "tools/tripo/chain.py",
-   "timeout": 2400,
-   "args": [
-    "--id",
-    "xd_apc",
-    "--faces",
-    "9000",
-    "--tex",
-    "detailed",
-    "--geo",
-    "detailed",
-    "--pbr",
-    "--prompt",
-    "Modern eight-wheeled armored personnel carrier, dark olive, with a small turret. Single game prop, realistic weathered PBR textures, dark military science-fiction bunker style, whole object visible, no background, no floor, no people, no text."
-   ]
-  },
-  {
-   "id": "g97_xd_wall",
-   "py": "tools/tripo/chain.py",
-   "timeout": 2400,
-   "args": [
-    "--id",
-    "xd_wall",
-    "--faces",
-    "3500",
-    "--tex",
-    "detailed",
-    "--geo",
-    "detailed",
-    "--pbr",
-    "--prompt",
-    "Straight section of a tall concrete perimeter wall made of precast slabs with one pillar, coils of barbed wire on top, weathered and stained. Single game prop, realistic weathered PBR textures, dark military science-fiction bunker style, whole object visible, no background, no floor, no people, no text."
-   ]
-  },
-  {
    "id": "g97_xd_blastdoor",
    "py": "tools/tripo/chain.py",
    "timeout": 2400,
@@ -407,6 +191,344 @@
     "5000",
     "--prompt",
     "Industrial stainless steel army kitchen block: stove with pots, counter, sink, extraction hood. Single game prop, realistic weathered PBR textures, dark military science-fiction bunker style, whole object visible, no background, no floor, no people, no text."
+   ]
+  },
+  {
+   "id": "g97_xd_mess",
+   "py": "tools/tripo/chain.py",
+   "timeout": 2000,
+   "args": [
+    "--id",
+    "xd_mess",
+    "--faces",
+    "5000",
+    "--prompt",
+    "Long army mess hall table with two benches, metal trays and mugs on top. Single game prop, realistic weathered PBR textures, dark military science-fiction bunker style, whole object visible, no background, no floor, no people, no text."
+   ]
+  },
+  {
+   "id": "g97_xd_shower",
+   "py": "tools/tripo/chain.py",
+   "timeout": 2000,
+   "args": [
+    "--id",
+    "xd_shower",
+    "--faces",
+    "5000",
+    "--prompt",
+    "Row of three shower stalls with tiled partitions, shower heads and floor drains. Single game prop, realistic weathered PBR textures, dark military science-fiction bunker style, whole object visible, no background, no floor, no people, no text."
+   ]
+  },
+  {
+   "id": "g97_xd_medbed",
+   "py": "tools/tripo/chain.py",
+   "timeout": 2000,
+   "args": [
+    "--id",
+    "xd_medbed",
+    "--faces",
+    "5000",
+    "--prompt",
+    "Field hospital bed with an IV drip stand and a medical monitor on a cart. Single game prop, realistic weathered PBR textures, dark military science-fiction bunker style, whole object visible, no background, no floor, no people, no text."
+   ]
+  },
+  {
+   "id": "g97_xd_radio",
+   "py": "tools/tripo/chain.py",
+   "timeout": 2000,
+   "args": [
+    "--id",
+    "xd_radio",
+    "--faces",
+    "5000",
+    "--prompt",
+    "Military radio communication station: rack with radios, antennas, headset, desk with equipment. Single game prop, realistic weathered PBR textures, dark military science-fiction bunker style, whole object visible, no background, no floor, no people, no text."
+   ]
+  },
+  {
+   "id": "g97_xd_desk",
+   "py": "tools/tripo/chain.py",
+   "timeout": 2000,
+   "args": [
+    "--id",
+    "xd_desk",
+    "--faces",
+    "5000",
+    "--prompt",
+    "Officer's wooden desk with a lamp, maps, papers, a laptop and a chair. Single game prop, realistic weathered PBR textures, dark military science-fiction bunker style, whole object visible, no background, no floor, no people, no text."
+   ]
+  },
+  {
+   "id": "g97_xd_guard",
+   "py": "tools/tripo/chain.py",
+   "timeout": 2000,
+   "args": [
+    "--id",
+    "xd_guard",
+    "--faces",
+    "5000",
+    "--prompt",
+    "Security checkpoint desk booth with bulletproof glass, monitors and a turnstile bar. Single game prop, realistic weathered PBR textures, dark military science-fiction bunker style, whole object visible, no background, no floor, no people, no text."
+   ]
+  },
+  {
+   "id": "g97_xd_samplebox",
+   "py": "tools/tripo/chain.py",
+   "timeout": 2000,
+   "args": [
+    "--id",
+    "xd_samplebox",
+    "--faces",
+    "5000",
+    "--prompt",
+    "Stack of steel biohazard sample transport containers with yellow biohazard symbols and latches. Single game prop, realistic weathered PBR textures, dark military science-fiction bunker style, whole object visible, no background, no floor, no people, no text."
+   ]
+  },
+  {
+   "id": "g97_xd_gastank",
+   "py": "tools/tripo/chain.py",
+   "timeout": 2000,
+   "args": [
+    "--id",
+    "xd_gastank",
+    "--faces",
+    "5000",
+    "--prompt",
+    "Two tall pressurized gas cylinder tanks on a frame with pipes and gauges. Single game prop, realistic weathered PBR textures, dark military science-fiction bunker style, whole object visible, no background, no floor, no people, no text."
+   ]
+  },
+  {
+   "id": "g97_xd_switchgear",
+   "py": "tools/tripo/chain.py",
+   "timeout": 2000,
+   "args": [
+    "--id",
+    "xd_switchgear",
+    "--faces",
+    "5000",
+    "--prompt",
+    "Row of electrical switchgear cabinets with high-voltage warning signs, levers and indicator lamps. Single game prop, realistic weathered PBR textures, dark military science-fiction bunker style, whole object visible, no background, no floor, no people, no text."
+   ]
+  },
+  {
+   "id": "g97_xd_generator",
+   "py": "tools/tripo/chain.py",
+   "timeout": 2000,
+   "args": [
+    "--id",
+    "xd_generator",
+    "--faces",
+    "5000",
+    "--prompt",
+    "Large industrial diesel generator unit on a skid with an exhaust pipe and a control panel. Single game prop, realistic weathered PBR textures, dark military science-fiction bunker style, whole object visible, no background, no floor, no people, no text."
+   ]
+  },
+  {
+   "id": "g97_xd_cage",
+   "py": "tools/tripo/chain.py",
+   "timeout": 2000,
+   "args": [
+    "--id",
+    "xd_cage",
+    "--faces",
+    "5000",
+    "--prompt",
+    "Heavy steel specimen cage with thick bars, a locked door and a scratched floor plate. Single game prop, realistic weathered PBR textures, dark military science-fiction bunker style, whole object visible, no background, no floor, no people, no text."
+   ]
+  },
+  {
+   "id": "g97_xd_decon",
+   "py": "tools/tripo/chain.py",
+   "timeout": 2000,
+   "args": [
+    "--id",
+    "xd_decon",
+    "--faces",
+    "5000",
+    "--prompt",
+    "Decontamination shower arch gate: steel frame arch with spray nozzles, green lights and a drain grate floor. Single game prop, realistic weathered PBR textures, dark military science-fiction bunker style, whole object visible, no background, no floor, no people, no text."
+   ]
+  },
+  {
+   "id": "g97_xd_scanner",
+   "py": "tools/tripo/chain.py",
+   "timeout": 2000,
+   "args": [
+    "--id",
+    "xd_scanner",
+    "--faces",
+    "5000",
+    "--prompt",
+    "Medical body scanner machine: ring-shaped scanner with a sliding table. Single game prop, realistic weathered PBR textures, dark military science-fiction bunker style, whole object visible, no background, no floor, no people, no text."
+   ]
+  },
+  {
+   "id": "g97_xd_robotarm",
+   "py": "tools/tripo/chain.py",
+   "timeout": 2000,
+   "args": [
+    "--id",
+    "xd_robotarm",
+    "--faces",
+    "5000",
+    "--prompt",
+    "Laboratory industrial robotic arm on a pedestal with a gripper. Single game prop, realistic weathered PBR textures, dark military science-fiction bunker style, whole object visible, no background, no floor, no people, no text."
+   ]
+  },
+  {
+   "id": "g97_xd_radar",
+   "py": "tools/tripo/chain.py",
+   "timeout": 2000,
+   "args": [
+    "--id",
+    "xd_radar",
+    "--faces",
+    "5000",
+    "--prompt",
+    "Mobile military radar station: rotating radar antenna dish on a trailer base. Single game prop, realistic weathered PBR textures, dark military science-fiction bunker style, whole object visible, no background, no floor, no people, no text."
+   ]
+  },
+  {
+   "id": "g97_xd_barrier",
+   "py": "tools/tripo/chain.py",
+   "timeout": 2000,
+   "args": [
+    "--id",
+    "xd_barrier",
+    "--faces",
+    "5000",
+    "--prompt",
+    "Concrete jersey barriers with sandbags stacked on top and a coil of barbed wire. Single game prop, realistic weathered PBR textures, dark military science-fiction bunker style, whole object visible, no background, no floor, no people, no text."
+   ]
+  },
+  {
+   "id": "g97_xd_supply",
+   "py": "tools/tripo/chain.py",
+   "timeout": 2000,
+   "args": [
+    "--id",
+    "xd_supply",
+    "--faces",
+    "5000",
+    "--prompt",
+    "Pile of military supply crates and barrels covered with a camouflage net. Single game prop, realistic weathered PBR textures, dark military science-fiction bunker style, whole object visible, no background, no floor, no people, no text."
+   ]
+  },
+  {
+   "id": "g97_xd_searchlight",
+   "py": "tools/tripo/chain.py",
+   "timeout": 2000,
+   "args": [
+    "--id",
+    "xd_searchlight",
+    "--faces",
+    "5000",
+    "--prompt",
+    "Military searchlight on a tripod stand with a small generator box. Single game prop, realistic weathered PBR textures, dark military science-fiction bunker style, whole object visible, no background, no floor, no people, no text."
+   ]
+  },
+  {
+   "id": "g97_xd_fueltank",
+   "py": "tools/tripo/chain.py",
+   "timeout": 2000,
+   "args": [
+    "--id",
+    "xd_fueltank",
+    "--faces",
+    "5000",
+    "--prompt",
+    "Horizontal cylindrical fuel storage tank on concrete saddles with pipes and a ladder. Single game prop, realistic weathered PBR textures, dark military science-fiction bunker style, whole object visible, no background, no floor, no people, no text."
+   ]
+  },
+  {
+   "id": "g97_xd_labmodule",
+   "py": "tools/tripo/chain.py",
+   "timeout": 2000,
+   "args": [
+    "--id",
+    "xd_labmodule",
+    "--faces",
+    "5000",
+    "--prompt",
+    "Mobile laboratory container module, white with biohazard markings, a door and vents. Single game prop, realistic weathered PBR textures, dark military science-fiction bunker style, whole object visible, no background, no floor, no people, no text."
+   ]
+  },
+  {
+   "id": "g97_xd_truck",
+   "py": "tools/tripo/chain.py",
+   "timeout": 2000,
+   "args": [
+    "--id",
+    "xd_truck",
+    "--faces",
+    "5000",
+    "--prompt",
+    "Modern military cargo truck with a canvas cover, dark olive. Single game prop, realistic weathered PBR textures, dark military science-fiction bunker style, whole object visible, no background, no floor, no people, no text."
+   ]
+  },
+  {
+   "id": "g97_xd_cot",
+   "py": "tools/tripo/chain.py",
+   "timeout": 2000,
+   "args": [
+    "--id",
+    "xd_cot",
+    "--faces",
+    "5000",
+    "--prompt",
+    "Single military cot bed with a green blanket and a footlocker beside it. Single game prop, realistic weathered PBR textures, dark military science-fiction bunker style, whole object visible, no background, no floor, no people, no text."
+   ]
+  },
+  {
+   "id": "g97_xd_biotank",
+   "py": "tools/tripo/chain.py",
+   "timeout": 2000,
+   "args": [
+    "--id",
+    "xd_biotank",
+    "--faces",
+    "5000",
+    "--prompt",
+    "Large vertical steel biohazard liquid tank with a green glowing window, pipes and a valve wheel. Single game prop, realistic weathered PBR textures, dark military science-fiction bunker style, whole object visible, no background, no floor, no people, no text."
+   ]
+  },
+  {
+   "id": "g97_xd_maptable",
+   "py": "tools/tripo/chain.py",
+   "timeout": 2000,
+   "args": [
+    "--id",
+    "xd_maptable",
+    "--faces",
+    "5000",
+    "--prompt",
+    "Tactical map table with a glowing map display and stools around it. Single game prop, realistic weathered PBR textures, dark military science-fiction bunker style, whole object visible, no background, no floor, no people, no text."
+   ]
+  },
+  {
+   "id": "g97_xd_hoist",
+   "py": "tools/tripo/chain.py",
+   "timeout": 2000,
+   "args": [
+    "--id",
+    "xd_hoist",
+    "--faces",
+    "5000",
+    "--prompt",
+    "Overhead gantry hoist on a steel frame with a chain and a hook. Single game prop, realistic weathered PBR textures, dark military science-fiction bunker style, whole object visible, no background, no floor, no people, no text."
+   ]
+  },
+  {
+   "id": "g97_xd_incubator",
+   "py": "tools/tripo/chain.py",
+   "timeout": 2000,
+   "args": [
+    "--id",
+    "xd_incubator",
+    "--faces",
+    "5000",
+    "--prompt",
+    "Row of laboratory incubator cabinets with glass doors and glowing samples inside. Single game prop, realistic weathered PBR textures, dark military science-fiction bunker style, whole object visible, no background, no floor, no people, no text."
    ]
   }
  ]

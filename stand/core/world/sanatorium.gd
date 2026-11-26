@@ -1653,6 +1653,7 @@ const MODEL_FACE := {
 	"kh_jar_shelf": -PI * 0.5, "kh_bed": -PI * 0.5, "kh_counter": PI * 0.5, "kh_shop_shelf": -PI * 0.5,
 	"kh_window": -PI * 0.5, "kh_gable": -PI * 0.5, "kh_door": -PI * 0.5,
 	"sn_medcab": -PI * 0.5, "sn_piano": -PI * 0.5,
+	"xd_console": PI,                              # пульт: оператор и экраны — со стороны −Z
 }
 ## вписываются в место ровно (без сохранения пропорций): плоские детали фасада
 const MODEL_FREE := {"kh_window": true, "kh_gable": true}

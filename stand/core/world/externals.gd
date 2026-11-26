@@ -337,7 +337,8 @@ func build(world: Node3D) -> void:
 
 ## Модель декорации (assets/world/xd_*.glb, Tripo) в точные габариты size (по осям самой модели: X × высота × Z),
 ## повёрнутая на yaw; col — коробка столкновения (ZERO — нет); far — с какого расстояния не рисуется.
-## fx: «cut» — срезать всё выше cut_y (кабина лифта: герой внутри виден сверху), «swap» — зелёное свечение в красное.
+## fx (можно несколько слов): «cut» — срезать всё выше cut_y (кабина лифта: герой внутри виден сверху), «swap» — зелёное
+## в красное и наоборот, «glow» — цветные (насыщенные) части светятся сами: стекло капсул, огни реактора.
 ## Нет файла модели — вернёт null (вызывающий рисует простую форму).
 func _xd(id: String, at: Vector3, yaw: float, size: Vector3, col := Vector3.ZERO, far := 60.0, fx := "", cut_y := 0.0) -> Node3D:
 	var path := MODELS + id + ".glb"
@@ -372,6 +373,7 @@ render_mode cull_disabled;
 uniform sampler2D albedo_tex : source_color, filter_linear_mipmap;
 uniform float cut_y = 1000.0;
 uniform bool swap_rg = false;
+uniform float glow = 0.0;
 varying vec3 wp;
 void vertex() { wp = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz; }
 void fragment() {
@@ -379,6 +381,8 @@ void fragment() {
 	vec3 a = texture(albedo_tex, UV).rgb;
 	if (swap_rg) a = a.grb;
 	ALBEDO = a * 0.9;
+	float sat = max(a.r, max(a.g, a.b)) - min(a.r, min(a.g, a.b));
+	EMISSION = a * glow * smoothstep(0.16, 0.42, sat);
 	ROUGHNESS = 0.7;
 	METALLIC = 0.25;
 }"""
@@ -397,8 +401,9 @@ func _xd_fx(n: Node3D, fx: String, cut_y: float) -> void:
 			sm.shader = _xd_sh
 			if src != null:
 				sm.set_shader_parameter("albedo_tex", src.albedo_texture)
-			sm.set_shader_parameter("cut_y", cut_y if fx == "cut" else 1000.0)
-			sm.set_shader_parameter("swap_rg", fx == "swap")
+			sm.set_shader_parameter("cut_y", cut_y if fx.contains("cut") else 1000.0)
+			sm.set_shader_parameter("swap_rg", fx.contains("swap"))
+			sm.set_shader_parameter("glow", 1.3 if fx.contains("glow") else 0.0)
 			m.set_surface_override_material(si, sm)
 
 
