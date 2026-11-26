@@ -3195,6 +3195,9 @@ func _process(delta: float) -> void:
 	hv = hv.move_toward(want, delta * (45.0 if want.length() > hv.length() else 60.0))
 	# толчок от удара врага: добавка к шагу, быстро гаснет и в разгон не копится
 	var kv := _knock
+	if _lunge_t > 0.0:
+		kv += _lunge * clampf(_lunge_t / maxf(delta, 0.0001), 0.0, 1.0)     # шаг в удар (см. _lunge_to)
+		_lunge_t = maxf(0.0, _lunge_t - delta)
 	player.velocity = Vector3(hv.x + kv.x, player.velocity.y - 9.8 * delta, hv.z + kv.z)
 	# длинный кадр (слабый телефон, < 30 кадров/с) — шаг дробится: за раз не больше ~1/30 с пути, иначе на
 	# лестнице и пандусе герой «не цепляет» ступени и стоит у первой
@@ -5409,12 +5412,35 @@ func _aim_at(t) -> void:
 		_face = atan2(v.x, v.z)
 
 
+## Шаг в удар. Удар засчитывается по цели в пределах досягаемости (кулак — 1,7 м, клинок — 2,1 м), а рука с клинком
+## достаёт меньше чем на метр: герой бил воздух в метре от врага, и тот всё равно получал урон. Теперь за время
+## замаха герой сокращает расстояние до цели до stand м (от ближнего края тела), но не больше LUNGE_MAX м за удар.
+const LUNGE_FIST := 0.9
+const LUNGE_BLADE := 0.7
+const LUNGE_MAX := 1.4
+var _lunge := Vector3.ZERO
+var _lunge_t := 0.0
+
+
+func _lunge_to(t, stand: float, time_s: float) -> void:
+	if t == null or time_s <= 0.02 or car_in:
+		return
+	var v: Vector3 = t.global_position - player.global_position
+	v.y = 0.0
+	var gap := v.length() - (float((t as ULEnemy).def.get("hit_r", 0.0)) if t is ULEnemy else 0.0) - stand
+	if gap < 0.05:
+		return
+	_lunge = v.normalized() * (minf(gap, LUNGE_MAX) / time_s)
+	_lunge_t = time_s
+
+
 func _punch() -> void:
 	var t = _nearest_target(1.7, 180.0)
 	_aim_at(t)
 	var heavy := _punch_i % 3 == 2
 	_punch_i += 1
 	var len_s := rig.play("punch_heavy" if heavy else "punch_light", 1.3)
+	_lunge_to(t, LUNGE_FIST, len_s * 0.3)
 	_atk_cd = len_s * 0.85
 	var c := player.global_position + Vector3.UP * 1.3
 	snd.play("swoosh", c, -5.0, 0.08, len_s * 0.2)
@@ -5425,6 +5451,7 @@ func _slash(d: Dictionary) -> void:
 	var t = _nearest_target(2.1, 180.0)
 	_aim_at(t)
 	var len_s := rig.hold.swing("light")
+	_lunge_to(t, LUNGE_BLADE, len_s * 0.42)
 	_atk_cd = len_s
 	snd.play("swing", player.global_position + Vector3.UP * 1.3, -3.0, 0.08, len_s * 0.42)
 	get_tree().create_timer(len_s * 0.5).timeout.connect(_melee_hit.bind(2.1, 100.0, float(d.dmg), "hit_wood"))
@@ -10197,6 +10224,316 @@ func _anim_audit() -> void:
 func info_fwd_sign(fwd: Vector3) -> float:
 	var d: Vector3 = rig.info.walk.dir if rig.info.has("walk") and rig.info.walk.has("dir") else Vector3.BACK
 	return 1.0 if fwd.dot(d) >= 0.0 else -1.0
+
+
+## Удары, перезарядка и доставание оружия — измерениями (--as-test=actaudit; выбор пользователя 26.11, пункт 3).
+## --as-arm=id,id — только выбранное оружие; --as-out=папка — снимки. Что меряется:
+##   удары кулаком и мачете — куда и когда доходит бьющая кисть (вперёд от героя, высота), совпадает ли миг урона с
+##     мигом, когда кисть впереди; уходит ли стопа под пол; сдвигается ли герой; у мачете — отрыв ладони и сгиб кисти;
+##   перезарядка каждого ствола — сколько длится, держит ли правая рукоять, возвращается ли левая на оружие, какие
+##     шаги проходит левая рука, виден ли магазин в руке, полон ли магазин в конце;
+##   достать и убрать — сколько длится, держит ли кисть рукоять, пока несёт оружие.
+func _act_audit() -> void:
+	DirAccess.make_dir_recursive_absolute(out)
+	hp_lock = true
+	var only := []
+	for a9 in OS.get_cmdline_user_args():
+		if a9.begins_with("--as-arm="):
+			only = Array(a9.trim_prefix("--as-arm=").split(","))
+	var home_p := Vector3(-30, 0.05, 40)
+	var fw := Vector3(1, 0, 0)
+	var sk: Skeleton3D = rig.skel
+	var hr := int(rig.hold._hf["R"]["hand"])
+	var hl := int(rig.hold._hf["L"]["hand"])
+	var feet := []
+	for fnm in ["L_Foot", "R_Foot", "L_Toe", "R_Toe"]:
+		if sk.find_bone(fnm) >= 0:
+			feet.append(sk.find_bone(fnm))
+	var fin := {"r": Vector3.ZERO, "l": Vector3.ZERO, "foot": 0.0, "hip": Vector3.ZERO}
+	var cb := func() -> void:
+		fin["r"] = sk.global_transform * sk.get_bone_global_pose(hr).origin
+		fin["l"] = sk.global_transform * sk.get_bone_global_pose(hl).origin
+		fin["hip"] = sk.global_transform * sk.get_bone_global_pose(sk.find_bone("Hip")).origin
+		var lo := 1e9
+		for fb in feet:
+			lo = minf(lo, (sk.global_transform * sk.get_bone_global_pose(int(fb)).origin).y)
+		fin["foot"] = lo
+	sk.skeleton_updated.connect(cb)
+	var mc := Camera3D.new()
+	player.add_child(mc)
+	mc.fov = 34.0
+	var shot := func(nm: String) -> void:
+		var sdv := fw.cross(Vector3.UP)
+		mc.global_position = player.global_position + sdv * 2.6 + fw * 0.7 + Vector3.UP * 1.4
+		mc.look_at(player.global_position + fw * 0.45 + Vector3.UP * 1.15, Vector3.UP)
+		mc.current = true
+		await _snap(nm)
+		cam.current = true
+	var bad := 0
+	var rows := 0
+	var reset := func() -> void:
+		clear_enemies()
+		_auto = []
+		player.global_position = home_p
+		player.rotation.y = PI * 0.5
+		player.velocity = Vector3.ZERO
+	# стопа в покое — от неё считается «под пол»
+	inv.from_dict({})
+	inv.hand = ""
+	reset.call()
+	_apply_gear()
+	await get_tree().create_timer(1.2).timeout
+	var foot0 := float(fin.foot)
+	# --- 1. удары: кулак ×3 (лёгкий, лёгкий, тяжёлый) и мачете ---
+	for kind in ["кулак", "мачете"]:
+		if not only.is_empty() and not (("machete" in only) if kind == "мачете" else ("" in only or "fist" in only)):
+			continue
+		inv.from_dict({})
+		if kind == "мачете":
+			inv.pistol = ULItems.make("machete")
+			inv.hand = "pistol"
+		else:
+			inv.hand = ""
+		reset.call()
+		_apply_gear()
+		if kind == "мачете":
+			await _wait_drawn()
+		var e := spawn_enemy("infected", home_p + fw * 1.1)
+		e.hp = 100000.0
+		e.set_meta("hp", 100000.0)
+		e.def = e.def.duplicate()
+		e.def.see = 0.0
+		e.def.hear = 0.0
+		e.def.walk = 0.0
+		e.def.dmg = 0.0
+		await get_tree().create_timer(0.5).timeout
+		Engine.time_scale = 0.1                     # замедленно: в проверке мало кадров в секунду, миг удара не проскочит
+		# удары: [расстояние до цели, какой] — вплотную (1,1 м: так стоят заражённые) и с края досягаемости
+		var plan := [[1.1, "лёгкий"], [1.1, "тяжёлый"], [1.6, "лёгкий"]] if kind == "кулак" else [[1.1, "рубящий"], [1.9, "рубящий"]]
+		for n in plan.size():
+			var dist0 := float(plan[n][0])
+			var tw := 0.0
+			while _atk_cd > 0.0 and tw < 4.0:
+				await get_tree().process_frame
+				tw += get_process_delta_time()
+			await get_tree().create_timer(0.35).timeout
+			player.global_position = home_p
+			player.velocity = Vector3.ZERO
+			e.global_position = home_p + fw * dist0
+			e.velocity = Vector3.ZERO
+			e.state = "idle"
+			e._t = 99.0
+			_punch_i = 2 if String(plan[n][1]) == "тяжёлый" else 0
+			await get_tree().create_timer(0.15).timeout
+			var hp0 := float(e.get_meta("hp"))
+			var p0 := player.global_position
+			var rest_r := (Vector3(fin.r) - player.global_position).dot(fw)
+			var rest_l := (Vector3(fin.l) - player.global_position).dot(fw)
+			attack()
+			var t0 := 0.0
+			var best := 1e9                             # наименьшее расстояние бьющей кисти до оси тела цели
+			var t_best := 0.0
+			var h_best := 0.0
+			var side_best := "пр."
+			var t_hit := -1.0
+			var foot_lo := 1e9
+			var er := 0.0
+			var wlo := Vector2(1e9, 1e9)
+			var whi := Vector2(-1e9, -1e9)
+			var tip := 1e9                              # наименьшее расстояние клинка до оси тела цели (по горизонтали)
+			var tip_h := 0.0
+			var t_tip := 0.0
+			var snapped := false
+			var dur := maxf(_atk_cd, 0.6) + 0.25
+			while t0 < dur:
+				await get_tree().process_frame
+				t0 += get_process_delta_time()
+				if t_hit < 0.0:
+					e.state = "idle"                       # мишень не отвечает: мерится удар героя, а не обмен ударами
+					e._t = 99.0
+				for hh in [["пр.", Vector3(fin.r), rest_r], ["лев.", Vector3(fin.l), rest_l]]:
+					var rf := Vector2((hh[1] as Vector3).x - e.global_position.x, (hh[1] as Vector3).z - e.global_position.z).length()
+					if (t_hit < 0.0 or t0 < t_hit + 0.06) and rf < best:
+						best = rf
+						t_best = t0
+						h_best = (hh[1] as Vector3).y - player.global_position.y
+						side_best = String(hh[0])
+				if t_hit < 0.0 and float(e.get_meta("hp")) < hp0:
+					t_hit = t0
+					if out != "" and not snapped:
+						snapped = true
+						await shot.call("act_%s_%d" % ["fist" if kind == "кулак" else "machete", n + 1])
+				foot_lo = minf(foot_lo, float(fin.foot) - foot0)
+				if kind == "мачете":
+					er = maxf(er, rig.hold.err_r)
+					var wa := rig.hold.wrist_angles()
+					wlo = Vector2(minf(wlo.x, wa.x), minf(wlo.y, wa.y))
+					whi = Vector2(maxf(whi.x, wa.x), maxf(whi.y, wa.y))
+					if rig.hold.node != null:
+						# клинок — от рукояти до острия; ближайшая к телу цели точка клинка (на высоте тела)
+						var g3: Transform3D = rig.hold.node.global_transform
+						var z_tip := -float(rig.hold.w.get("model_len", 1.0)) * 0.5
+						var z_grip := float(rig.hold.w.grip[2])
+						for q in 7:
+							var bp: Vector3 = g3 * Vector3(0, 0, lerpf(z_grip, z_tip, 0.25 + 0.125 * q))
+							var hh2 := bp.y - player.global_position.y
+							var dd2 := Vector2(bp.x - e.global_position.x, bp.z - e.global_position.z).length()
+							if (t_hit < 0.0 or t0 < t_hit + 0.06) and hh2 > 0.4 and hh2 < 1.8 and dd2 < tip:
+								tip = dd2
+								tip_h = hh2
+								t_tip = t0
+			var moved := (player.global_position - p0).dot(fw)
+			var gap_end := Vector2(player.global_position.x - e.global_position.x, player.global_position.z - e.global_position.z).length()
+			var flag := []
+			if t_hit < 0.0:
+				flag.append("урон не прошёл")
+			elif absf(t_hit - (t_best if kind == "кулак" else t_tip)) > 0.12:
+				flag.append("урон не в миг удара")
+			# цель стоит в 1,1 м, тело ≈ 25 см в поперечнике: кулак должен выйти вперёд не меньше чем на 60 см, клинок — на 85
+			# тело цели ≈ 20 см от оси до груди: кулак и клинок должны подойти к оси ближе 30 см
+			if kind == "кулак" and best > 0.30:
+				flag.append("кулак не доходит до тела цели")
+			if kind == "мачете" and tip > 0.30:
+				flag.append("клинок не доходит до тела цели")
+			if foot_lo < -0.03:
+				flag.append("стопа под полом")
+			if moved < -0.08:
+				flag.append("героя сносит назад")
+			if kind == "мачете" and er > 0.035:
+				flag.append("ладонь отходит от рукояти")
+			rows += 1
+			if not flag.is_empty():
+				bad += 1
+			print("[act] удар %-6s %-8s с %.1f м | кисть %s ближе всего к оси тела цели — %3.0f см, высота %3.0f см, в %.2f с | урон в %s с | стопа %+.1f см | шаг в удар %.0f см%s | %s" % [kind, String(plan[n][1]), dist0, side_best, best * 100.0, h_best * 100.0, t_best, ("%.2f" % t_hit) if t_hit >= 0.0 else "—", foot_lo * 100.0, moved * 100.0, (" | клинок ближе всего к оси тела цели — %.0f см, на высоте %.0f см, в %.2f с | ладонь %.1f см | поза просит кисть: сгиб %.0f…%.0f°, отведение %.0f…%.0f° (кисть сама остаётся в пределах сустава)" % [tip * 100.0, tip_h * 100.0, t_tip, er * 100.0, wlo.x, whi.x, wlo.y, whi.y]) if kind == "мачете" else "", "ок" if flag.is_empty() else "! " + ", ".join(flag)])
+		Engine.time_scale = 1.0
+	# --- 2. перезарядка и 3. достать / убрать — для каждого оружия ---
+	Engine.time_scale = 1.0
+	var ids := []
+	for id in ULItems.ITEMS:
+		var dd: Dictionary = ULItems.ITEMS[id]
+		if dd.has("weapon") and String(dd.get("kind", "")) in ["primary", "pistol", "melee"]:
+			ids.append(id)
+	for id in ids:
+		if not only.is_empty() and not (id in only):
+			continue
+		var d: Dictionary = ULItems.get_def(id)
+		var knd := String(d.get("kind", ""))
+		var gun := knd in ["primary", "pistol"]
+		var slot := "primary" if knd == "primary" else "pistol"
+		# достать
+		inv.from_dict({})
+		inv.set(slot, ULItems.make(id))
+		if gun:
+			inv.get(slot).mag = int(d.get("mag", 1))
+		inv.hand = ""
+		reset.call()
+		_apply_gear()
+		await get_tree().create_timer(0.9).timeout
+		inv.hand = slot
+		_apply_gear()
+		var grab := float(rig.hold.w.get("draw", {}).get("grab", 0.3))
+		var td := 0.0
+		var er_d := 0.0
+		while rig.hold.drawn < 0.99 and td < 6.0:
+			await get_tree().process_frame
+			td += get_process_delta_time()
+			if rig.hold.drawn > grab + 0.1:
+				er_d = maxf(er_d, rig.hold.err_r)
+		await get_tree().create_timer(0.6).timeout
+		var one_h := bool((rig.hold.w.stances.get(rig.hold.stance_now(), {}) as Dictionary).get("one", false))
+		var er_end := maxf(rig.hold.err_r, 0.0 if one_h else rig.hold.err_l)
+		# убрать
+		inv.hand = ""
+		_apply_gear()
+		var tp := 0.0
+		var er_p := 0.0
+		while rig.hold.wid != "" and tp < 6.0:
+			await get_tree().process_frame
+			tp += get_process_delta_time()
+			if rig.hold.wid != "" and rig.hold.drawn > grab + 0.1:
+				er_p = maxf(er_p, rig.hold.err_r)
+		var flag2 := []
+		if td >= 6.0 or tp >= 6.0:
+			flag2.append("не закончилось")
+		if maxf(er_d, er_p) > 0.035:
+			flag2.append("кисть отходит от рукояти, пока несёт")
+		if er_end > 0.035:
+			flag2.append("в конце ладонь не на оружии")
+		rows += 1
+		if not flag2.is_empty():
+			bad += 1
+		print("[act] %-14s | достать %.2f с (ладонь в пути %.1f см, в конце %.1f см) | убрать %.2f с (ладонь %.1f см) | %s" % [String(d.n), td, er_d * 100.0, er_end * 100.0, tp, er_p * 100.0, "ок" if flag2.is_empty() else "! " + ", ".join(flag2)])
+		if not gun:
+			continue
+		# перезарядка: стоя и на бегу
+		for mv in ["стоя", "на бегу"]:
+			inv.from_dict({})
+			inv.set(slot, ULItems.make(id))
+			inv.get(slot).mag = 0
+			var am := String(d.ammo)
+			inv.add(ULItems.make(am, mini(int(d.mag), ULItems.stack(am))))
+			if int(d.mag) > ULItems.stack(am):
+				inv.add(ULItems.make(am, int(d.mag) - ULItems.stack(am)))
+			inv.hand = slot
+			reset.call()
+			_apply_gear()
+			await _wait_drawn()
+			await get_tree().create_timer(0.4).timeout
+			if mv == "на бегу":
+				_auto = [home_p + fw * 30.0]
+				_auto_k = 1.0
+				await get_tree().create_timer(0.5).timeout
+			var want_len := rig.hold._reload_len() / rig.hold.reload_rate
+			reload_weapon()
+			var started := _reloading
+			var tr := 0.0
+			var er_r := 0.0
+			var steps := []
+			var prop_f := 0
+			var frames := 0
+			var l_far := 0.0
+			var snapped2 := false
+			while (rig.hold._reload_t >= 0.0 or _reloading) and tr < 12.0:
+				await get_tree().process_frame
+				tr += get_process_delta_time()
+				frames += 1
+				er_r = maxf(er_r, rig.hold.err_r)
+				if rig.hold.reload_step != "" and (steps.is_empty() or String(steps[-1]) != rig.hold.reload_step):
+					steps.append(rig.hold.reload_step)
+				if rig.hold._prop != null and rig.hold._prop.visible:
+					prop_f += 1
+				l_far = maxf(l_far, Vector3(fin.l).distance_to(Vector3(fin.r)))
+				if out != "" and mv == "стоя" and not snapped2 and rig.hold._reload_t >= 0.0 and rig.hold._reload_t / rig.hold._reload_len() > 0.42:
+					snapped2 = true
+					await shot.call("act_reload_%s" % id)
+			await get_tree().create_timer(0.5).timeout
+			var one_r := bool((rig.hold.w.stances.get(rig.hold.stance_now(), {}) as Dictionary).get("one", false))
+			var er_l_end := 0.0 if one_r else rig.hold.err_l
+			var mag_end := int(inv.get(slot).get("mag", 0))
+			_auto = []
+			var flag3 := []
+			if not started:
+				flag3.append("не началась")
+			if tr >= 12.0:
+				flag3.append("не закончилась")
+			if absf(tr - want_len) > maxf(0.25, want_len * 0.15):
+				flag3.append("длится не столько, сколько задано")
+			if er_r > 0.035:
+				flag3.append("правая отходит от рукояти")
+			if er_l_end > 0.035:
+				flag3.append("левая не вернулась на оружие")
+			if steps.is_empty():
+				flag3.append("левая рука ничего не делает")
+			if mag_end != int(d.mag):
+				flag3.append("магазин не полон")
+			rows += 1
+			if not flag3.is_empty():
+				bad += 1
+			print("[act] %-14s | перезарядка %-7s | %.2f с (задано %.2f) | правая %.1f см | левая в конце %.1f см, отходила на %2.0f см | шаги: %s | предмет в руке %d %% времени | магазин %d/%d | %s" % [String(d.n), mv, tr, want_len, er_r * 100.0, er_l_end * 100.0, l_far * 100.0, " → ".join(steps), int(100.0 * prop_f / maxi(frames, 1)), mag_end, int(d.mag), "ок" if flag3.is_empty() else "! " + ", ".join(flag3)])
+	sk.skeleton_updated.disconnect(cb)
+	mc.queue_free()
+	clear_enemies()
+	print("[act] проверено %d, с замечаниями %d" % [rows, bad])
 
 
 ## Движения героя без оружия и с каждым оружием (--as-test=armaudit; вопрос пользователя 26.11: «что по анимациям героя
@@ -20287,6 +20624,10 @@ func _run_test() -> void:
 		return
 	if test == "animaudit":
 		await _anim_audit()
+		get_tree().quit()
+		return
+	if test == "actaudit":
+		await _act_audit()
 		get_tree().quit()
 		return
 	if test == "armaudit":
