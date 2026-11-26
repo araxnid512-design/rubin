@@ -19027,6 +19027,42 @@ func _run_test() -> void:
 		await _pano(ashots, Vector2i(1920, 1104))
 		get_tree().quit()
 		return
+	if test == "xbline":
+		# три солдата Внешников рядом, спереди и сбоку — посмотреть модели, рост и оружие в руках (--as-out=папка)
+		var tl0 := Time.get_ticks_msec()
+		while not cs_ready and Time.get_ticks_msec() - tl0 < 40000:
+			await get_tree().process_frame
+		clear_enemies()
+		hp_lock = true
+		DirAccess.make_dir_recursive_absolute(out)
+		var base_p := Vector3(0, 0.02, 52)
+		var row := []
+		for i in 3:
+			var kd: String = ["ext_assault", "ext_sniper", "ext_titan"][i]
+			var e := spawn_enemy(kd, base_p + Vector3((i - 1) * 1.6, 0, 0))
+			e.def = e.def.duplicate(true)
+			e.def.see = 0.0
+			e.def.hear = 0.0
+			e.def.hear_run = 0.0
+			e.def.hear_walk = 0.0
+			e.wander_r = 0.0
+			e.rotation.y = 0.0
+			row.append(e)
+		player.global_position = base_p + Vector3(0, 0.1, 12)
+		await get_tree().create_timer(2.0).timeout
+		var lc := Camera3D.new()
+		add_child(lc)
+		lc.fov = 30.0
+		for shot in [["front", Vector3(0, 1.5, 7.5)], ["side", Vector3(7.0, 1.6, 2.6)], ["top", Vector3(0.0, 9.0, 5.0)]]:
+			lc.global_position = base_p + (shot[1] as Vector3)
+			lc.look_at(base_p + Vector3(0, 1.05, 0), Vector3.UP)
+			lc.current = true
+			await get_tree().create_timer(0.4).timeout
+			await _snap("line_%s" % String(shot[0]))
+		for e in row:
+			print("[line] %s: рост по настройке %.2f м, в руках %s" % [String(e.def.n), float(e.def.height), (e as ULMur).rig.hold.wid])
+		get_tree().quit()
+		return
 	if test == "xbsold":
 		await _xb_soldiers()
 		print("[inv] итог: ошибок %d" % _fails)

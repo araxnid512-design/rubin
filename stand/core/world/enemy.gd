@@ -240,6 +240,17 @@ func setup(k: String, at: Vector3, seed_n: int) -> void:
 					var mt := src.duplicate() as StandardMaterial3D
 					mt.albedo_color = Color(0.62, 0.74, 0.6)
 					m.set_surface_override_material(si, mt)
+	elif def.has("tint"):
+		# оттенок поверх текстуры своей модели (tint в data/enemies.json): под ярким солнцем светлая ткань выходит белёсой
+		var tn: Array = def.tint
+		for mi in rig.model.find_children("*", "MeshInstance3D", true, false):
+			var m2 := mi as MeshInstance3D
+			for si in m2.mesh.get_surface_count():
+				var src2 := m2.mesh.surface_get_material(si) as BaseMaterial3D
+				if src2 != null:
+					var mt2 := src2.duplicate() as BaseMaterial3D
+					mt2.albedo_color = Color(float(tn[0]), float(tn[1]), float(tn[2]))
+					m2.set_surface_override_material(si, mt2)
 	_rim(rig.model)
 	_outline_init()
 	for mi in rig.model.find_children("*", "MeshInstance3D", true, false):

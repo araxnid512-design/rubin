@@ -865,7 +865,7 @@
   "brain": 3,
   "n": "Штурмовик Внешников",
   "pic": "enemy_mur_ak",
-  "model": "res://assets/models/mur_ak.glb",
+  "model": "res://assets/models/ext_assault.glb",
   "anim": "res://assets/anim/hero",
   "height": 1.85,
   "hp": 180,
@@ -938,13 +938,18 @@
   ],
   "d": "Профессиональный солдат Внешников: шлем, очки, маска, бронежилет с подсумками и рацией. Вооружён АК-102. Ходит дозором, на шум и выстрелы реагирует сразу; в бою занимает укрытие, бьёт короткими очередями, меняет позицию, перезаряжается за укрытием. При нём — зелёная карта доступа.",
   "faction": "externals",
-  "card": "card_green"
+  "card": "card_green",
+  "tint": [
+   0.6,
+   0.63,
+   0.58
+  ]
  },
  "ext_sniper": {
   "brain": 3,
   "n": "Снайпер Внешников",
   "pic": "enemy_mur_ak",
-  "model": "res://assets/models/mur_ak.glb",
+  "model": "res://assets/models/ext_sniper.glb",
   "anim": "res://assets/anim/hero",
   "height": 1.85,
   "hp": 140,
@@ -1035,13 +1040,18 @@
    "len": 28.0,
    "from": 0.0,
    "to": 26.0
-  }
+  },
+  "tint": [
+   0.85,
+   0.88,
+   0.82
+  ]
  },
  "ext_titan": {
   "brain": 3,
   "n": "Титан Внешников",
   "pic": "enemy_mur_boss",
-  "model": "res://assets/models/mur_boss.glb",
+  "model": "res://assets/models/ext_titan.glb",
   "anim": "res://assets/anim/hero",
   "height": 2.12,
   "hp": 900,
@@ -1125,6 +1135,11 @@
   "radius": 0.36,
   "ragdoll_at": 0.9,
   "faction": "externals",
-  "card": "card_red"
+  "card": "card_red",
+  "tint": [
+   0.5,
+   0.51,
+   0.54
+  ]
  }
 }
