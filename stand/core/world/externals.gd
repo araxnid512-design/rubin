@@ -114,6 +114,7 @@ const X_THINGS := [
 	["gr_barrels", Vector3(-33.0, 0, -18.0), 0.4, 1.8, "", ""], ["gr_barrels", Vector3(8.0, 0, -33.5), 1.1, 1.8, "", ""],
 	["cv_sandbags", Vector3(-8.5, 0, 34.5), 0.0, 3.0, "", ""], ["cv_sandbags", Vector3(8.5, 0, 34.5), 0.0, 3.0, "", ""],
 	["cv_sandbags", Vector3(-4.5, 0, 24.5), PI * 0.5, 3.0, "", ""], ["cv_sandbags", Vector3(4.5, 0, 24.5), PI * 0.5, 3.0, "", ""],
+	["xd_heli", Vector3(-25.5, 0, -27.5), 0.6, 13.0, "", ""], ["xd_apc", Vector3(-21.0, 0, 27.0), 0.0, 7.4, "", ""], ["xd_apc", Vector3(26.0, 0, 4.0), PI * 0.5, 7.4, "", ""],
 	["ul_gaz66", Vector3(20.0, 0, 30.5), PI * 0.5, 6.0, "truck", "Грузовик"], ["ul_kung", Vector3(-30.0, 0, -8.5), 0.0, 6.5, "kung", "Кунг"],
 ]
 ## штабеля: [x, z, сколько, вид, обыскивается]
@@ -334,6 +335,73 @@ func build(world: Node3D) -> void:
 	print("[externals] база (уровень %d) собрана: %d мс, построек %d, столкновений %d" % [level, Time.get_ticks_msec() - t0, blds.size(), body.get_child_count()])
 
 
+## Модель декорации (assets/world/xd_*.glb, Tripo) в точные габариты size (по осям самой модели: X × высота × Z),
+## повёрнутая на yaw; col — коробка столкновения (ZERO — нет); far — с какого расстояния не рисуется.
+## fx: «cut» — срезать всё выше cut_y (кабина лифта: герой внутри виден сверху), «swap» — зелёное свечение в красное.
+## Нет файла модели — вернёт null (вызывающий рисует простую форму).
+func _xd(id: String, at: Vector3, yaw: float, size: Vector3, col := Vector3.ZERO, far := 60.0, fx := "", cut_y := 0.0) -> Node3D:
+	var path := MODELS + id + ".glb"
+	if not ResourceLoader.exists(path):
+		return null
+	if not _scenes.has(path):
+		_scenes[path] = load(path)
+	var n: Node3D = (_scenes[path] as PackedScene).instantiate()
+	var bb: AABB = w._aabb(n)
+	var sc := Vector3(size.x / maxf(bb.size.x, 0.01), size.y / maxf(bb.size.y, 0.01), size.z / maxf(bb.size.z, 0.01))
+	n.scale = sc
+	n.rotation.y = yaw
+	var c := bb.get_center() * sc
+	n.position = at - Basis(Vector3.UP, yaw) * Vector3(c.x, 0, c.z) - Vector3(0, bb.position.y * sc.y, 0)
+	add_child(n)
+	for gi in n.find_children("*", "GeometryInstance3D", true, false):
+		(gi as GeometryInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		(gi as GeometryInstance3D).lod_bias = 0.5
+	if fx != "":
+		_xd_fx(n, fx, cut_y)
+	else:
+		ULSanatorium.mute(n)
+	_cull(n, far)
+	blob_pts.append([at, Vector2(size.x, size.z), yaw, 0.5])
+	if col != Vector3.ZERO:
+		_col_xf(col, Transform3D(Basis(Vector3.UP, yaw), at + Vector3(0, col.y * 0.5, 0)))
+	return n
+
+
+const XD_SHADER := """shader_type spatial;
+render_mode cull_disabled;
+uniform sampler2D albedo_tex : source_color, filter_linear_mipmap;
+uniform float cut_y = 1000.0;
+uniform bool swap_rg = false;
+varying vec3 wp;
+void vertex() { wp = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz; }
+void fragment() {
+	if (wp.y > cut_y) discard;
+	vec3 a = texture(albedo_tex, UV).rgb;
+	if (swap_rg) a = a.grb;
+	ALBEDO = a * 0.9;
+	ROUGHNESS = 0.7;
+	METALLIC = 0.25;
+}"""
+static var _xd_sh: Shader
+
+
+func _xd_fx(n: Node3D, fx: String, cut_y: float) -> void:
+	if _xd_sh == null:
+		_xd_sh = Shader.new()
+		_xd_sh.code = XD_SHADER
+	for mi in n.find_children("*", "MeshInstance3D", true, false):
+		var m := mi as MeshInstance3D
+		for si in m.mesh.get_surface_count():
+			var src := m.mesh.surface_get_material(si) as BaseMaterial3D
+			var sm := ShaderMaterial.new()
+			sm.shader = _xd_sh
+			if src != null:
+				sm.set_shader_parameter("albedo_tex", src.albedo_texture)
+			sm.set_shader_parameter("cut_y", cut_y if fx == "cut" else 1000.0)
+			sm.set_shader_parameter("swap_rg", fx == "swap")
+			m.set_surface_override_material(si, sm)
+
+
 ## обстановка построек, которую ставит не генератор (терминалы, компьютеры, мебель по таблице)
 func _x_inside(b: ULBlock) -> void:
 	if b.id == "main":
@@ -440,41 +508,47 @@ func _x_walls(g: Node3D) -> void:
 	var h := X_WALL_H
 	var ln := XW * 2.0
 	# север, запад, восток — сплошные
-	_bx(g, "plinth", Vector3(ln, h, X_WALL_T), _at(Vector3(0, h * 0.5, -XW)), true)
-	_bx(g, "plinth", Vector3(X_WALL_T, h, ln), _at(Vector3(-XW, h * 0.5, 0)), true)
-	_bx(g, "plinth", Vector3(X_WALL_T, h, ln), _at(Vector3(XW, h * 0.5, 0)), true)
+	_bx(g, "xb_wall", Vector3(ln, h, X_WALL_T), _at(Vector3(0, h * 0.5, -XW)), true)
+	_bx(g, "xb_wall", Vector3(X_WALL_T, h, ln), _at(Vector3(-XW, h * 0.5, 0)), true)
+	_bx(g, "xb_wall", Vector3(X_WALL_T, h, ln), _at(Vector3(XW, h * 0.5, 0)), true)
 	# юг — две половины по сторонам ворот
 	var side := XW - X_GATE - 0.8
 	for sgn in [-1.0, 1.0]:
-		_bx(g, "plinth", Vector3(side, h, X_WALL_T), _at(Vector3(sgn * (X_GATE + 0.8 + side * 0.5), h * 0.5, XW)), true)
+		_bx(g, "xb_wall", Vector3(side, h, X_WALL_T), _at(Vector3(sgn * (X_GATE + 0.8 + side * 0.5), h * 0.5, XW)), true)
 	# козырёк и пилястры
 	for sgn in [-1.0, 1.0]:
-		_bx(g, "plinth", Vector3(X_WALL_T + 0.5, 0.22, ln), _at(Vector3(sgn * XW, h + 0.11, 0)))
-		_bx(g, "plinth", Vector3(side, 0.22, X_WALL_T + 0.5), _at(Vector3(sgn * (X_GATE + 0.8 + side * 0.5), h + 0.11, XW)))
-	_bx(g, "plinth", Vector3(ln, 0.22, X_WALL_T + 0.5), _at(Vector3(0, h + 0.11, -XW)))
+		_bx(g, "xb_wall", Vector3(X_WALL_T + 0.5, 0.22, ln), _at(Vector3(sgn * XW, h + 0.11, 0)))
+		_bx(g, "xb_wall", Vector3(side, 0.22, X_WALL_T + 0.5), _at(Vector3(sgn * (X_GATE + 0.8 + side * 0.5), h + 0.11, XW)))
+	_bx(g, "xb_wall", Vector3(ln, 0.22, X_WALL_T + 0.5), _at(Vector3(0, h + 0.11, -XW)))
 	var s := -XW + 9.5
 	while s < XW - 4.0:
 		for sgn in [-1.0, 1.0]:
-			_bx(g, "plinth", Vector3(X_WALL_T + 0.6, h + 0.3, 1.1), _at(Vector3(sgn * XW, (h + 0.3) * 0.5, s)))
+			_bx(g, "xb_wall", Vector3(X_WALL_T + 0.6, h + 0.3, 1.1), _at(Vector3(sgn * XW, (h + 0.3) * 0.5, s)))
 			if absf(s) > X_GATE + 2.5 or sgn < 0.0:
-				_bx(g, "plinth", Vector3(1.1, h + 0.3, X_WALL_T + 0.6), _at(Vector3(s, (h + 0.3) * 0.5, sgn * XW)))
+				_bx(g, "xb_wall", Vector3(1.1, h + 0.3, X_WALL_T + 0.6), _at(Vector3(s, (h + 0.3) * 0.5, sgn * XW)))
 		s += 9.5
 	# вышки по углам: основание, площадка с ограждением, будка с тёмным остеклением, крыша, прожектор
 	for cx in [-XW, XW]:
 		for cz in [-XW, XW]:
 			var c := Vector3(cx, 0, cz)
-			_bx(g, "plinth", Vector3(5.2, 6.4, 5.2), _at(c + Vector3(0, 3.2, 0)), true)
-			_bx(g, "plinth", Vector3(6.2, 0.3, 6.2), _at(c + Vector3(0, 6.55, 0)))
-			_bx(g, "plinth", Vector3(4.6, 1.0, 4.6), _at(c + Vector3(0, 7.2, 0)))
-			_bx(g, "glass", Vector3(4.7, 0.9, 4.7), _at(c + Vector3(0, 8.15, 0)))
-			_bx(g, "plinth", Vector3(5.6, 0.3, 5.6), _at(c + Vector3(0, 8.75, 0)))
-			_bx(g, "rust", Vector3(0.5, 0.5, 0.7), _at(c + Vector3(-signf(cx) * 2.3, 9.15, -signf(cz) * 2.3), atan2(-cx, -cz)))
+			if _xd("xd_tower", c, atan2(-cx, -cz) + PI * 0.25, Vector3(5.6, 10.5, 5.6), Vector3(4.8, 6.0, 4.8), 130.0) == null:
+				_bx(g, "plinth", Vector3(5.2, 6.4, 5.2), _at(c + Vector3(0, 3.2, 0)), true)
+				_bx(g, "plinth", Vector3(6.2, 0.3, 6.2), _at(c + Vector3(0, 6.55, 0)))
+				_bx(g, "plinth", Vector3(4.6, 1.0, 4.6), _at(c + Vector3(0, 7.2, 0)))
+				_bx(g, "glass", Vector3(4.7, 0.9, 4.7), _at(c + Vector3(0, 8.15, 0)))
+				_bx(g, "plinth", Vector3(5.6, 0.3, 5.6), _at(c + Vector3(0, 8.75, 0)))
+				_bx(g, "rust", Vector3(0.5, 0.5, 0.7), _at(c + Vector3(-signf(cx) * 2.3, 9.15, -signf(cz) * 2.3), atan2(-cx, -cz)))
 			lamps_p.append(c + Vector3(-signf(cx) * 5.0, 0, -signf(cz) * 5.0))
 	# ворота
-	for sgn in [-1.0, 1.0]:
-		_bx(g, "plinth", Vector3(1.6, 5.6, 1.8), _at(Vector3(sgn * (X_GATE + 0.8), 2.8, XW)), true)
-		_bx(g, "rust", Vector3(4.6, 3.2, 0.14), Transform3D(Basis(Vector3.UP, sgn * 1.35), Vector3(sgn * (X_GATE - 0.4), 1.7, XW - 2.6)), true)
-	_bx(g, "plinth", Vector3(X_GATE * 2.0 + 3.2, 0.9, 1.4), _at(Vector3(0, 5.6, XW)))
+	# ворота: модель (пролёт по оси Z модели — поворот на четверть); столкновение — только пилоны
+	if _xd("xd_gate", Vector3(0, 0, XW), PI * 0.5, Vector3(4.2, 8.2, X_GATE * 2.0 + 7.0), Vector3.ZERO, 130.0) != null:
+		for sgn in [-1.0, 1.0]:
+			_col_xf(Vector3(3.4, 5.6, 3.0), _at(Vector3(sgn * (X_GATE + 1.7), 2.8, XW)))
+	else:
+		for sgn in [-1.0, 1.0]:
+			_bx(g, "plinth", Vector3(1.6, 5.6, 1.8), _at(Vector3(sgn * (X_GATE + 0.8), 2.8, XW)), true)
+			_bx(g, "rust", Vector3(4.6, 3.2, 0.14), Transform3D(Basis(Vector3.UP, sgn * 1.35), Vector3(sgn * (X_GATE - 0.4), 1.7, XW - 2.6)), true)
+		_bx(g, "plinth", Vector3(X_GATE * 2.0 + 3.2, 0.9, 1.4), _at(Vector3(0, 5.6, XW)))
 	_barrier(Vector3(-X_GATE + 0.6, 0, XW + 2.4), -0.25)
 	for sgn in [-1.0, 1.0]:
 		if ResourceLoader.exists(MODELS + "qr_concblocks.glb"):
@@ -489,22 +563,24 @@ func _x_walls(g: Node3D) -> void:
 ## жемчужины: тумба со стеклянным колпаком; пока комплекс открыт, в колпаке светится жемчужина.
 func _x_lift(g: Node3D) -> void:
 	var c := X_LIFT
-	_cy(g, "plinth", 4.6, 4.8, 0.12, _at(c + Vector3(0, 0.26, 0)), 8)
-	for sx in [-1.0, 1.0]:
-		for sz in [-1.0, 1.0]:
-			_bx(g, "gmetal", Vector3(0.5, 3.2, 0.5), _at(c + Vector3(sx * 2.3, 1.8, sz * 2.3)), true)
+	_cy(g, "xb_plate", 4.6, 4.8, 0.12, _at(c + Vector3(0, 0.26, 0)), 8)
+	# кабина — модель грузового лифта (открытая сторона модели смотрит по +X — поворот к югу), срезана на высоте
+	# груди: герой внутри виден сверху. Столкновения — борта с трёх сторон и стойки у входа.
+	var cab := _xd("xd_lift", c + Vector3(0, 0.2, 0), -PI * 0.5, Vector3(4.6, 3.4, 4.9), Vector3.ZERO, 60.0, "cut", 1.55 + c.y)
+	_col_xf(Vector3(4.6, 3.0, 0.25), _at(c + Vector3(0, 1.7, -2.2)))
 	for sgn in [-1.0, 1.0]:
-		_bx(g, "gmetal", Vector3(5.1, 0.35, 0.4), _at(c + Vector3(0, 3.2, sgn * 2.3)))
-		_bx(g, "gmetal", Vector3(0.4, 0.35, 5.1), _at(c + Vector3(sgn * 2.3, 3.2, 0)))
-	# кабина: пол, борта с трёх сторон (столкновение — на всю высоту), жёлтая кайма у входа
-	_bx(g, "x_steel", Vector3(4.2, 0.06, 4.2), _at(c + Vector3(0, 0.35, 0)))
-	_bx(g, "x_steel", Vector3(4.2, 1.15, 0.2), _at(c + Vector3(0, 0.9, -2.2)))
-	_col_xf(Vector3(4.2, 3.0, 0.2), _at(c + Vector3(0, 1.7, -2.2)))
-	for sgn in [-1.0, 1.0]:
-		_bx(g, "x_steel", Vector3(0.2, 1.15, 4.2), _at(c + Vector3(sgn * 2.2, 0.9, 0)))
-		_col_xf(Vector3(0.2, 3.0, 4.2), _at(c + Vector3(sgn * 2.2, 1.7, 0)))
-		_bx(g, "x_steel", Vector3(0.75, 1.15, 0.2), _at(c + Vector3(sgn * 1.83, 0.9, 2.2)), true)
-	_bx(g, "x_yellow", Vector3(2.9, 0.03, 0.3), _at(c + Vector3(0, 0.37, 2.25)))
+		_col_xf(Vector3(0.25, 3.0, 4.4), _at(c + Vector3(sgn * 2.3, 1.7, 0)))
+		_col_xf(Vector3(0.8, 3.0, 0.25), _at(c + Vector3(sgn * 1.9, 1.7, 2.2)))
+	if cab == null:
+		for sx in [-1.0, 1.0]:
+			for sz in [-1.0, 1.0]:
+				_bx(g, "gmetal", Vector3(0.5, 3.2, 0.5), _at(c + Vector3(sx * 2.3, 1.8, sz * 2.3)))
+		_bx(g, "x_steel", Vector3(4.2, 0.06, 4.2), _at(c + Vector3(0, 0.35, 0)))
+		_bx(g, "x_steel", Vector3(4.2, 1.15, 0.2), _at(c + Vector3(0, 0.9, -2.2)))
+		for sgn in [-1.0, 1.0]:
+			_bx(g, "x_steel", Vector3(0.2, 1.15, 4.2), _at(c + Vector3(sgn * 2.2, 0.9, 0)))
+			_bx(g, "x_steel", Vector3(0.75, 1.15, 0.2), _at(c + Vector3(sgn * 1.83, 0.9, 2.2)))
+		_bx(g, "x_yellow", Vector3(2.9, 0.03, 0.3), _at(c + Vector3(0, 0.37, 2.25)))
 	# пульт в кабине
 	_bx(g, "x_black", Vector3(0.5, 1.1, 0.25), _at(c + Vector3(1.75, 0.9, -1.85)))
 	_bx(g, "x_blue", Vector3(0.36, 0.26, 0.03), _at(c + Vector3(1.75, 1.25, -1.71)))
@@ -533,8 +609,9 @@ func _x_lift(g: Node3D) -> void:
 			_door_r = mi
 	if level == 0:
 		var k := X_CAPSULE
-		_cy(g, "metal", 0.34, 0.42, 1.0, _at(k + Vector3(0, 0.7, 0)), 10)
-		_cy(g, "x_glass", 0.24, 0.24, 0.42, _at(k + Vector3(0, 1.41, 0)), 10)
+		if _xd("xd_pearl", k + Vector3(0, 0.2, 0), 0.0, Vector3(0.8, 1.5, 0.8)) == null:
+			_cy(g, "metal", 0.34, 0.42, 1.0, _at(k + Vector3(0, 0.7, 0)), 10)
+			_cy(g, "x_glass", 0.24, 0.24, 0.42, _at(k + Vector3(0, 1.41, 0)), 10)
 		_cyl_col(k, 0.45, 1.6)
 		_caps_glow = MeshInstance3D.new()
 		var sp := SphereMesh.new()
@@ -542,7 +619,7 @@ func _x_lift(g: Node3D) -> void:
 		sp.height = 0.18
 		_caps_glow.mesh = sp
 		_caps_glow.material_override = _mat("x_red")
-		_caps_glow.position = k + Vector3(0, 1.36, 0)
+		_caps_glow.position = k + Vector3(0, 1.58, 0)
 		_caps_glow.visible = false
 		add_child(_caps_glow)
 
@@ -571,7 +648,9 @@ func _x_main(b: ULBlock) -> void:
 		var bi := int(t[1])
 		var tp: Vector3 = t[2]
 		var pp: Vector3 = t[4]
-		if ResourceLoader.exists(MODELS + "gr_terminal.glb"):
+		if ResourceLoader.exists(MODELS + "xd_terminal.glb"):
+			b.models.append(["xd_terminal", Vector3(tp.x, 0.2, tp.z), float(t[3]), Vector3(1.0, 2.2, 1.0), "b%d/n0" % bi, 0.0])
+		elif ResourceLoader.exists(MODELS + "gr_terminal.glb"):
 			b.models.append(["gr_terminal", Vector3(tp.x, 0.2, tp.z), float(t[3]), Vector3(1.3, 2.0, 1.0), "b%d/n0" % bi, 0.0])
 		_col_xf(Vector3(1.2, 2.0, 1.0), Transform3D(Basis(Vector3.UP, float(t[3])), Vector3(tp.x, 1.2, tp.z)))
 		if ResourceLoader.exists(MODELS + "ul_computer.glb"):
@@ -655,7 +734,7 @@ func _x_spots(rng: RandomNumberGenerator) -> void:
 
 ## где на поверхности стоят снайперы (у стен и на площадке — с длинным обзором двора и ворот) и Титаны (ворота
 ## главного здания, коридор, лифтовой зал, двор)
-const X_SNIPER_POS := [Vector3(-33, 0, -33), Vector3(33, 0, -33), Vector3(-33, 0, 29), Vector3(33, 0, 29), Vector3(4, 0, -34.5), Vector3(-25.5, 0, -27.5)]
+const X_SNIPER_POS := [Vector3(-33, 0, -33), Vector3(33, 0, -33), Vector3(-33, 0, 29), Vector3(33, 0, 29), Vector3(4, 0, -34.5), Vector3(-33, 0, -20)]
 const X_TITAN_POS := [Vector3(0, 0, 25.5), Vector3(0, 0.2, 12.5), Vector3(0, 0.2, 6.0), Vector3(-30, 0, -20), Vector3(30, 0, -14), Vector3(-17, 0.2, 4.0)]
 const X_ROOM_POS := [Vector3(17, 0.2, 4.0), Vector3(-19, 0.2, 5.0), Vector3(0, 0.2, -11.5), Vector3(-12, 0.2, 13.0), Vector3(12, 0.2, 13.5), Vector3(-13, 0.2, -14.0), Vector3(13, 0.2, -14.0)]
 
