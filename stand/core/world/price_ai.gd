@@ -127,11 +127,16 @@ static func power(id: String) -> float:
 		return 0.0
 	# урон в секунду × дальность × запас магазина × «останавливающее действие» (чем сильнее один выстрел, тем
 	# ценнее: дробовик и снайперская винтовка стреляют редко, но наповал)
-	var dps := float(d.dmg) * float(d.get("rate", 1.0))
+	var rate := float(d.get("rate", 1.0))
+	if d.has("burst"):
+		# очередь по burst выстрелов и пауза между очередями (M16A4): в секунду выходит меньше пуль, чем по темпу
+		var n := maxf(float(d.burst), 1.0)
+		rate = n / ((n - 1.0) / rate + maxf(float(d.get("burst_pause", 0.4)), 1.0 / rate))
+	var dps := float(d.dmg) * rate
 	var rng := sqrt(maxf(float(d.get("range", 2.0)), 1.0) / 8.0)
 	var mag := 0.75 + 0.25 * minf(float(d.get("mag", 10)), 60.0) / 30.0
 	var stop := 1.0 + float(d.dmg) / 60.0
-	return dps * rng * mag * stop * (1.15 if bool(d.get("auto", false)) else 1.0)
+	return dps * rng * mag * stop * (1.15 if bool(d.get("auto", false)) or d.has("burst") else 1.0)
 
 
 ## средняя добыча с врага, в споранах

@@ -127,6 +127,26 @@ func _phase1() -> void:
 	var br2: Dictionary = await B.ask("buy_route", {"wid": wid, "route": "sanatorium", "op": B.op_id()})
 	var mb2: Dictionary = await B.ask("me")
 	_ok("второму маршрут уже открыт: повторно не продаётся, споранов не списано", not br2.get("ok", true) and String(br2.err) == "have" and int(mb2.player.wallet.spore) == int(mb.player.wallet.spore))
+	# оружейник базы (задание 26.11 «Новое оружие»): покупка подтверждается сервером — цена из его каталога
+	var mi: Dictionary = await A.ask("me")
+	var w0 := int(mi.player.wallet.spore)
+	var inv0 := (mi.player.inv as Array).size()
+	var am_row := ULServerState.shop_row("a556")
+	var bop := A.op_id()
+	var bi1: Dictionary = await A.ask("buy_item", {"wid": wid, "item": "a556", "op": bop})
+	var bi2: Dictionary = await A.ask("buy_item", {"wid": wid, "item": "a556", "op": bop})
+	var mi2: Dictionary = await A.ask("me")
+	_ok("оружейник через сервер: патроны 5,56 × %d за %s — списано один раз (%d → %d), в инвентаре на сервере +1 пачка, повтор той же просьбы не списал" % [int(am_row[1]), str(am_row[2]), w0, int(mi2.player.wallet.spore)],
+		bi1.get("ok", false) and bi2.get("ok", false) and int(mi2.player.wallet.spore) == w0 - int(am_row[2].spore) and (mi2.player.inv as Array).size() == inv0 + 1 and String((mi2.player.inv as Array).back().id) == "a556")
+	var res_r: Array = []
+	for rid in ["ak102", "rpg7d", "m32", "pg7v", "g40"]:
+		var rr: Dictionary = await A.ask("buy_item", {"wid": wid, "item": rid, "op": A.op_id()})
+		res_r.append("%s: %s" % [rid, String(rr.get("err", "КУПЛЕНО"))])
+	var mi3: Dictionary = await A.ask("me")
+	_ok("резерв Внешников у оружейника сервера не продаётся (%s), кошелёк не тронут" % ", ".join(res_r), ", ".join(res_r).count("no_item") == 5 and int(mi3.player.wallet.spore) == int(mi2.player.wallet.spore))
+	var bk: Dictionary = await A.ask("buy_item", {"wid": wid, "item": "ak107", "op": A.op_id()})
+	var mi4: Dictionary = await A.ask("me")
+	_ok("АК-107 (16 горошин) при %d споранах — отказ сервера «не хватает», ничего не списано и не выдано" % int(mi3.player.wallet.spore), not bk.get("ok", true) and String(bk.err) == "money" and int(mi4.player.wallet.spore) == int(mi3.player.wallet.spore) and (mi4.player.inv as Array).size() == (mi3.player.inv as Array).size())
 	# совместная миссия, ключ и сундук, смерть
 	var sm: Dictionary = await A.ask("start_mission", {"wid": wid, "route": "sanatorium", "ready": [A.pid, B.pid]})
 	var mid := String(sm.get("mission", ""))

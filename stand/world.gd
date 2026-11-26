@@ -3492,6 +3492,7 @@ func _apply_gear() -> void:
 					rig.hold.equip(""))
 		else:
 			rig.hold.equip(wid, false)
+			rig.hold.loaded = _hand_item() == null or int(_hand_item().get("mag", 1)) > 0
 			rig.hold.set_stance("ready")
 			rig.hold.draw()
 	_update_preview()
@@ -3741,8 +3742,7 @@ func _ground_visual(g: Dictionary) -> void:
 		var holder := Node3D.new()
 		node.add_child(holder)
 		holder.add_child(m)
-		if w.get("flip", false):
-			m.rotation.y = PI
+		BCWeaponHold.orient(m, w)
 		# лежит на боку: верх модели (+y) — вбок
 		holder.basis = Basis(Vector3.FORWARD, PI * 0.5).scaled(Vector3.ONE * s)
 		holder.position.y = 0.03
@@ -5263,6 +5263,7 @@ var _dmg_lb := {}                 ## мишень → [надпись урона
 var _hit_snd_t := 0.0
 var _case_i := 0
 var shots := 0                    ## для проверки
+var blasts := 0                   ## разрывов гранат и ракет (для проверки)
 var hits := 0
 
 
@@ -5472,10 +5473,14 @@ func _shoot(it: Dictionary, d: Dictionary) -> void:
 	if t != null:
 		f = ((t.global_position + Vector3.UP * 1.2) - from).normalized()
 	rig.hold.fire()
+	var quiet := float(d.get("quiet", 0.0))      # глушитель (АС «Вал»): выстрел слышат только ближе quiet м
 	for e in enemies:
-		e.hear(player.global_position)          # выстрел слышат враги поблизости
+		if quiet <= 0.0 or e.global_position.distance_to(player.global_position) < quiet:
+			e.hear(player.global_position)          # выстрел слышат враги поблизости
 	var sd: Dictionary = wcfg.get("sound", {})
-	snd.play(String(sd.get("shot", "shot_ak")), vis_from, float(sd.get("db", 0.0)), 0.04)
+	snd.play(String(sd.get("shot", "shot_ak")), vis_from, float(sd.get("db", 0.0)), 0.04, 0.0, float(sd.get("pitch", 1.0)))
+	if sd.has("shot2"):
+		snd.play(String(sd.shot2), vis_from, float(sd.get("db2", -4.0)), 0.04, 0.0, float(sd.get("pitch2", 1.0)))
 	# «Вес» выстрела: к своему звуку оружия подмешиваются низкий удар (чем мощнее патрон — тем ниже и громче) и
 	# хвост — раскат на улице, короткий отзвук в помещении. У автоматов — не на каждый выстрел (иначе каша).
 	var wt := shot_weight(d, sd)
@@ -5487,13 +5492,29 @@ func _shoot(it: Dictionary, d: Dictionary) -> void:
 		var indoors := (san != null and san.hero_b >= 0) or (place == "home" and house != null and house.contains(player.global_position))
 		snd.play("tail_room" if indoors else "tail_open", vis_from, lerpf(-15.0, -6.0, wt) + float(sd.get("db", 0.0)), 0.06)
 	_case_i += 1
-	if not bool(d.get("auto", false)) or _case_i % 3 == 0:
+	if wcfg.get("case") is bool and not bool(wcfg.case):
+		pass                                      # гранатомёты: гильза не вылетает — и не звенит
+	elif not bool(d.get("auto", false)) or _case_i % 3 == 0:
 		snd.play(String(sd.get("case", "casing")), player.global_position + Vector3(0.5, 0.05, 0), -12.0, 0.1, randf_range(0.4, 0.6))
 	var fc: Dictionary = wcfg.get("fire", {})
 	var pellets := int(fc.get("pellets", 1))
 	var spread := deg_to_rad(float(fc.get("spread", 0.6 if pellets == 1 else 2.2)))
 	var space := get_world_3d().direct_space_state
 	var reach := float(d.get("range", 28.0)) + 1.0          # дальше своей дальности пуля не летит и не ранит
+	if d.has("splash"):
+		# гранатомёт (РПГ-7Д, M32): граната летит до первого препятствия или цели и рвётся там — урон по всем в
+		# радиусе splash (ближе к разрыву — больше); у выстрела РПГ — огонёк двигателя и дымный след
+		var qg := PhysicsRayQueryParameters3D.create(from, from + f * reach)
+		qg.exclude = [player.get_rid()]
+		var hg := space.intersect_ray(qg)
+		var endg: Vector3 = hg.position if not hg.is_empty() else from + f * reach
+		_fly_bullet(String(d.ammo), vis_from, endg, null, 0.0)
+		var blg: Dictionary = _bullets.back()
+		blg["splash"] = float(d.splash)
+		blg["sdmg"] = float(d.dmg)
+		if String(d.ammo) == "pg7v":
+			_rocket_trail(blg)
+		pellets = 0
 	for i in pellets:
 		var dir := (f + Vector3(randf_range(-1, 1), randf_range(-0.4, 0.4), randf_range(-1, 1)) * tan(spread)).normalized()
 		var q := PhysicsRayQueryParameters3D.create(from, from + dir * reach)
@@ -5512,9 +5533,18 @@ func _shoot(it: Dictionary, d: Dictionary) -> void:
 	_flash.visible = true
 	_flash.scale = Vector3.ONE * randf_range(0.8, 1.15)
 	_flash_t = 0.05
+	if d.has("burst"):
+		# очередь по burst выстрелов (M16A4 — по три), потом пауза: удерживать — очередь за очередью
+		_burst_n += 1
+		if _burst_n >= int(d.burst):
+			_burst_n = 0
+			_atk_cd = maxf(_atk_cd, float(d.get("burst_pause", 0.4)))
 	_use_up(it)
+	if rig.hold.w.get("reload", {}).get("kind", "") == "rocket":
+		rig.hold.loaded = int(it.get("mag", 0)) > 0        # РПГ: граната ушла — ствол пуст
 
 
+var _burst_n := 0                 ## выстрелов в идущей очереди (оружие с burst)
 var _shot_i := 0
 var _kick_v := Vector3.ZERO          ## толчок камеры от выстрела (гаснет за ~0,15 с)
 
@@ -5597,6 +5627,9 @@ const BULLETS := {
 	"a762x54": [0.52, 0.082, Color(0.62, 0.62, 0.66), true],
 	"a9x39": [0.44, 0.094, Color(0.42, 0.43, 0.46), false],
 	"a12": [0.085, 0.085, Color(0.5, 0.5, 0.54), false],
+	"a556": [0.4, 0.062, Color(0.86, 0.6, 0.32), true],
+	"g40": [0.16, 0.16, Color(0.42, 0.45, 0.38), false],        # граната M32: летит медленно, видна целиком
+	"pg7v": [0.95, 0.2, Color(0.4, 0.45, 0.32), true],          # выстрел РПГ
 	"boss50": [0.62, 0.15, Color(1.0, 0.72, 0.3), false],      # тяжёлый пистолет главаря муров: крупная, светлая — видно, откуда летит
 	"veh_shell": [0.7, 0.2, Color(1.0, 0.8, 0.4), false],      # снаряд автопушки турели
 	"veh_rocket": [1.1, 0.24, Color(0.55, 0.6, 0.5), true],    # ракета турели
@@ -5666,7 +5699,7 @@ func _fly_bullet(id: String, a: Vector3, b: Vector3, col: Object, dmg: float, fo
 	if a.distance_to(b) > 0.05:
 		n.look_at(b, Vector3.UP if absf((b - a).normalized().y) < 0.98 else Vector3.RIGHT)
 	# ракета турели летит заметно медленнее пули, снаряд автопушки — чуть медленнее
-	var vk: float = {"veh_rocket": 0.42, "veh_shell": 0.75}.get(id, 1.0)
+	var vk: float = {"veh_rocket": 0.42, "veh_shell": 0.75, "pg7v": 0.4, "g40": 0.38}.get(id, 1.0)
 	_bullets.append({"n": n, "a": a, "b": b, "t": 0.0, "dur": maxf(a.distance_to(b) / (BULLET_SPEED * bullet_k * vk), 0.02), "col": col, "dmg": dmg, "id": id, "foe": foe})
 
 
@@ -5690,7 +5723,8 @@ func _bullets_tick(delta: float) -> void:
 		n.visible = false
 		(_bullet_free[bl.id] as Array).append(n)
 		if bl.has("splash"):
-			_veh_blast(bl.b, float(bl.splash), float(bl.sdmg))     # снаряд турели — разрыв в точке попадания
+			_veh_blast(bl.b, float(bl.splash), float(bl.sdmg))     # снаряд турели или гранатомёта — разрыв в точке попадания
+			blasts += 1
 			_bullets.remove_at(i)
 			continue
 		var col = bl.col
@@ -6038,6 +6072,8 @@ func _combat_tick(delta: float) -> void:
 		if _atk_cd == cd0:
 			break
 		_atk_want = 0.0
+	if not held:
+		_burst_n = 0
 	if not atk_wait:
 		_atk_want = maxf(0.0, _atk_want - delta)
 	_atk_cd = maxf(_atk_cd, 0.0)
@@ -9530,6 +9566,340 @@ func _wait_drawn() -> void:
 ## Перезагрузка кластера (ULReload): на базе — розыгрыш (люди → пустыши → лоторейщики → руберы) сходится,
 ## разный от раза к разу, обновление маршрутов разыгрывает заново, купленный маршрут сохраняет своё, карточка
 ## в компьютере показывает точные числа; на локации (--as-place=…) — ровно столько врагов каждого вида
+## Проверка нового оружия (задание 26.11 «Новое оружие — 9 полноценных 3D-моделей», --as-test=guns, --as-out=папка):
+## модели и материалы, значки, хват во всех стойках, стрельба по манекену (расход патронов, попадания, урон), разрыв
+## гранат, очередь M16A4, тихий «Вал», перезарядка, смена оружия, покупка шести стволов у оружейника (списание один
+## раз, предмет один), сохранение и загрузка инвентаря, резерв Внешников — нигде не разыгрывается и не продаётся.
+func _guns_test() -> void:
+	DirAccess.make_dir_recursive_absolute(out)
+	var SOLD := ["ak107", "val", "m249", "m16a4", "scarh", "g36c"]
+	var RES := ["ak102", "rpg7d", "m32"]
+	var short := false
+	for a9 in OS.get_cmdline_user_args():
+		if a9.begins_with("--as-guns="):
+			# только эти стволы: хват и стрельба (быстрая подгонка одного ствола), без покупки и остального
+			var want := Array(a9.substr(10).split(","))
+			SOLD = SOLD.filter(func(x): return want.has(x))
+			RES = RES.filter(func(x): return want.has(x))
+			short = true
+	var cfg := BCWeaponHold.config()
+	hp_lock = true
+	# 1–2. модели, материалы, значки
+	for wid in SOLD + RES:
+		var d := ULItems.get_def(wid)
+		var w: Dictionary = cfg.get(String(d.get("weapon", "")), {})
+		var okm := not w.is_empty() and ResourceLoader.exists(String(w.get("model", "")))
+		var tris := 0
+		var mats := 0
+		var pbr := 0
+		var texw := 0
+		if okm:
+			var m: Node3D = (load(String(w.model)) as PackedScene).instantiate()
+			for mi in m.find_children("*", "MeshInstance3D", true, false):
+				var mesh: Mesh = (mi as MeshInstance3D).mesh
+				for s in mesh.get_surface_count():
+					var arr := mesh.surface_get_arrays(s)
+					tris += ((arr[Mesh.ARRAY_INDEX] as PackedInt32Array).size() if arr[Mesh.ARRAY_INDEX] != null else (arr[Mesh.ARRAY_VERTEX] as PackedVector3Array).size()) / 3
+					var mat = mesh.surface_get_material(s)
+					mats += 1
+					if mat is BaseMaterial3D:
+						var bm := mat as BaseMaterial3D
+						if bm.albedo_texture != null:
+							texw = maxi(texw, bm.albedo_texture.get_width())
+						if bm.albedo_texture != null and (bm.normal_enabled or bm.roughness_texture != null or bm.metallic_texture != null):
+							pbr += 1
+			m.free()
+		var icon := ResourceLoader.exists(ULItems.ICONS + wid + ".png")
+		_ok("%s: модель %s — %d треугольников, материалов %d (PBR: цвет + нормали/шероховатость — %d), текстура %d px, длина %.2f м; значок %s" % [String(d.n), String(w.get("model", "НЕТ")).get_file(), tris, mats, pbr, texw, float(w.get("len_m", 0)), "есть" if icon else "НЕТ"],
+			okm and tris >= 2000 and tris <= 20000 and mats >= 1 and pbr == mats and icon)
+	for am in ["a556", "g40", "pg7v"]:
+		var p := "res://assets/world/%s.glb" % String(ULItems.get_def(am).get("model", ""))
+		_ok("боеприпасы %s: модель %s, значок %s" % [String(ULItems.get_def(am).n), p.get_file(), "есть" if ResourceLoader.exists(ULItems.ICONS + am + ".png") else "НЕТ"], ResourceLoader.exists(p) and ResourceLoader.exists(ULItems.ICONS + am + ".png"))
+	# 3–4. хват в руках в каждой стойке, какая бывает в игре: прицел (огонь), покой (стоит), бег — и снимки
+	inv.from_dict({})
+	var home_p := Vector3(-20, 0.05, 40)
+	player.global_position = home_p
+	player.rotation.y = PI * 0.5
+	var mc := Camera3D.new()
+	add_child(mc)
+	mc.fov = 30.0
+	var fw := Vector3(1, 0, 0)
+	var sd := fw.cross(Vector3.UP)
+	for wid in SOLD + RES:
+		var d := ULItems.get_def(wid)
+		inv.primary = ULItems.make(wid)
+		inv.primary.mag = int(d.mag)
+		inv.hand = "primary"
+		_apply_gear()
+		await _wait_drawn()
+		var worst := {}
+		var one := func(st: String) -> float:
+			return maxf(rig.hold.err_r, rig.hold.err_l if not bool(rig.hold.w.stances.get(st, {}).get("one", false)) else 0.0)
+		# прицел: как при огне (оружие у плеча, ствол в цель)
+		var t0 := 0.0
+		var wa := 0.0
+		while t0 < 1.0:
+			_aim_t = 0.0
+			rig.hold.set_stance("aim")
+			await get_tree().process_frame
+			t0 += get_process_delta_time()
+			if t0 > 0.6:
+				wa = maxf(wa, one.call("aim"))
+		worst["прицел"] = wa
+		mc.global_position = player.global_position + sd * 2.6 + fw * 0.6 + Vector3.UP * 1.45
+		mc.look_at(player.global_position + fw * 0.45 + Vector3.UP * 1.25, Vector3.UP)
+		mc.current = true
+		_aim_t = 0.0
+		await _snap("hold_%s" % wid)
+		mc.global_position = player.global_position + fw * 2.4 - sd * 1.2 + Vector3.UP * 1.5
+		mc.look_at(player.global_position + Vector3.UP * 1.2, Vector3.UP)
+		_aim_t = 0.0
+		await _snap("front_%s" % wid)
+		# покой: стоит на месте, оружие опущено
+		await get_tree().create_timer(2.4).timeout
+		worst["покой (%s)" % rig.hold.stance_now()] = one.call(rig.hold.stance_now())
+		mc.global_position = player.global_position + sd * 2.6 + fw * 0.6 + Vector3.UP * 1.45
+		mc.look_at(player.global_position + fw * 0.45 + Vector3.UP * 1.25, Vector3.UP)
+		await _snap("rest_%s" % wid)
+		# бег
+		_auto = [home_p + fw * 7.0]
+		_auto_k = 1.0
+		var wr := 0.0
+		t0 = 0.0
+		while t0 < 1.0:
+			await get_tree().process_frame
+			t0 += get_process_delta_time()
+			if t0 > 0.5:
+				wr = maxf(wr, one.call(rig.hold.stance_now()))
+		worst["бег (%s)" % rig.hold.stance_now()] = wr
+		mc.global_position = player.global_position + sd * 2.8 + fw * 1.0 + Vector3.UP * 1.45
+		mc.look_at(player.global_position + fw * 0.6 + Vector3.UP * 1.2, Vector3.UP)
+		await _snap("run_%s" % wid)
+		_auto = []
+		player.velocity = Vector3.ZERO
+		player.global_position = home_p
+		player.rotation.y = PI * 0.5
+		cam.current = true
+		var bad_st := []
+		var line := []
+		for st in worst:
+			line.append("%s %.1f" % [st, float(worst[st]) * 100.0])
+			if float(worst[st]) > 0.035:
+				bad_st.append(st)
+		_ok("%s: обе ладони на оружии (отрыв ладони от рукояти/цевья, см: %s)" % [String(d.n), ", ".join(line)], bad_st.is_empty(), "стойки с отрывом: %s" % str(bad_st))
+		await get_tree().create_timer(0.4).timeout
+	mc.queue_free()
+	# 5–9. стрельба по манекену, расход, урон, перезарядка
+	inv.from_dict({})
+	for wid in SOLD + RES:
+		var d := ULItems.get_def(wid)
+		clear_enemies()
+		var e := spawn_enemy("infected", player.global_position + Vector3(6.5, 0, 0))
+		e.def = e.def.duplicate()
+		e.def.see = 0.0
+		e.def.hear = 0.0
+		e.def.hear_run = 0.0
+		e.def.walk = 0.0
+		e.hp = 5000.0
+		e.set_meta("hp", 5000.0)
+		inv.primary = ULItems.make(wid)
+		var mag := int(d.mag)
+		inv.primary.mag = mag
+		inv.consume(String(d.ammo), 99999)
+		inv.add(ULItems.make(String(d.ammo), mag * 2))
+		inv.hand = "primary"
+		_apply_gear()
+		await _wait_drawn()
+		var it: Dictionary = inv.primary
+		var n_try := mini(3, mag)
+		var s0 := shots
+		var b0 := blasts
+		var dur0 := int(it.dur)
+		for k in n_try:
+			_atk_cd = 0.0
+			_burst_n = 0
+			attack()
+			await get_tree().create_timer(0.35 if not d.has("splash") else 1.4).timeout
+		await get_tree().create_timer(0.6).timeout
+		var fired := shots - s0
+		var dmg := 5000.0 - float(e.get_meta("hp"))
+		var exp_dmg := float(d.dmg) * fired
+		var txt := "%s: %d выстр., в магазине %d → %d, прочность −%d, урон по манекену %d (по %d за выстрел)" % [String(d.n), fired, mag, int(it.mag), dur0 - int(it.dur), int(dmg), int(d.dmg)]
+		if d.has("splash"):
+			txt += ", разрывов %d (радиус %.1f м)" % [blasts - b0, float(d.splash)]
+		_ok(txt, fired == n_try and int(it.mag) == mag - n_try and dur0 - int(it.dur) == n_try and dmg > 0.0 and dmg <= exp_dmg * 1.01 and (not d.has("splash") or blasts - b0 == n_try))
+		if wid == "rpg7d":
+			_ok("РПГ-7Д: после выстрела граната в стволе не видна (ствол пуст)", not rig.hold.loaded and not (rig.hold.parts.pivots.has("mag") and (rig.hold.parts.pivots.mag as Node3D).visible))
+		# перезарядка: магазин пустой — полный, патроны из запаса
+		await get_tree().create_timer(0.5).timeout
+		it.mag = 0
+		var have := inv.count(String(d.ammo))
+		_atk_cd = 0.0
+		reload_weapon()
+		var tw := 0.0
+		while _reloading and tw < 12.0:
+			await get_tree().process_frame
+			tw += get_process_delta_time()
+		await get_tree().create_timer(0.3).timeout
+		var got := mini(mag, have)
+		_ok("%s: перезарядка (%s, %.1f с) — в магазине %d, запас %d → %d" % [String(d.n), String(rig.hold.w.get("reload", {}).get("kind", "mag")), tw, int(it.mag), have, inv.count(String(d.ammo))],
+			int(it.mag) == got and inv.count(String(d.ammo)) == have - got and (wid != "rpg7d" or rig.hold.loaded))
+		if wid == "m16a4":
+			# очередь по три: удержание огня 1,2 с — выстрелов кратно трём, меньше, чем при сплошном огне
+			it.mag = mag
+			var s1 := shots
+			_burst_n = 0
+			_hud_touch[99] = "fire"
+			_hud_press("fire")
+			await get_tree().create_timer(1.2).timeout
+			_hud_touch.erase(99)
+			await get_tree().create_timer(0.5).timeout
+			var nb := shots - s1
+			_ok("M16A4: удержание огня 1,2 с — %d выстр. очередями по 3 (сплошным огнём было бы ~%d)" % [nb, int(1.2 * float(d.rate))], nb >= 3 and nb % 3 == 0 and nb < int(1.2 * float(d.rate)))
+	clear_enemies()
+	if short:
+		return
+	# 10. тихий «Вал»: враг в 15 м не слышит выстрела «Вала», но слышит АК-107
+	for pair in [["val", false], ["ak107", true]]:
+		clear_enemies()
+		var e := spawn_enemy("infected", player.global_position + Vector3(0, 0, 15.0))
+		e.def = e.def.duplicate()
+		e.def.see = 0.0
+		e.def.walk = 0.0
+		e.def.hear = 40.0
+		await get_tree().create_timer(0.3).timeout
+		inv.primary = ULItems.make(String(pair[0]))
+		inv.primary.mag = 5
+		inv.hand = "primary"
+		_apply_gear()
+		await _wait_drawn()
+		_atk_cd = 0.0
+		attack()
+		await get_tree().create_timer(0.3).timeout
+		var heard := not e._calm()
+		_ok("%s: враг в 15 м %s выстрел" % [String(ULItems.get_def(String(pair[0])).n), "услышал" if heard else "не услышал"], heard == bool(pair[1]))
+	clear_enemies()
+	# 11. смена оружия: основное ↔ пистолет ↔ основное
+	inv.primary = ULItems.make("scarh")
+	inv.primary.mag = 20
+	inv.pistol = ULItems.make("tt")
+	inv.hand = "primary"
+	_apply_gear()
+	await _wait_drawn()
+	var w1 := rig.hold.wid
+	var seq := [w1]
+	for k in 3:
+		_hud_press("swap")
+		await get_tree().create_timer(2.5).timeout
+		seq.append(rig.hold.wid if inv.hand != "" else "кулаки")
+		if rig.hold.wid == "scarh" and inv.hand == "primary":
+			break
+	_ok("смена оружия по кругу: %s" % " → ".join(seq), seq.has("pistol") and seq.back() == "scarh" and inv.hand == "primary")
+	# 12–14. покупка шести стволов у оружейника + снимки карточек
+	inv.primary = null
+	inv.pistol = null
+	inv.hand = ""
+	_apply_gear()
+	inv.from_dict({"wallet": {"spore": 500, "pea": 60, "pearl_black": 20}})
+	player.global_position = house.to_global(Vector3(2.9, 0.05, 3.25))
+	_cam_ready = false
+	await get_tree().create_timer(1.5).timeout
+	open_shop()
+	_shop_tab = "weapons"
+	for wid in SOLD:
+		var ri := -1
+		for i in SHOP.weapons.size():
+			if String(SHOP.weapons[i][0]) == wid:
+				ri = i
+		_shop_sel = ri
+		_shop_build()
+		await get_tree().create_timer(0.35).timeout
+		await _snap("shop_%s" % wid)
+		var w0: Dictionary = inv.wallet.duplicate()
+		var n0 := _count_item(wid)
+		var price: Dictionary = SHOP.weapons[ri][2]
+		var okb := ri >= 0 and buy("weapons", ri)
+		var spent := {}
+		var same := true
+		for r in ULItems.MONEY:
+			var dv := int(w0.get(r, 0)) - int(inv.wallet.get(r, 0))
+			if dv != 0:
+				spent[r] = dv
+			if dv != int(price.get(r, 0)):
+				same = false
+		_ok("купить %s за %s: куплен один, списано %s" % [String(ULItems.get_def(wid).n), price_text(price), str(spent)], okb and _count_item(wid) == n0 + 1 and same)
+		# место под следующий: купленное — в сторону (в инвентаре 8 карманов)
+		for c in inv.pockets.size():
+			if inv.pockets[c] != null and String(inv.pockets[c].id) == wid:
+				inv.pockets[c] = null
+	var w_before: Dictionary = inv.wallet.duplicate()
+	inv.from_dict({"wallet": {"spore": 5}})
+	var ri2 := -1
+	for i in SHOP.weapons.size():
+		if String(SHOP.weapons[i][0]) == "m249":
+			ri2 = i
+	var okp := buy("weapons", ri2)
+	_ok("не хватает валюты: M249 при 5 споранах — отказ, ничего не списано и не выдано", not okp and int(inv.wallet.get("spore", 0)) == 5 and _count_item("m249") == 0)
+	inv.from_dict({"wallet": w_before})
+	_shop_tab = "ammo"
+	for i in SHOP.ammo.size():
+		if String(SHOP.ammo[i][0]) == "a556":
+			_shop_sel = i
+	_shop_build()
+	await get_tree().create_timer(0.35).timeout
+	await _snap("shop_a556")
+	_shop_ui.queue_free()
+	# 15. сохранение и загрузка: оружие с патронами в магазине и износом, патроны — те же после загрузки
+	inv.primary = ULItems.make("m16a4")
+	inv.primary.mag = 17
+	inv.primary.dur = 900
+	inv.pistol = null
+	inv.pockets[0] = ULItems.make("val")
+	inv.pockets[1] = ULItems.make("a556", 45)
+	var sv := JSON.stringify(inv.to_dict())
+	var inv2 := ULInventory.new()
+	inv2.from_dict(JSON.parse_string(sv))
+	_ok("сохранение и загрузка: M16A4 (17 патронов, износ 900), АС «Вал», 45 патронов 5,56 — после загрузки то же",
+		inv2.primary != null and String(inv2.primary.id) == "m16a4" and int(inv2.primary.mag) == 17 and int(inv2.primary.dur) == 900 and String(inv2.pockets[0].id) == "val" and String(inv2.pockets[1].id) == "a556" and int(inv2.pockets[1].n) == 45)
+	# 16–17. резерв Внешников: нет в продаже и ни в одной таблице добычи; таблица зарегистрирована и выключена
+	var found := []
+	var dir_d := DirAccess.open("res://data")
+	for f in dir_d.get_files():
+		if not f.ends_with(".json") or f in ["loot_reserve.json", "weapons.json"]:
+			continue
+		var tx := FileAccess.get_file_as_string("res://data/" + f)
+		for rid in RES + ["pg7v", "g40"]:
+			if tx.contains("\"%s\"" % rid):
+				found.append("%s: %s" % [f, rid])
+	for sec in SHOP:
+		if SHOP[sec] is Array:
+			for row in SHOP[sec]:
+				if row is Array and (RES + ["pg7v", "g40"]).has(String(row[0])):
+					found.append("оружейник: %s" % row[0])
+	for rid in RES:
+		for r in ULCase.table():
+			if (r.items as Array).has(rid):
+				found.append("оружейный кейс: %s" % rid)
+	_ok("АК-102, РПГ-7Д, M32 и их боеприпасы (ПГ-7В, 40×46) — не продаются и не выпадают нигде (просмотрены все data/*.json, оружейник, кейс)", found.is_empty(), ", ".join(found))
+	var lr = JSON.parse_string(FileAccess.get_file_as_string("res://data/loot_reserve.json"))
+	var t: Dictionary = lr.get("externals_military_chest", {}) if lr is Dictionary else {}
+	var ids := []
+	for x in t.get("items", []):
+		ids.append(String(x.id))
+	_ok("таблица externals_military_chest зарегистрирована и выключена: %s; шансы не назначены" % ", ".join(ids), not t.is_empty() and not bool(t.get("enabled", true)) and ids == RES and t.items.all(func(x): return x.chance == null))
+	for rid in RES:
+		_ok("%s есть в базе предметов (стабильный id «%s», резерв «%s»)" % [String(ULItems.get_def(rid).n), rid, String(ULItems.get_def(rid).get("reserve", ""))], ULItems.ITEMS.has(rid) and String(ULItems.get_def(rid).get("reserve", "")) == "externals")
+
+
+## сколько предметов id при себе (слоты и карманы)
+func _count_item(id: String) -> int:
+	var n := 0
+	for it in [inv.primary, inv.pistol] + inv.pockets:
+		if it != null and String(it.id) == id:
+			n += 1
+	return n
+
+
 func _reload_test() -> void:
 	if temp():
 		var t0 := Time.get_ticks_msec()
@@ -16707,6 +17077,13 @@ func _shop_build() -> void:
 		if d.has("mag"):
 			st += " · магазин %d · %s в секунду · дальность %d м" % [int(d.mag), str(snappedf(float(d.rate), 0.1)), int(d.get("range", 0))]
 		_shop_card.add_child(_shop_lbl(st, 14, C_TEXT))
+		if d.has("cls") or d.has("ammo"):
+			var tl := "Тип: %s" % String(d.get("cls", "оружие"))
+			if d.has("ammo"):
+				tl += " · патроны: %s" % String(ULItems.get_def(String(d.ammo)).n).replace("Патроны ", "")
+			if d.has("modes"):
+				tl += " · огонь: %s" % String(d.modes)
+			_shop_card.add_child(_shop_lbl(tl, 14, C_TEXT))
 		_shop_card.add_child(_shop_lbl("Прочность: %d %s, потом нужен ремонт (полный — %d споранов)" % [int(d.get("dur", 0)), "ударов" if String(d.kind) == "melee" else "выстрелов", int(d.get("fix", 0))], 14, C_TEXT))
 	var have := inv.count(id)
 	for sl in ["primary", "pistol"]:
@@ -19458,6 +19835,11 @@ func _run_test() -> void:
 			_ok("выстрелы: гильзы вылетают из окна, падают и лежат; у ствола дымок", rig.hold.fx.ejected - e7 == 4 and rig.hold.fx.puffed - p7 == 4 and int(cs7[1]) >= 3,
 				"вылетело %d, дымков %d, видно %d, лежит %d" % [rig.hold.fx.ejected - e7, rig.hold.fx.puffed - p7, int(cs7[0]), int(cs7[1])])
 			await _snap("a8_cases")
+		print("[inv] итог: ошибок %d" % _fails)
+		get_tree().quit()
+		return
+	if test == "guns":
+		await _guns_test()
 		print("[inv] итог: ошибок %d" % _fails)
 		get_tree().quit()
 		return

@@ -155,6 +155,8 @@ func c_call(req: int, op: String, args: Dictionary) -> void:
 		"buy_route":
 			var rid := String(args.get("route", ""))
 			res = state.buy_route(wid, p, rid, _price("routes", rid), opid) if shop.get("routes", {}).has(rid) else {"ok": false, "err": "no_route"}
+		"buy_item":
+			res = state.buy_item(wid, p, String(args.get("item", "")), opid)
 		"install":
 			var uid := String(args.get("what", ""))
 			res = state.install(wid, p, uid, _price("upgrades", uid), opid) if shop.get("upgrades", {}).has(uid) else {"ok": false, "err": "no_upgrade"}

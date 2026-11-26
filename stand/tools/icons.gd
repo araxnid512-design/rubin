@@ -55,11 +55,11 @@ func _ready() -> void:
 		if not only.is_empty() and not only.has(id):
 			continue
 		var path := ""
-		var flip := false
+		var wcfg := {}
 		var is_pack := String(d.kind) == "pack"
 		if d.has("weapon"):
 			path = String(cfg[d.weapon].model)
-			flip = cfg[d.weapon].get("flip", false)
+			wcfg = cfg[d.weapon]
 		elif is_pack:
 			path = String(BCPackFit.PACKS[d.pack].model)
 		elif d.has("model"):
@@ -94,8 +94,7 @@ func _ready() -> void:
 		else:
 			var m: Node3D = (load(path) as PackedScene).instantiate()
 			holder.add_child(m)
-			if flip:
-				m.rotation.y = PI
+			BCWeaponHold.orient(m, wcfg)
 		if d.has("kit"):
 			pass
 		elif d.has("model"):

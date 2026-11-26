@@ -246,8 +246,7 @@ func equip(id: String, in_hands := true) -> void:
 	node = Node3D.new()
 	node.name = "Weapon"
 	var m: Node3D = (load(w.model) as PackedScene).instantiate()
-	if w.get("flip", false):
-		m.rotation.y = PI                        # модель сделана стволом назад
+	orient(m, w)
 	node.add_child(m)
 	get_skeleton().add_child(node)
 	_wscale = float(w.len_m) / float(w.model_len) * k
@@ -261,6 +260,21 @@ func equip(id: String, in_hands := true) -> void:
 	_move = ""
 	if not w.stances.has(stance):
 		stance = w.stances.keys()[0]
+
+
+## развернуть модель оружия как описано: flip — модель сделана стволом назад (поворот на 180° вокруг вертикали);
+## yaw — то же произвольным углом (модель Tripo вышла боком или наискось), град;
+## rot — модель Tripo вышла с наклоном ствола: поворот вокруг поперечной оси X, град (после flip). Точки хвата
+## и области частей в data/weapons.json — уже в выпрямленной системе
+static func orient(m: Node3D, wc: Dictionary) -> void:
+	var b := Basis.IDENTITY
+	if wc.get("flip", false):
+		b = Basis(Vector3.UP, PI)
+	if wc.has("yaw"):
+		b = Basis(Vector3.UP, deg_to_rad(float(wc.yaw)))    # модель стоит боком или наискось: поворот вокруг вертикали, град
+	if wc.has("rot"):
+		b = Basis(Vector3.RIGHT, deg_to_rad(float(wc.rot))) * b
+	m.transform.basis = b
 
 
 ## достать оружие: правая рука тянется к рукояти, берёт, поднимает в стойку, левая подхватывает
@@ -327,8 +341,14 @@ func swing(kind: String) -> float:
 	return float(w.moves[kind].len) / move_rate
 
 
+## РПГ: граната в стволе (после выстрела ствол пуст до перезарядки — часть «mag» скрыта)
+var loaded := true
+
+
 func fire() -> void:
 	_recoil_t = 0.0
+	if wid != "" and String(w.get("reload", {}).get("kind", "")) == "rocket":
+		loaded = false
 	var pump: bool = wid != "" and w.get("fire", {}).get("pump", false)
 	if pump:
 		_pump_t = -0.38                          # после выстрела (отдача ушла) левая рука передёргивает цевьё
@@ -380,6 +400,8 @@ func _case_spec() -> Array:
 func _eject() -> void:
 	if fx == null or not fx_on or node == null:
 		return
+	if w.get("case") is bool and not bool(w.case):
+		return                                   # гранатомёты: гильза не вылетает (case: false)
 	var g := node.global_transform
 	fx.eject(g * _port(), g.basis.orthonormalized(), get_skeleton().global_position.y, _case_spec())
 
@@ -419,6 +441,9 @@ func reload() -> float:
 	if wid == "" or w.mode == "melee":
 		return 0.0
 	_reload_t = 0.0
+	if String(w.get("reload", {}).get("kind", "")) == "rocket":
+		_dropped = true                          # РПГ: старой гранаты нет — бросать нечего
+		loaded = true
 	_rk_i = -1
 	_prev_step = ""
 	_prev_carry = false
@@ -1496,6 +1521,11 @@ func _props_update(W: Transform3D, rl: float, palm: Vector3, P: Vector3, delta: 
 ## вперёд сам), cover — на крышке. Магазин: seat — в оружии, out — вынут, hand — в руке, none — нет.
 func _reload_keys() -> Array:
 	var kind := String(w.get("reload", {}).get("kind", "mag"))
+	if kind == "rocket":
+		# РПГ: левая рука берёт новую гранату из-за спины, подносит к дулу и вставляет в ствол спереди до упора
+		return [[0.0, "base", "none", 0, 0, ""], [0.16, "belt", "none", 0, 0, "к выстрелу за спиной"], [0.3, "belt", "hand", 0, 0, "новая граната"],
+			[0.58, "mag", "out", 0, 0, "к дулу"], [0.76, "mag", "seat", 0, 0, "граната вставлена"], [0.84, "mag", "seat", 0, 0, "граната вставлена"],
+			[1.0, "base", "seat", 0, 0, ""]]
 	if kind == "box":
 		# пулемёт: крышка → короб → новый короб → лента → крышка → затвор
 		return [[0.0, "base", "seat", 0, 0, ""], [0.07, "cover", "seat", 0, 0, "крышка"], [0.15, "cover", "seat", 0, 1, "крышка открыта"],
@@ -1673,8 +1703,9 @@ func _parts_idle(rl: float, rk: float, delta: float) -> void:
 	if rl >= 0.0:
 		return
 	_dropped = false
-	mag_state = "seat"
-	parts.show("mag", true)
+	var rocket := String(w.get("reload", {}).get("kind", "")) == "rocket"
+	mag_state = "seat" if (loaded or not rocket) else "none"
+	parts.show("mag", loaded or not rocket)
 	parts.place("mag", Transform3D.IDENTITY)
 	parts.place("cover", Transform3D.IDENTITY)
 	parts.place("bolt", parts.bolt_t("bolt", clampf(rk, 0.0, 1.0), _m2m()))

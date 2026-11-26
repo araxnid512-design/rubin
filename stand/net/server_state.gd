@@ -282,6 +282,38 @@ func buy_route(wid: String, pid: String, route: String, price: Dictionary, op_id
 	return _done(op_id, {"ok": true, "routes": routes, "wallet": wl})
 
 
+## купить у оружейника базы (data/shop.json): цена и количество — из каталога сервера, не от клиента; платит
+## покупатель, предмет — в его личный инвентарь на сервере (players.inv). Повтор той же просьбы (op_id) не
+## списывает второй раз. Нет в каталоге (в том числе резерв Внешников: АК-102, РПГ-7Д, M32) — отказ.
+func buy_item(wid: String, pid: String, id: String, op_id := "") -> Dictionary:
+	var seen = _seen(op_id)
+	if seen != null:
+		return seen
+	if not is_member(wid, pid):
+		return {"ok": false, "err": "bad"}
+	var row := shop_row(id)
+	if row.is_empty():
+		return _done(op_id, {"ok": false, "err": "no_item"})
+	var wl := _wallet(pid)
+	if not _pay(wl, row[2]):
+		return _done(op_id, {"ok": false, "err": "money", "wallet": wl})
+	var it := ULItems.make(id, int(row[1]))
+	(data.players[pid].inv as Array).append(it)
+	return _done(op_id, {"ok": true, "item": it, "wallet": wl, "inv": data.players[pid].inv})
+
+
+## строка каталога оружейника [предмет, штук, цена] или [] — если такого товара нет
+static func shop_row(id: String) -> Array:
+	var d = JSON.parse_string(FileAccess.get_file_as_string("res://data/shop.json"))
+	if not (d is Dictionary):
+		return []
+	for sec in ["weapons", "ammo", "supplies"]:
+		for row in d.get(sec, []):
+			if row is Array and row.size() >= 3 and String(row[0]) == id and row[2] is Dictionary:
+				return row
+	return []
+
+
 ## установить улучшение базы (оружейник и т. п.): общее для мира, платит покупатель, второй раз не покупается
 func install(wid: String, pid: String, what: String, price: Dictionary, op_id := "") -> Dictionary:
 	var seen = _seen(op_id)
