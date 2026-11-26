@@ -1,47 +1,204 @@
 {
- "stop": true,
+ "stop": false,
  "jobs": [
   {
-   "id": "g80_elite_a",
+   "id": "g90_g_ak107",
    "py": "tools/tripo/chain.py",
    "args": [
     "--id",
-    "elite_a",
+    "g_ak107",
     "--faces",
-    "20000",
+    "8000",
     "--tex",
     "detailed",
     "--geo",
     "detailed",
     "--pbr",
-    "--texture-size",
-    "2048",
-    "--rig",
-    "quadruped",
-    "--anims",
-    "preset:quadruped:walk",
     "--prompt",
-    "huge quadruped mutant beast, massive muscular body, about twice as long as it is tall, large heavy head with a very wide open mouth showing many long sharp fangs, thick muscular neck, powerful shoulders, four thick muscular legs with long curved claws, long heavy tapering tail, row of bony horn-like spikes along the spine and tail, rough wrinkled mutated skin with scar seams and patches of hard scales, pale pinkish-brown and dark red skin, realistic creature, standing on all four legs in a neutral symmetric pose, legs straight under the body, tail straight back, single creature, no base, realistic PBR, game asset"
+    "AK-107 assault rifle, black polymer and dark steel, AK-style receiver with long gas tube and balanced recoil system cylinder above the barrel, curved black 30-round 5.45 magazine, side-folding black skeleton-free solid polymer stock, slotted muzzle brake, rear tangent sight. Realistic game weapon model, accurate real-world proportions and scale, side view, single object, no hands, no person, no background, no text."
    ],
-   "timeout": 3600
+   "timeout": 3000
   },
   {
-   "id": "g80_elite_b",
+   "id": "g90_g_ak102",
    "py": "tools/tripo/chain.py",
    "args": [
     "--id",
-    "elite_b",
+    "g_ak102",
     "--faces",
-    "20000",
+    "8000",
     "--tex",
     "detailed",
     "--geo",
     "detailed",
     "--pbr",
-    "--texture-size",
-    "2048",
     "--prompt",
-    "huge quadruped mutant beast, massive muscular body, about twice as long as it is tall, large heavy head with a very wide open mouth showing many long sharp fangs, thick muscular neck, powerful shoulders, four thick muscular legs with long curved claws, long heavy tapering tail, row of bony horn-like spikes along the spine and tail, rough wrinkled mutated skin with scar seams and patches of hard scales, pale pinkish-brown and dark red skin, realistic creature, hyena and bear like proportions, head low and forward, standing on all four legs in a neutral pose, tail straight back, single creature, no base, realistic PBR, game asset"
+    "AK-102 short assault carbine, black polymer and dark steel, short barrel with cylindrical muzzle device, AK receiver, curved black 30-round 5.56 magazine, side-folding black polymer stock, black polymer handguard and pistol grip. Realistic game weapon model, accurate real-world proportions and scale, side view, single object, no hands, no person, no background, no text."
+   ],
+   "timeout": 3000
+  },
+  {
+   "id": "g90_g_rpg7d",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "g_rpg7d",
+    "--faces",
+    "8000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "RPG-7D paratrooper rocket-propelled grenade launcher, dark steel tube with brown wooden heat-shield handguard in the middle, two pistol grips with wooden grip panels, flared bell-shaped rear venturi, iron sights on top, loaded with an olive green PG-7V rocket warhead in the front. Realistic game weapon model, accurate real-world proportions and scale, side view, single object, no hands, no person, no background, no text."
+   ],
+   "timeout": 3000
+  },
+  {
+   "id": "g90_g_m32",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "g_m32",
+    "--faces",
+    "8000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "M32 multiple grenade launcher (Milkor MGL style), large 6-shot revolver drum cylinder, short thick 40mm barrel, black matte metal, top picatinny rail with flip-up sight, vertical foregrip under the barrel, collapsible adjustable stock, pistol grip. Realistic game weapon model, accurate real-world proportions and scale, side view, single object, no hands, no person, no background, no text."
+   ],
+   "timeout": 3000
+  },
+  {
+   "id": "g90_g_val",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "g_val",
+    "--faces",
+    "8000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "AS Val special assault rifle, long thick integrated cylindrical suppressor along the whole barrel, black steel receiver, short straight 20-round 9x39 magazine, brown polymer pistol grip, skeletal side-folding steel wire stock. Realistic game weapon model, accurate real-world proportions and scale, side view, single object, no hands, no person, no background, no text."
+   ],
+   "timeout": 3000
+  },
+  {
+   "id": "g90_g_m249",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "g_m249",
+    "--faces",
+    "8000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "M249 SAW light machine gun, black, folded bipod under the barrel, carrying handle, feed tray cover on top with an ammunition belt of brass 5.56 cartridges entering from the left side, olive green plastic ammunition box under the receiver, black polymer stock and pistol grip. Realistic game weapon model, accurate real-world proportions and scale, side view, single object, no hands, no person, no background, no text."
+   ],
+   "timeout": 3000
+  },
+  {
+   "id": "g90_g_m16a4",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "g_m16a4",
+    "--faces",
+    "8000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "M16A4 assault rifle, black, long 20-inch barrel with triangular front sight post, round ribbed handguard, flat-top receiver with detachable carry handle sight on top, straight 30-round STANAG magazine, fixed full-length rifle stock, A2 flash hider. Realistic game weapon model, accurate real-world proportions and scale, side view, single object, no hands, no person, no background, no text."
+   ],
+   "timeout": 3000
+  },
+  {
+   "id": "g90_g_scarh",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "g_scarh",
+    "--faces",
+    "8000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "FN SCAR-H battle rifle, tan flat dark earth color polymer and aluminium, long top picatinny rail, side rails, black barrel with flash hider, straight 20-round 7.62 magazine in tan, folding adjustable tan stock with cheek riser, flip-up iron sights. Realistic game weapon model, accurate real-world proportions and scale, side view, single object, no hands, no person, no background, no text."
+   ],
+   "timeout": 3000
+  },
+  {
+   "id": "g90_g_g36c",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "g_g36c",
+    "--faces",
+    "8000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "HK G36C compact assault rifle, black polymer, integrated carrying handle with top rail, short barrel with flash hider, translucent-looking dark 30-round 5.56 magazine, side-folding skeleton polymer stock, short handguard. Realistic game weapon model, accurate real-world proportions and scale, side view, single object, no hands, no person, no background, no text."
+   ],
+   "timeout": 3000
+  },
+  {
+   "id": "g90_am_556",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "am_556",
+    "--faces",
+    "4000",
+    "--prompt",
+    "open cardboard box of 5.56x45 mm rifle cartridges with loose brass cartridges with copper bullets lying next to it, realistic, single prop, no text. Realistic game asset, PBR, no background."
+   ],
+   "timeout": 1800
+  },
+  {
+   "id": "g90_am_40mm",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "am_40mm",
+    "--faces",
+    "4000",
+    "--prompt",
+    "olive green metal ammunition can with several 40x46 mm grenade launcher rounds lying next to it, rounds have olive-grey warheads and short brass cases, realistic, single prop group. Realistic game asset, PBR, no background."
+   ],
+   "timeout": 1800
+  },
+  {
+   "id": "g90_am_pg7v",
+   "py": "tools/tripo/chain.py",
+   "args": [
+    "--id",
+    "am_pg7v",
+    "--faces",
+    "4000",
+    "--prompt",
+    "PG-7V anti-tank rocket grenade for RPG-7, olive green conical warhead with copper band and tail fin assembly, lying next to an olive green metal transport case, realistic, single prop group. Realistic game asset, PBR, no background."
    ],
    "timeout": 1800
   }
