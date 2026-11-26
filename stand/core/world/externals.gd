@@ -202,7 +202,14 @@ func crate_show(n: int, model: String, on: bool) -> void:
 		for t in X_TERMS:
 			if int(t[0]) == n:
 				var at: Vector3 = (t[2] as Vector3) + Vector3(0.0, 0.2, 1.45)
-				_crate_nodes[n] = _xd(model, Vector3(at.x, 0.2, at.z), 0.0, Vector3(1.25, 0.95, 0.9), Vector3.ZERO, 40.0)
+				_crate_nodes[n] = null
+				if ResourceLoader.exists(MODELS + model + ".glb"):
+					# пропорции — как у самой модели, длинной стороной (1,25 м) вдоль стены
+					var tmp: Node3D = (load(MODELS + model + ".glb") as PackedScene).instantiate()
+					var bb: AABB = w._aabb(tmp)
+					tmp.free()
+					var k := 1.25 / maxf(maxf(bb.size.x, bb.size.z), 0.01)
+					_crate_nodes[n] = _xd(model, Vector3(at.x, 0.2, at.z), 0.0 if bb.size.x >= bb.size.z else PI * 0.5, bb.size * k, Vector3.ZERO, 40.0)
 	var nd = _crate_nodes.get(n)
 	if nd != null and is_instance_valid(nd):
 		(nd as Node3D).visible = on

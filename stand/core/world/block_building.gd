@@ -219,6 +219,7 @@ const MATS := {
 	# База Внешников (бункер): бетонные стены и плиты пола, стальной настил, тёмный наливной пол — текстуры Poly Haven (CC0)
 	"xb_floor": ["concrete_tiles_02", 2.6, Color(0.92, 0.91, 0.88), 0.35, 0.85, {"sat": 0.5}],
 	"xb_plate": ["metal_plate_02", 2.2, Color(1.15, 1.15, 1.2), 0.2, 0.55, {"metal": 0.3, "sat": 0.45}],
+	"xb_tile": ["concrete_tiles_02", 1.9, Color(1.22, 1.24, 1.22), 0.3, 0.7, {"sat": 0.3}],     # светлая плитка: медпункт, кухня, лаборатории
 	"xb_dark": ["hangar_concrete_floor", 3.2, Color(1.45, 1.45, 1.45), 0.2, 0.9, {"sat": 0.4}],
 	"xb_wall": ["concrete_wall_008", 2.8, Color(0.66, 0.66, 0.63), 0.85, 0.92, {"streaks": 0.7, "sat": 0.45, "storey": 1000.0}],
 	"xb_wall_lab": ["concrete_wall_008", 2.8, Color(0.84, 0.88, 0.86), 0.45, 0.8, {"streaks": 0.3, "sat": 0.3, "storey": 1000.0}],
@@ -282,7 +283,7 @@ static func make_materials(noise: Texture2D) -> void:
 		m.set_shader_parameter("noise", noise)
 		m.set_shader_parameter("albedo_tex", load(T + String(d[0]) + "_c.jpg"))
 		m.set_shader_parameter("mean_l", float(MEAN_LUM.get(String(d[0]), 0.12)))
-		if ResourceLoader.exists(T + String(d[0]) + "_n.jpg") and k in ["xb_floor", "xb_plate", "xb_dark", "xb_wall", "xb_wall_lab", "xb_wall_dark", "facade", "facade2", "plaster", "brick", "tiles", "roof", "int_blue", "int_green", "int_beige", "int_grey", "int_beige1", "int_grey1", "lino", "planks", "planks_blue", "planks_green", "planks_brown", "roof_tin", "floorboard", "earth", "cellar_wall", "cellar_floor", "potato", "wood", "int_wood"]:
+		if ResourceLoader.exists(T + String(d[0]) + "_n.jpg") and k in ["xb_floor", "xb_tile", "xb_plate", "xb_dark", "xb_wall", "xb_wall_lab", "xb_wall_dark", "facade", "facade2", "plaster", "brick", "tiles", "roof", "int_blue", "int_green", "int_beige", "int_grey", "int_beige1", "int_grey1", "lino", "planks", "planks_blue", "planks_green", "planks_brown", "roof_tin", "floorboard", "earth", "cellar_wall", "cellar_floor", "potato", "wood", "int_wood"]:
 			m.set_shader_parameter("normal_tex", load(T + String(d[0]) + "_n.jpg"))
 			m.set_shader_parameter("has_normal", true)
 		if ResourceLoader.exists(T + String(d[0]) + "_r.jpg"):
