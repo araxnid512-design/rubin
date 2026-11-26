@@ -589,15 +589,17 @@ func _cowshed_enter() -> void:
 		cs_resumed = true
 	else:
 		cs_start = Time.get_unix_time_from_system()
-		_cs_end = cs_start + ULBase.minutes_for(place, float(c.get("minutes", 10))) * 60.0
-	if test == "" and lvl and ULBase.route_state(place) != "active":
+		# minutes ≤ 0 в настройках локации — срока нет (постоянная локация, например База Внешников): таймер не идёт
+		var mins0 := ULBase.minutes_for(place, float(c.get("minutes", 10)))
+		_cs_end = cs_start + mins0 * 60.0 if mins0 > 0.0 else 0.0
+	if test == "" and lvl and ULBase.route_state(place) != "active" and _cs_end > 0.0:
 		ULBase.set_route(place, "active")
 	if cs_seed == 0:
 		cs_seed = 991 if test != "" else int(Time.get_unix_time_from_system() * 1000.0) % 2147483647
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--as-seed=") and not cs_resumed:
 			cs_seed = int(a.substr(10))
-	if track and not cs_resumed:
+	if track and not cs_resumed and _cs_end > 0.0:
 		ULBase.route_begin(place, cs_seed, cs_start, _cs_end)
 	var rng := RandomNumberGenerator.new()
 	rng.seed = cs_seed
@@ -674,6 +676,8 @@ func _cowshed_enter() -> void:
 	if cs_resumed:
 		var lf := int(cs_left())
 		say("%s. Вы вернулись: до перезагрузки кластера — %d:%02d" % [zone_name(), lf / 60, lf % 60])
+	elif _cs_end <= 0.0:
+		say(zone_name() + (" · ТЕСТ УРОВНЯ: бессмертие, патроны без конца" if lvl else ""))
 	else:
 		say("%s. До перезагрузки кластера — %d минут" % [zone_name(), int(ULBase.minutes_for(place, float(c.get("minutes", 10))))] + (" · ТЕСТ УРОВНЯ: бессмертие, патроны без конца" if lvl else ""))
 

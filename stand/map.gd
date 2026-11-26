@@ -19,6 +19,11 @@ const PLACES := {
 	"depot": {"rect": Rect2(70, 300, 420, 280), "n": "Железнодорожное депо", "kind": "Локация · Опасность: 2 уровень", "route": true, "ring": Color(1.0, 0.7, 0.25), "mark": "res://assets/ui/map_depot.png", "pic": "res://assets/ui/place_depot.jpg", "scene": "res://world.tscn"},
 	"airport": {"rect": Rect2(-150, 640, 460, 300), "n": "Заброшенный аэропорт", "kind": "Локация · Опасность: 3 уровень", "route": true, "ring": Color(1.0, 0.25, 0.2), "mark": "res://assets/ui/map_airport.png", "pic": "res://assets/ui/place_airport.jpg", "scene": "res://world.tscn"},
 	"port": {"rect": Rect2(940, 640, 380, 270), "n": "Порт", "kind": "Локация · Опасность: 2 уровень", "route": true, "ring": Color(1.0, 0.85, 0.2), "mark": "res://assets/ui/map_port.png", "pic": "res://assets/ui/place_port.jpg", "scene": "res://world.tscn"},
+	# База Внешников — постоянная точка на карте (решение пользователя 26.11: «всегда на карте», вход свободный,
+	# без маршрута и без срока на поверхности); always — показывать всегда
+	"externals": {"rect": Rect2(1610, 150, 420, 280), "n": "База Внешников", "kind": "Вражеская база · Опасность: 5 уровень", "always": true, "ring": Color(1.0, 0.2, 0.15),
+		"d": "Укреплённая военная база Внешников в лесу: бетонная стена, вышки, главное здание с лифтом в подземный комплекс.",
+		"mark": "res://assets/ui/map_externals.png", "pic": "res://assets/ui/place_externals.jpg", "scene": "res://world.tscn"},
 	"sanatorium": {"rect": Rect2(262, 50, 432, 302), "n": "Санаторий Луч", "kind": "Временный нестабильный кластер", "route": true, "mark": "res://assets/ui/map_sanatorium.png", "pic": "res://assets/ui/place_sanatorium.jpg", "scene": "res://world.tscn"},
 }
 const MAP_SHADER := """shader_type canvas_item;
@@ -42,7 +47,7 @@ void fragment() {
 
 ## видна ли локация на карте: дом — всегда; временный кластер — пока куплен маршрут (или идёт посещение)
 static func place_shown(id: String) -> bool:
-	if id == "home":
+	if id == "home" or bool(PLACES.get(id, {}).get("always", false)):
 		return true
 	return ULBase.route_state(id) != ""
 
