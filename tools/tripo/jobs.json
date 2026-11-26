@@ -539,6 +539,60 @@
     "5eab0c22-248e-45e3-b85c-19ffdcc9daf2",
     "xd_surgery"
    ]
+  },
+  {
+   "id": "g97_xd_crate1",
+   "py": "tools/tripo/chain.py",
+   "timeout": 2400,
+   "args": [
+    "--id",
+    "xd_crate1",
+    "--faces",
+    "6000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "Military supply crate, olive green painted steel with a ribbed lid, wide bright green vertical stripe across the lid and the front, two steel latches on the front, side handles, a stenciled green access card emblem with wireless waves on the front panel, reinforced corners, scratched worn paint. Single game prop, realistic weathered PBR textures, dark military science-fiction bunker style, whole object visible, no background, no floor, no people, no text."
+   ]
+  },
+  {
+   "id": "g97_xd_crate2",
+   "py": "tools/tripo/chain.py",
+   "timeout": 2400,
+   "args": [
+    "--id",
+    "xd_crate2",
+    "--faces",
+    "6000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "Heavy dark gunmetal steel military crate with yellow painted reinforced corner plates, wide yellow stripe across the lid and the front, yellow and black hazard stripes at the bottom of the front panel, a stenciled yellow access card emblem with wireless waves, two heavy latches, side handles, scratched worn paint. Single game prop, realistic weathered PBR textures, dark military science-fiction bunker style, whole object visible, no background, no floor, no people, no text."
+   ]
+  },
+  {
+   "id": "g97_xd_crate3",
+   "py": "tools/tripo/chain.py",
+   "timeout": 2400,
+   "args": [
+    "--id",
+    "xd_crate3",
+    "--faces",
+    "6000",
+    "--tex",
+    "detailed",
+    "--geo",
+    "detailed",
+    "--pbr",
+    "--prompt",
+    "Heavy armored black steel containment crate with dark red painted panels and a wide red stripe across the lid, glowing red indicator lights on the latches, a white biohazard symbol on the side, a stenciled red access card emblem with wireless waves on the front, red and black hazard stripes, four tube carrying handles on the lid, dried blood splatter, scratched worn paint. Single game prop, realistic weathered PBR textures, dark military science-fiction bunker style, whole object visible, no background, no floor, no people, no text."
+   ]
   }
  ]
 }
