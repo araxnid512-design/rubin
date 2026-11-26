@@ -256,6 +256,7 @@
 			"price": {
 				"pea": 4
 			},
+			"parts": {"turret_part_1": 4},
 			"ammo": "veh_am_rifle",
 			"cap": 300,
 			"dmg": 18,
@@ -276,6 +277,7 @@
 			"price": {
 				"pea": 5
 			},
+			"parts": {"turret_part_1": 4, "turret_part_2": 3},
 			"ammo": "veh_am_mg",
 			"cap": 250,
 			"dmg": 32,
@@ -296,6 +298,7 @@
 			"price": {
 				"pea": 6
 			},
+			"parts": {"turret_part_2": 5, "turret_part_3": 2},
 			"ammo": "veh_am_cannon",
 			"cap": 60,
 			"dmg": 90,
@@ -317,6 +320,7 @@
 			"price": {
 				"pea": 7
 			},
+			"parts": {"turret_part_2": 6, "turret_part_3": 4},
 			"ammo": "veh_am_rocket",
 			"cap": 6,
 			"dmg": 240,

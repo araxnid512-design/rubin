@@ -151,7 +151,7 @@
    "kind": "Рабочий кластер",
    "danger": "1 уровень",
    "price": {
-    "spore": 38
+    "spore": 40
    },
    "minutes": 15,
    "pic": "res://assets/ui/place_quarry.jpg",

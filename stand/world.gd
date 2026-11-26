@@ -9066,7 +9066,7 @@ func _qr_test() -> void:
 	print("[inv] карьер готов через %.1f с от запуска игры" % (sn_ready_ms / 1000.0))
 	var rt_q: Dictionary = ULBase.shop().routes.get("quarry", {})
 	_ok("карьер: поле %d × %d м, вход на юго-западе у КПП, %d минут, маршрут %d споранов, опасность «%s»" % [int(size_m), int(size_z), int(c.minutes), int(rt_q.get("price", {}).get("spore", 0)), String(rt_q.get("danger", ""))],
-		size_m == 180.0 and size_z == 140.0 and place == "quarry" and ULQuarry.Q_ENTRY.x < -40.0 and ULQuarry.Q_ENTRY.z > 50.0 and int(c.minutes) == 15 and int(rt_q.get("price", {}).get("spore", 0)) == 38 and absf(_cs_end - cs_start - 900.0) < 1.0)
+		size_m == 180.0 and size_z == 140.0 and place == "quarry" and ULQuarry.Q_ENTRY.x < -40.0 and ULQuarry.Q_ENTRY.z > 50.0 and int(c.minutes) == 15 and int(rt_q.get("price", {}).get("spore", 0)) == 40 and absf(_cs_end - cs_start - 900.0) < 1.0)
 	# 3: глубина и уступы
 	var hc := ULQuarry.height(ULQuarry.PIT_C)
 	var levels := {}
@@ -9700,8 +9700,8 @@ func _price_test() -> void:
 			a545 = int(G.sp(row[2]))
 	_ok("сторож: АК за 5 → %d, ТТ за 900 → %d, патроны 5,45 за 60 → %d, аэропорт за 5000 → %d, коровник за 1 → %d, хранилище за 9000 → %d (правок %d)" % [int(after.ak74m), int(after.tt), a545,
 		int(G.sp(bad_base.routes.airport.price)), int(G.sp(bad_base.routes.cowshed.price)), int(G.sp(bad_base.upgrades.storage.price)), G.report.size()],
-		int(after.ak74m) >= 80 and int(after.tt) <= 120 and a545 <= 10 and int(G.sp(bad_base.routes.airport.price)) <= 260 and int(G.sp(bad_base.routes.cowshed.price)) >= 9
-		and int(G.sp(bad_base.upgrades.storage.price)) <= 260 and G.report.size() >= 6)
+		int(after.ak74m) >= 80 and int(after.tt) <= 120 and a545 <= 10 and int(G.sp(bad_base.routes.airport.price)) <= 320 and int(G.sp(bad_base.routes.cowshed.price)) >= 9
+		and int(G.sp(bad_base.upgrades.storage.price)) <= 380 and G.report.size() >= 6)     # границы — от выручки вылазок: с 27.11 добыча с заражённых больше
 	# продажа не дороже доли покупки: если бы электронику продавали у оружейника по 2 спорана, барахольщик брал бы её по 1
 	var loop_shop: Dictionary = shop.duplicate(true)
 	(loop_shop.supplies as Array).append(["electronics", 1, {"spore": 2}])
@@ -12837,7 +12837,7 @@ func _sn_test() -> void:
 	if can_search:
 		do_action()
 		await get_tree().process_frame
-	_ok("тело Рубера обыскивается обычным окном: %s" % str(rl), can_search and inv_ui.visible and int(rl.get("spore", 0)) >= 3 and int(rl.get("spore", 0)) <= 9 and int(rl.get("pea", 0)) >= 1 and int(rl.get("pea", 0)) <= 3)
+	_ok("тело Рубера обыскивается обычным окном: %s" % str(rl), can_search and inv_ui.visible and int(rl.get("spore", 0)) >= 4 and int(rl.get("spore", 0)) <= 11 and int(rl.get("pea", 0)) >= 1 and int(rl.get("pea", 0)) <= 4)
 	if out != "":
 		await get_tree().create_timer(0.3).timeout
 		await _snap("sn_ruber_loot")
@@ -18413,7 +18413,7 @@ func open_crate_ui(n: int) -> void:
 	# низ: уровень ящика
 	var foot := Label.new()
 	foot.name = "foot"
-	foot.text = "ЯЩИК %d УРОВНЯ   ·   %s. Турелей на базе пока нет — запчасти копятся." % [int(c.level), String(c.get("turrets", ""))]
+	foot.text = "ЯЩИК %d УРОВНЯ   ·   %s. Турели собирают в гараже базы." % [int(c.level), String(c.get("turrets", ""))]
 	foot.add_theme_font_size_override("font_size", ULSettings.fs(16))
 	foot.add_theme_color_override("font_color", col.lerp(Color.WHITE, 0.35))
 	root.add_child(foot)
@@ -24967,10 +24967,20 @@ func _garage_test() -> void:
 	_ok("14. разрушенные колёса заменены новыми того же уровня за его цену (10 гороха); машина снова быстрая", is_equal_approx(float(cd.parts.wheels.hp), ULGarageOps.part_hp(cd, "wheels").y) and pea1 - int(inv.wallet.pea) == 10 and car.vmax() > vm0 * 2.0)
 	# турели
 	inv.wallet["pea"] = 40
+	# запчасти для турелей (из ящиков Базы Внешников): без них турель не собрать
+	var no_parts := ULGarageOps.turret_buy(inv, cd, "rifle")
+	var t_ok0: bool = not no_parts.ok and String(no_parts.err) == "parts" and int(inv.wallet.pea) == 40 and String(cd.get("turret", "")) == ""
+	inv.add(ULItems.make("turret_part_1", 8), false)
+	var no_p2 := ULGarageOps.turret_buy(inv, cd, "mg")
+	t_ok0 = t_ok0 and not no_p2.ok and String(no_p2.err) == "parts" and (no_p2.miss as Dictionary).has("turret_part_2") and inv.count("turret_part_1") == 8
+	var hard_ok := (ULCar.turret_cfg("rifle").parts as Dictionary).keys() == ["turret_part_1"] and (ULCar.turret_cfg("mg").parts as Dictionary).has("turret_part_2") and (ULCar.turret_cfg("cannon").parts as Dictionary).has("turret_part_3") and (ULCar.turret_cfg("rocket").parts as Dictionary).has("turret_part_3") and int(ULCar.turret_cfg("rocket").parts.turret_part_3) > int(ULCar.turret_cfg("cannon").parts.turret_part_3)
+	inv.add(ULItems.make("turret_part_2", 3), false)
+	ui.refresh()
 	ui._do_turret_buy("rifle")
-	var t_ok1 := String(cd.turret) == "rifle" and car.turret_root != null and int(inv.wallet.pea) == 36
+	var t_ok1: bool = t_ok0 and hard_ok and String(cd.turret) == "rifle" and car.turret_root != null and int(inv.wallet.pea) == 36 and inv.count("turret_part_1") == 4
 	ui._do_turret_buy("mg")
-	_ok("15. турель: автоматная куплена за 4 и стоит на крыше; пулемётная за 5 — встала вместо неё, автоматная хранится", t_ok1 and String(cd.turret) == "mg" and (cd.turrets as Dictionary).has("rifle") and int(inv.wallet.pea) == 31)
+	t_ok1 = t_ok1 and inv.count("turret_part_1") == 0 and inv.count("turret_part_2") == 0
+	_ok("15. турель: без запчастей не собирается (горох цел); автоматная — 4 гороха и 4 запчасти I ур., стоит на крыше; пулемётная — 5 гороха, запчасти I ×4 и II ×3 — встала вместо неё, автоматная хранится; чем сложнее турель, тем выше уровень запчастей", t_ok1 and String(cd.turret) == "mg" and (cd.turrets as Dictionary).has("rifle") and int(inv.wallet.pea) == 31)
 	var again := ULGarageOps.turret_buy(inv, cd, "rifle")
 	ui._do_turret_on("rifle")
 	_ok("16. вторую автоматную не купить (бесплатных копий нет); «Поставить» — автоматная снова на крыше", not again.ok and String(again.err) == "owned" and String(cd.turret) == "rifle" and int(inv.wallet.pea) == 31)

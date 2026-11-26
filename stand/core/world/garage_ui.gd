@@ -442,11 +442,17 @@ func _turret_card(d: Dictionary, t: String) -> Control:
 	bh.add_theme_constant_override("separation", 4)
 	v.add_child(bh)
 	if not own:
+		var p_ok := ULGarageOps.turret_parts_missing(w.inv, t).is_empty()
+		if not (tc.get("parts", {}) as Dictionary).is_empty():
+			var pl := _lbl("Запчасти для турелей: " + ULGarageOps.turret_parts_text(w.inv, t), 13, C_OK if p_ok else Color(1.0, 0.72, 0.4))
+			pl.name = "parts"
+			v.add_child(pl)
+			v.move_child(pl, v.get_child_count() - 2)
 		bh.add_child(_price(tc.get("price", {}), 16))
-		var b := _btn("Установить", "green", _do_turret_buy.bind(t), 0.0, 34.0, 15)
+		var b := _btn("Собрать", "green", _do_turret_buy.bind(t), 0.0, 34.0, 15)
 		b.name = "buy"
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		b.disabled = not ULEconomy.missing(w.inv.wallet, tc.get("price", {})).is_empty()
+		b.disabled = not ULEconomy.missing(w.inv.wallet, tc.get("price", {})).is_empty() or not p_ok
 		bh.add_child(b)
 	elif on:
 		var b := _btn("Снять", "gray", _do_turret_off, 0.0, 34.0, 15)

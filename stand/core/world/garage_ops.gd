@@ -127,13 +127,41 @@ static func turret_buy(inv: ULInventory, cd: Dictionary, t: String) -> Dictionar
 	if (cd.turrets as Dictionary).has(t):
 		return {"ok": false, "err": "owned"}
 	var price: Dictionary = tc.get("price", {})
+	# запчасти для турелей — из ящиков Базы Внешников (ULCrates): чем сложнее турель, тем выше уровень запчастей
+	var pmiss := turret_parts_missing(inv, t)
+	if not pmiss.is_empty():
+		return {"ok": false, "err": "parts", "miss": pmiss}
 	var miss := ULEconomy.missing(inv.wallet, price)
 	if not miss.is_empty() or not inv.pay(price):
 		return {"ok": false, "err": "money", "miss": miss}
+	var need: Dictionary = tc.get("parts", {})
+	for pid in need:
+		inv.consume(String(pid), int(need[pid]))
 	cd.turrets[t] = {"ammo": 0, "hp": float(tc.get("hp", 200))}
 	cd["turret"] = t
 	ULBase.save_state()
 	return {"ok": true, "err": ""}
+
+
+## каких запчастей не хватает на турель t: {предмет: сколько ещё нужно}; пусто — хватает
+static func turret_parts_missing(inv: ULInventory, t: String) -> Dictionary:
+	var out := {}
+	var need: Dictionary = ULCar.turret_cfg(t).get("parts", {})
+	for pid in need:
+		var lack := int(need[pid]) - inv.count(String(pid))
+		if lack > 0:
+			out[String(pid)] = lack
+	return out
+
+
+## запчасти на турель одной строкой: «I ур. ×4, II ур. ×3» (have — показать, сколько при себе)
+static func turret_parts_text(inv: ULInventory, t: String) -> String:
+	var need: Dictionary = ULCar.turret_cfg(t).get("parts", {})
+	var parts: Array = []
+	for pid in need:
+		var lv := String(pid).trim_prefix("turret_part_")
+		parts.append("%s ур. %d/%d" % [{"1": "I", "2": "II", "3": "III"}.get(lv, lv), mini(inv.count(String(pid)), int(need[pid])), int(need[pid])])
+	return ", ".join(parts)
 
 
 ## поставить на крышу свою (купленную) турель; другая снимается и хранится в гараже со своим состоянием
@@ -274,6 +302,11 @@ static func err_text(r: Dictionary) -> String:
 	match String(r.get("err", "")):
 		"money", "junk":
 			return "Не хватает: " + ULEconomy.list_text(r.get("miss", {})).replace("junk", "хлам")
+		"parts":
+			var ps: Array = []
+			for pid in r.get("miss", {}):
+				ps.append("%s ×%d" % [String(ULItems.get_def(String(pid)).get("n", pid)), int(r.miss[pid])])
+			return "Не хватает запчастей (они в ящиках Базы Внешников): " + ", ".join(ps)
 		"max":
 			return "Уже последний уровень"
 		"owned":
