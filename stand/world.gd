@@ -18893,6 +18893,44 @@ func _run_test() -> void:
 		await _pano(ashots, Vector2i(1920, 1104))
 		get_tree().quit()
 		return
+	if test == "xbcards":
+		# карты доступа Внешников как предметы: названия, значки, стопки, сохранение, не валюта
+		await get_tree().create_timer(0.5).timeout
+		inv.from_dict({})
+		var cards := [["card_green", "Зелёная карта Внешников", 1], ["card_yellow", "Жёлтая карта Внешников", 2], ["card_red", "Красная карта Внешников", 3]]
+		for cd in cards:
+			var cid := String(cd[0])
+			var df := ULItems.get_def(cid)
+			_ok("%s: предмет есть, уровень допуска %d, терминал № %d, значок есть" % [String(cd[1]), int(cd[2]), int(df.get("terminal", 0))],
+				ULItems.ITEMS.has(cid) and String(df.n) == String(cd[1]) and int(df.get("access", 0)) == int(cd[2]) and int(df.get("terminal", 0)) == int(cd[2])
+				and ResourceLoader.exists(ULItems.ICONS + String(df.icon) + ".png") and not ULItems.MONEY.has(cid))
+			var left_a := inv.add(ULItems.make(cid))        # add возвращает, сколько не поместилось
+			var left_b := inv.add(ULItems.make(cid))
+			_ok("%s: кладётся в инвентарь, вторая такая же ложится в ту же ячейку (в стопке до %d)" % [String(cd[1]), ULItems.stack(cid)], left_a == 0 and left_b == 0 and inv.count(cid) == 2 and ULItems.stack(cid) >= 2)
+		var used := 0
+		for it in inv.pockets:
+			if it != null:
+				used += 1
+		_ok("три вида карт занимают три ячейки", used == 3, str(used))
+		var saved: Dictionary = JSON.parse_string(JSON.stringify(inv.to_dict()))     # как в файле сохранения
+		inv.from_dict({})
+		inv.from_dict(saved)
+		_ok("сохранение и загрузка: карты на месте (по две каждого вида)", inv.count("card_green") == 2 and inv.count("card_yellow") == 2 and inv.count("card_red") == 2)
+		_ok("красная карта — не красная жемчужина: разные предметы, жемчужин в инвентаре нет", String(ULItems.get_def("card_red").n) != String(ULItems.get_def("pearl_red").n) and inv.count("pearl_red") == 0)
+		var xc := ULExternals.xcfg()
+		var tm: Array = xc.get("terminals", [])
+		_ok("данные для терминалов: № 1 — зелёная, № 2 — жёлтая, № 3 — красная; терминалы пока выключены; лифт — одна красная жемчужина на 24 часа",
+			tm.size() == 3 and String(tm[0].card) == "card_green" and String(tm[1].card) == "card_yellow" and String(tm[2].card) == "card_red" and not bool(tm[0].active)
+			and String(xc.lift.key) == "pearl_red" and int(xc.lift.count) == 1 and int(xc.lift.hours) == 24)
+		open_inventory()
+		await get_tree().create_timer(0.6).timeout
+		if out != "":
+			DirAccess.make_dir_recursive_absolute(out)
+			await _snap("cards_inventory")
+		close_inventory()
+		print("[inv] итог: ошибок %d" % _fails)
+		get_tree().quit()
+		return
 	if test == "xbview":
 		# снимки базы Внешников камерой игры: у ворот, во дворе и в каждом помещении главного здания
 		var tv0 := Time.get_ticks_msec()
