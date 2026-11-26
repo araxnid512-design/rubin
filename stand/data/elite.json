@@ -27,7 +27,7 @@
  "atk_cd": 0.6,
  "stagger_dmg": 260,
  "nav_r": 1.25,
- "body": [5.0, 3.0, 1.9],
+ "body": [5.0, 3.0, 2.2],
  "wait_s": 9.0,
  "spawn": {"per_place": 1, "levels": [3], "zones": {"runway": 3, "apron": 3, "taxiway": 2, "field": 2, "hangar_yard": 2, "cargo_yard": 2}, "safe_r": 70}
 }

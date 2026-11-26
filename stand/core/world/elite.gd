@@ -205,13 +205,16 @@ func _anim_event(ev: String) -> void:
 			noise.emit("swoosh", global_position + Vector3.UP * 1.5)
 
 
-## точка удара в мире: пасть (кость Jaw) или кисть передней лапы
+## точка удара в мире: кончик нижней челюсти или когти передней лапы (смещения — метаданные модели)
 func strike_point(what: String) -> Vector3:
-	var bn := {"bite": "Jaw", "claw_r": "R_Hand", "claw_l": "L_Hand"}.get(what, "Jaw")
-	if skel != null:
+	var bn: String = {"bite": "Jaw", "claw_r": "R_Claws", "claw_l": "L_Claws"}.get(what, "Jaw")
+	if skel != null and model != null:
 		var bi := skel.find_bone(bn)
 		if bi >= 0:
-			return skel.global_transform * skel.get_bone_global_pose(bi).origin
+			var o: Vector3 = model.get_meta("bite_off" if what == "bite" else "claw_off", Vector3.ZERO)
+			if what == "claw_r":
+				o.x = -o.x
+			return skel.global_transform * (skel.get_bone_global_pose(bi) * o)
 	var f := Vector3(sin(rotation.y), 0, cos(rotation.y))
 	return global_position + f * float(c.body[0]) * 0.45 + Vector3.UP * 1.2
 
