@@ -234,6 +234,8 @@ static func build(skel: Skeleton3D, ap_root: Node, cfg: Dictionary, scale: float
 		elif c.get("center", false):
 			# стойка: тело над капсулой (у готового «idle» таз в среднем в 12 см от точки персонажа)
 			_flatten_root(a, skel, root_bone, a.length * 2.0)
+		if c.has("hip_k"):
+			_hip_scale(a, skel, root_bone, float(c.hip_k))
 		if c.get("mirror", false):
 			a = _mirror(a, skel, mirror_fwd)
 		if c.get("level", false):
@@ -713,6 +715,32 @@ static func _floor_apply(a: Animation, skel: Skeleton3D, root_bone: String, shif
 ## Раскачка таза вбок на ходу: поперечное (поперёк хода, по горизонтали) смещение кости-корня от своего среднего
 ## умножается на k. У клипов ходьбы Tripo таз гуляет на 20 см и больше — персонаж «переваливается» с боку на бок;
 ## k = 0,5 оставляет живое покачивание без утиной походки. dir — направление хода (из _strip_root).
+## Стойка «дышит»: в долгих клипах ожидания (17 с) таз медленно уходит вбок на 12–17 см и обратно — стоящий герой
+## заметно «плавает» вокруг своей точки. hip_k < 1 — горизонтальное отклонение таза от среднего меньше в k раз
+## (вертикаль — дыхание, приседание — не трогается).
+static func _hip_scale(a: Animation, skel: Skeleton3D, root_bone: String, k: float) -> void:
+	var bi := skel.find_bone(root_bone)
+	var track := -1
+	for i in a.get_track_count():
+		if a.track_get_type(i) == Animation.TYPE_POSITION_3D and String(a.track_get_path(i)).ends_with(":" + root_bone):
+			track = i
+	if bi < 0 or track < 0:
+		return
+	var parent := skel.get_bone_parent(bi)
+	var pb := skel.get_bone_global_rest(parent).basis if parent >= 0 else Basis.IDENTITY
+	var up := (pb.inverse() * Vector3.UP).normalized()
+	var n := a.track_get_key_count(track)
+	var mean := Vector3.ZERO
+	for i in n:
+		mean += a.track_get_key_value(track, i)
+	mean /= maxf(n, 1)
+	for i in n:
+		var v: Vector3 = a.track_get_key_value(track, i)
+		var dv := v - mean
+		var hz := dv - up * dv.dot(up)
+		a.track_set_key_value(track, i, v - hz * (1.0 - k))
+
+
 static func _sway_scale(a: Animation, skel: Skeleton3D, root_bone: String, dir: Vector3, k: float) -> void:
 	var bi := skel.find_bone(root_bone)
 	var track := -1

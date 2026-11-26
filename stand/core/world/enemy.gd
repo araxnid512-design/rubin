@@ -1339,7 +1339,14 @@ func _process(delta: float) -> void:
 		set_process(false)
 
 
+## Над головами заражённых ничего не висит (просьба пользователя 26.11: «убери индикаторы над головами заражённых
+## и нас»): полоска здоровья не создаётся. Попадание видно по самому врагу — вспышка, отдача, кровь.
+const OVERHEAD := false
+
+
 func _mini_make() -> void:
+	if not OVERHEAD:
+		return
 	if _bar_mat == null:
 		var sh := Shader.new()
 		sh.code = """shader_type spatial;

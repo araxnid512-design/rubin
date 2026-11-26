@@ -20,7 +20,8 @@
 			"inplace": false,
 			"blend": 0.3,
 			"rate": 1.0,
-			"center": true
+			"center": true,
+			"hip_k": 0.4
 		},
 		"walk": {
 			"src": [
@@ -34,7 +35,7 @@
 			"phase": 0.867,
 			"strides": 2.0,
 			"root_smooth": 1.167,
-			"sway_k": 0.5
+			"sway_k": 0.35
 		},
 		"walk_back": {
 			"level": true,
@@ -107,7 +108,11 @@
 			"inplace": true,
 			"blend": 0.25,
 			"rate": 1.0,
-			"speed": 2.43
+			"speed": 2.43,
+			"bake": "inplace",
+			"heading_lock": true,
+			"sway": 0.7,
+			"sway_k": 0.5
 		},
 		"start": {
 			"src": [
@@ -135,7 +140,8 @@
 			"root_lock": true,
 			"speed": 0.0,
 			"ik": true,
-			"off": true
+			"off": true,
+			"floor": true
 		},
 		"turn_left": {
 			"src": [
@@ -182,7 +188,11 @@
 			"blend": 0.25,
 			"rate": 1.0,
 			"speed": 0.86,
-			"sway_k": 0.6
+			"sway_k": 0.5,
+			"bake": "inplace",
+			"heading_lock": true,
+			"sway": 1.0,
+			"loop_fix": 0.3
 		},
 		"sneak": {
 			"src": [
@@ -193,7 +203,11 @@
 			"blend": 0.25,
 			"rate": 1.0,
 			"speed": 1.2,
-			"sway_k": 0.6
+			"sway_k": 0.4,
+			"bake": "inplace",
+			"heading_lock": true,
+			"sway": 1.0,
+			"loop_fix": 0.35
 		},
 		"stairs_up": {
 			"src": [
@@ -214,7 +228,13 @@
 			"inplace": true,
 			"blend": 0.25,
 			"rate": 1.0,
-			"speed": 0.39
+			"speed": 0.39,
+			"bake": "inplace",
+			"heading_lock": true,
+			"sway": 1.0,
+			"sway_k": 0.5,
+			"loop_fix": 0.35,
+			"floor": true
 		},
 		"ladder_up": {
 			"src": [
@@ -276,7 +296,8 @@
 			"blend": 0.25,
 			"rate": 1.0,
 			"ik": true,
-			"root_lock": true
+			"root_lock": true,
+			"floor": true
 		},
 		"suit_off": {
 			"src": [
@@ -435,7 +456,8 @@
 			"inplace": false,
 			"blend": 0.12,
 			"rate": 1.0,
-			"ik": true
+			"ik": true,
+			"floor": true
 		},
 		"pistol_aim": {
 			"src": [
@@ -445,7 +467,8 @@
 			"inplace": false,
 			"blend": 0.15,
 			"rate": 1.0,
-			"ik": true
+			"ik": true,
+			"loop_fix": 0.4
 		},
 		"pistol_fire": {
 			"src": [
@@ -466,7 +489,8 @@
 			"inplace": false,
 			"blend": 0.15,
 			"rate": 1.0,
-			"ik": true
+			"ik": true,
+			"floor": true
 		},
 		"rifle_aim": {
 			"src": [
@@ -477,7 +501,9 @@
 			"inplace": false,
 			"blend": 0.15,
 			"rate": 1.0,
-			"ik": true
+			"ik": true,
+			"loop_fix": 0.4,
+			"floor": true
 		},
 		"rifle_fire": {
 			"src": [
@@ -486,7 +512,11 @@
 			"loop": false,
 			"inplace": false,
 			"blend": 0.08,
-			"rate": 1.0
+			"rate": 1.0,
+			"bake": "inplace",
+			"heading_lock": true,
+			"sway": 2.0,
+			"sway_k": 0.5
 		},
 		"kick": {
 			"src": [
@@ -633,7 +663,11 @@
 			"blend": 0.3,
 			"rate": 1.0,
 			"ik": true,
-			"off": true
+			"off": true,
+			"bake": "inplace",
+			"heading_lock": true,
+			"sway": 2.0,
+			"sway_k": 0.5
 		},
 		"wave": {
 			"src": [
@@ -744,7 +778,11 @@
 			"blend": 0.3,
 			"rate": 1.0,
 			"ik": true,
-			"off": true
+			"off": true,
+			"bake": "inplace",
+			"heading_lock": true,
+			"sway": 2.0,
+			"sway_k": 0.5
 		},
 		"scratch": {
 			"src": [
@@ -754,7 +792,11 @@
 			"inplace": false,
 			"blend": 0.3,
 			"rate": 1.0,
-			"ik": true
+			"ik": true,
+			"bake": "inplace",
+			"heading_lock": true,
+			"sway": 2.0,
+			"sway_k": 0.5
 		},
 		"look_around": {
 			"src": [

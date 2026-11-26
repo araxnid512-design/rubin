@@ -5854,9 +5854,13 @@ func _damage(t: Node3D, dmg: float, at: Vector3) -> void:
 		t.set_meta("hp", left)
 	# цифра урона: попадания по той же мишени чаще трёх раз в секунду складываются в одну надпись
 	# (очередь из пулемёта — это одна растущая цифра, а не десять надписей в секунду)
+	# над заражёнными и мурами цифры не всплывают (просьба пользователя 26.11: индикаторы над головами убрать) —
+	# только над манекеном и чучелами на полигоне
 	var now_s := Time.get_ticks_msec() * 0.001
 	var rec: Array = _dmg_lb.get(t, [])
-	if not rec.is_empty() and is_instance_valid(rec[0]) and now_s - float(rec[2]) < 0.35:
+	if t is ULEnemy and not ULEnemy.OVERHEAD:
+		pass
+	elif not rec.is_empty() and is_instance_valid(rec[0]) and now_s - float(rec[2]) < 0.35:
 		rec[1] = float(rec[1]) + dmg
 		(rec[0] as Label3D).text = "−%d" % int(round(float(rec[1])))
 	else:
@@ -10047,6 +10051,145 @@ func _backfire_test() -> void:
 		print("[backfire] %s: смен цели %d, взгляд повернулся всего на %.0f°, резко качнулся (больше 4° и обратно) %d раз; таз относительно линии героя: вбок %.1f см, вперёд-назад %.1f см; режимы шага %s" % [String(sc[0]), tgt_changes, swing, flips, (hip_max - hip_min) * 100.0, (fwd_max - fwd_min) * 100.0, str(modes)])
 		await get_tree().create_timer(0.6).timeout
 	clear_enemies()
+
+
+## Проверка всех движений героя измерениями (--as-test=animaudit; просьба пользователя 26.11: «переделай все анимации
+## персонажу и пересоздай как положено»). Каждый клип — после всей обработки набора (BCAnimSet); поза считается прямо
+## по дорожкам клипа (от корня к кости), без дерева анимации:
+##   таз — на сколько уходит по горизонтали от точки персонажа (вперёд-назад и вбок), см;
+##   курс — на сколько градусов тело поворачивается за клип (по линии бёдер);
+##   шов — у зацикленных: разница положения и курса между концом и началом (рывок на повторе);
+##   стопы — на сколько нижняя стопа уходит под пол исходной позы, см.
+## Строка на клип; «!» — мерка вне допуска для своего вида клипа (цикл на месте / разовое действие / клип с уходом
+## тела: падение, смерть, кувырок, посадка).
+func _anim_audit() -> void:
+	var sk: Skeleton3D = rig.skel
+	var k: float = rig.scale_k
+	var hip := sk.find_bone("Hip")
+	var lt := sk.find_bone("L_Thigh")
+	var rt := sk.find_bone("R_Thigh")
+	var feet := []
+	for fnm in ["L_Foot", "R_Foot", "L_Toe", "R_Toe"]:
+		if sk.find_bone(fnm) >= 0:
+			feet.append(sk.find_bone(fnm))
+	var rest_hip := sk.get_bone_global_rest(hip).origin
+	var rest_floor := 1e9
+	for f in feet:
+		rest_floor = minf(rest_floor, sk.get_bone_global_rest(f).origin.y)
+	var rest_left := sk.get_bone_global_rest(lt).origin - sk.get_bone_global_rest(rt).origin
+	var rest_yaw := atan2(rest_left.x, rest_left.z)
+	var side := Vector3(rest_left.x, 0, rest_left.z).normalized()
+	var fwd := side.cross(Vector3.UP).normalized()
+	if info_fwd_sign(fwd) < 0.0:
+		fwd = -fwd
+	var names: Array = rig.info.keys()
+	names.sort()
+	var bad := []
+	print("[audit] клип | вид | длина, с | таз вперёд-назад, см | таз вбок, см | среднее смещение, см | курс, ° | шов, см/° | стопа под полом, см")
+	for n in names:
+		var an: Animation = rig.ap.get_animation("bc/" + String(n))
+		if an == null:
+			continue
+		# дорожки клипа по костям
+		var tp := {}
+		var tr := {}
+		for ti in an.get_track_count():
+			var bn := String(an.track_get_path(ti)).get_slice(":", 1)
+			var bi := sk.find_bone(bn)
+			if bi < 0:
+				continue
+			if an.track_get_type(ti) == Animation.TYPE_POSITION_3D:
+				tp[bi] = ti
+			elif an.track_get_type(ti) == Animation.TYPE_ROTATION_3D:
+				tr[bi] = ti
+		var gp := func(b: int, t: float) -> Transform3D:
+			var chain := []
+			var x := b
+			while x >= 0:
+				chain.push_front(x)
+				x = sk.get_bone_parent(x)
+			var g := Transform3D.IDENTITY
+			for cb in chain:
+				var rest := sk.get_bone_rest(cb)
+				var o: Vector3 = an.position_track_interpolate(tp[cb], t) if tp.has(cb) else rest.origin
+				var q: Quaternion = an.rotation_track_interpolate(tr[cb], t) if tr.has(cb) else rest.basis.get_rotation_quaternion()
+				g = g * Transform3D(Basis(q), o)
+			return g
+		var c: Dictionary = rig.info[n]
+		var steps := clampi(int(an.length * 30.0), 12, 240)
+		var f_min := 1e9
+		var f_max := -1e9
+		var s_min := 1e9
+		var s_max := -1e9
+		var yaw_min := 1e9
+		var yaw_max := -1e9
+		var foot_min := 1e9
+		var mean := Vector2.ZERO
+		var first := Vector2.ZERO
+		var last := Vector2.ZERO
+		var yaw0 := 0.0
+		var yaw1 := 0.0
+		for i in steps + 1:
+			var t := minf(an.length * float(i) / float(steps), an.length - 0.0005)
+			var hg: Transform3D = gp.call(hip, t)
+			var hp3 := hg.origin - rest_hip
+			var left: Vector3 = (gp.call(lt, t) as Transform3D).origin - (gp.call(rt, t) as Transform3D).origin
+			var yaw := rad_to_deg(angle_difference(rest_yaw, atan2(left.x, left.z)))
+			var fv := hp3.dot(fwd) * k * 100.0
+			var sv := hp3.dot(side) * k * 100.0
+			f_min = minf(f_min, fv)
+			f_max = maxf(f_max, fv)
+			s_min = minf(s_min, sv)
+			s_max = maxf(s_max, sv)
+			yaw_min = minf(yaw_min, yaw)
+			yaw_max = maxf(yaw_max, yaw)
+			mean += Vector2(fv, sv)
+			for f in feet:
+				foot_min = minf(foot_min, ((gp.call(f, t) as Transform3D).origin.y - rest_floor) * k * 100.0)
+			if i == 0:
+				first = Vector2(fv, sv)
+				yaw0 = yaw
+			last = Vector2(fv, sv)
+			yaw1 = yaw
+		mean /= float(steps + 1)
+		var loop := bool(c.get("loop", false))
+		var seam := first.distance_to(last) if loop else 0.0
+		var seam_yaw := absf(yaw1 - yaw0) if loop else 0.0
+		var kind := "цикл" if loop else "действие"
+		for w in ["fall", "death", "dead", "lie", "bed", "dodge", "get_up", "sit", "stand_up", "ladder", "stagger", "defeat"]:
+			if String(n).contains(w):
+				kind = "с уходом"
+		var lim_pos := 14.0 if kind == "цикл" else (35.0 if kind == "действие" else 1e9)
+		# курс меряется по линии бёдер: на бегу таз сам поворачивается на ±13°, в ударе мачете и в развороте
+		# корпус и должен крутиться — там курс не проверяется
+		var lim_yaw := 30.0 if kind == "цикл" else (60.0 if kind == "действие" else 1e9)
+		if String(n).begins_with("turn") or String(n).begins_with("melee") or String(n).contains("kick"):
+			lim_yaw = 1e9
+		var marks := []
+		if f_max - f_min > lim_pos or s_max - s_min > lim_pos:
+			marks.append("таз гуляет")
+		if mean.length() > (10.0 if kind == "цикл" else 25.0) and kind != "с уходом":
+			marks.append("тело не над точкой")
+		if yaw_max - yaw_min > lim_yaw:
+			marks.append("курс виляет")
+		if loop and kind != "с уходом" and (seam > 4.0 or seam_yaw > 6.0):
+			marks.append("рывок на шве")
+		if foot_min < -6.0 and kind != "с уходом":
+			marks.append("стопа под полом")
+		# исходники Tripo (…_tripo) лежат в наборе для сравнения с построенными позами — игра их не запускает
+		var unused := String(n).ends_with("_tripo") or ["sprint", "rifle_fire", "scratch"].has(String(n))
+		if not marks.is_empty() and unused:
+			marks.append("игрой не используется")
+		elif not marks.is_empty():
+			bad.append(String(n))
+		print("[audit] %-16s | %-8s | %.2f | %6.1f…%5.1f | %6.1f…%5.1f | %4.1f | %5.1f | %.1f/%.1f | %5.1f | %s" % [n, kind, an.length, f_min, f_max, s_min, s_max, mean.length(), yaw_max - yaw_min, seam, seam_yaw, foot_min, ("! " + ", ".join(marks)) if not marks.is_empty() else "ок"])
+	print("[audit] клипов %d, с замечаниями %d: %s" % [names.size(), bad.size(), ", ".join(bad)])
+
+
+## знак «вперёд» исходной позы: модель героя повёрнута так, что шаг клипа ходьбы идёт по +Z узла (rig.info.walk.dir)
+func info_fwd_sign(fwd: Vector3) -> float:
+	var d: Vector3 = rig.info.walk.dir if rig.info.has("walk") and rig.info.walk.has("dir") else Vector3.BACK
+	return 1.0 if fwd.dot(d) >= 0.0 else -1.0
 
 
 func _reload_test() -> void:
@@ -16099,6 +16242,7 @@ func _add_npc(p: Vector3, yaw: float, nm: String, role: String, line: String, mo
 	lb.position = Vector3(0, 2.25, 0)
 	lb.name = "Label"
 	body.add_child(lb)
+	lb.visible = false                      # подписи над жителями убраны (просьба пользователя 26.11); имя — в разговоре
 	var blob := MeshInstance3D.new()
 	var pm := PlaneMesh.new()
 	pm.size = Vector2(1.3, 1.3)
@@ -16216,7 +16360,7 @@ func _npcs_tick(delta: float) -> void:
 		var near := v.length() < 24.0
 		var r := b.get_node("Rig") as BCCharacter
 		# имя жителя в доме видно только из дома (иначе надпись висит поверх крыши)
-		(b.get_node("Label") as Label3D).visible = not _in_house(b.global_position) or house.inside
+		(b.get_node("Label") as Label3D).visible = false      # над головами жителей ничего не висит
 		# Только что созданный житель сначала секунду играет стойку, даже если герой далеко: иначе он засыпал в
 		# позе модели (руки в стороны) и стоял так, пока герой не подойдёт на 24 м.
 		var lived := float(b.get_meta("lived", 0.0))
@@ -19987,6 +20131,10 @@ func _run_test() -> void:
 		print("[inv] итог: ошибок %d" % _fails)
 		get_tree().quit()
 		return
+	if test == "animaudit":
+		await _anim_audit()
+		get_tree().quit()
+		return
 	if test == "backfire":
 		await _backfire_test()
 		get_tree().quit()
@@ -20658,9 +20806,8 @@ func _run_test() -> void:
 		_ok("удар на замахе сбил его удар (сбит %d раз), герой не ранен" % z.interrupts, z.interrupts == 1 and z._hit_due < 0.0 and hp >= hp0)
 		_ok("отброшен от удара на %.2f м" % away, away > 0.12)
 		_ok("вспыхнул на миг и погас", flash_on and flash_off)
-		_ok("над головой — полоска здоровья", bar_on)
+		_ok("над головой заражённого ничего не висит (полоски здоровья нет)", not bar_on and z._mini == null)
 		z.damage(1000.0, player.global_position)
-		_ok("убит — полоска пропала", not z._mini.visible)
 		_test_done()
 		return
 	if test == "ragdoll":
