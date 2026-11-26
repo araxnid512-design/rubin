@@ -530,6 +530,15 @@
     "--prompt",
     "Row of laboratory incubator cabinets with glass doors and glowing samples inside. Single game prop, realistic weathered PBR textures, dark military science-fiction bunker style, whole object visible, no background, no floor, no people, no text."
    ]
+  },
+  {
+   "id": "g97_xd_surgery_fetch",
+   "py": "tools/tripo/fetch_task.py",
+   "timeout": 600,
+   "args": [
+    "5eab0c22-248e-45e3-b85c-19ffdcc9daf2",
+    "xd_surgery"
+   ]
   }
  ]
 }
