@@ -503,3 +503,53 @@ func _x_spots(rng: RandomNumberGenerator) -> void:
 			tag = "tech_yard"
 		yard_pts.append(Vector3(q.x, 0, q.y))
 		_yard_tags.append(tag)
+
+
+# ---------------- солдаты Внешников ----------------
+
+## где на поверхности стоят снайперы (у стен и на площадке — с длинным обзором двора и ворот) и Титаны (ворота
+## главного здания, коридор, лифтовой зал, двор)
+const X_SNIPER_POS := [Vector3(-33, 0, -33), Vector3(33, 0, -33), Vector3(-33, 0, 29), Vector3(33, 0, 29), Vector3(4, 0, -34.5), Vector3(-25.5, 0, -27.5)]
+const X_TITAN_POS := [Vector3(0, 0, 25.5), Vector3(0, 0.2, 12.5), Vector3(0, 0.2, 6.0), Vector3(-30, 0, -20), Vector3(30, 0, -14), Vector3(-17, 0.2, 4.0)]
+const X_ROOM_POS := [Vector3(17, 0.2, 4.0), Vector3(-19, 0.2, 5.0), Vector3(0, 0.2, -11.5), Vector3(-12, 0.2, 13.0), Vector3(12, 0.2, 13.5), Vector3(-13, 0.2, -14.0), Vector3(13, 0.2, -14.0)]
+
+
+## План появления на поверхности: число каждого вида — data/externals.json → soldiers.surface. Снайперы и Титаны — на
+## своих местах, штурмовики — часть в помещениях главного здания, остальные по двору. Запись — [вид, где, зона].
+func spawn_plan(rng: RandomNumberGenerator, snap: Callable) -> Array:
+	var cnt: Dictionary = (conf().get("soldiers", {}) as Dictionary).get("surface", {})
+	var out: Array = []
+	var taken: Array[Vector3] = []
+	for i in mini(int(cnt.get("ext_sniper", 0)), X_SNIPER_POS.size()):
+		var p: Vector3 = X_SNIPER_POS[i]
+		out.append(["ext_sniper", Vector3(p.x, p.y + 0.02, p.z), "post"])
+		taken.append(p)
+	for i in mini(int(cnt.get("ext_titan", 0)), X_TITAN_POS.size()):
+		var p: Vector3 = X_TITAN_POS[i]
+		out.append(["ext_titan", Vector3(p.x, p.y + 0.02, p.z), "post" if p.y < 0.1 else "main"])
+		taken.append(p)
+	var na := int(cnt.get("ext_assault", 0))
+	var in_rooms := mini(na / 3, X_ROOM_POS.size())
+	for i in in_rooms:
+		var p: Vector3 = X_ROOM_POS[i]
+		out.append(["ext_assault", Vector3(p.x, p.y + 0.02, p.z), "main"])
+		taken.append(p)
+	for i in na - in_rooms:
+		for attempt in 60:
+			if yard_pts.is_empty():
+				break
+			var p: Vector3 = yard_pts[rng.randi() % yard_pts.size()]
+			var q: Vector3 = snap.call(p)
+			if Vector2(q.x - p.x, q.z - p.z).length() > 0.45:
+				continue
+			var crowd := false
+			for t in taken:
+				if t.distance_to(q) < 2.5:
+					crowd = true
+					break
+			if crowd or not body_fits(Vector3(q.x, 0.0, q.z), 0.3, 1.5):
+				continue
+			taken.append(q)
+			out.append(["ext_assault", Vector3(q.x, 0.02, q.z), "yard"])
+			break
+	return out

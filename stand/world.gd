@@ -10432,6 +10432,140 @@ func _ui_audit() -> void:
 	print("[ui] всего подписей %d, мелких (ниже %d) %d, обрезанных %d" % [int(tot[0]), int(UI_MIN_FS), int(tot[1]), int(tot[2])])
 
 
+## Солдаты Внешников на поверхности базы (--as-test=xbsold; --as-out=папка — снимки): сколько кого, оружие, прицельный
+## выстрел снайпера (красная линия ровно 3 с, треть наибольшего здоровья, отмена при потере цели), Титан тяжелее
+## штурмовика, карта доступа в теле каждого — одна, сама в инвентарь не попадает, повторно не выдаётся.
+func _xb_soldiers() -> void:
+	var t0 := Time.get_ticks_msec()
+	while not cs_ready and Time.get_ticks_msec() - t0 < 40000:
+		await get_tree().process_frame
+	await get_tree().create_timer(1.0).timeout
+	if out != "":
+		DirAccess.make_dir_recursive_absolute(out)
+	var nk := {}
+	var one := {}
+	for e in enemies:
+		nk[e.kind] = int(nk.get(e.kind, 0)) + 1
+		if not one.has(e.kind):
+			one[e.kind] = e
+	var sc: Dictionary = ULExternals.xcfg().get("soldiers", {})
+	var tot := {"ext_assault": 0, "ext_sniper": 0, "ext_titan": 0}
+	for lv in sc:
+		for kk in tot:
+			tot[kk] = int(tot[kk]) + int((sc[lv] as Dictionary).get(kk, 0))
+	_ok("на поверхности: штурмовиков %d, снайперов %d, Титанов %d — как в настройках" % [int(nk.get("ext_assault", 0)), int(nk.get("ext_sniper", 0)), int(nk.get("ext_titan", 0))],
+		int(nk.get("ext_assault", 0)) == int(sc.surface.ext_assault) and int(nk.get("ext_sniper", 0)) == int(sc.surface.ext_sniper) and int(nk.get("ext_titan", 0)) == int(sc.surface.ext_titan), str(nk))
+	_ok("всего по базе в настройках: штурмовиков %d, снайперов %d, Титанов %d (задано 50 / 16 / 20)" % [int(tot.ext_assault), int(tot.ext_sniper), int(tot.ext_titan)],
+		int(tot.ext_assault) == 50 and int(tot.ext_sniper) == 16 and int(tot.ext_titan) == 20)
+	for row in [["ext_assault", "ak102", "АК-102"], ["ext_sniper", "svd", "СВД"], ["ext_titan", "fnfal", "FN FAL"]]:
+		var m := one.get(String(row[0])) as ULMur
+		_ok("%s: в руках %s" % [String(ULEnemy.KINDS[String(row[0])].n), String(row[2])], m != null and m.rig.hold.wid == String(row[1]), m.rig.hold.wid if m != null else "нет бойца")
+	var da: Dictionary = ULEnemy.KINDS.ext_assault
+	var dt: Dictionary = ULEnemy.KINDS.ext_titan
+	_ok("Титан тяжелее штурмовика: прочность %d против %d, бег %.1f против %.1f м/с, рост %.2f м, от пуль не дёргается" % [int(dt.hp), int(da.hp), float(dt.run), float(da.run), float(dt.height)],
+		float(dt.hp) >= float(da.hp) * 4.0 and float(dt.run) < float(da.run) * 0.7 and float(dt.walk) < float(da.walk) and float(dt.height) >= 2.05 and float(dt.height) <= 2.2 and bool(dt.get("no_flinch", false)))
+	# все слепы и глухи, кроме одного снайпера: мерим его одного
+	var sn: ULMur = null
+	for e in enemies:
+		if e.kind == "ext_sniper" and e.global_position.distance_to(Vector3(4, 0, -34.5)) < 2.0:
+			sn = e as ULMur
+		else:
+			e.def = e.def.duplicate(true)
+			e.def.see = 0.0
+			e.def.hear = 0.0
+			e.def.hear_run = 0.0
+			e.def.hear_walk = 0.0
+	if sn == null:
+		_ok("снайпер у северной стены найден", false)
+		return
+	hp_lock = false
+	lvl = false
+	hp = HP_MAX
+	player.global_position = Vector3(4.0, 0.1, -25.0)
+	player.velocity = Vector3.ZERO
+	sn._notice(player.global_position)
+	var t := 0.0
+	var t_on := -1.0
+	var t_hit := -1.0
+	var hp0 := hp
+	var snapped := false
+	Engine.time_scale = 0.2                       # замедленно: в проверке мало кадров в секунду, а мерить надо десятые доли
+	while t < 14.0 and t_hit < 0.0:
+		await get_tree().process_frame
+		t += get_process_delta_time()
+		if t_on < 0.0 and sn.line_shown():
+			t_on = t
+		if hp < hp0 - 0.01:
+			t_hit = t
+		if out != "" and not snapped and t_on >= 0.0 and t - t_on > 1.5:
+			snapped = true
+			cam_dist = 20.0
+			await _snap("sniper_line")
+	Engine.time_scale = 1.0
+	var lost := hp0 - hp
+	_ok("снайпер: красная линия горит %.2f с до выстрела (нужно 3,00)" % (t_hit - t_on), t_on >= 0.0 and t_hit >= 0.0 and absf((t_hit - t_on) - 3.0) <= 0.12, "линия в %.2f, попадание в %.2f" % [t_on, t_hit])
+	_ok("выстрел снайпера снял %.1f из %d — треть наибольшего здоровья (%.1f)" % [lost, int(HP_MAX), HP_MAX / 3.0], absf(lost - HP_MAX / 3.0) <= 0.6)
+	await get_tree().create_timer(0.3).timeout
+	_ok("после выстрела линия погасла", not sn.line_shown())
+	# отмена: линия загорелась — герой уходит за главное здание
+	hp = HP_MAX
+	t = 0.0
+	t_on = -1.0
+	while t < 10.0 and t_on < 0.0:
+		await get_tree().process_frame
+		t += get_process_delta_time()
+		if sn.line_shown():
+			t_on = t
+	_ok("между выстрелами — восстановление %.1f с, линия загорается снова" % t, t_on >= 1.0, "%.2f" % t)
+	await get_tree().create_timer(0.8).timeout
+	player.global_position = Vector3(-24.0, 0.1, 12.0)
+	var c0 := sn.aim_cancels
+	t = 0.0
+	while t < 2.0 and sn.line_shown():
+		await get_tree().process_frame
+		t += get_process_delta_time()
+	await get_tree().create_timer(1.5).timeout
+	_ok("герой ушёл за стену — линия погасла через %.2f с, прицеливание отменено, урона нет" % t, not sn.line_shown() and sn.aim_cancels == c0 + 1 and hp >= HP_MAX - 0.01, "отмен %d, здоровье %.1f" % [sn.aim_cancels - c0, hp])
+	hp_lock = true
+	sn.def.see = 0.0
+	sn.state = "idle"
+	# добыча: карта в теле — одна, в инвентарь сама не попадает, повторно не появляется
+	inv.from_dict({})
+	for row in [["ext_assault", "card_green"], ["ext_sniper", "card_yellow"], ["ext_titan", "card_red"]]:
+		var e: ULEnemy = one.get(String(row[0]))
+		var cid := String(row[1])
+		var nm := String(ULEnemy.KINDS[String(row[0])].n)
+		e.damage(1000000.0, player.global_position)
+		await get_tree().create_timer(0.4).timeout
+		var in_body := func() -> int:
+			var n := 0
+			for c in e.loot:
+				if c != null and String(c.id) == cid:
+					n += int(c.n)
+			return n
+		_ok("%s убит: в теле — %s, одна; в инвентаре героя её нет" % [nm, String(ULItems.get_def(cid).n)], not e.alive() and int(in_body.call()) == 1 and inv.count(cid) == 0, "в теле %d" % int(in_body.call()))
+		open_inventory(e.loot, nm, false, "body")
+		await get_tree().create_timer(0.3).timeout
+		close_inventory()
+		open_inventory(e.loot, nm, false, "body")
+		await get_tree().create_timer(0.3).timeout
+		var again := int(in_body.call())
+		for i in e.loot.size():
+			if e.loot[i] != null and String(e.loot[i].id) == cid:
+				inv.add(e.loot[i])
+				e.loot[i] = null
+		close_inventory()
+		open_inventory(e.loot, nm, false, "body")
+		await get_tree().create_timer(0.2).timeout
+		close_inventory()
+		_ok("%s: тело открыто дважды — карта всё ещё одна; забрали — в инвентаре 1, в теле 0, при новом открытии не появляется" % nm, again == 1 and inv.count(cid) == 1 and int(in_body.call()) == 0)
+	if out != "":
+		open_inventory()
+		await get_tree().create_timer(0.5).timeout
+		await _snap("cards_taken")
+		close_inventory()
+
+
 ## Удары, перезарядка и доставание оружия — измерениями (--as-test=actaudit; выбор пользователя 26.11, пункт 3).
 ## --as-arm=id,id — только выбранное оружие; --as-out=папка — снимки. Что меряется:
 ##   удары кулаком и мачете — куда и когда доходит бьющая кисть (вперёд от героя, высота), совпадает ли миг урона с
@@ -14930,10 +15064,10 @@ func _mur_special(from: Vector3, dir: Vector3, length: float, width: float, pct:
 		if get_world_3d().direct_space_state.intersect_ray(q).is_empty():
 			special_hits += 1
 			hurt(pct * HP_MAX, from)
-			_knock = dir * 5.0                         # отбрасывает вдоль выстрела
-			shake(1.3, 0.4)
+			_knock = dir * (5.0 if m.boss else 2.0)    # отбрасывает вдоль выстрела
+			shake(1.3 if m.boss else 0.8, 0.4)
 			end = pp + Vector3.UP * 1.2
-			say("Прицельный выстрел главаря: −%d" % int(round(pct * HP_MAX)))
+			say(("Прицельный выстрел главаря: −%d" if m.boss else "Выстрел снайпера: −%d") % int(round(pct * HP_MAX)))
 		else:
 			special_miss += 1
 	else:
@@ -18891,6 +19025,11 @@ func _run_test() -> void:
 		if aonly != "":
 			ashots = ashots.filter(func(sp): return aonly.split(",").has(String(sp[0])))
 		await _pano(ashots, Vector2i(1920, 1104))
+		get_tree().quit()
+		return
+	if test == "xbsold":
+		await _xb_soldiers()
+		print("[inv] итог: ошибок %d" % _fails)
 		get_tree().quit()
 		return
 	if test == "xbcards":

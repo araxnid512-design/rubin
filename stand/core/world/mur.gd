@@ -31,6 +31,9 @@ var gun := {}
 var mag := 0
 var patrol := PackedVector3Array()
 var sniper := false
+var aim_shot := false               ## боец, который стреляет только прицельным выстрелом по красной линии (снайпер Внешников)
+var aim_cancels := 0                ## для проверок: сколько раз прицеливание отменено (потерял цель)
+var _sp_lost := 0.0
 var boss := false
 var area := Rect2()                 ## главарь: откуда не выходит (план, мир x–z)
 var shots := 0                      ## для проверок: выстрелов, очередей, перезарядок, укрытий, прицельных
@@ -100,6 +103,9 @@ func setup(k: String, at: Vector3, seed_n: int) -> void:
 	super.setup(k, at, seed_n)
 	gun = def.get("gun", {})
 	boss = bool(def.get("boss", false))
+	aim_shot = bool(def.get("aim_shot", false))
+	if bool(def.get("sniper", false)):
+		sniper = true
 	mag = int(gun.get("mag", 30))
 	rig_arm(rig, def)
 	_body_now = "armed_idle"
@@ -410,7 +416,7 @@ func _combat_inner(delta: float, p: Vector3, to: Vector3, dist: float, can_see: 
 	if boss and def.has("kick") and _kick_cd <= 0.0 and can_see and dist <= float(def.kick.get("from", 2.4)) and rig.has_clip("kick"):
 		_kick_start(to)
 		return 0.0
-	if boss and def.has("special") and _sp_cd <= 0.0 and _sp_gap <= 0.0 and can_see and dist >= float(def.special.get("from", 4.0)) and dist <= float(def.special.get("to", 20.0)) and phase != "reload":
+	if (boss or aim_shot) and def.has("special") and _sp_cd <= 0.0 and _sp_gap <= 0.0 and can_see and dist >= float(def.special.get("from", 4.0)) and dist <= float(def.special.get("to", 20.0)) and phase != "reload":
 		_special_start(p)
 		return 0.0
 	# граната — со второй фазы; и за укрытие, куда герой только что спрятался
@@ -446,6 +452,8 @@ func _combat_inner(delta: float, p: Vector3, to: Vector3, dist: float, can_see: 
 			if not can_see or dist > rng_g:
 				phase = "move"
 				return 0.0
+			if aim_shot and not boss:
+				return 0.0                             # очередями не стреляет: ждёт своего прицельного выстрела
 			_pt -= delta
 			if _pt <= 0.0:
 				phase = "fire"
@@ -679,10 +687,12 @@ func _special_start(p: Vector3) -> void:
 	_sp_dir = (p - global_position)
 	_sp_dir.y = 0.0
 	_sp_dir = _sp_dir.normalized()
+	_sp_lost = 0.0
 	_line_on()
 	noise.emit("boss_aim", global_position)
-	tell(String(def.special.get("n", "Прицельный выстрел")), 1.6, Color(1.0, 0.3, 0.2))
-	boss_event.emit("aim", stage)
+	if boss:
+		tell(String(def.special.get("n", "Прицельный выстрел")), 1.6, Color(1.0, 0.3, 0.2))
+		boss_event.emit("aim", stage)
 
 
 ## удар ногой: замах wind_s (клип ускорен под него), удар — мир проверяет, достал ли; потом возврат ноги
@@ -819,6 +829,16 @@ func _special_tick(delta: float, p: Vector3, can_see: bool) -> float:
 				_sp_dir = _sp_dir.slerp(d.normalized(), 1.0 - exp(-delta * 7.0)).normalized()
 			_face_dir = _sp_dir
 			_line_update(false)
+			if aim_shot and not boss:
+				# снайпер: цель скрылась за стеной — прицеливание отменяется, линия гаснет
+				_sp_lost = 0.0 if can_see else _sp_lost + delta
+				if _sp_lost > float(sp.get("lose_s", 0.5)):
+					aim_cancels += 1
+					_line_off()
+					_sp_cd = float(sp.get("cancel_cd", 1.0))
+					phase = "pause"
+					_pt = 0.3
+					return 0.0
 			if _pt <= 0.0:
 				phase = "sp_lock"
 				_pt = float(sp.get("lock_s", 0.35))
@@ -920,8 +940,9 @@ func _line_update(locked: bool) -> void:
 		if not hit.is_empty():
 			l = from.distance_to(hit.position)
 	_sp_len = l
-	var wdt := float(sp.get("width", 0.7))
-	var c := global_position + _sp_dir * (l * 0.5) + Vector3.UP * 0.06
+	# line_w / line_y — толщина и высота самой линии (у снайпера — тонкая, на высоте ствола); width — полоса попадания
+	var wdt := float(sp.get("line_w", sp.get("width", 0.7)))
+	var c := global_position + _sp_dir * (l * 0.5) + Vector3.UP * float(sp.get("line_y", 0.06))
 	# поворот по прицелу, растяжка — в своих осях полосы (ширина × длина), иначе тянется по мировой оси
 	line.global_transform = Transform3D(Basis(Vector3.UP, atan2(_sp_dir.x, _sp_dir.z)) * Basis.from_scale(Vector3(wdt, 1.0, l)), c)
 	var m := line.material_override as StandardMaterial3D
