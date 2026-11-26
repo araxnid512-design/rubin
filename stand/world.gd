@@ -4683,6 +4683,8 @@ func _ui() -> void:
 	inv_ui.use.connect(func(id: String):
 		heal(id)
 		inv_ui.stats = {"hp": hp, "en": en, "water": water})
+	inv_ui.fix.connect(func(it: Dictionary):
+		kit_repair(it if not it.is_empty() else null))
 	inv_ui.preview_rot = func(dx: float):
 		if _preview_rig:
 			_preview_rig.rotation.y += dx * 0.01
@@ -5588,6 +5590,37 @@ func repair(it: Dictionary) -> bool:
 	say("Починено: %s" % String(ULItems.get_def(String(it.id)).n))
 	_apply_gear()
 	_shop_refresh()
+	_save()
+	return true
+
+
+## Оружейный ремкомплект (предмет gun_kit): чинит оружие где угодно на долю fix_k полной прочности. it — какое
+## оружие; null — то, что в руках, а если оно цело — самое изношенное из всего, что при себе. Набор тратится.
+func kit_repair(it = null) -> bool:
+	if inv.count("gun_kit") <= 0:
+		say("Нет оружейного ремкомплекта: соберите на верстаке или купите у оружейника")
+		return false
+	if it == null:
+		var hi = _hand_item()
+		if hi != null and ULItems.repair_cost(hi) > 0:
+			it = hi
+		else:
+			var worst := 2.0
+			for x in repair_list():
+				var kx := float(x.dur) / maxf(float(ULItems.get_def(String(x.id)).get("dur", 1)), 1.0)
+				if kx < worst:
+					worst = kx
+					it = x
+	if it == null or ULItems.repair_cost(it) <= 0:
+		say("Чинить нечего: оружие в порядке")
+		return false
+	var d := ULItems.get_def(String(it.id))
+	var mx := int(d.get("dur", 1))
+	it.dur = mini(mx, maxi(int(it.dur), 0) + int(ceil(float(mx) * float(ULItems.get_def("gun_kit").get("fix_k", 0.5)))))
+	inv.consume("gun_kit", 1)
+	snd.play("bolt_back", player.global_position + Vector3.UP * 1.2, -4.0, 0.05)
+	say("Починено набором: %s — прочность %d из %d" % [String(d.n), int(it.dur), mx])
+	_apply_gear()
 	_save()
 	return true
 
@@ -11044,6 +11077,8 @@ func _xb_soldiers() -> void:
 	var t_hit := -1.0
 	var hp0 := hp
 	var snapped := false
+	var face_dot := -2.0
+	var line_end := 99.0
 	Engine.time_scale = 0.2                       # замедленно: в проверке мало кадров в секунду, а мерить надо десятые доли
 	while t < 14.0 and t_hit < 0.0:
 		await get_tree().process_frame
@@ -11052,11 +11087,32 @@ func _xb_soldiers() -> void:
 			t_on = t
 		if hp < hp0 - 0.01:
 			t_hit = t
-		if out != "" and not snapped and t_on >= 0.0 and t - t_on > 1.5:
+		if not snapped and t_on >= 0.0 and t - t_on > 1.5:
 			snapped = true
-			cam_dist = 20.0
-			await _snap("sniper_line")
+			var sf := Vector3(sin(sn.rotation.y), 0, cos(sn.rotation.y))
+			var sd := player.global_position - sn.global_position
+			sd.y = 0.0
+			face_dot = sf.dot(sd.normalized())
+			line_end = sn._sp_len - sd.length()
+			if out != "":
+				cam_dist = 20.0
+				await _snap("sniper_line")
+				# крупно: снайпер во время прицеливания — лицом к цели, винтовка вдоль линии
+				var scam := Camera3D.new()
+				add_child(scam)
+				scam.fov = 34.0
+				var side := Vector3(-sd.normalized().z, 0, sd.normalized().x)
+				scam.global_position = sn.global_position + sd.normalized() * 3.0 + side * 4.5 + Vector3.UP * 2.6
+				scam.look_at(sn.global_position + sd.normalized() * 1.5 + Vector3.UP * 1.2, Vector3.UP)
+				scam.current = true
+				await get_tree().create_timer(0.1).timeout
+				await _snap("sniper_aim")
+				scam.current = false
+				scam.queue_free()
+				cam.current = true
 	Engine.time_scale = 1.0
+	_ok("снайпер целится лицом к герою (корпус повёрнут на цель: %.0f° от направления на героя); линия обрывается на герое (за ним %.2f м), а не идёт до стены" % [rad_to_deg(acos(clampf(face_dot, -1.0, 1.0))), line_end],
+		face_dot > 0.95 and line_end < 0.6 and line_end > -0.3)
 	var lost := hp0 - hp
 	_ok("снайпер: красная линия горит %.2f с до выстрела (нужно 3,00)" % (t_hit - t_on), t_on >= 0.0 and t_hit >= 0.0 and absf((t_hit - t_on) - 3.0) <= 0.12, "линия в %.2f, попадание в %.2f" % [t_on, t_hit])
 	_ok("выстрел снайпера снял %.1f из %d — треть наибольшего здоровья (%.1f)" % [lost, int(HP_MAX), HP_MAX / 3.0], absf(lost - HP_MAX / 3.0) <= 0.6)
@@ -18051,6 +18107,12 @@ func open_talk(n: Node3D) -> void:
 			else:
 				open_shop(), 150)
 		hb.add_child(_talk_trade)
+		_talk_fix = _btn("Ремонт оружия", func() -> void:
+			open_shop()
+			_shop_tab = "repair"
+			_shop_sel = 0
+			_shop_build(), 210)
+		hb.add_child(_talk_fix)
 		_talk_sell = _btn("Продать хлам", func(): sell_junk(), 230)
 		hb.add_child(_talk_sell)
 		hb.add_child(_btn("Закрыть", func(): _talk_ui.visible = false, 130))
@@ -18062,6 +18124,7 @@ func open_talk(n: Node3D) -> void:
 	_talk_text.text = line % hero_name if line.contains("%s") else line
 	_talk_npc = n
 	_talk_trade.visible = String(n.get_meta("role")) in ["торговец", "оружейник", "барахольщик"]
+	_talk_fix.visible = String(n.get_meta("role")) == "оружейник"
 	_talk_sell.visible = false                      # хлам продаётся только в окне торговли («Торговать»)
 	_talk_sell.text = "Продать хлам (%d)" % inv.count("junk")
 	_talk_ui.visible = true
@@ -18841,6 +18904,7 @@ static func _load_shop() -> Dictionary:
 
 const SHOP_TABS := [["weapons", "Оружие"], ["ammo", "Патроны"], ["supplies", "Припасы и снаряжение"], ["veh_ammo", "Боеприпасы для транспорта"], ["repair", "Ремонт"]]
 var _talk_trade: Button
+var _talk_fix: Button                  ## «Ремонт оружия» — сразу на вкладку ремонта у оружейника
 var _talk_sell: Button
 var _shop_ui: Control
 var _shop_wallet: Array = []      ## надписи с остатком ресурсов
@@ -19514,6 +19578,35 @@ func _run_test() -> void:
 		return
 	if test == "xbboss":
 		await _xboss_test()
+		return
+	if test == "gunkit":
+		# оружейный ремкомплект: чинит оружие в поле наполовину, тратится; у оружейника — кнопка «Ремонт оружия»
+		await get_tree().create_timer(0.6).timeout
+		inv.from_dict({})
+		inv.primary = ULItems.make("ak74m")
+		inv.pistol = ULItems.make("tt")
+		inv.hand = "primary"
+		inv.primary.dur = 100
+		inv.pistol.dur = 30
+		_ok("1. без набора починка не проходит", not kit_repair() and int(inv.primary.dur) == 100)
+		inv.add(ULItems.make("gun_kit", 2))
+		var ok1 := kit_repair()
+		_ok("2. набор чинит оружие в руках наполовину полной прочности: АК-74М 100 → %d из 1000; набор потрачен (осталось %d)" % [int(inv.primary.dur), inv.count("gun_kit")], ok1 and int(inv.primary.dur) == 600 and inv.count("gun_kit") == 1)
+		inv.primary.dur = 1000
+		var ok2 := kit_repair()
+		_ok("3. оружие в руках цело — набор чинит самое изношенное: ТТ 30 → %d из 300" % int(inv.pistol.dur), ok2 and int(inv.pistol.dur) == 180 and inv.count("gun_kit") == 0)
+		inv.pistol.dur = 300
+		inv.add(ULItems.make("gun_kit", 1))
+		_ok("4. всё цело — набор не тратится", not kit_repair() and inv.count("gun_kit") == 1)
+		var rc: Array = ULCraft.recipes().filter(func(x): return String(x.id) == "gun_kit")
+		inv.add(ULItems.make("junk", 6))
+		var made: Dictionary = ULCraft.make(inv, rc[0]) if not rc.is_empty() else {"ok": false}
+		_ok("5. верстак: рецепт оружейного ремкомплекта — из %d хлама; собран (наборов %d)" % [int(rc[0].need.junk) if not rc.is_empty() else 0, inv.count("gun_kit")], bool(made.ok) and inv.count("gun_kit") == 2 and inv.count("junk") == 0)
+		var shop_j: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("res://data/shop.json"))
+		var sold: Array = (shop_j.get("supplies", []) as Array).filter(func(x): return String(x[0]) == "gun_kit")
+		_ok("6. у оружейника набор продаётся в «Припасах и снаряжении»", sold.size() == 1)
+		print("[inv] итог: ошибок %d" % _fails)
+		get_tree().quit()
 		return
 	if test == "apnav":
 		# отладка карты проходимости: --as-pts=x,y,z;x,y,z — ближайшая проходимая точка и путь от перрона
@@ -24326,7 +24419,7 @@ func _garage_test() -> void:
 	ui = _car_ui as ULGarageUI
 	var rk: Dictionary = ULCraft.recipes().filter(func(x): return String(x.id) == "car_kit")[0]
 	ui._craft(rk)
-	_ok("26а. верстак: окно на вкладке «Верстак», рецепт один — ремкомплект; собран, хлам списан", ui != null and ui.tab == "craft" and ULCraft.recipes().size() == 1 and inv.count("car_kit") == 1 and inv.count("junk") == j0 + 20 - int(rk.need.junk), "ремкомплектов %d, хлама %d" % [inv.count("car_kit"), inv.count("junk")])
+	_ok("26а. верстак: окно на вкладке «Верстак», рецептов два — ремкомплект машины и оружейный; собран, хлам списан", ui != null and ui.tab == "craft" and ULCraft.recipes().size() == 2 and inv.count("car_kit") == 1 and inv.count("junk") == j0 + 20 - int(rk.need.junk), "ремкомплектов %d, хлама %d" % [inv.count("car_kit"), inv.count("junk")])
 	await get_tree().process_frame
 	await _snap("gar_craft")
 	inv.consume("junk", 999)

@@ -61,6 +61,7 @@ var _side := 1.0
 var _side_t := 0.0
 var _sp_cd := 4.0
 var _sp_dir := Vector3.ZERO
+var _sp_p := Vector3.INF            ## где цель прицельного выстрела (красная линия обрывается на ней, а не идёт до стены)
 var _sp_len := 0.0
 var _move_dir := Vector3.ZERO
 var _face_dir := Vector3.ZERO
@@ -820,6 +821,7 @@ func tell(t: String, sec := 2.0, col := Color(1.0, 0.9, 0.8)) -> void:
 func _special_tick(delta: float, p: Vector3, can_see: bool) -> float:
 	var sp: Dictionary = def.special
 	_pt -= delta
+	_sp_p = p
 	match phase:
 		"sp_aim":
 			# целится: полоса идёт за героем
@@ -939,6 +941,14 @@ func _line_update(locked: bool) -> void:
 		var hit := get_world_3d().direct_space_state.intersect_ray(q)
 		if not hit.is_empty():
 			l = from.distance_to(hit.position)
+	# Линия — как луч прицела: упирается в цель, если та на линии (а не тянется сквозь неё до стены). Цель сошла
+	# с линии — луч снова идёт до стены: видно, что выстрел пройдёт мимо.
+	if _sp_p != Vector3.INF:
+		var rel := Vector3(_sp_p.x - global_position.x, 0, _sp_p.z - global_position.z)
+		var along := rel.dot(_sp_dir)
+		var off := (rel - _sp_dir * along).length()
+		if along > 0.5 and along < l and off <= float(sp.get("width", 0.7)) * 0.5 + 0.3:
+			l = along + 0.15
 	_sp_len = l
 	# line_w / line_y — толщина и высота самой линии (у снайпера — тонкая, на высоте ствола); width — полоса попадания
 	var wdt := float(sp.get("line_w", sp.get("width", 0.7)))

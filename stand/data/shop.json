@@ -35,6 +35,7 @@
   ["water", 1, {"spore": 1}],
   ["rusk", 1, {"spore": 1}],
   ["can", 1, {"spore": 2}],
+  ["gun_kit", 1, {"spore": 6}],
   ["pack_small", 1, {"spore": 15}],
   ["pack_medium", 1, {"pea": 4}],
   ["pack_large", 1, {"pea": 8}]

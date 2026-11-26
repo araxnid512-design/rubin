@@ -15,6 +15,7 @@ signal emptied                    ## открытая добыча кончил�
 signal drop(item: Dictionary)     ## выбросить предмет на землю
 signal wear_ground_pack           ## надеть открытый рюкзак с земли
 signal use(id: String)            ## использовать расходник (лечение, еда, вода)
+signal fix(item: Dictionary)      ## починить это оружие оружейным ремкомплектом (или самое изношенное, если выбран сам набор)
 
 const C_BG := Color(0.035, 0.055, 0.085, 1.0)        # отдельное меню: игра за ним не видна
 const C_PANEL := Color(0.06, 0.09, 0.13, 1.0)
@@ -598,11 +599,24 @@ func _update_card() -> void:
 			acts.append(["Надеть", _act_equip])
 		if k in ["med", "food"]:
 			acts.append(["Использовать", _act_use])
+		if String(it.id) == "gun_kit":
+			acts.append(["Починить оружие", func() -> void:
+				fix.emit({})
+				changed.emit()
+				if _sel_item() == null:
+					_sel_src = ""
+					_sel_i = -1
+				refresh()])
 		if cont != null:
 			acts.append(["В хранилище", _act_to_cont])
 		if int(it.get("n", 1)) > 1:
 			acts.append(["Разделить", _act_split])
 		acts.append(["Переместить", _act_move])
+	if _sel_src != "cont" and it.has("dur") and ULItems.repair_cost(it) > 0 and inv.count("gun_kit") > 0:
+		acts.append(["Починить набором", func() -> void:
+			fix.emit(it)
+			changed.emit()
+			refresh()])
 	acts.append(["Выбросить", _act_drop])
 	for a in acts:
 		_card.add_child(_button(a[0], a[1], 136))
