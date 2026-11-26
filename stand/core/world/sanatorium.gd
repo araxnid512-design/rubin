@@ -1504,7 +1504,86 @@ func spawn_plan(rng: RandomNumberGenerator, snap: Callable) -> Array:
 			if not placed:
 				push_warning("санаторий: для врага не нашлось места")
 	_plan_rubers(rng, snap, pools, taken, out)
+	_plan_elite(rng, snap, pools, taken, out)
 	return out
+
+
+## уровень опасности маршрута этой локации (data/base_shop.json → routes.<место>.level; 0 — не указан)
+func danger_level() -> int:
+	var place := String(w.place) if w != null and "place" in w else ""
+	return int(ULBase.shop().get("routes", {}).get(place, {}).get("level", 0))
+
+
+## Элита (мини-босс, data/elite.json → spawn): одна на локацию 3-го уровня, только на просторном открытом месте —
+## тело 5 × 1,9 м должно помещаться (шар nav_r на высоте груди ничего не задевает) и вокруг, на 4 м, тоже
+func _plan_elite(rng: RandomNumberGenerator, snap: Callable, pools: Dictionary, taken: Array[Vector3], out: Array) -> void:
+	if not ULEnemy.KINDS.has("elite") or not ResourceLoader.exists(ULElite.SCENE):
+		return                                   # модели ещё нет — Элита не выходит
+	var ec := ULElite.cfg()
+	var sp: Dictionary = ec.get("spawn", {})
+	var n := int(counts.elite) if counts.has("elite") else (int(sp.get("per_place", 1)) if (sp.get("levels", [3]) as Array).has(danger_level()) else 0)
+	if n <= 0:
+		return
+	_extra_pools(pools)
+	var zones: Dictionary = sp.get("zones", {})
+	var sum := 0.0
+	for z in zones:
+		if not (pools.get(z, []) as Array).is_empty():
+			sum += float(zones[z])
+	if sum <= 0.0:
+		push_warning("локация: для Элиты нет открытых зон")
+		return
+	var safe_r := float(sp.get("safe_r", 70.0))
+	var nav_r := float(ec.get("nav_r", 1.25))
+	var space: PhysicsDirectSpaceState3D = w.get_world_3d().direct_space_state
+	var q := PhysicsShapeQueryParameters3D.new()
+	var sph := SphereShape3D.new()
+	sph.radius = nav_r
+	q.shape = sph
+	q.collision_mask = 1 | 2
+	for i in n:
+		var placed := false
+		for attempt in 300:
+			var r := rng.randf() * sum
+			var zone := ""
+			for z in zones:
+				if (pools.get(z, []) as Array).is_empty():
+					continue
+				r -= float(zones[z])
+				if r <= 0.0:
+					zone = z
+					break
+			if zone == "":
+				continue
+			var pool: Array = pools[zone]
+			var p: Vector3 = pool[rng.randi() % pool.size()]
+			if Vector2(p.x - entry().x, p.z - entry().z).length() < safe_r:
+				continue
+			var qp: Vector3 = snap.call(p)
+			if Vector2(qp.x - p.x, qp.z - p.z).length() > 0.4 or absf(qp.y - p.y) > 0.4 or absf(qp.y) > 0.5:
+				continue
+			var roomy := true
+			for k in 9:
+				var c := qp if k == 8 else qp + Vector3(cos(TAU * k / 8.0), 0, sin(TAU * k / 8.0)) * 4.0
+				q.transform = Transform3D(Basis(), c + Vector3.UP * (nav_r + 0.45))
+				if not space.intersect_shape(q, 1).is_empty():
+					roomy = false
+					break
+			if not roomy:
+				continue
+			var near := false
+			for t in taken:
+				if t.distance_to(qp) < 6.0:
+					near = true
+					break
+			if near:
+				continue
+			taken.append(qp)
+			out.append(["elite", Vector3(qp.x, p.y + 0.02, qp.z), zone])
+			placed = true
+			break
+		if not placed:
+			push_warning("локация: для Элиты не нашлось просторного места")
 
 
 # ---------------- мебель-модели в постройках (Tripo) ----------------

@@ -115,6 +115,14 @@ static func _load_kinds() -> Dictionary:
 		for k in d:
 			if d[k] is Dictionary:
 				out[String(k)] = d[k]
+				# свои числа вида — отдельным файлом (Элита: data/elite.json); его значения главнее
+				var cf := String(d[k].get("cfg", ""))
+				if cf != "" and FileAccess.file_exists(cf):
+					var e = JSON.parse_string(FileAccess.get_file_as_string(cf))
+					if e is Dictionary:
+						for kk in e:
+							if String(kk) != "_":
+								out[String(k)][String(kk)] = e[kk]
 	return out
 
 
@@ -155,6 +163,16 @@ static func describe(k: String) -> Array:
 	if d.has("rock"):
 		chg += " Бросок камня: с %d–%d м вырывает из земли булыжник; на земле, где стоит герой, появляется красный круг — через %d с туда прилетает камень (%d урона в круге %.1f м). Успеть выйти из круга — мимо. Раз в %d с, только под открытым небом; сильное попадание срывает бросок, а если подбежать вплотную — роняет камень и бьёт рукой." % [
 			int(d.rock.from), int(d.rock.to), int(round(float(d.rock.aim_s))), int(d.rock.dmg), float(d.rock.r), int(d.rock.cd)]
+	if bool(d.get("elite", false)):
+		return [
+			String(d.d),
+			"Высота %d м, длина %d м. Прочность: %d, шкура гасит %d %% урона. Мини-босс: %s опасности." % [int(round(float(d.body[1]))), int(round(float(d.body[0]))), int(d.hp), int(round(float(d.resist) * 100.0)), String(d.get("danger", "3 уровень"))],
+			"Ходит тяжёлым шагом (%.1f м/с), галоп — до %.1f м/с, на галопе разворачивается широко. Видит героя ближе %d м, слышит %s. Заметив — поворачивает голову, разворачивается, ревёт и через %.1f с бросается в погоню." % [float(d.walk), float(d.run), int(d.see), hears, float(d.alert_s)],
+			"Нападает: укус огромной пастью — %d урона (замах %.1f с), удары передними лапами — по %d (замах %.1f с), иногда двумя подряд. Урон — только в миг смыкания челюстей или удара лапы: отошли вбок — мимо." % [int(d.bite_dmg), float(d.bite_wind), int(d.claw_dmg), float(d.claw_wind)],
+			"В узкий проход, дверь, между контейнерами не пролезает — ждёт у входа %d с и уходит." % int(d.wait_s),
+			"В теле может быть: %s." % lt,
+			"Тело лежит минуту и исчезает — обыскали его или нет.",
+		]
 	if d.has("gun"):
 		var g: Dictionary = d.gun
 		var gd := "%d урона за пулю" % int(g.dmg) if g.has("dmg") else "%d %% здоровья героя за выстрел" % int(round(float(g.dmg_pct) * 100.0))

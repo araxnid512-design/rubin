@@ -13838,7 +13838,7 @@ func _enemies_setup() -> void:
 
 func spawn_enemy(kind: String, at: Vector3) -> ULEnemy:
 	_enemy_n += 1
-	var e: ULEnemy = ULMur.new() if ULEnemy.KINDS[kind].has("gun") else ULEnemy.new()
+	var e: ULEnemy = ULMur.new() if ULEnemy.KINDS[kind].has("gun") else (ULElite.new() if bool(ULEnemy.KINDS[kind].get("elite", false)) else ULEnemy.new())
 	add_child(e)
 	e.setup(kind, at, 7000 + _enemy_n * 37)
 	if e is ULMur:
@@ -13987,7 +13987,7 @@ func _blobs_tick() -> void:
 		var ep: Vector3 = e.global_position
 		if absf(ep.x - hp.x) > 28.0 or absf(ep.z - hp.z) > 28.0:
 			continue
-		items.append([ep, 0.75 if e.kind == "ruber" else 0.42, 0.55])
+		items.append([ep, float(e.def.get("blob", 0.75 if e.kind == "ruber" else 0.42)), 0.55])
 	blobs.set_dynamic(items)
 
 
@@ -14136,7 +14136,7 @@ func _blood_pool(e: ULEnemy) -> void:
 	mi.material_override = m
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(mi)
-	var k := (1.9 if e.kind == "ruber" else randf_range(1.0, 1.35))
+	var k := float(e.def.get("pool", 1.9 if e.kind == "ruber" else randf_range(1.0, 1.35)))
 	mi.global_transform = Transform3D(Basis(Vector3.UP, randf() * TAU).scaled(Vector3(k, 1.0, k * randf_range(0.75, 1.0))), Vector3(c.x, y + 0.035, c.z))
 	var tw := mi.create_tween()
 	tw.tween_method(func(v: float) -> void: m.set_shader_parameter("grow", v), 0.15, 1.0, 6.0).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_SINE)
@@ -14489,7 +14489,7 @@ func _enemies_tick(delta: float) -> void:
 				san.open_near(e.global_position, 0.95)
 		# кто бросает камни издали (Рубер) — движется полностью и вдалеке: бросок должен быть виден
 		e.set_active(d < (18.0 if temp() and not e.def.has("rock") and not e.def.has("gun") else 36.0))
-		if temp():
+		if temp() and e.rig != null:
 			e.rig.set_detail(d < 12.0)              # на экране (ближе 12 м) — полные движения и постановка стоп
 		if not e.active:
 			# Временный кластер (38 врагов): ближе 8 м — всё, 8–18 м — без стоп и мелочей, дальше — без движений тела; кто ближе 80 м или гонится за героем —
