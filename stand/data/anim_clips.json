@@ -581,7 +581,8 @@
 			"blend": 0.25,
 			"rate": 1.0,
 			"ik": true,
-			"root_lock": true
+			"root_lock": true,
+			"floor": true
 		},
 		"fall": {
 			"src": [

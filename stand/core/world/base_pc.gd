@@ -241,10 +241,21 @@ func _sb(bg: Color, border: Color, bw := 1, radius := 6, margin := 8, glow := 0.
 	return sb
 
 
+## Размер текста в окне (выбор пользователя 26.11: «шрифт и читаемость»). Окно по просьбе 25.11 сделано компактным и
+## на экране 16:9 ещё уменьшается целиком (_fit), поэтому до общих 18 точек текст здесь не поднять — не поместится;
+## мелкие подписи (11–17) увеличены на 2–3 точки.
+## В списке маршрутов прибавка меньше (1 точка): справа должны быть видны все три маршрута без прокрутки.
+var _fs_add := 3.0
+func _fs(n: float) -> float:
+	if n >= 18.0:
+		return n
+	return n + _fs_add if n <= 13.0 else minf(n + _fs_add, 18.0)
+
+
 func _lbl(t: String, fs: float, col: Color, bold := false, wrap := false) -> Label:
 	var l := Label.new()
 	l.text = t
-	l.add_theme_font_size_override("font_size", int(fs * K))
+	l.add_theme_font_size_override("font_size", int(_fs(fs) * K))
 	l.add_theme_color_override("font_color", col)
 	if bold:
 		l.add_theme_font_override("font", _bold)
@@ -281,7 +292,7 @@ func _btn(text: String, icon: String, kind: String, cb: Callable, min_size := Ve
 	var b := Button.new()
 	b.text = text
 	b.custom_minimum_size = min_size * K
-	b.add_theme_font_size_override("font_size", int(fs * K))
+	b.add_theme_font_size_override("font_size", int(_fs(fs) * K))
 	b.add_theme_font_override("font", _bold)
 	if icon != "":
 		b.icon = load(UI + "pc/%s.png" % icon)
@@ -716,6 +727,12 @@ func _do_upgrade(id: String) -> void:
 # ---------------- справа: маршруты ----------------
 
 func _build_routes() -> void:
+	_fs_add = 1.0
+	_build_routes_body()
+	_fs_add = 3.0
+
+
+func _build_routes_body() -> void:
 	if _right_box == null:
 		return
 	for c in _right_box.get_children():
@@ -1117,7 +1134,7 @@ func open_exchange(mode: String, hi: String) -> void:
 			b.text = String(RES_SHORT[id])
 			b.icon = ULItems.icon(id)
 			b.add_theme_constant_override("icon_max_width", 30)
-			b.add_theme_font_size_override("font_size", int(13 * K))
+			b.add_theme_font_size_override("font_size", int(_fs(13) * K))
 			b.custom_minimum_size = Vector2(112, 46) * K
 			b.size_flags_horizontal = SIZE_EXPAND_FILL
 			b.focus_mode = FOCUS_NONE

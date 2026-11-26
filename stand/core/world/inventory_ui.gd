@@ -194,13 +194,13 @@ func _build_inventory() -> void:
 	hv.add_child(pv)
 	var st := HBoxContainer.new()
 	st.alignment = BoxContainer.ALIGNMENT_CENTER
-	st.add_theme_constant_override("separation", 10)
+	st.add_theme_constant_override("separation", 5)
 	hv.add_child(st)
 	for s in [["stat_hp", "hp", Color(0.95, 0.35, 0.35)], ["stat_en", "en", Color(1.0, 0.85, 0.35)], ["stat_water", "water", Color(0.45, 0.75, 1.0)]]:
 		var ic := _icon(s[0], 20)
 		ic.modulate = s[2]
 		st.add_child(ic)
-		st.add_child(_lbl("%d/100" % int(round(float(stats.get(s[1], 100)))), 14, C_TEXT))
+		st.add_child(_lbl("%d/100" % int(round(float(stats.get(s[1], 100)))), 15, C_TEXT, true))
 	hv.add_child(_wallet_box())
 	# слоты оружия и рюкзака
 	gh.add_child(_slots_column())
@@ -271,12 +271,12 @@ func _slots_column() -> VBoxContainer:
 	slots.add_theme_constant_override("separation", 4)
 	slots.alignment = BoxContainer.ALIGNMENT_CENTER
 	for s in ["primary", "pistol", "pack"]:
-		slots.add_child(_lbl(SLOT_NAMES[s], 14, C_SEL if inv.hand == s else C_DIM))
+		slots.add_child(_lbl(SLOT_NAMES[s], 16, C_SEL if inv.hand == s else C_DIM, true))
 		slots.add_child(_cell("eq:" + s, 0, inv.get(s), Vector2(132, 96)))
 	var hand := "ничего"
 	if inv.hand != "" and inv.get(inv.hand) != null:
 		hand = ULItems.get_def(String(inv.get(inv.hand).id)).n
-	var hl := _lbl("В руках: " + hand, 13, C_SEL)
+	var hl := _lbl("В руках: " + hand, 16, C_SEL, true)
 	hl.custom_minimum_size.x = 132
 	hl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	slots.add_child(hl)
@@ -910,10 +910,12 @@ func _box(bg: Color, border := C_LINE, w := 1) -> StyleBoxFlat:
 	return sb
 
 
-func _lbl(t: String, fs: int, col: Color) -> Label:
+## raw — размер как задан (тесное место: подписи слотов и полоска здоровья слева держат ширину левой колонки;
+## если их поднять до 18, ряд из восьми карманов уходит за правый край экрана)
+func _lbl(t: String, fs: int, col: Color, raw := false) -> Label:
 	var l := Label.new()
 	l.text = t
-	l.add_theme_font_size_override("font_size", fs)
+	l.add_theme_font_size_override("font_size", fs if raw else ULSettings.fs(fs))
 	l.add_theme_color_override("font_color", col)
 	return l
 
@@ -923,7 +925,7 @@ func _button(t: String, cb: Callable, w := 130.0, h := 56.0) -> Button:
 	b.text = t
 	b.custom_minimum_size = Vector2(w, h)
 	b.focus_mode = Control.FOCUS_NONE
-	b.add_theme_font_size_override("font_size", 16)
+	b.add_theme_font_size_override("font_size", ULSettings.fs(16))
 	b.add_theme_color_override("font_color", C_TEXT)
 	b.add_theme_stylebox_override("normal", _box(Color(0.09, 0.14, 0.2)))
 	b.add_theme_stylebox_override("hover", _box(Color(0.11, 0.18, 0.25)))

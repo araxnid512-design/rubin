@@ -39,7 +39,7 @@ func _ready() -> void:
 	var rl := Label.new()
 	rl.name = "Renderer"
 	rl.text = ULSettings.renderer_name()
-	rl.add_theme_font_size_override("font_size", 14)
+	rl.add_theme_font_size_override("font_size", ULSettings.fs(14))
 	rl.add_theme_color_override("font_color", Color(1, 1, 1, 0.55))
 	rl.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT)
 	rl.position = Vector2(10, get_viewport_rect().size.y - 26)
@@ -50,7 +50,7 @@ func _ready() -> void:
 		var cl := Label.new()
 		cl.name = "LastStep"
 		cl.text = "Прошлый раз игра закрылась на шаге: " + prev
-		cl.add_theme_font_size_override("font_size", 15)
+		cl.add_theme_font_size_override("font_size", ULSettings.fs(15))
 		cl.add_theme_color_override("font_color", Color(1.0, 0.8, 0.5, 0.9))
 		cl.position = Vector2(10, get_viewport_rect().size.y - 50)
 		add_child(cl)
@@ -133,7 +133,7 @@ func _lab() -> void:
 	var d := Label.new()
 	d.text = "Проверочные режимы: здесь ничего не сохраняется."
 	d.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	d.add_theme_font_size_override("font_size", 15)
+	d.add_theme_font_size_override("font_size", ULSettings.fs(15))
 	d.add_theme_color_override("font_color", ULSettings.C_TEXT)
 	vb.add_child(d)
 	for it in [["lab_arena", "Полигон 10×10", _go_arena], ["lab_stand", "Стенд 3D: движения, редактор удара", _go_stand],
@@ -223,7 +223,7 @@ func _levels(bench_only := false) -> void:
 		if last != "":
 			d.text += "\n\nПрошлый замер: " + last
 	d.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	d.add_theme_font_size_override("font_size", 15)
+	d.add_theme_font_size_override("font_size", ULSettings.fs(15))
 	d.add_theme_color_override("font_color", ULSettings.C_TEXT)
 	vb.add_child(d)
 	# замер: герой сам обходит локацию, в конце — таблица кадров в секунду по местам (и копия в буфер обмена)
@@ -232,7 +232,7 @@ func _levels(bench_only := false) -> void:
 		bm.name = "bench"
 		bm.text = "Замер FPS: обойти локацию и показать кадры в секунду"
 		bm.button_pressed = ULSettings.bench
-		bm.add_theme_font_size_override("font_size", 16)
+		bm.add_theme_font_size_override("font_size", ULSettings.fs(16))
 		bm.toggled.connect(func(v: bool) -> void: ULSettings.bench = v)
 		vb.add_child(bm)
 	for lv in LEVELS:

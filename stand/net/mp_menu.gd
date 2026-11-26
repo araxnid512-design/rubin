@@ -118,7 +118,7 @@ func _ready() -> void:
 func _lbl(t: String, fs: int, col: Color) -> Label:
 	var l := Label.new()
 	l.text = t
-	l.add_theme_font_size_override("font_size", fs)
+	l.add_theme_font_size_override("font_size", ULSettings.fs(fs))
 	l.add_theme_color_override("font_color", col)
 	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	return l

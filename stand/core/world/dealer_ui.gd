@@ -422,7 +422,7 @@ func _sb(bg: Color, border: Color, bw := 1, radius := 6, margin := 8) -> StyleBo
 func _lbl(t: String, fs: int, col: Color, bold := false) -> Label:
 	var l := Label.new()
 	l.text = t
-	l.add_theme_font_size_override("font_size", fs)
+	l.add_theme_font_size_override("font_size", ULSettings.fs(fs))
 	l.add_theme_color_override("font_color", col)
 	if bold:
 		l.add_theme_font_override("font", _bold)
@@ -450,7 +450,7 @@ func _btn(text: String, kind: String, cb: Callable, min_size := Vector2(0, 46), 
 	var b := Button.new()
 	b.text = text
 	b.custom_minimum_size = min_size
-	b.add_theme_font_size_override("font_size", fs)
+	b.add_theme_font_size_override("font_size", ULSettings.fs(fs))
 	b.add_theme_font_override("font", _bold)
 	b.focus_mode = FOCUS_NONE
 	_style_btn(b, kind)

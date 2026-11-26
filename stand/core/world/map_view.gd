@@ -151,7 +151,7 @@ func _draw() -> void:
 	var tri := PackedVector2Array([hp + d * 17.0, hp - d * 10.0 + n * 10.0, hp - d * 4.0, hp - d * 10.0 - n * 10.0])
 	draw_colored_polygon(tri, Color(1.0, 0.86, 0.2))
 	draw_polyline(PackedVector2Array([tri[0], tri[1], tri[2], tri[3], tri[0]]), Color(0.1, 0.07, 0.0), 2.0)
-	_label(font, hp + Vector2(16, -14), "вы", 16, Color(1.0, 0.92, 0.5))
+	_label(font, hp + Vector2(16, -14), "вы", ULSettings.fs(16), Color(1.0, 0.92, 0.5))
 	# шапка, кнопки, подпись с мерной линейкой
 	_label(font, Vector2(20, 40), "Карта: %s" % title, 26, Color(0.95, 0.97, 1.0))
 	_btn(zoom_rect(), "ВСЯ КАРТА" if zoom else "КРУПНЕЕ", font)

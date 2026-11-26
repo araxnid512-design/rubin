@@ -4393,7 +4393,7 @@ func _btn(text: String, cb: Callable, w := 110.0) -> Button:
 	var b := Button.new()
 	b.text = text
 	b.custom_minimum_size = Vector2(w, 44)
-	b.add_theme_font_size_override("font_size", 15)
+	b.add_theme_font_size_override("font_size", ULSettings.fs(15))
 	b.add_theme_color_override("font_color", C_TEXT)
 	b.add_theme_stylebox_override("normal", _style())
 	b.add_theme_stylebox_override("hover", _style(Color(0.1, 0.16, 0.2, 0.9)))
@@ -4537,7 +4537,7 @@ func _ui() -> void:
 	_hud.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	info = Label.new()
 	info.position = Vector2(16, 84)
-	info.add_theme_font_size_override("font_size", 15)
+	info.add_theme_font_size_override("font_size", ULSettings.fs(15))
 	info.add_theme_color_override("font_color", Color(1.0, 0.82, 0.4))
 	info.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
 	info.add_theme_constant_override("outline_size", 6)
@@ -4708,6 +4708,9 @@ func _art(n: String) -> Texture2D:
 
 
 func _hud_text(c: Vector2, t: String, fs: int, col := Color(0.95, 0.97, 1.0)) -> void:
+	fs = ULSettings.fs(fs)
+	if _ui_rec and t.strip_edges() != "":
+		_ui_drawn.append([t, fs])
 	var font := ThemeDB.fallback_font
 	var sz := font.get_string_size(t, HORIZONTAL_ALIGNMENT_CENTER, -1, fs)
 	_hud.draw_string_outline(font, c + Vector2(-sz.x * 0.5, fs * 0.35), t, HORIZONTAL_ALIGNMENT_CENTER, -1, fs, 5, Color(0, 0, 0, 0.85))
@@ -8922,7 +8925,7 @@ func _bench_panel(txt: String) -> void:
 	var lb := Label.new()
 	lb.text = txt + "\n\nСделайте снимок экрана и пришлите его. Таблица также скопирована — её можно вставить в сообщение."
 	lb.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	lb.add_theme_font_size_override("font_size", 15)
+	lb.add_theme_font_size_override("font_size", ULSettings.fs(15))
 	lb.add_theme_color_override("font_color", ULSettings.C_TEXT)
 	vb.add_child(lb)
 	var hb := HBoxContainer.new()
@@ -10224,6 +10227,192 @@ func _anim_audit() -> void:
 func info_fwd_sign(fwd: Vector3) -> float:
 	var d: Vector3 = rig.info.walk.dir if rig.info.has("walk") and rig.info.walk.has("dir") else Vector3.BACK
 	return 1.0 if fwd.dot(d) >= 0.0 else -1.0
+
+
+## Читаемость интерфейса (--as-test=uiaudit; --as-out=папка — снимок каждого окна; выбор пользователя 26.11, пункт 7).
+## Открывает по очереди экран игры и каждое окно, обходит все видимые подписи и кнопки и меряет высоту букв на
+## экране (размер шрифта × масштаб узла; экран 1280×720). Мелким считается текст ниже UI_MIN_FS; обрезанным —
+## подпись, которой не хватает места (текст шире поля или строк больше, чем помещается), и то, что ушло за край экрана.
+const UI_MIN_FS := 18.0
+var _ui_rec := false
+var _ui_drawn := []               ## подписи, нарисованные вручную (кнопки на экране): [текст, размер]
+
+
+func _ui_scan(tag: String) -> Array:
+	var small := []
+	var clipped := []
+	var sizes := {}
+	var n := 0
+	var vp := get_viewport().get_visible_rect()
+	var stack: Array = [get_tree().root]
+	while not stack.is_empty():
+		var nd: Node = stack.pop_back()
+		for ch in nd.get_children():
+			stack.append(ch)
+		if not (nd is Control) or not (nd as Control).is_visible_in_tree():
+			continue
+		var ct := nd as Control
+		var txt := ""
+		var fkey := "font_size"
+		if ct is Label:
+			txt = (ct as Label).text
+		elif ct is Button:
+			txt = (ct as Button).text
+		elif ct is RichTextLabel:
+			txt = (ct as RichTextLabel).get_parsed_text()
+			fkey = "normal_font_size"
+		elif ct is LineEdit:
+			txt = (ct as LineEdit).text if (ct as LineEdit).text != "" else (ct as LineEdit).placeholder_text
+		txt = txt.strip_edges()
+		if txt == "":
+			continue
+		var gt := ct.get_global_transform()
+		var gr := Rect2(gt.origin, ct.size * gt.get_scale())
+		if not vp.intersects(gr) or ct.modulate.a < 0.05:
+			continue
+		n += 1
+		var fs := float(ct.get_theme_font_size(fkey)) * gt.get_scale().y
+		var k := int(round(fs))
+		sizes[k] = int(sizes.get(k, 0)) + 1
+		var short := txt.replace("\n", " / ").left(46)
+		if fs < UI_MIN_FS - 0.4:
+			small.append("%d: «%s»" % [k, short])
+		var font := ct.get_theme_font("font" if fkey == "font_size" else "normal_font")
+		var why := ""
+		if ct is Label:
+			var lb := ct as Label
+			if lb.autowrap_mode == TextServer.AUTOWRAP_OFF:
+				var wmax := 0.0
+				for ln in lb.text.split("\n"):
+					wmax = maxf(wmax, font.get_string_size(ln, HORIZONTAL_ALIGNMENT_LEFT, -1, int(ct.get_theme_font_size(fkey))).x)
+				if wmax > lb.size.x + 2.0 and (lb.clip_text or lb.text_overrun_behavior != TextServer.OVERRUN_NO_TRIMMING):
+					why = "текст шире поля (%d > %d)" % [int(wmax), int(lb.size.x)]
+			elif lb.get_visible_line_count() < lb.get_line_count():
+				why = "строк %d, видно %d" % [lb.get_line_count(), lb.get_visible_line_count()]
+		elif ct is Button:
+			var bt := ct as Button
+			var wb := font.get_string_size(bt.text, HORIZONTAL_ALIGNMENT_LEFT, -1, int(ct.get_theme_font_size(fkey))).x
+			if bt.clip_text and wb > bt.size.x - 6.0:
+				why = "текст шире кнопки (%d > %d)" % [int(wb), int(bt.size.x)]
+		if why == "" and (gr.position.x < vp.position.x - 2.0 or gr.end.x > vp.end.x + 2.0 or gr.position.y < vp.position.y - 2.0 or gr.end.y > vp.end.y + 2.0):
+			# узел шире экрана — не беда, пока сам текст на экране; за краем — только если поле без переноса
+			var inside := gr.intersection(vp)
+			if inside.get_area() < gr.get_area() * 0.9 and not (ct is RichTextLabel) and not _in_scroll(ct):
+				why = "уходит за край экрана"
+		if why != "":
+			clipped.append("«%s» — %s" % [short, why])
+	for dr in _ui_drawn:
+		n += 1
+		var k2 := int(dr[1])
+		sizes[k2] = int(sizes.get(k2, 0)) + 1
+		if float(dr[1]) < UI_MIN_FS - 0.4:
+			small.append("%d: «%s» (кнопка на экране)" % [k2, String(dr[0]).left(46)])
+	var ks := sizes.keys()
+	ks.sort()
+	var parts := []
+	for k3 in ks:
+		parts.append("%d×%d" % [int(k3), int(sizes[k3])])
+	print("[ui] %-22s | подписей %3d | мелких %2d | обрезанных %2d | размеры: %s" % [tag, n, small.size(), clipped.size(), " ".join(parts)])
+	var seen := {}
+	for sm in small:
+		if not seen.has(sm):
+			seen[sm] = true
+			print("[ui]    мелко  %s" % String(sm))
+	for cl in clipped:
+		print("[ui]    обрез  %s" % String(cl))
+	return [n, small.size(), clipped.size()]
+
+
+func _in_scroll(c: Control) -> bool:
+	var p := c.get_parent()
+	while p != null:
+		if p is ScrollContainer:
+			return true
+		p = p.get_parent()
+	return false
+
+
+func _ui_close_all() -> void:
+	if inv_ui != null and inv_ui.visible:
+		close_inventory()
+	for nm in ["_car_ui", "_char_ui", "_set_ui", "_book_ui", "_shop_ui", "_term_ui", "_dealer_ui", "_map_ui"]:
+		var u = get(nm)
+		if u != null and is_instance_valid(u):
+			if (u as Node).has_method("close"):
+				(u as Node).call("close")
+			else:
+				(u as Node).queue_free()
+		set(nm, null)
+	if _talk_ui != null:
+		_talk_ui.visible = false
+	if _name_ui != null:
+		_name_ui.visible = false
+	_menu_bar.visible = true
+
+
+func _ui_audit() -> void:
+	DirAccess.make_dir_recursive_absolute(out)
+	hp_lock = true
+	await get_tree().create_timer(0.8).timeout
+	ULBase.data.upgrades["gunsmith"] = 1
+	ULBase.data.staff["gunsmith"] = true
+	inv.from_dict({})
+	inv.primary = ULItems.make("ak74m")
+	inv.primary.mag = 30
+	inv.pistol = ULItems.make("tt")
+	inv.hand = "primary"
+	for row in [["a545", 60], ["bandage", 3], ["medkit", 1], ["junk", 5], ["water", 2], ["canned", 2], ["spore", 40], ["pea", 12]]:
+		if ULItems.ITEMS.has(String(row[0])):
+			inv.add(ULItems.make(String(row[0]), int(row[1])))
+	_apply_gear()
+	await _wait_drawn()
+	var tot := [0, 0, 0]
+	var screens := [
+		["экран игры", func() -> void: pass],
+		["инвентарь", func() -> void: open_inventory()],
+		["персонаж и дары", func() -> void: open_char_panel()],
+		["настройки", func() -> void: open_settings()],
+		["справочник", func() -> void: open_book()],
+		["разговор", func() -> void: open_talk(npc_by_role("барахольщик"))],
+		["барахольщик", func() -> void: open_dealer()],
+		["оружейник", func() -> void: open_shop()],
+		["компьютер базы", func() -> void: open_terminal()],
+		["имя героя", func() -> void: open_name_panel()],
+		["гараж: улучшения", func() -> void: open_garage_ui("g_term")],
+		["гараж: топливо", func() -> void: open_garage_ui("g_fuel")],
+		["гараж: машины", func() -> void: open_garage_ui("g_sel")],
+		["гараж: верстак", func() -> void: open_garage_ui("g_bench")],
+		["грузовой шкаф", func() -> void: open_cabinet()],
+	]
+	var only := ""
+	for a9 in OS.get_cmdline_user_args():
+		if a9.begins_with("--as-ui="):
+			only = a9.trim_prefix("--as-ui=")
+	var idx := 0
+	for sc in screens:
+		idx += 1
+		if only != "" and not String(sc[0]).contains(only):
+			continue
+		_ui_close_all()
+		await get_tree().process_frame
+		await get_tree().process_frame
+		(sc[1] as Callable).call()
+		await get_tree().create_timer(0.5).timeout
+		_ui_drawn = []
+		_ui_rec = true
+		_hud.queue_redraw()
+		await get_tree().process_frame
+		await get_tree().process_frame
+		_ui_rec = false
+		if String(sc[0]) != "экран игры" and _modal():
+			_ui_drawn = []                          # под окном кнопки экрана не видны
+		var r := _ui_scan(String(sc[0]))
+		for q in 3:
+			tot[q] = int(tot[q]) + int(r[q])
+		if out != "":
+			await _snap("ui_%02d" % idx)
+	_ui_close_all()
+	print("[ui] всего подписей %d, мелких (ниже %d) %d, обрезанных %d" % [int(tot[0]), int(UI_MIN_FS), int(tot[1]), int(tot[2])])
 
 
 ## Удары, перезарядка и доставание оружия — измерениями (--as-test=actaudit; выбор пользователя 26.11, пункт 3).
@@ -16124,7 +16313,7 @@ func open_book() -> void:
 			var l := Label.new()
 			l.text = String(line)
 			l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-			l.add_theme_font_size_override("font_size", 16)
+			l.add_theme_font_size_override("font_size", ULSettings.fs(16))
 			l.add_theme_color_override("font_color", C_TEXT)
 			col.add_child(l)
 	var hb := HBoxContainer.new()
@@ -16559,7 +16748,7 @@ func open_char_panel() -> void:
 	top.add_child(ULSettings.button("Сменить имя", rename, 170.0))
 	var hl := Label.new()
 	hl.text = "Здоровье %d из %d   ·   энергия %d   ·   вода %d" % [int(round(hp)), int(HP_MAX), int(round(en)), int(round(water))]
-	hl.add_theme_font_size_override("font_size", 16)
+	hl.add_theme_font_size_override("font_size", ULSettings.fs(16))
 	hl.add_theme_color_override("font_color", Color(0.75, 0.85, 0.8))
 	vb.add_child(hl)
 	var sc := ScrollContainer.new()
@@ -16574,7 +16763,7 @@ func open_char_panel() -> void:
 	var info := Label.new()
 	info.name = "Info"
 	info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	info.add_theme_font_size_override("font_size", 16)
+	info.add_theme_font_size_override("font_size", ULSettings.fs(16))
 	info.add_theme_color_override("font_color", Color(1.0, 0.86, 0.5))
 	_char_fill(list, info)
 	vb.add_child(info)
@@ -16599,7 +16788,7 @@ func _char_line(list: Control, t: String, sz := 16, col := C_TEXT) -> Label:
 	var l := Label.new()
 	l.text = t
 	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	l.add_theme_font_size_override("font_size", sz)
+	l.add_theme_font_size_override("font_size", ULSettings.fs(sz))
 	l.add_theme_color_override("font_color", col)
 	list.add_child(l)
 	return l
@@ -17787,7 +17976,7 @@ func _shop_price(parent: Control, price: Dictionary, fs := 16, sz := 24.0) -> vo
 func _shop_lbl(t: String, fs: int, col: Color) -> Label:
 	var l := Label.new()
 	l.text = t
-	l.add_theme_font_size_override("font_size", fs)
+	l.add_theme_font_size_override("font_size", ULSettings.fs(fs))
 	l.add_theme_color_override("font_color", col)
 	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	return l
@@ -18082,9 +18271,14 @@ func open_shop() -> void:
 	cp.add_theme_stylebox_override("panel", ULSettings._box(Color(0.07, 0.1, 0.14)))
 	cp.custom_minimum_size.x = 350
 	body.add_child(cp)
+	# карточка товара — в прокрутке: с крупным текстом она выше окна, и без прокрутки окно уходило за низ экрана
+	var csc := ScrollContainer.new()
+	csc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	cp.add_child(csc)
 	_shop_card = VBoxContainer.new()
 	_shop_card.add_theme_constant_override("separation", 6)
-	cp.add_child(_shop_card)
+	_shop_card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	csc.add_child(_shop_card)
 	_shop_refresh()
 	_joy_id = -1
 	_joy_v = Vector2.ZERO
@@ -20624,6 +20818,10 @@ func _run_test() -> void:
 		return
 	if test == "animaudit":
 		await _anim_audit()
+		get_tree().quit()
+		return
+	if test == "uiaudit":
+		await _ui_audit()
 		get_tree().quit()
 		return
 	if test == "actaudit":

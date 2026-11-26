@@ -194,7 +194,7 @@ func _ready() -> void:
 
 func _lbl(parent: Node, fs: int, col: Color) -> Label:
 	var l := Label.new()
-	l.add_theme_font_size_override("font_size", fs)
+	l.add_theme_font_size_override("font_size", ULSettings.fs(fs))
 	l.add_theme_color_override("font_color", col)
 	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	parent.add_child(l)

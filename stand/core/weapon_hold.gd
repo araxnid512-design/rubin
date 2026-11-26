@@ -761,13 +761,14 @@ func _process_modification_with_delta(delta: float) -> void:
 				_pump_t += delta
 			if rl < 0.0 and _pump() > 0.0:
 				gl[0] = (gl[0] as Vector3) + W.basis.z * (0.085 * k * _pump())
-			if w.mode == "rifle" and not dyn and drawn >= 1.0:
+			if w.mode != "melee" and not dyn and drawn >= 1.0:
 				# На ходу плечи уходят от стойки (шаг назад и вбок с огнём — корпус развёрнут иначе, чем стоя): левая
 				# рука перестаёт доставать до цевья. Тогда ладонь съезжает по цевью к магазину (не дальше fore_min),
-				# а если мало и этого — оружие чуть ближе к левому плечу. Назад возвращается медленно, без пилы.
-				var f0 := _pt(w.fore)
-				var f1 := _pt(w.get("fore_min", w.fore))
-				var room := f0.distance_to(f1) * (1.0 - float(plan.L.get("u", 0.0)))
+				# а если мало и этого — оружие ближе к левому плечу (не больше 16 см: у героя с короткими руками 9 см не хватало).
+				# Назад возвращается медленно, без пилы. У пистолета ладонь не съезжает — только оружие ближе.
+				var f0 := _pt(w.fore) if w.has("fore") else Vector3.ZERO
+				var f1 := _pt(w.get("fore_min", w.fore)) if w.has("fore") else Vector3.ZERO
+				var room := f0.distance_to(f1) * (1.0 - float(plan.L.get("u", 0.0))) if w.mode == "rifle" else 0.0   # пистолет: только ближе к плечу
 				var sd := (W.basis * (f1 - f0)).normalized() if room > 0.0001 else W.basis.z.normalized()
 				var Hl0: Basis = _target("L", gl[0], gl[1], gl[2])[1]
 				var wr0: Vector3 = (gl[0] as Vector3) - Hl0 * (_hf.L.palm_l as Vector3)
@@ -781,7 +782,7 @@ func _process_modification_with_delta(delta: float) -> void:
 				_lslide = clampf(maxf(need, _lslide - delta * 0.06 * k), 0.0, room)
 				var wr1 := wr0 + sd * _lslide
 				var lackl := maxf(0.0, wr1.distance_to(SL) - Rl)
-				_lpull = maxf(minf(lackl, 0.09 * k), _lpull - delta * 0.06 * k)
+				_lpull = maxf(minf(lackl, 0.16 * k), _lpull - delta * 0.06 * k)
 				gl[0] = (gl[0] as Vector3) + sd * _lslide
 				if _lpull > 0.0:
 					var sh := (SL - wr1).normalized() * _lpull

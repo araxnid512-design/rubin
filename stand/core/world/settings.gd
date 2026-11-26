@@ -170,6 +170,17 @@ static func apply(vp: Viewport) -> void:
 	AudioServer.set_bus_volume_db(0, linear_to_db(maxf(volume, 0.005)))
 
 
+## Наименьший размер текста в интерфейсе (выбор пользователя 26.11: «шрифт и читаемость»). Экран игры — 1280×720
+## точек; на телефоне 6,5″ точка ≈ 0,11 мм, и текст мельче 18 даёт буквы ниже миллиметра. Всё, что задано от 14 до
+## 17, поднимается до 18; совсем мелкие подписи в тесных местах (счётчик на ячейке, пометка на значке) — на три
+## точки. Замер по всем окнам — --as-test=uiaudit.
+const FS_MIN := 18
+static func fs(n: int) -> int:
+	if n >= FS_MIN:
+		return n
+	return FS_MIN if n >= 14 else n + 3
+
+
 static func _box(bg: Color) -> StyleBoxFlat:
 	var sb := StyleBoxFlat.new()
 	sb.bg_color = bg
@@ -223,7 +234,7 @@ static func panel(parent: Node, changed: Callable, extra: Array = []) -> Control
 	var lab := func(t: String, fs: int, col: Color) -> Label:
 		var l := Label.new()
 		l.text = t
-		l.add_theme_font_size_override("font_size", fs)
+		l.add_theme_font_size_override("font_size", ULSettings.fs(fs))
 		l.add_theme_color_override("font_color", col)
 		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		return l
@@ -250,7 +261,7 @@ static func panel(parent: Node, changed: Callable, extra: Array = []) -> Control
 				mk.call()
 				changed.call(), maxf(90.0, 560.0 / names.size()))
 			b2.custom_minimum_size.y = 46
-			b2.add_theme_font_size_override("font_size", 16)
+			b2.add_theme_font_size_override("font_size", ULSettings.fs(16))
 			bs.append(b2)
 			hr.add_child(b2)
 		mk.call()

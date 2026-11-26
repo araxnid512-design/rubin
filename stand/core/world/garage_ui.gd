@@ -66,7 +66,7 @@ func _sb(bg: Color, border: Color, bw := 1, radius := 6, margin := 8) -> StyleBo
 func _lbl(t: String, fs: int, col := C_TEXT, wrap := false) -> Label:
 	var l := Label.new()
 	l.text = t
-	l.add_theme_font_size_override("font_size", fs)
+	l.add_theme_font_size_override("font_size", ULSettings.fs(fs))
 	l.add_theme_color_override("font_color", col)
 	l.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
 	l.add_theme_constant_override("outline_size", 3)
@@ -81,7 +81,7 @@ func _btn(t: String, kind: String, cb: Callable, minw := 0.0, h := 40.0, fs := 1
 	var b := Button.new()
 	b.text = t
 	b.custom_minimum_size = Vector2(minw, h)
-	b.add_theme_font_size_override("font_size", fs)
+	b.add_theme_font_size_override("font_size", ULSettings.fs(fs))
 	b.focus_mode = Control.FOCUS_NONE
 	var c: Array = {
 		"green": [Color(0.1, 0.27, 0.08), Color(0.55, 0.95, 0.3), Color(0.9, 1.0, 0.82)],
