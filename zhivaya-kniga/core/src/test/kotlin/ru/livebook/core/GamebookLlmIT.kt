@@ -77,6 +77,7 @@ class GamebookLlmIT {
         val pages = books.pageCount(bookId)
         val g = game.newGame(bookId, hero, role, "canon", true, gamebook = true, rng = Random(5))
         val sb = StringBuilder("# Квест, подготовленный заранее: «${books.books().first { it.id == bookId }.title}» (${llm.meta("general.name")}, настольная машина)\n\n")
+        sb.append("- Герой: $hero, $role\n")
         sb.append("- Подготовка: написано страниц $pages за ${(prepMs / 1000).toInt()} с (в среднем ${(prepMs / pages.coerceAtLeast(1)).toInt()} мс на страницу)\n")
         var ready = 0; var total = 0; var choice = "start"; var slow = 0.0; var fast = 0.0; val rng = Random(11)
         val log = StringBuilder()
