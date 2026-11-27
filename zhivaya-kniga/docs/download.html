@@ -1,0 +1,100 @@
+<meta name="claude:viewport-fit-sides" content="cover">
+<title>Живая книга — скачать</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;600&family=Oranienbaum&family=PT+Mono&display=swap">
+<style>
+/* Layout: одна колонка — как закладка в книге: четыре шага сверху вниз, у каждого файл и что с ним сделать. */
+:root {
+  --paper: #f3ecdb; --sheet: #fbf6ea; --ink: #2a241a; --dim: #6a604d; --rule: #d6cab0; --amber: #8a5a10; --amber-ink: #fff8ea; --warn: #a63a22;
+  --f-display: "Oranienbaum", "Times New Roman", serif;
+  --f-body: "Golos Text", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-mono: "PT Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --paper: #17140f; --sheet: #211d16; --ink: #e9dfc8; --dim: #b0a58c; --rule: #3d3629; --amber: #e0a040; --amber-ink: #241a08; --warn: #e5806b; color-scheme: dark } }
+:root[data-theme="dark"] { --paper: #17140f; --sheet: #211d16; --ink: #e9dfc8; --dim: #b0a58c; --rule: #3d3629; --amber: #e0a040; --amber-ink: #241a08; --warn: #e5806b; color-scheme: dark }
+* { box-sizing: border-box; }
+body { background: var(--paper); color: var(--ink); font-family: var(--f-body); font-size: 16px; line-height: 1.5; }
+main { max-width: 42rem; margin: 0 auto; padding-block: 28px 56px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: flex; flex-direction: column; gap: 22px; }
+h1 { font-family: var(--f-display); font-weight: 400; font-size: clamp(2.2rem, 9vw, 3.4rem); line-height: 1.05; margin: 0; text-wrap: balance; }
+h2 { font-family: var(--f-display); font-weight: 400; font-size: 1.5rem; line-height: 1.2; margin: 0; text-wrap: balance; }
+p { margin: 0; } .dim { color: var(--dim); } .lead { font-size: 1.05rem; max-width: 34em; }
+.note { border-left: 3px solid var(--warn); padding: 4px 0 4px 14px; color: var(--ink); }
+ol.steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 14px; counter-reset: s; }
+ol.steps > li { counter-increment: s; background: var(--sheet); border: 1px solid var(--rule); border-radius: 6px; padding: 18px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+ol.steps > li > h2::before { content: counter(s) ". "; color: var(--amber); }
+.dl { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; }
+a.btn { display: inline-block; background: var(--amber); color: var(--amber-ink); text-decoration: none; font-weight: 600; padding: 11px 18px; border-radius: 4px; }
+a.btn.ghost { background: transparent; color: var(--amber); border: 1px solid var(--amber); }
+a.btn:focus-visible, a:focus-visible, button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.size { font-family: var(--f-mono); font-size: .85rem; color: var(--dim); font-variant-numeric: tabular-nums; }
+.sum { font-family: var(--f-mono); font-size: .72rem; color: var(--dim); overflow-wrap: anywhere; }
+ul.plain { margin: 0; padding-left: 1.1em; display: flex; flex-direction: column; gap: 4px; }
+a { color: var(--amber); }
+footer { border-top: 1px solid var(--rule); padding-top: 14px; font-size: .9rem; color: var(--dim); display: flex; flex-direction: column; gap: 6px; }
+</style>
+
+<main>
+  <header style="display:flex;flex-direction:column;gap:12px">
+    <h1>Живая книга</h1>
+    <p class="lead">Текстовая игра для Android по вашей собственной книге. Сцены сочиняет нейросеть прямо на телефоне — интернет нужен только чтобы один раз скачать файлы с этой страницы.</p>
+    <p class="note">Версия 1.1. Приложение проверено в эмуляторе Android 14, но на настоящем телефоне ещё не запускалось — скорость и звучание голоса на вашем устройстве могут отличаться.</p>
+  </header>
+
+  <ol class="steps">
+    <li>
+      <h2>Приложение</h2>
+      <div class="dl">
+        <a class="btn" href="https://github.com/araxnid512-design/rubin/raw/ccr-abdf4b07-key8n6/zhivaya-kniga/dist/zhivaya-kniga-debug.apk">Скачать APK</a>
+        <span class="size">zhivaya-kniga-debug.apk · 49 МБ</span>
+      </div>
+      <p>Откройте скачанный файл на телефоне и разрешите установку из этого источника. Нужен Android 8 или новее и 64-битный процессор.</p>
+      <p class="sum">SHA-256: 580819f11e9067ac702ae30998aa013b8e9f45c03568190903efecb41ff4226b</p>
+    </li>
+
+    <li>
+      <h2>Модель</h2>
+      <p>Выберите одну. Файл скачивается с Hugging Face.</p>
+      <div class="dl">
+        <a class="btn" href="https://huggingface.co/unsloth/Qwen3-1.7B-GGUF/resolve/main/Qwen3-1.7B-Q4_K_M.gguf">Qwen3-1.7B</a>
+        <span class="size">1,1 ГБ · связный текст, ход дольше</span>
+      </div>
+      <div class="dl">
+        <a class="btn ghost" href="https://huggingface.co/unsloth/Qwen3-0.6B-GGUF/resolve/main/Qwen3-0.6B-Q4_K_M.gguf">Qwen3-0.6B</a>
+        <span class="size">397 МБ · быстро, текст небрежный</span>
+      </div>
+      <p>В приложении нажмите «Установить модель из файла» и выберите скачанный файл. Приложение само замерит скорость на вашем телефоне.</p>
+    </li>
+
+    <li>
+      <h2>Голос рассказчика</h2>
+      <div class="dl">
+        <a class="btn" href="https://github.com/araxnid512-design/rubin/raw/ccr-abdf4b07-key8n6/zhivaya-kniga/dist/golos-dmitri.zip">Скачать голос «Дмитрий»</a>
+        <span class="size">golos-dmitri.zip · 67 МБ</span>
+      </div>
+      <p>Архив распаковывать не нужно. В приложении: «Настройки» → «Голос рассказчика» → «Установить голос из файла». Без голоса игра работает молча.</p>
+      <p class="sum">SHA-256: 29ead883949d3187a919ea6ba09f4c286300c75d2dedd99f372d1aab7eee5d91</p>
+    </li>
+
+    <li>
+      <h2>Книга</h2>
+      <p>Нажмите «Добавить книгу» и выберите свой файл: TXT, FB2, EPUB или PDF с текстом. Для пробы есть короткая тестовая книга.</p>
+      <div class="dl">
+        <a class="btn ghost" href="https://github.com/araxnid512-design/rubin/raw/ccr-abdf4b07-key8n6/zhivaya-kniga/sample/vorota_mha.txt">Тестовая книга «Ворота мха»</a>
+        <span class="size">vorota_mha.txt · 4 КБ</span>
+      </div>
+    </li>
+  </ol>
+
+  <section style="display:flex;flex-direction:column;gap:8px">
+    <h2>После установки</h2>
+    <ul class="plain">
+      <li>Игра работает в авиарежиме: у приложения нет разрешения на доступ к сети.</li>
+      <li>Книги, сохранения и модель хранятся только на телефоне.</li>
+      <li>Скачанные файлы модели и голоса после установки можно удалить из «Загрузок».</li>
+    </ul>
+  </section>
+
+  <footer>
+    <p><a href="https://github.com/araxnid512-design/rubin/blob/ccr-abdf4b07-key8n6/zhivaya-kniga/README_RU.md">Подробная инструкция</a> · <a href="https://github.com/araxnid512-design/rubin/blob/ccr-abdf4b07-key8n6/zhivaya-kniga/%D0%9E%D0%A2%D0%A7%D0%81%D0%A2.md">Отчёт о проверках</a> · <a href="https://github.com/araxnid512-design/rubin/raw/ccr-abdf4b07-key8n6/zhivaya-kniga/dist/zhivaya-kniga-src.zip">Исходники (41 МБ)</a></p>
+    <p>Файлы лежат в открытом репозитории на GitHub. Встроенный движок речи содержит espeak-ng под лицензией GPL 3.0.</p>
+  </footer>
+</main>

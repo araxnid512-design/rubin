@@ -6,6 +6,16 @@
 
 Реальные результаты проверок — в файле [ОТЧЁТ.md](ОТЧЁТ.md). Там же перечислено, что проверить не удалось.
 
+## Скачать
+
+Прямые ссылки (репозиторий открытый, вход на GitHub не нужен):
+
+- Приложение: https://github.com/araxnid512-design/rubin/raw/ccr-abdf4b07-key8n6/zhivaya-kniga/dist/zhivaya-kniga-debug.apk
+- Голос: https://github.com/araxnid512-design/rubin/raw/ccr-abdf4b07-key8n6/zhivaya-kniga/dist/golos-dmitri.zip
+- Тестовая книга: https://github.com/araxnid512-design/rubin/raw/ccr-abdf4b07-key8n6/zhivaya-kniga/sample/vorota_mha.txt
+
+Те же ссылки с пошаговой установкой собраны на странице `docs/download.html`.
+
 ## Что нужно, чтобы играть
 
 Три файла из папки `dist/` и один файл модели:
