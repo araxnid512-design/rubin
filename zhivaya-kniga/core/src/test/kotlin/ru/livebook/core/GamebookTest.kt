@@ -268,6 +268,7 @@ class CastleBookTest {
             while (total < 120) {
                 val before = w.saves.state(g)!!
                 path += before.gamebook!!.choices.firstOrNull { it.id == choice }?.label ?: "Начало"
+                assertTrue(before.characters.none { it.name == "Радим" }, "герой не должен быть среди собеседников")
                 val r = w.game.gamebookTurn(g, choice, rng = rng); total++; if (r.cached) ready++
                 val gb = r.state.gamebook!!; if (gb.dead || gb.won) break
                 val cs = gb.choices; val hp = r.state.hero.hp

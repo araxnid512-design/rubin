@@ -88,7 +88,7 @@ class GameOrchestrator(private val books: BookRepository, private val saves: Sav
         val start = startEntity?.name ?: "Начало пути"
         val nearStems = books.search(bookId, start, 6).filter { it.chapterIdx == (startEntity?.firstChapter ?: 0) }.flatMap { Text.stems(it.text) }.toSet()
         val heroStem = Text.stemKey(name)
-        val npcs = persons.filter { !(bookHero && it.stem == heroStem) }.take(40).map { p ->
+        val npcs = persons.filter { !(bookHero && (it.stem == heroStem || Text.norm(it.name) == Text.norm(name))) }.take(40).map { p ->
             Npc(Text.slug(p.name), p.name, lastSeen = if (p.firstChapter == (startEntity?.firstChapter ?: 0) && Text.stems(p.name).any { it in nearStems }) start else "", note = p.descr)
         }.distinctBy { it.id }
         var gold = 3
