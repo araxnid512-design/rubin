@@ -291,16 +291,17 @@ class GameOrchestrator(private val books: BookRepository, private val saves: Sav
         val state0 = saves.state(gameId) ?: throw IllegalArgumentException("игра не найдена")
         val gb0 = state0.gamebook ?: return TurnResult("error", "", state0, notice = "Это приключение не в режиме книги-игры.")
         val label = if (choiceId == "start") "Начало" else GamebookEngine.choices(state0).firstOrNull { it.id == choiceId }?.label ?: return TurnResult("error", "", state0, notice = "Такого выбора сейчас нет.")
-        val settings = settings0.copy(small = llm()?.isSmall ?: false, gamebook = true)
         listener.onStatus("Кубики брошены. Рассказчик пишет параграф…")
         val out = GamebookEngine.apply(state0, choiceId, rng, books) { st, source -> StoryDirector.clue(st, books, source) }
+        // Обычная страница — развёрнутая, с описанием места; раунды боя короткие. Страница пишется один раз, поэтому на длине не экономим.
+        val settings = settings0.copy(small = llm()?.isSmall ?: false, gamebook = true, rich = !settings0.economy && !out.action.startsWith("сражаться"))
         val state = populate(out.state)
         val gb = state.gamebook!!
         val near = state.nearbyNpcs().map { it.name }
         val enemy = gb.combat?.enemy ?: gb0.combat?.enemy.orEmpty()
         val note = GameEvent("note", out.note)
         // Страницы квеста постоянны: тот же поворот событий в этой книге всегда ведёт на ту же страницу, без вызова модели.
-        val key = pageKey(state, out, gb0.combat?.round ?: 0)
+        val key = pageKey(state, out, gb0.combat?.round ?: 0, if (settings0.economy) "short" else if (settings0.detail) "long" else "")
         books.page(state.bookId, key)?.let { (num, body) ->
             listener.onText(body); Text.splitSentences(body).forEach { listener.onSentence(it) }
             val next = state.copy(history = (state.history + TurnBrief(out.action, body)).takeLast(6))
@@ -367,10 +368,10 @@ class GameOrchestrator(private val books: BookRepository, private val saves: Sav
     }
 
     /** Ключ страницы: всё, от чего зависит её текст (место, выбор, исход, зацепка), — но не броски кубиков и не лист героя. */
-    private fun pageKey(state: GameState, out: GamebookEngine.Outcome, round: Int): String {
+    private fun pageKey(state: GameState, out: GamebookEngine.Outcome, round: Int, length: String): String {
         // Страницы боя общие для всех мест: они зависят только от противника и исхода раунда.
         val fight = round >= 0 && out.action.startsWith("сражаться")
-        val raw = listOf(state.storyMode, state.hero.name, if (fight) "" else state.location, if (fight) "" else state.nearbyNpcs().joinToString(",") { it.name }, out.action, out.important.joinToString("/"), out.beat).joinToString("|")
+        val raw = listOf(state.storyMode, state.hero.name, if (fight) "" else state.location, if (fight) "" else state.nearbyNpcs().joinToString(",") { it.name }, out.action, out.important.joinToString("/"), out.beat, length).joinToString("|")
         return java.security.MessageDigest.getInstance("MD5").digest(raw.toByteArray()).joinToString("") { "%02x".format(it) }
     }
 
