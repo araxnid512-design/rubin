@@ -274,6 +274,8 @@ class GameTest {
         val cut = ResponseParser.parse("Мира качает головой. «Не видела я твоего бра", "спрашиваю о брате")
         assertTrue(cut.valid); assertEquals("Мира качает головой.", cut.narrative); assertTrue(cut.events.isEmpty())
         assertEquals("Мира молчит.", ResponseParser.visible("Мира молчит.\nИТ"))
+        assertEquals("Мира молчит.", ResponseParser.visible("Мира молчит. ИТОГ ничего."))
+        assertEquals("Мира молчит.", ResponseParser.parse("Мира молчит. ИТОГ ничего.\nИТОГ: ничего", "жду ответа").narrative)
         assertEquals("Мира молчит.", ResponseParser.visible("Мира молчит.\nИТОГ: монеты -1\nДАЛЬШЕ: А"))
         val full = ResponseParser.parse("Страж берёт ключ.\nИТОГ: потеряно «ржавый ключ»; отношение Борин +1\nДАЛЬШЕ: Ждать | Уйти | Спросить", "даю ключ")
         assertEquals(listOf(GameEvent(GameEvent.ITEM_REMOVE, "ржавый ключ"), GameEvent(GameEvent.RELATION, "Борин", 1)), full.events)

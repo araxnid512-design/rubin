@@ -1,5 +1,6 @@
 package ru.livebook.app
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -20,11 +21,9 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.ScrollableTabRow
@@ -32,7 +31,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -55,7 +53,6 @@ import androidx.compose.ui.unit.sp
 import ru.livebook.core.game.GameOrchestrator
 import ru.livebook.core.narration.NarrationQueue
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun GameScreen(vm: MainViewModel, ui: UiState, voice: VoiceState) {
     val g = ui.game ?: return
@@ -120,8 +117,18 @@ fun GameScreen(vm: MainViewModel, ui: UiState, voice: VoiceState) {
         }
     }
 
+    // «Лист героя» — обычная панель поверх ленты (без отдельного окна): закрывается кнопкой или «Назад».
     if (sheet) {
-        ModalBottomSheet(onDismissRequest = { sheet = false }, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) { HeroSheet(vm, ui, g, voice) }
+        BackHandler { sheet = false }
+        Surface(color = MaterialTheme.colorScheme.background, modifier = Modifier.fillMaxSize()) {
+            Column(Modifier.fillMaxSize()) {
+                Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text("Лист героя", style = MaterialTheme.typography.titleLarge, fontFamily = FontFamily.Serif, modifier = Modifier.weight(1f))
+                    TextButton(onClick = { sheet = false }) { Text("Закрыть") }
+                }
+                HeroSheet(vm, ui, g, voice)
+            }
+        }
     }
 }
 
@@ -143,7 +150,7 @@ fun HeroSheet(vm: MainViewModel, ui: UiState, g: GameUi, voice: VoiceState) {
     var tab by remember { mutableIntStateOf(0) }
     val tabs = listOf("Герой", "Инвентарь", "Журнал", "Персонажи", "Книга", "Настройки")
     val s = g.state
-    Column(Modifier.fillMaxWidth().heightIn(min = 360.dp)) {
+    Column(Modifier.fillMaxSize()) {
         ScrollableTabRow(selectedTabIndex = tab, edgePadding = 8.dp) { tabs.forEachIndexed { i, t -> Tab(selected = tab == i, onClick = { tab = i }, text = { Text(t) }) } }
         Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             when (tab) {

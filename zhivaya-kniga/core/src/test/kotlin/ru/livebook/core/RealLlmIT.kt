@@ -92,7 +92,7 @@ class RealLlmIT {
         val narratives = ArrayList<String>()
         val totals = ArrayList<Double>(); val ttfts = ArrayList<Double>(); val speeds = ArrayList<Double>(); var reusedSum = 0; var promptSum = 0
         var streamedPieces = 0; var spokenSentences = 0
-        val listener = object : TurnListener { override fun onText(visible: String) { streamedPieces++; assertTrue(!visible.contains("ИТОГ") && !visible.contains("<think")) }; override fun onSentence(sentence: String) { spokenSentences++ } }
+        val listener = object : TurnListener { override fun onText(visible: String) { streamedPieces++; assertTrue(!visible.contains("ИТОГ") && !visible.contains("<think"), "служебный текст в ленте: $visible") }; override fun onSentence(sentence: String) { spokenSentences++ } }
         val settings = GameSettings(seed = 1234)
         fun record(action: String, r: ru.livebook.core.game.TurnResult) {
             report.append("**> $action**\n\n")

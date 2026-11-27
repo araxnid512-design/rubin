@@ -79,7 +79,8 @@ object GrammarBuilder {
         val starts = policy.near.map { "$it " } + listOf("Ты ", "Тебе ", "Тебя ", "Вокруг ", "В ", "На ", "У ", "За ", "Перед тобой ", "Впереди ", "Здесь ", "Тишин")
         sb.append("first ::= (" + alt(starts) + ") ch+ [.!?…] \"»\"?\n")
         sb.append("sent ::= [А-ЯЁ«—] ch+ [.!?…] \"»\"?\n")
-        sb.append("ch ::= [а-яёА-ЯЁ0-9 ,;«»—-]\n")
+        // Заглавная буква допустима только в начале слова (имена): слова из одних заглавных, вроде служебного «ИТОГ», в сцену не попадут.
+        sb.append("ch ::= [а-яё0-9 ,;«»—-] | [А-ЯЁ] [а-яё]\n")
         sb.append(if (evs.isEmpty()) "itog ::= \"ничего\"\n" else "itog ::= \"ничего\" | ev (\"; \" ev)?\nev ::= " + evs.joinToString(" | ") + "\n")
         sb.append("name ::= [а-яёА-ЯЁ] [а-яёА-ЯЁ -]+\n")
         sb.append("pname ::= [А-ЯЁ] [а-яё]+\n")
@@ -175,7 +176,7 @@ object ResponseParser {
     /** Видимая часть ответа во время потоковой генерации: всё до служебной строки ИТОГ. */
     fun visible(raw: String): String {
         var t = raw
-        val cut = t.indexOf("\nИТОГ").let { if (it >= 0) it else t.indexOf("ИТОГ:") }
+        val cut = t.indexOf("\nИТОГ").let { if (it >= 0) it else t.indexOf("ИТОГ") }
         if (cut >= 0) t = t.substring(0, cut)
         // Хвост, который может оказаться началом служебной строки, пока не показываем.
         val nl = t.lastIndexOf('\n')
@@ -186,7 +187,7 @@ object ResponseParser {
     fun parse(raw: String, action: String): ParsedTurn {
         val text = raw.replace("\r", "").trim()
         val itogAt = text.indexOf("\nИТОГ:")
-        var narrative = (if (itogAt >= 0) text.substring(0, itogAt) else text.substringBefore("ИТОГ:")).trim()
+        var narrative = (if (itogAt >= 0) text.substring(0, itogAt) else text).substringBefore("ИТОГ").substringBefore("ДАЛЬШЕ").trim()
         val rest = if (itogAt >= 0) text.substring(itogAt + 1) else ""
         val itog = rest.lineSequence().firstOrNull { it.startsWith("ИТОГ:") }?.removePrefix("ИТОГ:")?.trim().orEmpty()
         val next = rest.lineSequence().firstOrNull { it.startsWith("ДАЛЬШЕ:") }?.removePrefix("ДАЛЬШЕ:")?.trim().orEmpty()

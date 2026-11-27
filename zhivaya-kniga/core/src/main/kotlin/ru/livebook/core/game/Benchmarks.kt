@@ -59,11 +59,11 @@ class LoreRefiner(private val books: BookRepository, private val llm: () -> Loca
             val r = runCatching { model.generate(prompt, GenParams(maxTokens = 40, temp = 0.3f, seed = 11, grammar = grammar)) }.getOrNull() ?: break
             if (r.stats.stopReason == 2) break
             val text = r.text.trim()
-            val kind = when { text.startsWith("Место") -> "place"; text.startsWith("Группа") -> "faction"; else -> "person" }
             val descr = text.substringAfter(": ", "").trim()
-            // Тип меняем только если правила не были уверены; описание принимаем, если оно опирается на слова фрагмента.
+            // Тип сущности остаётся тем, что определили правила: маленькая модель путает персонажей и места.
+            // Описание принимаем, только если оно опирается на слова фрагмента.
             val grounded = Text.stems(descr).filter { it.length >= 4 }.let { ws -> ws.isNotEmpty() && ws.count { it in Text.stems(ctx).toSet() } * 2 >= ws.size }
-            if (descr.length >= 8 && grounded) books.refineEntity(e.id, if (e.freq <= 2) kind else e.kind, descr.replaceFirstChar { it.uppercase() })
+            if (descr.length >= 8 && grounded) books.refineEntity(e.id, e.kind, descr.replaceFirstChar { it.uppercase() })
             else books.refineEntity(e.id, e.kind, e.descr)
             done++
             onProgress(done, todo.size)

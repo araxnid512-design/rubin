@@ -16,7 +16,9 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "1.0"
-        ndk { abiFilters += "arm64-v8a" }
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        // Основная сборка — только arm64. Для проверки в эмуляторе: ./gradlew assembleDebug -PemulatorAbi
+        ndk { abiFilters += if (project.hasProperty("emulatorAbi")) listOf("arm64-v8a", "x86_64") else listOf("arm64-v8a") }
         externalNativeBuild { cmake { arguments += listOf("-DANDROID_STL=c++_static", "-DCMAKE_BUILD_TYPE=Release") } }
     }
 
@@ -53,4 +55,10 @@ dependencies {
     implementation("androidx.core:core-ktx:1.16.0")
     implementation("com.tom-roush:pdfbox-android:2.0.27.0")
     testImplementation("junit:junit:4.13.2")
+    // Проверка на устройстве или эмуляторе: ./gradlew :app:connectedDebugAndroidTest
+    androidTestImplementation(platform("androidx.compose:compose-bom:2025.05.00"))
+    androidTestImplementation("androidx.compose.ui:ui-test-junit4")
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
+    androidTestImplementation("androidx.test:runner:1.6.2")
+    debugImplementation("androidx.compose.ui:ui-test-manifest")
 }
