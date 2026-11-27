@@ -175,7 +175,10 @@ object ResponseParser {
     fun parse(raw: String, action: String): ParsedTurn {
         val text = visible(raw.replace("\r", "")).replace('\n', ' ').replace(Regex("\\s+"), " ").trim()
         // Обрезанный лимитом ответ: оставляем только законченные предложения.
-        val narrative = Text.splitSentences(text).filter { it.last() in ".!?…»" }.joinToString(" ")
+        var narrative = Text.splitSentences(text).filter { it.last() in ".!?…»" }.joinToString(" ")
+        // Лишние закрывающие кавычки в конце («…сказала она.»») — частая привычка маленьких моделей.
+        while (narrative.endsWith("»") && narrative.count { it == '»' } > narrative.count { it == '«' }) narrative = narrative.dropLast(1).trimEnd()
+        if (narrative.isNotEmpty() && narrative.last() !in ".!?…»") narrative += "."
         val letters = narrative.count { it in 'а'..'я' || it in 'А'..'Я' || it == 'ё' }
         val problem = when {
             narrative.length < 12 || letters < 10 -> "пустой или обрезанный ответ"

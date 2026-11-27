@@ -340,6 +340,8 @@ class GameTest {
         assertEquals("Мира молчит.", ResponseParser.visible("Мира молчит.\nИТОГ: монеты -1\nДАЛЬШЕ: А"))
         assertEquals("Мира молчит.", ResponseParser.visible("Мира молчит. ИТОГ ничего."))
         assertEquals("Мира молчит.", ResponseParser.parse("Мира молчит. ИТОГ ничего.", "жду ответа").narrative)
+        assertEquals("Она указала на окно.", ResponseParser.parse("Она указала на окно.»", "жду").narrative)
+        assertEquals("«Иди», — сказала она. «Там тихо.»", ResponseParser.parse("«Иди», — сказала она. «Там тихо.»", "жду").narrative)
         assertFalse(ResponseParser.parse("", "жду").valid)
         assertTrue(ResponseParser.overlap("Борин кивает в сторону холмов и щурится на солнце.", PromptBuilder.EXAMPLES) > 0.7)
         assertTrue(ResponseParser.overlap("Мира ставит перед тобой миску горячей похлёбки.", PromptBuilder.EXAMPLES) < 0.3)
