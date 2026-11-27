@@ -201,6 +201,16 @@ fun BookScreen(vm: MainViewModel, ui: UiState) {
                 Row(Modifier.selectable(selected = mode == "alternate", onClick = { mode = "alternate" }), verticalAlignment = Alignment.CenterVertically) { RadioButton(selected = mode == "alternate", onClick = null); Column(Modifier.padding(start = 8.dp)) { Text("Свободная история"); Dim("Сюжет может уйти в сторону, появляются новые персонажи.") } }
                 Button(onClick = { vm.newGame(b.id, name, role, mode, bookHero, gamebook) }, enabled = name.isNotBlank() && b.indexedChapters > 0 && !ui.model.busy, modifier = Modifier.fillMaxWidth()) { Text("Начать приключение") }
                 if (!ui.model.installed) Text("Сначала установи модель в настройках.", color = MaterialTheme.colorScheme.error)
+                if (gamebook) {
+                    HorizontalDivider()
+                    Text("Страниц квеста готово: ${ui.pages}", fontWeight = FontWeight.SemiBold)
+                    Dim("Квест можно написать заранее. Тогда в игре не будет ожидания: каждый выбор сразу открывает готовую страницу, как в бумажной книге-игре. Подготовка идёт несколько минут или дольше; её можно остановить и продолжить. Страницы пишутся для выбранного героя.")
+                    if (ui.preparing.isNotEmpty()) { Dim(ui.preparing); LinearProgressIndicator(Modifier.fillMaxWidth()); TextButton(onClick = { vm.cancelRefine() }) { Text("Остановить") } }
+                    else Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(onClick = { vm.prepareQuest(b.id, name, role, mode, bookHero) }, enabled = name.isNotBlank() && ui.model.installed && b.indexedChapters > 0) { Text(if (ui.pages > 0) "Дописать квест" else "Подготовить квест заранее") }
+                        if (ui.pages > 0) TextButton(onClick = { vm.clearPages(b.id) }) { Text("Стереть страницы") }
+                    }
+                }
             }
 
             Label("Что игра знает о книге")
@@ -283,7 +293,7 @@ fun SettingsScreen(vm: MainViewModel, ui: UiState, voice: VoiceState) {
 
             Label("О приложении")
             Card {
-                Dim("Живая книга 1.1. Работает без интернета: у приложения нет разрешения на доступ к сети. Книги, сохранения и модель хранятся только на этом телефоне.")
+                Dim("Живая книга 1.2. Работает без интернета: у приложения нет разрешения на доступ к сети. Книги, сохранения и модель хранятся только на этом телефоне.")
                 Dim("Модель пишет только сцены. За предметами, монетами, здоровьем, перемещениями и ходом сюжета следят правила игры. Qwen3-0.6B пишет небрежно; Qwen3-1.7B — заметно связнее, но медленнее.")
                 Dim("Используются: llama.cpp (MIT), Qwen3 (Apache 2.0), sherpa-onnx и ONNX Runtime (Apache 2.0 и MIT; содержит espeak-ng, GPL 3.0), PdfBox-Android (Apache 2.0), jsoup (MIT), SQLite (общественное достояние), Jetpack Compose и kotlinx (Apache 2.0).")
             }

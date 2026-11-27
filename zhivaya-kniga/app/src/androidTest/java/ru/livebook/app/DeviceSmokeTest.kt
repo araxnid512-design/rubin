@@ -164,6 +164,9 @@ class DeviceSmokeTest {
         waitText("Проверка удачи")                 // правила на листе героя
         rule.onNodeWithText("Закрыть").performClick()
         waitText("Начать")
+        // Страницы квеста хранятся в базе и переживают повторное открытие.
+        val num = c.books.putPage(id, "test-key", "Вы стоите у очага.")
+        assertEquals(num, c.books.page(id, "test-key")!!.first); c.books.clearPages(id)
         log("gamebook screen ok")
     }
 

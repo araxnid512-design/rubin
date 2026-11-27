@@ -60,6 +60,9 @@ data class UiState(
     val bench: List<BenchResult> = emptyList(),
     val benchRunning: String = "",
     val pendingCharset: Uri? = null,
+    /** Книга-игра: сколько страниц квеста уже написано для открытой книги и идёт ли подготовка. */
+    val pages: Int = 0,
+    val preparing: String = "",
     val message: String = "",
 )
 
@@ -230,8 +233,29 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun openBook(id: String) = viewModelScope.launch(Dispatchers.IO) {
         val b = c.books.book(id) ?: return@launch
         val e = c.books.entities(id); val g = c.saves.games()
-        _ui.update { it.copy(screen = Screen.BOOK, book = b, entities = e, games = g) }
+        _ui.update { it.copy(screen = Screen.BOOK, book = b, entities = e, games = g, pages = c.books.pageCount(id)) }
     }
+
+    /**
+     * Подготовить квест заранее: модель пишет все страницы, до которых доходят пробные прохождения.
+     * После этого игра идёт без ожидания — выбор просто открывает готовую страницу.
+     */
+    fun prepareQuest(bookId: String, hero: String, role: String, mode: String, bookHero: Boolean) = viewModelScope.launch(llmThread) {
+        if (c.llm.busy) return@launch
+        if (c.llm.get() == null) { message("Сначала установи модель в настройках."); return@launch }
+        c.llm.busy = true; cancelRefine.set(false)
+        _ui.update { it.copy(preparing = "Пишу страницы квеста…") }
+        try {
+            val n = c.game.prepareQuest(bookId, hero, role, mode, bookHero, settings(), isCancelled = { cancelRefine.get() }) { pages, run ->
+                _ui.update { it.copy(pages = pages, preparing = "Пишу страницы квеста: готово $pages, пробное прохождение $run") }
+            }
+            message(if (cancelRefine.get()) "Подготовка остановлена. Написанные страницы сохранены, остальные допишутся по ходу игры." else "Квест готов: новых страниц $n, всего ${c.books.pageCount(bookId)}. Редкие ответвления допишутся по ходу игры.")
+        } catch (t: Throwable) { message("Подготовка прервалась: ${t.message}") } finally {
+            c.llm.busy = false
+            _ui.update { it.copy(preparing = "", pages = c.books.pageCount(bookId), games = c.saves.games()) }
+        }
+    }
+    fun clearPages(bookId: String) = viewModelScope.launch(Dispatchers.IO) { c.books.clearPages(bookId); _ui.update { it.copy(pages = 0) } }
 
     fun deleteBook(id: String) = viewModelScope.launch(Dispatchers.IO) { c.books.deleteBook(id); _ui.update { it.copy(screen = Screen.LIBRARY, book = null) }; refreshLibrary() }
 
@@ -298,8 +322,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun runTurn(gameId: String, action: String?, choiceId: String? = null) {
         val book = _ui.value.game?.state?.gamebook
-        val label = if (book != null) "§${book.para + 1}. " + (book.choices.firstOrNull { it.id == choiceId }?.label ?: "Начало") else null
-        _ui.update { s -> s.game?.let { g -> s.copy(game = g.copy(busy = true, streaming = "", status = "", feed = if (label != null) g.feed + FeedItem("para", label) else if (action != null) g.feed + FeedItem("hero", action) else g.feed)) } ?: s }
+        val label = if (book != null) (book.choices.firstOrNull { it.id == choiceId }?.label ?: "Начало") else null
+        _ui.update { s -> s.game?.let { g -> s.copy(game = g.copy(busy = true, streaming = "", status = "", feed = if (label != null) g.feed + FeedItem("para", "Ваш выбор: $label") else if (action != null) g.feed + FeedItem("hero", action) else g.feed)) } ?: s }
         c.narrator.queue.clear()
         viewModelScope.launch(llmThread) {
             c.llm.busy = true
@@ -325,8 +349,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             if (r.kind == "system" && c.narrator.auto && c.narrator.available()) c.narrator.queue.setText(Text.splitSentences(r.narrative), true)
             val stats = r.stats?.takeIf { r.kind == "llm" }?.let { "до первого слова ${"%.1f".format(it.ttftMs / 1000)} с · ${"%.1f".format(it.tokensPerSecond)} ток/с · весь ход ${"%.1f".format(it.totalMs / 1000)} с" }.orEmpty()
             val slots = c.saves.slots(gameId)
+            // Книга-игра: временный заголовок «Ваш выбор» заменяется постоянным номером страницы.
+            val header = if (label != null && r.kind != "error") listOf(FeedItem("para", if (r.page > 0) "Страница ${r.page}. $label" else label)) else emptyList()
             _ui.update { s -> s.game?.takeIf { it.id == gameId }?.let { g ->
-                s.copy(game = g.copy(busy = false, streaming = "", status = "", state = r.state, feed = (g.feed + add).takeLast(160), suggestions = r.state.suggestions.ifEmpty { g.suggestions },
+                val base = if (label != null && g.feed.lastOrNull()?.kind == "para") g.feed.dropLast(1) else g.feed
+                s.copy(game = g.copy(busy = false, streaming = "", status = "", state = r.state, feed = (base + header + add).takeLast(160), suggestions = r.state.suggestions.ifEmpty { g.suggestions },
                     slots = slots.filter { it.slot > 0 }, canUndo = slots.any { it.slot == 0 }, lastStats = stats.ifEmpty { g.lastStats }))
             } ?: s }
             if (r.kind == "llm" || r.kind == "fallback") between(gameId)

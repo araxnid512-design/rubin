@@ -109,6 +109,18 @@ class BookRepository(private val db: Db) {
         ) { LoreHit(it.int(0), it.str(1), -it.double(2)) }
     }
 
+    // ---------- готовые страницы квеста ----------
+    fun page(bookId: String, key: String): Pair<Int, String>? = db.one("SELECT num, body FROM quest_page WHERE book_id=? AND key=?", bookId, key) { it.int(0) to it.str(1) }
+    fun pageCount(bookId: String): Int = db.one("SELECT COUNT(*) FROM quest_page WHERE book_id=?", bookId) { it.int(0) } ?: 0
+    fun clearPages(bookId: String) = db.exec("DELETE FROM quest_page WHERE book_id=?", bookId)
+    /** Сохранить новую страницу; номер выдаётся по порядку и больше не меняется. */
+    fun putPage(bookId: String, key: String, body: String): Int = db.tx {
+        page(bookId, key)?.let { return@tx it.first }
+        val num = (db.one("SELECT COALESCE(MAX(num), 0) FROM quest_page WHERE book_id=?", bookId) { it.int(0) } ?: 0) + 1
+        db.exec("INSERT INTO quest_page(book_id,key,num,body) VALUES(?,?,?,?)", bookId, key, num, body)
+        num
+    }
+
     /** Фрагменты одной главы с идентификаторами — для «режиссёра сюжета». */
     fun chapterChunks(bookId: String, chapterIdx: Int): List<Pair<Long, String>> = db.query("SELECT id, body FROM chunk WHERE book_id=? AND chapter_idx=? ORDER BY pos", bookId, chapterIdx) { it.long(0) to it.str(1) }
     fun indexedChapterCount(bookId: String): Int = db.one("SELECT COUNT(*) FROM chapter WHERE book_id=? AND indexed=1", bookId) { it.int(0) } ?: 0

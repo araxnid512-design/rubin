@@ -51,9 +51,10 @@ object GamebookEngine {
 
     private fun enemyFor(state: GameState, books: BookRepository, place: String): Triple<String, Int, Int>? {
         val gb = state.gamebook!!
-        val seed = Text.stemKey(place).sumOf { it.code } + state.stage * 7 + state.hero.name.length
+        // Кто ждёт в каком месте, зависит только от места — так страницы квеста одинаковы для любого пути.
+        val seed = Text.stemKey(place).sumOf { it.code }
         if (seed % 3 == 0) return null                       // в трети новых мест спокойно
-        val pool = threats(books, state.bookId, state.stage).ifEmpty { FALLBACK }
+        val pool = threats(books, state.bookId, (books.indexedChapterCount(state.bookId) - 1).coerceAtLeast(0)).ifEmpty { FALLBACK }
         val e = pool[seed % pool.size]
         // Чем дальше по сюжету, тем противники крепче.
         return Triple(e.first, (e.second + state.stage / 2).coerceAtMost(11), e.third + state.stage + gb.kills / 3)
@@ -112,7 +113,7 @@ object GamebookEngine {
                 if (key !in gb.talked) {
                     gb = gb.copy(talked = (gb.talked + key).takeLast(120))
                     s = s.copy(characters = s.characters.map { if (it.id == npc.id) it.copy(relation = (it.relation + 1).coerceAtMost(10)) else it })
-                    val b = director(s, action); s = b.state.copy(gamebook = s.gamebook); beat = b.text
+                    val b = director(s, "talk:${npc.name}"); s = b.state.copy(gamebook = s.gamebook); beat = b.text
                     if (beat.isNotEmpty()) journal("${npc.name} рассказывает важное")
                 } else important += "${npc.name} уже рассказал всё, что знал; сейчас он лишь коротко отвечает."
             }
@@ -129,7 +130,6 @@ object GamebookEngine {
                 val (ok, text, g2) = testLuck(gb, rng); gb = g2; note += text
                 if (ok) { val g = d6(rng); s = s.copy(hero = s.hero.copy(gold = s.hero.gold + g)); note += " Заодно найдено монет: $g."; important += "Заодно вы находите несколько монет." }
                 else { hurt(2); note += " Ловушка: −2 к Силе."; important += "При обыске вы попадаете в ловушку и ранены." }
-                val b = director(s, action); s = b.state.copy(gamebook = s.gamebook); beat = b.text
             }
             "go" -> {
                 val target = choice.target
@@ -187,7 +187,7 @@ object GamebookEngine {
                 important += "Вы спасаетесь бегством, ${c.enemy} остаётся позади."
             }
             "eat" -> { gb = gb.copy(provisions = gb.provisions - 1); s = s.copy(hero = s.hero.copy(hp = (s.hero.hp + 4).coerceAtMost(s.hero.maxHp))); action = "сделать привал и поесть"; note = "Привал: +4 к Силе. Припасов осталось: ${gb.provisions}." }
-            else -> { action = "затаиться и понаблюдать"; val b = director(s, action); s = b.state.copy(gamebook = s.gamebook); beat = b.text }
+            else -> { action = "затаиться и понаблюдать"; val b = director(s, "wait:${s.location}"); s = b.state.copy(gamebook = s.gamebook); beat = b.text }
         }
 
         if (s.hero.hp <= 0) {
@@ -216,6 +216,6 @@ object GamebookEngine {
         val last = books.chapterChunks(s.bookId, chapters - 1).map { it.first }
         val gb = s.gamebook ?: return false
         // Кроме зацепок последней главы нужно пройти мир: побывать хотя бы в трёх местах и открыть запертые.
-        return last.isNotEmpty() && last.count { it in s.usedClues } >= minOf(2, last.size) && gb.visited.size >= minOf(3, s.knownLocations.size) && s.lockedLocations.isEmpty()
+        return last.isNotEmpty() && last.count { it in s.usedClues } >= (if (last.size <= 2) 1 else 2) && gb.visited.size >= minOf(3, s.knownLocations.size) && s.lockedLocations.isEmpty()
     }
 }

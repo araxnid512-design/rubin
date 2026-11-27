@@ -48,7 +48,7 @@ class GamebookTest {
         val p = w.llm.prompts.single()
         assertTrue(p.contains("параграфы книги-игры") && p.contains("говори «вы»"))
         assertTrue(w.llm.grammars.single()!!.contains("\"Вы \""))
-        assertEquals("§1. Начало", w.saves.turns(g).single().action)
+        assertEquals("Страница 1. Начало", w.saves.turns(g).single().action)
         assertEquals("error", w.game.gamebookTurn(g, "нет-такого").kind)
         assertEquals(1, w.gb(g).para, "неверный выбор ничего не меняет")
     }
@@ -59,9 +59,10 @@ class GamebookTest {
         assertTrue(r.beat.startsWith("в сцене всплывает зацепка"), r.beat)
         assertTrue(w.llm.prompts.last().contains("Упомяни своими словами: ") && w.llm.prompts.last().contains("Выбор читателя: расспросить Миру"))
         assertEquals(1, r.state.findNpc("Мира")!!.relation); assertEquals(1, r.state.usedClues.size)
-        assertTrue(r.state.gamebook!!.choices.any { it.label.startsWith("Просто поговорить") })
-        val again = w.game.gamebookTurn(g, "talk:mira")
-        assertEquals("", again.beat); assertEquals(1, again.state.usedClues.size, "второй раз на том же этапе новостей нет")
+        assertEquals(1, r.state.stage, "первая глава короткая: одной зацепки хватает, сюжет идёт дальше")
+        // На новом этапе у Миры есть новая новость, а после неё — уже нет.
+        val second = w.game.gamebookTurn(g, "talk:mira")
+        assertTrue(second.beat.isNotEmpty() && second.beat != r.beat)
     }
 
     @Test fun searchAlwaysFindsThePlotItemLuckDecidesTheRest() = World().use { w ->
@@ -141,9 +142,9 @@ class GamebookTest {
         assertTrue(sites.none { it.name.startsWith("Сво") || it.name.startsWith("Дыхани") }, "местоимения и существительные — не названия")
         val start = w.saves.state(g)!!.knownLocations
         assertTrue(start.none { it == "Мастерская" } && start.any { it.contains("Лисья свеча") } && start.any { it == "Северные ворота" }, "в начале известны места первой главы: $start")
-        w.game.gamebookTurn(g, "start"); w.game.gamebookTurn(g, "talk:mira"); w.game.gamebookTurn(g, "search", rng = Dice(1, 1))
+        w.game.gamebookTurn(g, "start"); w.game.gamebookTurn(g, "talk:mira")
         val mid = w.saves.state(g)!!
-        assertTrue(mid.stage >= 1 && mid.knownLocations.any { it == "Разрушенная крепость" } && mid.knownLocations.none { it == "Мастерская" }, "открылась вторая глава: ${mid.stage} ${mid.knownLocations}")
+        assertTrue(mid.stage == 1 && mid.knownLocations.any { it == "Разрушенная крепость" } && mid.knownLocations.none { it == "Мастерская" }, "открылась вторая глава: ${mid.stage} ${mid.knownLocations}")
     }
 
     @Test fun firstVisitMayStartAFight() = World().use { w ->
@@ -192,5 +193,61 @@ class GamebookTest {
         assertTrue(r.narrative.contains("ржавый ключ")); assertEquals(2, w.gb(g).para)
         w.llm.cancelNext = true
         assertEquals("error", w.game.gamebookTurn(g, "talk:mira").kind); assertEquals(2, w.gb(g).para)
+    }
+}
+
+class QuestPagesTest {
+    @Test fun samePlaceSameChoiceSamePage() = World().use { w ->
+        val book = w.addSample()
+        val g1 = w.game.newGame(book, "Арсений", "странник", "canon", true, gamebook = true, rng = Dice(4, 3, 4, 3))
+        val a1 = w.game.gamebookTurn(g1, "start"); val b1 = w.game.gamebookTurn(g1, "talk:mira")
+        assertFalse(a1.cached); assertEquals(1, a1.page); assertEquals(2, b1.page)
+        val calls = w.llm.prompts.size
+        // Новая партия по той же книге: те же страницы открываются мгновенно, модель не вызывается.
+        val g2 = w.game.newGame(book, "Арсений", "странник", "canon", true, gamebook = true, rng = Dice(6, 6, 6, 6))
+        val a2 = w.game.gamebookTurn(g2, "start"); val b2 = w.game.gamebookTurn(g2, "talk:mira")
+        assertTrue(a2.cached && b2.cached); assertEquals(calls, w.llm.prompts.size)
+        assertEquals(a1.narrative, a2.narrative); assertEquals(b1.narrative, b2.narrative); assertEquals(listOf(1, 2), listOf(a2.page, b2.page))
+        assertEquals("Страница 2. Расспросить Миру", w.saves.turns(g2).last().action)
+        // Готовые страницы читаются и без модели; ненаписанная страница без модели — понятная ошибка.
+        w.llmAvailable = false
+        val g3 = w.game.newGame(book, "Арсений", "странник", "canon", true, gamebook = true, rng = Dice(4, 3, 4, 3))
+        assertTrue(w.game.gamebookTurn(g3, "start").cached)
+        val miss = w.game.gamebookTurn(g3, "search")
+        assertEquals("error", miss.kind); assertTrue(miss.notice.contains("ещё не написана"))
+        assertEquals(1, w.saves.state(g3)!!.gamebook!!.para, "ход без страницы не засчитан")
+        // Другой герой — другие страницы; очистка стирает всё.
+        assertEquals(2, w.books.pageCount(book)); w.books.clearPages(book); assertEquals(0, w.books.pageCount(book))
+    }
+
+    @Test fun questCanBePreparedInAdvance() = World().use { w ->
+        val book = w.addSample()
+        var seen = 0
+        val created = w.game.prepareQuest(book, "Арсений", "странник", "canon", true) { pages, _ -> seen = pages }
+        val pages = w.books.pageCount(book)
+        println("ПОДГОТОВКА: написано страниц $pages, вызовов модели ${w.llm.prompts.size}")
+        assertTrue(pages >= 25, "страниц: $pages"); assertEquals(pages, seen); assertEquals(pages, created)
+        assertTrue(w.saves.games().isEmpty(), "пробные прохождения не остаются в списке игр")
+        // Повторная подготовка почти ничего не добавляет.
+        val again = w.game.prepareQuest(book, "Арсений", "странник", "canon", true, runs = 3)
+        println("ПОВТОРНАЯ ПОДГОТОВКА: новых страниц $again")
+        assertTrue(again <= pages / 4, "повторно создано $again")
+        // Обычная партия после подготовки: большинство страниц уже готово.
+        val g = w.game.newGame(book, "Арсений", "странник", "canon", true, gamebook = true, rng = Dice(4, 3, 4, 3))
+        var ready = 0; var total = 0; var choice = "start"
+        while (total < 25) {
+            val r = w.game.gamebookTurn(g, choice, rng = Random(total)); total++; if (r.cached) ready++
+            val gb = r.state.gamebook!!; if (gb.dead || gb.won) break
+            val cs = gb.choices
+            choice = (cs.firstOrNull { it.kind == "strike" } ?: cs.firstOrNull { it.kind == "talk" && it.label.startsWith("Расспросить") } ?: cs.firstOrNull { it.kind == "search" }
+                ?: cs.firstOrNull { it.label.startsWith("Открыть ключом") } ?: cs.firstOrNull { it.kind == "go" && !it.label.contains("заперто") && it.target !in gb.visited } ?: cs.first()).id
+        }
+        println("ПАРТИЯ ПОСЛЕ ПОДГОТОВКИ: готовых страниц $ready из $total")
+        assertTrue(ready * 10 >= total * 7, "готовых $ready из $total")
+        // Отмена сохраняет уже написанное.
+        w.books.clearPages(book)
+        var n = 0
+        w.game.prepareQuest(book, "Арсений", "странник", "canon", true, isCancelled = { n >= 5 }) { p, _ -> n = p }
+        assertTrue(w.books.pageCount(book) in 5..7)
     }
 }

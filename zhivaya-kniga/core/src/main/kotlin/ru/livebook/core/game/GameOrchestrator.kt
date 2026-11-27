@@ -61,6 +61,9 @@ data class TurnResult(
     val notice: String = "",
     /** Поворот сюжета, который «режиссёр» подбросил в эту сцену (для журнала проверок). */
     val beat: String = "",
+    /** Книга-игра: номер страницы квеста и взята ли она готовой (без вызова модели). */
+    val page: Int = 0,
+    val cached: Boolean = false,
 )
 
 interface TurnListener {
@@ -287,15 +290,24 @@ class GameOrchestrator(private val books: BookRepository, private val saves: Sav
     fun gamebookTurn(gameId: String, choiceId: String, settings0: GameSettings = GameSettings(), listener: TurnListener = object : TurnListener {}, rng: kotlin.random.Random = kotlin.random.Random.Default): TurnResult {
         val state0 = saves.state(gameId) ?: throw IllegalArgumentException("игра не найдена")
         val gb0 = state0.gamebook ?: return TurnResult("error", "", state0, notice = "Это приключение не в режиме книги-игры.")
-        val model = llm() ?: return TurnResult("error", "", state0, notice = "Локальная модель не установлена. Открой «Настройки» → «Установить модель из файла».")
         val label = if (choiceId == "start") "Начало" else GamebookEngine.choices(state0).firstOrNull { it.id == choiceId }?.label ?: return TurnResult("error", "", state0, notice = "Такого выбора сейчас нет.")
-        val settings = settings0.copy(small = model.isSmall, gamebook = true)
+        val settings = settings0.copy(small = llm()?.isSmall ?: false, gamebook = true)
         listener.onStatus("Кубики брошены. Рассказчик пишет параграф…")
-        val out = GamebookEngine.apply(state0, choiceId, rng, books) { st, act -> StoryDirector.beat(st, books, act, force = true) }
+        val out = GamebookEngine.apply(state0, choiceId, rng, books) { st, source -> StoryDirector.clue(st, books, source) }
         val state = populate(out.state)
         val gb = state.gamebook!!
         val near = state.nearbyNpcs().map { it.name }
         val enemy = gb.combat?.enemy ?: gb0.combat?.enemy.orEmpty()
+        val note = GameEvent("note", out.note)
+        // Страницы квеста постоянны: тот же поворот событий в этой книге всегда ведёт на ту же страницу, без вызова модели.
+        val key = pageKey(state, out, gb0.combat?.round ?: 0)
+        books.page(state.bookId, key)?.let { (num, body) ->
+            listener.onText(body); Text.splitSentences(body).forEach { listener.onSentence(it) }
+            val next = state.copy(history = (state.history + TurnBrief(out.action, body)).takeLast(6))
+            val n = saves.commitTurn(gameId, state0, next, TurnRecord(0, "Страница $num. $label", body, listOf(note), "page", ""))
+            return TurnResult("llm", body, next, listOf(note), notes = listOf(out.note), turn = n, beat = out.beat, page = num, cached = true)
+        }
+        val model = llm() ?: return TurnResult("error", "", state0, notice = "Эта страница квеста ещё не написана, а модель не установлена. Установи модель в настройках или подготовь квест заранее.")
         val sceneLore = books.search(state.bookId, "${state.location} ${near.joinToString(" ")}", if (settings.economy) 1 else 2).map { it.text }
         val grammar = GrammarBuilder.build(near, settings, enemy)
         var history = settings.historyTurns; var loreChars = settings.loreChars
@@ -348,10 +360,52 @@ class GameOrchestrator(private val books: BookRepository, private val saves: Sav
         val narrative = if (failed) (out.important.joinToString(" ").ifEmpty { "Вы действуете, как решили." }).also { listener.onText(it) } else parsed.narrative
         val next = state.copy(history = (state.history + TurnBrief(out.action, narrative)).takeLast(6))
         val statsText = stats?.let { "ttft=${it.ttftMs.toInt()}мс; ${"%.1f".format(it.tokensPerSecond)} ток/с; всего ${it.totalMs.toInt()}мс" }.orEmpty()
-        val note = GameEvent("note", out.note)
-        val n = saves.commitTurn(gameId, state0, next, TurnRecord(0, "§${gb.para}. $label", narrative, listOf(note), if (failed) "fallback" else "llm", statsText))
-        return TurnResult(if (failed) "fallback" else "llm", narrative, next, listOf(note), notes = listOf(out.note), stats = stats, turn = n, beat = out.beat,
+        val num = if (failed) 0 else books.putPage(state.bookId, key, narrative)
+        val n = saves.commitTurn(gameId, state0, next, TurnRecord(0, if (num > 0) "Страница $num. $label" else label, narrative, listOf(note), if (failed) "fallback" else "llm", statsText))
+        return TurnResult(if (failed) "fallback" else "llm", narrative, next, listOf(note), notes = listOf(out.note), stats = stats, turn = n, beat = out.beat, page = num,
             notice = if (failed) "Модель дважды дала негодный текст (${parsed.problem}), поэтому параграф заменён краткой записью исхода. Сам ход засчитан." else "")
+    }
+
+    /** Ключ страницы: всё, от чего зависит её текст (место, выбор, исход, зацепка), — но не броски кубиков и не лист героя. */
+    private fun pageKey(state: GameState, out: GamebookEngine.Outcome, round: Int): String {
+        // Страницы боя общие для всех мест: они зависят только от противника и исхода раунда.
+        val fight = round >= 0 && out.action.startsWith("сражаться")
+        val raw = listOf(state.storyMode, state.hero.name, if (fight) "" else state.location, if (fight) "" else state.nearbyNpcs().joinToString(",") { it.name }, out.action, out.important.joinToString("/"), out.beat).joinToString("|")
+        return java.security.MessageDigest.getInstance("MD5").digest(raw.toByteArray()).joinToString("") { "%02x".format(it) }
+    }
+
+    /**
+     * Подготовка квеста заранее: несколько пробных прохождений подряд, в каждом выбирается то, что ещё не пробовали.
+     * Все встреченные страницы пишутся моделью и сохраняются; потом игра идёт мгновенно — выбор просто открывает готовую страницу.
+     * Можно остановить и продолжить: написанные страницы не теряются. Возвращает число новых страниц.
+     */
+    fun prepareQuest(bookId: String, heroName: String, heroRole: String, storyMode: String, bookHero: Boolean, settings: GameSettings = GameSettings(), runs: Int = 24,
+                     isCancelled: () -> Boolean = { false }, onProgress: (pages: Int, run: Int) -> Unit = { _, _ -> }): Int {
+        val tried = HashMap<String, Int>()
+        var created = 0; var quiet = 0
+        for (run in 0 until runs) {
+            if (isCancelled()) break
+            val rng = kotlin.random.Random(1000 + run * 77)
+            val g = newGame(bookId, heroName, heroRole, storyMode, bookHero, gamebook = true, rng = rng)
+            var choice = "start"; var steps = 0; var fresh = 0
+            try {
+                while (steps < 90 && !isCancelled()) {
+                    val r = gamebookTurn(g, choice, settings, rng = rng); steps++
+                    if (r.kind == "error") break
+                    if (!r.cached && r.kind == "llm") { created++; fresh++ }
+                    onProgress(books.pageCount(bookId), run + 1)
+                    val gb = r.state.gamebook ?: break
+                    if (gb.dead || gb.won || gb.choices.isEmpty()) break
+                    val where = "${r.state.location}|${gb.combat?.enemy}|${r.state.stage}|${r.state.inventory.size}"
+                    val pick = gb.choices.withIndex().minByOrNull { (i, c) -> (tried["$where|${c.id}"] ?: 0) * 10 + (i + run) % gb.choices.size }!!.value
+                    tried.merge("$where|${pick.id}", 1, Int::plus)
+                    choice = pick.id
+                }
+            } finally { saves.deleteGame(g) }
+            quiet = if (fresh <= 1) quiet + 1 else 0
+            if (run >= 4 && quiet >= 4) break   // четыре прохождения подряд почти без новых страниц — квест готов
+        }
+        return created
     }
 
     /**

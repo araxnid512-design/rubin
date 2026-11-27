@@ -60,4 +60,40 @@ class GamebookLlmIT {
         assertTrue(texts.distinct().size >= texts.size - 1)
         assertTrue(gb.won || gb.dead || turns == 40)
     }
+
+    /** Подготовка квеста заранее настоящей моделью, затем партия по готовым страницам. */
+    @Test fun prepareWholeQuestWithRealModel() {
+        val path = System.getenv("LIVEBOOK_MODEL")?.takeIf { File(it).exists() && System.getenv("LIVEBOOK_NATIVE_DIR") != null } ?: return println("пропущен")
+        val llm = LlamaLlm(path, 2048, 4); llm.configureThreads(4, false)
+        val db = Db(":memory:"); val books = BookRepository(db); val saves = SaveRepository(db)
+        val game = GameOrchestrator(books, saves) { llm }
+        val bookId = books.addBook(BookImporter.import("vorota_mha.txt", Fixtures.sampleBytes)); books.indexBook(bookId)
+        val t0 = System.nanoTime()
+        val created = game.prepareQuest(bookId, "Арсений", "странник", "canon", true, GameSettings(seed = 3))
+        val prepMs = (System.nanoTime() - t0) / 1e6
+        val pages = books.pageCount(bookId)
+        val g = game.newGame(bookId, "Арсений", "странник", "canon", true, gamebook = true, rng = Random(5))
+        val sb = StringBuilder("# Квест, подготовленный заранее (${llm.meta("general.name")}, настольная машина)\n\n")
+        sb.append("- Подготовка: написано страниц $pages за ${(prepMs / 1000).toInt()} с (в среднем ${(prepMs / pages.coerceAtLeast(1)).toInt()} мс на страницу)\n")
+        var ready = 0; var total = 0; var choice = "start"; var slow = 0.0; var fast = 0.0; val rng = Random(11)
+        val log = StringBuilder()
+        while (total < 40) {
+            val before = saves.state(g)!!.gamebook!!
+            val label = before.choices.firstOrNull { it.id == choice }?.label ?: "Начало"
+            val t = System.nanoTime(); val r = game.gamebookTurn(g, choice, GameSettings(seed = 3), rng = rng); val ms = (System.nanoTime() - t) / 1e6
+            total++; if (r.cached) { ready++; fast += ms } else slow += ms
+            log.append("**Страница ${r.page}. $label** ${if (r.cached) "(готовая, ${ms.toInt()} мс)" else "(дописана по ходу, ${ms.toInt()} мс)"}\n\n${r.narrative}\n\n_${r.notes.firstOrNull().orEmpty()}_\n\n")
+            val gb = r.state.gamebook!!; if (gb.dead || gb.won) break
+            val cs = gb.choices
+            choice = (cs.firstOrNull { it.kind == "strike" } ?: cs.firstOrNull { it.kind == "eat" } ?: cs.firstOrNull { it.kind == "talk" && it.label.startsWith("Расспросить") } ?: cs.firstOrNull { it.kind == "search" }
+                ?: cs.firstOrNull { it.label.startsWith("Открыть ключом") } ?: cs.firstOrNull { it.kind == "go" && !it.label.contains("заперто") && it.target !in gb.visited } ?: cs.first()).id
+        }
+        val gb = saves.state(g)!!.gamebook!!
+        sb.append("- Партия после подготовки: $total ходов, из них $ready открыли готовую страницу (в среднем ${if (ready > 0) (fast / ready).toInt() else 0} мс), ${total - ready} дописаны по ходу (в среднем ${if (total > ready) (slow / (total - ready)).toInt() else 0} мс)\n")
+        sb.append("- Исход: ${if (gb.won) "финал, цель достигнута" else if (gb.dead) "герой погиб" else "не закончена"}; всего страниц в квесте теперь ${books.pageCount(bookId)}\n\n## Партия\n\n").append(log)
+        File("build/reports").mkdirs(); File("build/reports/quest-prepared.md").writeText(sb.toString())
+        llm.close(); db.close()
+        assertTrue(pages >= 30 && created == pages, "страниц $pages")
+        assertTrue(ready * 10 >= total * 6, "готовых $ready из $total")
+    }
 }

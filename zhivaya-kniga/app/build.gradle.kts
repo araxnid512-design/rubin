@@ -14,8 +14,8 @@ android {
         // Android 8.0+: все такие устройства 64-битные в массе, есть нужные API хранения и TTS.
         minSdk = 26
         targetSdk = 35
-        versionCode = 2
-        versionName = "1.1"
+        versionCode = 3
+        versionName = "1.2"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // Основная сборка — только arm64. Для проверки в эмуляторе: ./gradlew assembleDebug -PemulatorAbi
         ndk { abiFilters += if (project.hasProperty("emulatorAbi")) listOf("arm64-v8a", "x86_64") else listOf("arm64-v8a") }

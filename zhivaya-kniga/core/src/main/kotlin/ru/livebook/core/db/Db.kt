@@ -90,7 +90,7 @@ class Db(path: String) : AutoCloseable {
     override fun close() = lock.withLock { conn.close() }
 
     companion object {
-        const val SCHEMA_VERSION = 1
+        const val SCHEMA_VERSION = 2
         private val MIGRATIONS: List<List<String>> = listOf(
             listOf(
                 """CREATE TABLE book(id TEXT PRIMARY KEY, title TEXT NOT NULL, author TEXT NOT NULL DEFAULT '', format TEXT NOT NULL,
@@ -108,6 +108,10 @@ class Db(path: String) : AutoCloseable {
                 "CREATE TABLE turn(game_id TEXT NOT NULL REFERENCES game(id) ON DELETE CASCADE, n INTEGER NOT NULL, action TEXT NOT NULL, narrative TEXT NOT NULL, events TEXT NOT NULL DEFAULT '[]', kind TEXT NOT NULL, stats TEXT NOT NULL DEFAULT '', created_at INTEGER NOT NULL, PRIMARY KEY(game_id, n))",
                 "CREATE TABLE save_slot(game_id TEXT NOT NULL REFERENCES game(id) ON DELETE CASCADE, slot INTEGER NOT NULL, label TEXT NOT NULL, state TEXT NOT NULL, turn INTEGER NOT NULL, created_at INTEGER NOT NULL, PRIMARY KEY(game_id, slot))",
                 "CREATE TABLE bench(id INTEGER PRIMARY KEY AUTOINCREMENT, created_at INTEGER NOT NULL, device TEXT NOT NULL, threads INTEGER NOT NULL, ttft_ms REAL NOT NULL, tok_s REAL NOT NULL, t30_ms REAL NOT NULL, t60_ms REAL NOT NULL, ram_mb REAL NOT NULL, note TEXT NOT NULL DEFAULT '')",
+            ),
+            // Версия 2: готовые страницы квеста. Один и тот же поворот событий всегда ведёт на одну и ту же страницу.
+            listOf(
+                "CREATE TABLE quest_page(book_id TEXT NOT NULL REFERENCES book(id) ON DELETE CASCADE, key TEXT NOT NULL, num INTEGER NOT NULL, body TEXT NOT NULL, PRIMARY KEY(book_id, key))",
             ),
         )
     }

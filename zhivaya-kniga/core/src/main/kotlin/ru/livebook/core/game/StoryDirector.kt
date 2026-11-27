@@ -41,6 +41,27 @@ object StoryDirector {
 
     data class Beat(val text: String, val state: GameState)
 
+    /**
+     * Зацепка для книги-игры. У каждого источника (персонаж, место) на каждом этапе сюжета своя постоянная зацепка —
+     * поэтому страница квеста не зависит от того, каким путём игрок к ней пришёл.
+     */
+    fun clue(state: GameState, books: BookRepository, source: String): Beat {
+        val chapters = books.indexedChapterCount(state.bookId)
+        if (chapters == 0) return Beat("", state)
+        val stage = state.stage.coerceIn(0, chapters - 1)
+        val pool = books.chapterChunks(state.bookId, stage)
+        if (pool.isEmpty()) return Beat("", state)
+        val (id, body) = pool[(source.sumOf { it.code } and 0x7fffffff) % pool.size]
+        val heroStems = Text.stems(state.hero.name).toSet()
+        val sentences = Text.splitSentences(body).filter { it.length in 30..190 }
+        val sentence = sentences.firstOrNull { s -> Text.stems(s).none { it in heroStems } } ?: sentences.firstOrNull() ?: body.take(160)
+        val used = if (id in state.usedClues) state.usedClues else (state.usedClues + id).takeLast(200)
+        val inChapter = pool.count { it.first in used }
+        // В короткой главе хватает одной зацепки, в обычной нужны две разные.
+        val next = if (inChapter >= (if (pool.size <= 2) 1 else 2) && stage < chapters - 1) stage + 1 else stage
+        return Beat("в сцене всплывает зацепка — ${sentence.trim()}", state.copy(usedClues = used, stage = next))
+    }
+
     private val TWISTS = listOf(
         "кто-то незаметно наблюдает за героем",
         "{npc} что-то скрывает и на миг выдаёт себя",
