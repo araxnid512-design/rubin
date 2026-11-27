@@ -36,8 +36,8 @@ footer { border-top: 1px solid var(--rule); padding-top: 14px; font-size: .9rem;
 <main>
   <header style="display:flex;flex-direction:column;gap:12px">
     <h1>Живая книга</h1>
-    <p class="lead">Текстовая игра для Android по вашей собственной книге. Сцены сочиняет нейросеть прямо на телефоне — интернет нужен только чтобы один раз скачать файлы с этой страницы.</p>
-    <p class="note">Версия 1.1. Приложение проверено в эмуляторе Android 14, но на настоящем телефоне ещё не запускалось — скорость и звучание голоса на вашем устройстве могут отличаться.</p>
+    <p class="lead">Книга-игра для Android по вашей собственной книге: страницы, выбор, кубики и бои. Страницы пишет нейросеть прямо на телефоне — интернет нужен только чтобы один раз скачать файлы с этой страницы.</p>
+    <p class="note">Версия 1.2. Приложение проверено в эмуляторе Android 14, но на настоящем телефоне ещё не запускалось — скорость и звучание голоса на вашем устройстве могут отличаться.</p>
   </header>
 
   <section class="one">
@@ -52,7 +52,7 @@ footer { border-top: 1px solid var(--rule); padding-top: 14px; font-size: .9rem;
       <li>При первом запуске приложение минуту-две распаковывает голос и модель, затем замеряет скорость. Дождитесь окончания.</li>
       <li>Число скачиваний этого файла ограничено квотой GitHub. Если ссылка перестала работать, возьмите файлы по отдельности ниже.</li>
     </ul>
-    <p class="sum">SHA-256: 8738df6abcc2ad74420978dece633a5fd42783f0138e753e15329e013a85d743</p>
+    <p class="sum">SHA-256: 2a810f862e373d48af092571ba4bb43a23729ec33c99b1d221fd7e104f835380</p>
   </section>
 
   <h2>Или по частям</h2>
@@ -66,7 +66,7 @@ footer { border-top: 1px solid var(--rule); padding-top: 14px; font-size: .9rem;
         <span class="size">zhivaya-kniga-debug.apk · 49 МБ</span>
       </div>
       <p>Откройте скачанный файл на телефоне и разрешите установку из этого источника. Нужен Android 8 или новее и 64-битный процессор.</p>
-      <p class="sum">SHA-256: 0830e2641693a7f58205682de97f1b111a8b508d8990e539cf87a741980c1994</p>
+      <p class="sum">SHA-256: 233ec70913af3cb8d82475b615189ab79fccd011f846391a7b284cb25935027c</p>
     </li>
 
     <li>
@@ -95,10 +95,14 @@ footer { border-top: 1px solid var(--rule); padding-top: 14px; font-size: .9rem;
 
     <li>
       <h2>Книга</h2>
-      <p>Нажмите «Добавить книгу» и выберите свой файл: TXT, FB2, EPUB или PDF с текстом. Для пробы есть короткая тестовая книга.</p>
+      <p>Нажмите «Добавить книгу» и выберите свой файл: TXT, FB2, EPUB или PDF с текстом. Для пробы есть две книги, написанные специально для игры.</p>
       <div class="dl">
-        <a class="btn ghost" href="https://github.com/araxnid512-design/rubin/raw/ccr-abdf4b07-key8n6/zhivaya-kniga/sample/vorota_mha.txt">Тестовая книга «Ворота мха»</a>
-        <span class="size">vorota_mha.txt · 4 КБ</span>
+        <a class="btn" href="https://github.com/araxnid512-design/rubin/raw/ccr-abdf4b07-key8n6/zhivaya-kniga/sample/zamok_voronya_skala.txt">«Замок на Вороньей скале»</a>
+        <span class="size">7 глав · подземелье и замок · 11 КБ</span>
+      </div>
+      <div class="dl">
+        <a class="btn ghost" href="https://github.com/araxnid512-design/rubin/raw/ccr-abdf4b07-key8n6/zhivaya-kniga/sample/vorota_mha.txt">«Ворота мха»</a>
+        <span class="size">3 главы · короткая · 4 КБ</span>
       </div>
     </li>
   </ol>
@@ -106,6 +110,7 @@ footer { border-top: 1px solid var(--rule); padding-top: 14px; font-size: .9rem;
   <section style="display:flex;flex-direction:column;gap:8px">
     <h2>После установки</h2>
     <ul class="plain">
+      <li>На странице книги нажмите «Подготовить квест заранее»: приложение само напишет все страницы, и дальше выбор открывает их без ожидания.</li>
       <li>Игра работает в авиарежиме: у приложения нет разрешения на доступ к сети.</li>
       <li>Книги, сохранения и модель хранятся только на телефоне.</li>
       <li>Скачанные файлы модели и голоса после установки можно удалить из «Загрузок».</li>
