@@ -139,6 +139,24 @@ object EntityExtractor {
             }
         }
 
+        // Одно имя в разных падежах («Радим», «Радима», «Радиму») — один персонаж.
+        val single = cands.values.filter { c -> c.forms.keys.all { ' ' !in it && '«' !in it } }.sortedByDescending { it.mid + it.start }
+        for (a in single) {
+            if (a.stem !in cands) continue
+            val base = nameBase(a.forms.keys.minByOrNull { it.length }!!)
+            if (base.length < 3) continue
+            for (b in single) {
+                if (b === a || b.stem !in cands) continue
+                val all = a.forms.keys + b.forms.keys
+                if (all.any { f -> val n = Text.norm(f); !n.startsWith(base) || n.removePrefix(base) !in CASE_TAILS }) continue
+                b.forms.forEach { (k, v) -> a.forms.merge(k, v, Int::plus) }; b.subj.forEach { (k, v) -> a.subj.merge(k, v, Int::plus) }
+                a.start += b.start; a.mid += b.mid; a.place += b.place; a.faction += b.faction; a.person += b.person
+                if (b.firstChapter < a.firstChapter) { a.firstChapter = b.firstChapter; a.descr = b.descr }
+                perChapter.values.forEach { m -> m.remove(b.stem)?.let { n -> m.merge(a.stem, n, Int::plus) } }
+                cands.remove(b.stem)
+            }
+        }
+
         val out = ArrayList<Entity>()
         for (c in cands.values) {
             val total = c.mid + c.start
@@ -150,14 +168,18 @@ object EntityExtractor {
             // Начальная форма имени: для остальных — та, что чаще стоит подлежащим («Мира сказала»), затем самая частая.
             // Мужские имена в начальной форме оканчиваются на согласную, «й» или «ь» («Арсений», а не «Арсения»).
             val masc = c.forms.entries.filter { ' ' !in it.key && Text.norm(it.key).last() in "бвгджзйклмнпрстфхцчшщь" }
-            val name = (masc.maxByOrNull { it.value } ?: c.forms.entries.sortedWith(compareByDescending<Map.Entry<String, Int>> { (c.subj[it.key] ?: 0) * 3 + it.value }.thenBy { nominativeRank(it.key) }.thenBy { it.key.length }).first()).key
+            // «Немой Латник», а не «Немому Латнику»: прилагательное и существительное в начальной форме.
+            val phrase = c.forms.entries.filter { e -> val w = e.key.split(' '); w.size == 2 && '«' !in e.key && Regex("(ый|ий|ой|ая|яя)$").containsMatchIn(Text.norm(w[0])) && Text.norm(w[1]).last() in "бвгджзйклмнпрстфхцчшщьая" }
+            val name = (phrase.firstOrNull { !Text.norm(it.key.substringBefore(' ')).endsWith("ой") || Text.norm(it.key).last() !in "ая" } ?: masc.maxByOrNull { it.value } ?: c.forms.entries.sortedWith(compareByDescending<Map.Entry<String, Int>> { (c.subj[it.key] ?: 0) * 3 + it.value }.thenBy { nominativeRank(it.key) }.thenBy { it.key.length }).first()).key
             val kind = when {
                 c.faction >= 3 && c.faction >= c.place && c.faction >= c.person -> "faction"
                 c.place >= 2.5 && c.place > c.person -> "place"
                 else -> "person"
             }
             if (kind == "person" && total < 2 && c.person < 1.5) continue      // единичное упоминание без признаков персонажа
-            out += Entity(kind, name, c.stem, total, c.descr, c.firstChapter)
+            // Персонаж «живёт» в той главе, где о нём говорится больше всего: писарь, упомянутый в первой главе, ждёт героя в шестой.
+            val home = if (kind == "person") perChapter.entries.filter { (it.value[c.stem] ?: 0) > 0 }.sortedBy { it.key }.maxByOrNull { it.value[c.stem]!! }?.key ?: c.firstChapter else c.firstChapter
+            out += Entity(kind, name, c.stem, total, c.descr, home)
         }
         for (c in items.values.sortedByDescending { it.mid }.take(24)) {
             val name = c.forms.entries.maxByOrNull { it.value }!!.key
@@ -185,6 +207,9 @@ object EntityExtractor {
     private val LOCK = Regex("заперт|запечат|печать|под замком|на замке|на засов|замурован|наглухо закрыт")
     private val ADJ = Regex("(ый|ий|ой|ая|яя|ое|ее|ые|ие|ую|юю|ого|его|ому|ему|ых|их|ым|им)$")
     private val PAST_VERB = Regex("(л|ла|ло|ли|лся|лась|лись|ет|ит|ёт)$")
+
+    private val CASE_TAILS = setOf("", "а", "у", "е", "ы", "и", "я", "ю", "ой", "ей", "ом", "ем", "ою", "ью", "ь", "й", "ия", "ию", "ии", "ием", "ий")
+    private fun nameBase(form: String): String { val n = Text.norm(form); return if (n.last() in "аяйь") n.dropLast(1).let { if (it.endsWith("и")) it.dropLast(1) else it } else n }
 
     private fun nominativeRank(form: String): Int {
         val last = Text.norm(form).last()

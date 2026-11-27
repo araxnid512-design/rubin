@@ -445,7 +445,20 @@ class GameOrchestrator(private val books: BookRepository, private val saves: Sav
 
     private fun populate(s: GameState): GameState {
         val stems = books.search(s.bookId, s.location, 4).flatMap { Text.stems(it.text) }.toSet()
-        return s.copy(characters = s.characters.map { if (it.alive && it.canon && it.lastSeen.isEmpty() && Text.stems(it.name).any { st -> st in stems }) it.copy(lastSeen = s.location) else it })
+        // В книге-игре персонаж выходит на сцену не раньше своей главы.
+        // И ждёт героя в месте из своей главы (в том, что названо рядом с ним, иначе в первом месте главы).
+        val later = if (s.gamebook == null) emptySet() else {
+            val all = books.entities(s.bookId)
+            val here = Text.stemKey(s.location)
+            all.filter { it.kind == "person" }.filter { p ->
+                if (p.firstChapter > s.stage) return@filter true
+                val spots = all.filter { it.kind in GamebookEngine.PLACE_KINDS && it.firstChapter == p.firstChapter }.map { it.name }.distinctBy { Text.stemKey(it) }
+                if (spots.isEmpty()) return@filter false
+                val home = spots.firstOrNull { Text.stems(it).all { st -> st in Text.stems(p.descr) } } ?: spots.first()
+                Text.stemKey(home) != here
+            }.map { it.name }.toSet()
+        }
+        return s.copy(characters = s.characters.map { if (it.alive && it.canon && it.lastSeen.isEmpty() && it.name !in later && Text.stems(it.name).any { st -> st in stems }) it.copy(lastSeen = s.location) else it })
     }
 
     companion object {

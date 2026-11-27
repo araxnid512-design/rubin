@@ -53,11 +53,13 @@ object GamebookEngine {
         val gb = state.gamebook!!
         // Кто ждёт в каком месте, зависит только от места — так страницы квеста одинаковы для любого пути.
         val seed = Text.stemKey(place).sumOf { it.code }
-        if (seed % 3 == 0) return null                       // в трети новых мест спокойно
+        // В маленькой книге спокойна треть новых мест, в большой — две трети: иначе до финала не дойти.
+        val many = books.entities(state.bookId).count { it.kind in PLACE_KINDS } > 8
+        if (seed % 3 == 0 || many && seed % 3 == 2) return null
         val pool = threats(books, state.bookId, (books.indexedChapterCount(state.bookId) - 1).coerceAtLeast(0)).ifEmpty { FALLBACK }
         val e = pool[seed % pool.size]
         // Чем дальше по сюжету, тем противники крепче.
-        return Triple(e.first, (e.second + state.stage / 2).coerceAtMost(11), e.third + state.stage + gb.kills / 3)
+        return Triple(e.first, (e.second + state.stage / 3).coerceAtMost(10), e.third + state.stage / 2 + gb.kills / 3)
     }
 
     /** Варианты выбора для текущего положения. */
@@ -110,7 +112,13 @@ object GamebookEngine {
                 action = "расспросить ${Morph.accusative(npc.name, true)} о том, что здесь происходит"
                 // Разговор двигает сюжет: на каждом этапе собеседник даёт одну зацепку из книги.
                 val key = talkKey(npc.name, s)
-                if (key !in gb.talked) {
+                // Персонаж знает свою главу и следующую. О дальнейшем он заговорит, только когда все открытые места уже пройдены.
+                val home = books.entities(s.bookId, "person").firstOrNull { it.name == npc.name }?.firstChapter ?: 0
+                val explored = s.knownLocations.all { p -> s.lockedLocations.any { Text.stemKey(it) == Text.stemKey(p) } || gb.visited.any { Text.stemKey(it) == Text.stemKey(p) } }
+                if (key !in gb.talked && home < s.stage - 1 && !explored) {
+                    gb = gb.copy(talked = (gb.talked + key).takeLast(120))
+                    important += "${npc.name} не знает, что случилось дальше: новые сведения придётся искать в других местах."
+                } else if (key !in gb.talked) {
                     gb = gb.copy(talked = (gb.talked + key).takeLast(120))
                     s = s.copy(characters = s.characters.map { if (it.id == npc.id) it.copy(relation = (it.relation + 1).coerceAtMost(10)) else it })
                     val b = director(s, "talk:${npc.name}"); s = b.state.copy(gamebook = s.gamebook); beat = b.text
@@ -148,7 +156,11 @@ object GamebookEngine {
                         gb = gb.copy(combat = Combat(enemy.first, enemy.second, enemy.third, 0, from))
                         note += "Враг: ${enemy.first} (Ловкость ${enemy.second}, Сила ${enemy.third}). Бой!"
                         important += "Здесь на вас нападает ${enemy.first}. Начинается бой, он ещё не окончен."
-                    } else { journal("новое место: $target") }
+                    } else {
+                        journal("новое место: $target")
+                        // Новое место само рассказывает часть истории.
+                        if (first) { val b = director(s.copy(gamebook = gb), "place:$target"); s = b.state.copy(gamebook = s.gamebook); beat = b.text }
+                    }
                 }
             }
             "strike", "luckstrike" -> {

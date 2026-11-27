@@ -4,6 +4,8 @@ import ru.livebook.core.game.GamebookEngine
 import ru.livebook.core.model.Combat
 import ru.livebook.core.model.GameState
 import ru.livebook.core.model.Item
+import java.io.File
+import ru.livebook.core.importer.BookImporter
 import kotlin.random.Random
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -249,5 +251,37 @@ class QuestPagesTest {
         var n = 0
         w.game.prepareQuest(book, "Арсений", "странник", "canon", true, isCancelled = { n >= 5 }) { p, _ -> n = p }
         assertTrue(w.books.pageCount(book) in 5..7)
+    }
+}
+
+class CastleBookTest {
+    @Test fun secondSampleBookBecomesAQuest() = World().use { w ->
+        val file = listOf(File("../sample/zamok_voronya_skala.txt"), File("sample/zamok_voronya_skala.txt")).first { it.exists() }
+        val book = w.books.addBook(BookImporter.import(file.name, file.readBytes())); w.books.indexBook(book)
+        for (k in listOf("person", "place", "site", "lock", "item", "faction")) println("ЗАМОК $k: " + w.books.entities(book, k).joinToString { it.name })
+        val pages = w.game.prepareQuest(book, "Радим", "следопыт", "canon", true)
+        println("ЗАМОК: страниц $pages")
+        var wins = 0; var shown = false
+        for (seed in 1..8) {
+            val g = w.game.newGame(book, "Радим", "следопыт", "canon", true, gamebook = true, rng = Random(seed))
+            var total = 0; var ready = 0; var choice = "start"; val path = ArrayList<String>(); val rng = Random(seed * 31)
+            while (total < 120) {
+                val before = w.saves.state(g)!!
+                path += before.gamebook!!.choices.firstOrNull { it.id == choice }?.label ?: "Начало"
+                val r = w.game.gamebookTurn(g, choice, rng = rng); total++; if (r.cached) ready++
+                val gb = r.state.gamebook!!; if (gb.dead || gb.won) break
+                val cs = gb.choices; val hp = r.state.hero.hp
+                // Осторожный игрок: при малой Силе ест, бежит из боя и не лезет в ловушки.
+                choice = (cs.firstOrNull { it.kind == "flee" && hp <= 6 } ?: cs.firstOrNull { it.kind == "strike" } ?: cs.firstOrNull { it.kind == "eat" } ?: cs.firstOrNull { it.kind == "talk" && it.label.startsWith("Расспросить") }
+                    ?: cs.firstOrNull { it.kind == "search" && hp > 8 } ?: cs.firstOrNull { it.label.startsWith("Открыть ключом") } ?: cs.firstOrNull { it.kind == "go" && !it.label.contains("заперто") && it.target !in gb.visited }
+                    ?: cs.firstOrNull { it.kind == "search" } ?: cs.first()).id
+            }
+            val gb = w.saves.state(g)!!.gamebook!!
+            println("ЗАМОК партия $seed: ходов $total, готовых страниц $ready, победа ${gb.won}, гибель ${gb.dead}")
+            assertTrue(gb.won || gb.dead, "партия $seed не закончилась за $total ходов")
+            if (gb.won) { wins++; if (!shown) { shown = true; println("ЗАМОК ПУТЬ: " + path.joinToString(" → ")) } }
+        }
+        assertTrue(wins >= 2, "побед $wins из 8")
+        assertTrue(pages >= 30, "страниц $pages")
     }
 }

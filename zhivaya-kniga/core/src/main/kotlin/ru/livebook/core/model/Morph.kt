@@ -19,6 +19,9 @@ object Morph {
         "трюм" to 'm', "каюта" to 'f', "остров" to 'm', "бухта" to 'f', "маяк" to 'm', "крыша" to 'f', "переулок" to 'm', "квартал" to 'm',
         "горы" to 'p', "пустыня" to 'f', "степь" to 'f', "село" to 'n', "королевство" to 'n', "столица" to 'f', "академия" to 'f', "школа" to 'f',
         "корчма" to 'f', "форт" to 'm', "цитадель" to 'f', "граница" to 'f', "застава" to 'f', "караван" to 'm', "оазис" to 'm', "канал" to 'm',
+        "караульня" to 'f', "оружейная" to 'f', "усыпальница" to 'f', "гробница" to 'f', "склеп" to 'm', "кладовая" to 'f', "трапезная" to 'f',
+        "тоннель" to 'm', "туннель" to 'm', "бункер" to 'm', "отсек" to 'm', "рубка" to 'f', "шлюз" to 'm', "ангар" to 'm', "лаборатория" to 'f',
+        "галерея" to 'f', "святилище" to 'n', "катакомбы" to 'p', "логово" to 'n', "убежище" to 'n', "мостик" to 'm', "реактор" to 'm', "архив" to 'm',
         "спальня" to 'f', "коридор" to 'm', "лестница" to 'f', "балкон" to 'm', "сторожка" to 'f', "часовня" to 'f', "арена" to 'f', "чаща" to 'f',
     ).flatMap { (nom, g) ->
         val forms = listOf(nom) + when {
@@ -36,16 +39,25 @@ object Morph {
     private val PRONOUNS = listOf("сво", "мое", "мои", "моя", "мою", "твое", "твои", "твоя", "наш", "ваш", "эт", "то", "те", "та", "всяк", "кажд", "люб", "одн", "как", "так", "друг", "сам", "весь", "вс", "котор", "чуж", "ино")
     private val SOFT = setOf("ий", "яя", "ее", "ие", "его", "ему", "им", "ей", "юю", "их", "ими", "ем")
 
+    private val LOCK_ADJ = setOf("медн", "желе", "наве", "вися", "амба", "ржав", "двер", "тяже", "стал")
+
     fun placeNoun(word: String): Pair<String, Char>? = PLACES[Text.stem(word)]
 
-    fun isAdjective(word: String): Boolean = Text.norm(word).let { w -> w.length >= 5 && ADJ_ENDINGS.any { w.endsWith(it) } }
+    fun isAdjective(word: String): Boolean = Text.norm(word).let { w -> w.length >= 5 && w !in NOT_ADJ && ADJ_ENDINGS.any { w.endsWith(it) } }
+
+    /** Прилагательные с ударным окончанием: «сухой колодец», «пустой погреб», а не «сухий» и «пустый». */
+    private val STRESSED = setOf("сух", "пуст", "глух", "больш", "чуж", "лесн", "речн", "морск", "городск", "ночн", "золот", "молод", "прост", "крут", "густ", "свят", "слеп", "нем", "крив", "прям", "жив", "родн", "втор", "земн", "степн", "боев", "полев", "зл", "худ", "дорог", "друг", "сед", "лих", "дурн", "больн", "смешн", "цветн", "запасн", "потайн", "сторожев", "жил", "грузов", "передов", "круг")
+    /** Наречия и союзы, похожие на прилагательные: «потом ворота закрылись» — не «Потые ворота». */
+    private val NOT_ADJ = setOf("потом", "затем", "кругом", "совсем", "тайком", "бегом", "притом", "причем", "зачем", "почему", "потому", "поэтому", "верхом", "рядом", "порой", "домой", "долой", "такой", "какой", "самой", "самый", "этой", "одной", "своей", "перед", "затем")
 
     fun adjNominative(adj: String, gender: Char): String {
         val w = adj.lowercase()
+        if (gender == 'm' && Text.norm(w).endsWith("ой")) return w
         val end = ADJ_ENDINGS.firstOrNull { Text.norm(w).endsWith(it) && w.length - it.length >= 3 } ?: return w
         val stem = w.dropLast(end.length)
         val velar = stem.last() in "гкхжшщч"
         val soft = end in SOFT && !velar
+        if (gender == 'm' && Text.norm(stem) in STRESSED) return stem + "ой"
         return stem + when (gender) {
             'f' -> if (soft) "яя" else "ая"
             'n' -> if (soft || stem.last() in "жшщч") "ее" else "ое"
@@ -69,6 +81,8 @@ object Morph {
         val out = ArrayList<String>()
         for (i in words.indices) {
             if (placeNoun(words[i]) == null) continue
+            // «заперта на медный замок», «под замком» — это запор, а не крепость.
+            if (Text.stem(words[i]) in setOf("замок", "замк") && (words.getOrNull(i - 1)?.let { Text.norm(it).take(4) in LOCK_ADJ || Text.norm(it) in setOf("на", "под") } == true || Text.norm(words.getOrNull(i - 2) ?: "") in setOf("на", "под"))) continue
             val adj = words.getOrNull(i - 1)?.takeIf { isAdjective(it) && !Text.norm(it).endsWith("ем") && PRONOUNS.none { p -> Text.norm(it).startsWith(p) } }
             (if (adj != null) placeNominative("$adj ${words[i]}") else null ?: placeNominative(words[i]))?.let { if (it !in out) out += it }
         }

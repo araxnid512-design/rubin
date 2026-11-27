@@ -67,17 +67,20 @@ class GamebookLlmIT {
         val llm = LlamaLlm(path, 2048, 4); llm.configureThreads(4, false)
         val db = Db(":memory:"); val books = BookRepository(db); val saves = SaveRepository(db)
         val game = GameOrchestrator(books, saves) { llm }
-        val bookId = books.addBook(BookImporter.import("vorota_mha.txt", Fixtures.sampleBytes)); books.indexBook(bookId)
+        // Книгу и героя можно задать снаружи: LIVEBOOK_BOOK=<файл>, LIVEBOOK_HERO=<имя>, LIVEBOOK_ROLE=<роль>.
+        val bookFile = System.getenv("LIVEBOOK_BOOK")?.let { File(it) }?.takeIf { it.exists() } ?: Fixtures.sampleFile
+        val hero = System.getenv("LIVEBOOK_HERO") ?: "Арсений"; val role = System.getenv("LIVEBOOK_ROLE") ?: "странник"
+        val bookId = books.addBook(BookImporter.import(bookFile.name, bookFile.readBytes())); books.indexBook(bookId)
         val t0 = System.nanoTime()
-        val created = game.prepareQuest(bookId, "Арсений", "странник", "canon", true, GameSettings(seed = 3))
+        val created = game.prepareQuest(bookId, hero, role, "canon", true, GameSettings(seed = 3))
         val prepMs = (System.nanoTime() - t0) / 1e6
         val pages = books.pageCount(bookId)
-        val g = game.newGame(bookId, "Арсений", "странник", "canon", true, gamebook = true, rng = Random(5))
-        val sb = StringBuilder("# Квест, подготовленный заранее (${llm.meta("general.name")}, настольная машина)\n\n")
+        val g = game.newGame(bookId, hero, role, "canon", true, gamebook = true, rng = Random(5))
+        val sb = StringBuilder("# Квест, подготовленный заранее: «${books.books().first { it.id == bookId }.title}» (${llm.meta("general.name")}, настольная машина)\n\n")
         sb.append("- Подготовка: написано страниц $pages за ${(prepMs / 1000).toInt()} с (в среднем ${(prepMs / pages.coerceAtLeast(1)).toInt()} мс на страницу)\n")
         var ready = 0; var total = 0; var choice = "start"; var slow = 0.0; var fast = 0.0; val rng = Random(11)
         val log = StringBuilder()
-        while (total < 40) {
+        while (total < 120) {
             val before = saves.state(g)!!.gamebook!!
             val label = before.choices.firstOrNull { it.id == choice }?.label ?: "Начало"
             val t = System.nanoTime(); val r = game.gamebookTurn(g, choice, GameSettings(seed = 3), rng = rng); val ms = (System.nanoTime() - t) / 1e6
@@ -85,7 +88,7 @@ class GamebookLlmIT {
             log.append("**Страница ${r.page}. $label** ${if (r.cached) "(готовая, ${ms.toInt()} мс)" else "(дописана по ходу, ${ms.toInt()} мс)"}\n\n${r.narrative}\n\n_${r.notes.firstOrNull().orEmpty()}_\n\n")
             val gb = r.state.gamebook!!; if (gb.dead || gb.won) break
             val cs = gb.choices
-            choice = (cs.firstOrNull { it.kind == "strike" } ?: cs.firstOrNull { it.kind == "eat" } ?: cs.firstOrNull { it.kind == "talk" && it.label.startsWith("Расспросить") } ?: cs.firstOrNull { it.kind == "search" }
+            choice = (cs.firstOrNull { it.kind == "flee" && r.state.hero.hp <= 6 } ?: cs.firstOrNull { it.kind == "strike" } ?: cs.firstOrNull { it.kind == "eat" } ?: cs.firstOrNull { it.kind == "talk" && it.label.startsWith("Расспросить") } ?: cs.firstOrNull { it.kind == "search" }
                 ?: cs.firstOrNull { it.label.startsWith("Открыть ключом") } ?: cs.firstOrNull { it.kind == "go" && !it.label.contains("заперто") && it.target !in gb.visited } ?: cs.first()).id
         }
         val gb = saves.state(g)!!.gamebook!!
