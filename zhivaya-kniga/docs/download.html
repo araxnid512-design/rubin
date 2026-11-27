@@ -20,6 +20,7 @@ p { margin: 0; } .dim { color: var(--dim); } .lead { font-size: 1.05rem; max-wid
 .note { border-left: 3px solid var(--warn); padding: 4px 0 4px 14px; color: var(--ink); }
 ol.steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 14px; counter-reset: s; }
 ol.steps > li { counter-increment: s; background: var(--sheet); border: 1px solid var(--rule); border-radius: 6px; padding: 18px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+section.one { background: var(--sheet); border: 2px solid var(--amber); border-radius: 6px; padding: 18px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
 ol.steps > li > h2::before { content: counter(s) ". "; color: var(--amber); }
 .dl { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; }
 a.btn { display: inline-block; background: var(--amber); color: var(--amber-ink); text-decoration: none; font-weight: 600; padding: 11px 18px; border-radius: 4px; }
@@ -39,6 +40,24 @@ footer { border-top: 1px solid var(--rule); padding-top: 14px; font-size: .9rem;
     <p class="note">Версия 1.1. Приложение проверено в эмуляторе Android 14, но на настоящем телефоне ещё не запускалось — скорость и звучание голоса на вашем устройстве могут отличаться.</p>
   </header>
 
+  <section class="one">
+    <h2>Всё одним файлом</h2>
+    <p>Приложение, модель Qwen3-1.7B и голос «Дмитрий» в одном APK. Установили — и можно играть, больше ничего скачивать не нужно.</p>
+    <div class="dl">
+      <a class="btn" href="https://github.com/araxnid512-design/rubin/raw/ccr-abdf4b07-key8n6/zhivaya-kniga/dist/zhivaya-kniga-full.apk">Скачать всё сразу</a>
+      <span class="size">zhivaya-kniga-full.apk · 1,22 ГБ</span>
+    </div>
+    <ul class="plain">
+      <li>Качайте по Wi-Fi. На телефоне нужно около 2,6 ГБ свободного места.</li>
+      <li>При первом запуске приложение минуту-две распаковывает голос и модель, затем замеряет скорость. Дождитесь окончания.</li>
+      <li>Число скачиваний этого файла ограничено квотой GitHub. Если ссылка перестала работать, возьмите файлы по отдельности ниже.</li>
+    </ul>
+    <p class="sum">SHA-256: 8738df6abcc2ad74420978dece633a5fd42783f0138e753e15329e013a85d743</p>
+  </section>
+
+  <h2>Или по частям</h2>
+  <p class="dim">Маленькое приложение и отдельные файлы — если мало места, медленный интернет или нужна быстрая модель 0.6B.</p>
+
   <ol class="steps">
     <li>
       <h2>Приложение</h2>
@@ -47,7 +66,7 @@ footer { border-top: 1px solid var(--rule); padding-top: 14px; font-size: .9rem;
         <span class="size">zhivaya-kniga-debug.apk · 49 МБ</span>
       </div>
       <p>Откройте скачанный файл на телефоне и разрешите установку из этого источника. Нужен Android 8 или новее и 64-битный процессор.</p>
-      <p class="sum">SHA-256: 580819f11e9067ac702ae30998aa013b8e9f45c03568190903efecb41ff4226b</p>
+      <p class="sum">SHA-256: 0830e2641693a7f58205682de97f1b111a8b508d8990e539cf87a741980c1994</p>
     </li>
 
     <li>

@@ -32,12 +32,23 @@ class BuiltinVoice(private val context: Context) {
     fun name(): String = runCatching { Regex("\"name\"\\s*:\\s*\"([^\"]+)\"").find(File(dir, "voice.json").readText())?.groupValues?.get(1) }.getOrNull() ?: "Встроенный"
 
     /** Установка пакета голоса: распаковка во временную папку, проверка состава, замена старого голоса. */
-    fun install(uri: Uri, onProgress: (Long) -> Unit = {}): String {
+    fun install(uri: Uri, onProgress: (Long) -> Unit = {}): String =
+        install(context.contentResolver.openInputStream(uri) ?: throw IllegalStateException("Не удалось открыть файл."), onProgress)
+
+    /** Сборка «всё в одном файле»: голос лежит в APK (assets/voice.zip) и ставится при первом запуске. */
+    fun installFromAssetsIfBundled(onProgress: (Long) -> Unit = {}): Boolean {
+        if (installed()) return false
+        val names = runCatching { context.assets.list("") }.getOrNull() ?: return false
+        if ("voice.zip" !in names) return false
+        install(context.assets.open("voice.zip"), onProgress)
+        return true
+    }
+
+    fun install(input: java.io.InputStream, onProgress: (Long) -> Unit = {}): String {
         val tmp = File(context.filesDir, "voice.tmp")
         tmp.deleteRecursively(); tmp.mkdirs()
         try {
             var total = 0L
-            val input = context.contentResolver.openInputStream(uri) ?: throw IllegalStateException("Не удалось открыть файл.")
             ZipInputStream(input.buffered()).use { z ->
                 while (true) {
                     val e = z.nextEntry ?: break

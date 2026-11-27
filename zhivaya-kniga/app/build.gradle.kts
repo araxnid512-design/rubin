@@ -39,7 +39,9 @@ android {
     kotlinOptions { jvmTarget = "17" }
     buildFeatures { compose = true }
     // Если положить модель в app/src/main/assets/model.gguf, она попадёт в APK без сжатия и установится при первом запуске.
-    androidResources { noCompress += "gguf" }
+    androidResources { noCompress += listOf("gguf", "zip") }
+    // Сборка «всё в одном файле»: ./gradlew :app:assembleDebug -PbundleDir=/папка, где лежат model.gguf и voice.zip
+    (project.findProperty("bundleDir") as String?)?.let { dir -> sourceSets["main"].assets.srcDir(dir) }
     packaging { jniLibs { excludes += setOf("**/libsherpa-onnx-c-api.so", "**/libsherpa-onnx-cxx-api.so") }; resources { excludes += setOf("META-INF/{AL2.0,LGPL2.1}", "META-INF/*.kotlin_module", "META-INF/DEPENDENCIES") } }
     testOptions { unitTests.isReturnDefaultValues = true }
 }

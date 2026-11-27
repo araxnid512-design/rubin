@@ -82,9 +82,15 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         refreshModel()
         c.narrator.start()
         viewModelScope.launch(Dispatchers.IO) {
-            // Сборка с моделью внутри APK: установка при первом запуске.
+            // Сборка «всё в одном файле»: модель и голос лежат внутри APK и ставятся при первом запуске.
+            if (!c.narrator.builtin.installed()) {
+                val ok = runCatching { c.narrator.builtin.installFromAssetsIfBundled { done -> _ui.update { it.copy(model = it.model.copy(busy = true, label = "Первый запуск: распаковка голоса, ${done / 1048576} МБ")) } } }.getOrDefault(false)
+                if (ok) { c.narrator.preferBuiltin = true; c.narrator.publish() }
+                _ui.update { it.copy(model = it.model.copy(busy = false)) }
+            }
             if (!c.llm.installed()) {
-                val ok = runCatching { c.llm.installFromAssetsIfBundled { done, _ -> _ui.update { it.copy(model = it.model.copy(busy = true, label = "Распаковка модели: ${done / 1048576} МБ")) } } }.getOrDefault(false)
+                val ok = runCatching { c.llm.installFromAssetsIfBundled { done, _ -> _ui.update { it.copy(model = it.model.copy(busy = true, label = "Первый запуск: распаковка модели, ${done / 1048576} МБ")) } } }.getOrDefault(false)
+                if (ok) runCatching { c.prefs.edit().putString("model_sha", GgufInspector.sha256(c.llm.file)).apply() }
                 refreshModel()
                 if (ok) runBenchmark(auto = true)
             }
