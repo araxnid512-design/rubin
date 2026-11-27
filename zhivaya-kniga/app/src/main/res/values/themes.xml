@@ -1,0 +1,9 @@
+<resources>
+    <style name="Theme.LiveBook" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/ink</item>
+        <item name="android:statusBarColor">@color/ink</item>
+        <item name="android:navigationBarColor">@color/ink</item>
+    </style>
+    <color name="ink">#17140F</color>
+    <color name="paper">#E9DFC8</color>
+</resources>

@@ -1,0 +1,9 @@
+.gradle/
+build/
+**/build/
+local.properties
+app/.cxx/
+*.iml
+.idea/
+.kotlin/
+app/src/main/assets/model.gguf
