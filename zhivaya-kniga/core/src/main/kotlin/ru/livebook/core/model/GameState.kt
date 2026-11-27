@@ -57,9 +57,16 @@ data class GameState(
     @SerialName("turn_history_compact") val history: List<TurnBrief> = emptyList(),
     /** Последние подсказки-действия. */
     val suggestions: List<String> = emptyList(),
+    /** Сводка сюжета: короткие записи о том, что уже произошло. */
+    val summary: List<String> = emptyList(),
+    @SerialName("summary_tick") val summaryTick: Int = 0,
+    /** До какой главы книги дошёл сюжет и какие зацепки из неё уже использованы. */
+    val stage: Int = 0,
+    @SerialName("used_clues") val usedClues: List<Long> = emptyList(),
 ) {
     fun toJson(): String = JSON.encodeToString(serializer(), this)
     fun hasItem(name: String): Boolean = findItem(name) != null
+    fun hasItemExact(name: String): Boolean = inventory.any { Text.stemKey(it.name) == Text.stemKey(name) }
     fun findItem(name: String): Item? {
         val key = Text.stemKey(name)
         return inventory.firstOrNull { Text.stemKey(it.name) == key }

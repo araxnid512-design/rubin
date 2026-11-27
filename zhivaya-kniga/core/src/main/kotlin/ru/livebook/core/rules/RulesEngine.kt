@@ -3,6 +3,7 @@ package ru.livebook.core.rules
 import kotlinx.serialization.Serializable
 import ru.livebook.core.model.GameState
 import ru.livebook.core.model.Item
+import ru.livebook.core.model.Morph
 import ru.livebook.core.model.Npc
 import ru.livebook.core.model.Quest
 import ru.livebook.core.model.Text
@@ -75,6 +76,7 @@ object RulesEngine {
         }
         Regex("(?<![а-яё])(обещаю|клянусь|берусь|обязуюсь|даю слово)\\s+(.{6,80})", RegexOption.IGNORE_CASE).find(action)?.let { m ->
             var t = m.groupValues[2].trim().trim('.', '!', ',', ' ')
+            t = t.replace(Regex("^[А-ЯЁ][а-яё]+\\s+"), "")   // «обещаю Мире найти…» — имя адресата в задание не идёт
             t = t.replace(Regex("^(ей|ему|им|тебе|вам|что|,)\\s+", RegexOption.IGNORE_CASE), "").replace(Regex("^(ей|ему|им|что)\\s+", RegexOption.IGNORE_CASE), "")
             t = t.split(Regex("[,;.!?]| и затем | а потом ")).first().trim()
             if (t.length >= 5) out += GameEvent(GameEvent.QUEST_ADD, t.take(60))
@@ -111,7 +113,7 @@ object RulesEngine {
                     if (itemsAdded >= 1) { no("не больше одного нового предмета за ход"); continue }
                     if (s.inventory.size >= MAX_ITEMS) { no("инвентарь полон"); continue }
                     // Взять можно то, что игрок сам назвал; найти при поиске — только то, что есть в книге для этой сцены.
-                    val named = hasAny(action, TAKE) && Text.mentions(action, e.name)
+                    val named = hasAny(action, TAKE) && Text.mentions(action, e.name) && (Text.mentions(lore, e.name) || Text.mentions(narrative, e.name) || lore.isEmpty())
                     val found = hasAny(action, SEARCH) && Text.mentions(narrative, e.name) && Text.mentions(lore, e.name)
                     if (!named && !found) { no(if (hasAny(action, TAKE + SEARCH)) "такого предмета нет ни в действии героя, ни в книге для этой сцены" else "герой не пытался ничего взять"); continue }
                     val have = s.findItem(e.name)
@@ -155,8 +157,9 @@ object RulesEngine {
                     val target = known ?: e.name.replaceFirstChar { it.uppercase() }
                     val locked = s.lockedLocations.firstOrNull { Text.stemKey(it) == Text.stemKey(target) }
                     if (locked != null) {
+                        // Есть ключ — герой им пользуется сам, называть его в действии не обязательно.
                         val key = s.inventory.firstOrNull { Text.mentions(it.name, "ключ") || Text.mentions(it.name, "отмычка") }
-                        if (key == null || !Text.mentions(action, key.name)) { no("путь заперт: нужен ключ"); notes += "Путь в «$locked» заперт."; continue }
+                        if (key == null) { no("путь заперт: нужен ключ"); notes += "Путь в «$locked» заперт."; continue }
                         s = s.copy(lockedLocations = s.lockedLocations - locked); notes += "«${key.name}» открывает путь."
                     }
                     s = s.copy(location = target, knownLocations = if (known == null) s.knownLocations + target else s.knownLocations)
@@ -227,6 +230,77 @@ object RulesEngine {
         }
         return ApplyResult(s, applied, rejected, notes)
     }
+
+    val REFUSAL = listOf("не наход", "ничего нет", "пусто", "не удаётся", "не удается", "не получа", "отказыва", "не даёт", "не дает", "не отда", "не можешь", "нельзя", "не позвол", "отдёргива", "прячет", "не берёт", "не берет", "не продаст", "не продаёт")
+    val GIVES = listOf("даёт", "дает", "протягива", "отсчитыва", "вручает", "платит", "бросает тебе", "высыпа", "получаешь", "выигрыва", "находишь", "подбираешь", "кладёт", "кладет", "суёт", "сует", "возвраща")
+
+    /**
+     * Выводит изменения мира из слов игрока и текста сцены. Модель событий не пишет — она только рассказывает;
+     * всё, что здесь предложено, затем ещё раз проверяет [apply].
+     */
+    fun infer(state: GameState, action: String, narrative: String, lore: String, itemLexicon: Set<String>, recent: String = "", bookItems: List<String> = emptyList()): List<GameEvent> {
+        val out = ArrayList<GameEvent>()
+        out += intentEvents(state, action)
+        val refused = hasAny(narrative, REFUSAL)
+        // Отдал или потратил вещь, которая у него есть.
+        if (hasAny(action, GIVE)) state.inventory.firstOrNull { Text.mentions(action, it.name) && lastStemIn(it.name, action) }?.let { out += GameEvent(GameEvent.ITEM_REMOVE, it.name) }
+        // Заплатил: названная сумма или одна монета.
+        if (pays(action) && state.hero.gold > 0 && !refused) {
+            val n = namedCoins(action) ?: 1
+            if (n in 1..state.hero.gold) out += GameEvent(GameEvent.GOLD, delta = -n)
+        }
+        // Получил деньги: только если в сцене ему их действительно дают.
+        if (earns(action) && hasAny(narrative, COIN_WORDS) && hasAny(narrative, GIVES) && !refused) out += GameEvent(GameEvent.GOLD, delta = (namedCoins(narrative) ?: 1).coerceIn(1, 5))
+        // Взял названную вещь или нашёл при поиске вещь из книги.
+        if (!refused) {
+            // Взять можно только то, что есть в сцене: о вещи говорит книга или рассказчик. Попросить — если в сцене её дают.
+            val asking = hasAny(action, listOf("прош", "попрош", "выпраш", "одолж", "куп", "покуп", "меняю", "обмен", "вымен"))
+            val wanted = (if (hasAny(action, TAKE)) itemPhrase(action, itemLexicon) else null)?.takeIf { it0 ->
+                val owned = state.findItem(it0) != null && !hasAny(action, listOf("ещё", "еще", "втор"))
+                val here = loreHasPhrase(lore, it0) || Text.mentions(narrative, it0) || Text.mentions(recent, it0)
+                !owned && here && (!asking || (Text.mentions(narrative, it0) && hasAny(narrative, GIVES)))
+            }
+            if (wanted != null) out += GameEvent(GameEvent.ITEM_ADD, wanted)
+            else if (hasAny(action, SEARCH)) {
+                // Найти можно только предмет, который назван в книге, есть в лоре этой сцены и появился в рассказе.
+                val found = (bookItems.ifEmpty { itemPhrases(narrative, itemLexicon) }).filter { loreHasPhrase(lore, it) && loreHasPhrase(narrative, it) && state.findItem(it) == null }
+                (found.firstOrNull { ' ' in it } ?: found.firstOrNull { Text.stem(it) !in GENERIC })?.let { out += GameEvent(GameEvent.ITEM_ADD, it) }
+            }
+        }
+        // Рана и отдых.
+        if (hasAny(action, RISK) && hasAny(narrative, HURT_WORDS)) out += GameEvent(GameEvent.HP, delta = if (hasAny(narrative, listOf("сильн", "тяжел", "тяжёл", "кровь", "хруст"))) -2 else -1)
+        else if (hasAny(action, REST) && hasAny("$action $narrative", HEAL_WORDS) && state.hero.hp < state.hero.maxHp) out += GameEvent(GameEvent.HP, delta = 2)
+        // Гибель того, на кого напал герой.
+        if (hasAny(action, KILL) && hasAny(narrative, DEATH_WORDS)) state.nearbyNpcs().firstOrNull { Text.mentions(action, it.name) && Text.mentions(narrative, it.name) }?.let { out += GameEvent(GameEvent.DEAD, it.name) }
+        // Позвал известного персонажа — и он появился в сцене.
+        if (hasAny(action, listOf("зову", "позов", "окли", "кричу", "стуч", "ищу"))) {
+            state.characters.firstOrNull { it.alive && it !in state.nearbyNpcs() && Text.mentions(action, it.name) && Text.mentions(narrative, it.name) }?.let { out += GameEvent(GameEvent.MEET, it.name) }
+        }
+        return out
+    }
+
+    private fun lastStemIn(name: String, text: String): Boolean = Text.stems(name).lastOrNull { it.length >= 3 }?.let { it in Text.stems(text) } == true
+
+    private val GENERIC = setOf("камен", "камн", "трав", "хлеб", "книг")
+    private fun loreHasPhrase(lore: String, phrase: String): Boolean { val ls = Text.stems(lore).toSet(); return Text.stems(phrase).all { it in ls } }
+
+    /** Первая «вещь» в тексте: существительное из словаря предметов с необязательным прилагательным («ржавый ключ»). */
+    fun itemPhrase(text: String, lexicon: Set<String>): String? = itemPhrases(text, lexicon).firstOrNull()
+
+    fun itemPhrases(text: String, lexicon: Set<String>): List<String> {
+        val words = text.split(Regex("[^А-Яа-яЁё-]+")).filter { it.isNotEmpty() }
+        val out = ArrayList<String>()
+        for ((i, w) in words.withIndex()) {
+            val st = Text.stem(w)
+            if (st !in lexicon || st.startsWith("монет")) continue
+            val adj = words.getOrNull(i - 1)?.takeIf { it.length >= 5 && Regex("(ый|ий|ой|ая|яя|ое|ее|ые|ие|ую|юю|ого|его)$").containsMatchIn(it.lowercase()) && Text.stem(it) !in lexicon }
+            out += listOfNotNull(adj?.let { Morph.adjNominative(it, guessGender(w)) }, nounNominative(w)).joinToString(" ").lowercase()
+        }
+        return out
+    }
+
+    private fun guessGender(noun: String): Char = noun.lowercase().let { if (it.endsWith("а") || it.endsWith("я") || it.endsWith("у") || it.endsWith("ю") || it.endsWith("ой") || it.endsWith("ей")) 'f' else if (it.endsWith("о") || it.endsWith("е")) 'n' else 'm' }
+    private fun nounNominative(noun: String): String = noun.lowercase().let { when { it.endsWith("у") -> it.dropLast(1) + "а"; it.endsWith("ю") -> it.dropLast(1) + "я"; it.endsWith("ой") && it.length > 4 -> it.dropLast(2) + "а"; it.endsWith("ом") && it.length > 4 -> it.dropLast(2); else -> it } }
 
     /**
      * Проверка действия до генерации: чего у героя точно нет. Результат идёт в промпт как ограничение,

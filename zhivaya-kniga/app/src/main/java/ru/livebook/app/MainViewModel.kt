@@ -44,7 +44,7 @@ data class GameUi(
     val id: String, val title: String, val state: GameState, val feed: List<FeedItem> = emptyList(), val streaming: String = "", val status: String = "",
     val busy: Boolean = false, val suggestions: List<String> = emptyList(), val slots: List<SlotInfo> = emptyList(), val canUndo: Boolean = false, val lastStats: String = "",
 )
-data class Prefs(val detail: Boolean = false, val economy: Boolean = false, val suggestions: Boolean = true, val threads: Int = 4, val fontScale: Float = 1f)
+data class Prefs(val detail: Boolean = false, val economy: Boolean = false, val suggestions: Boolean = true, val threads: Int = 4, val fontScale: Float = 1f, val bigOnly: Boolean = false)
 
 data class UiState(
     val screen: Screen = Screen.LIBRARY,
@@ -95,13 +95,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun loadPrefs() {
         val p = c.prefs
-        _ui.update { it.copy(prefs = Prefs(p.getBoolean("detail", false), p.getBoolean("economy", false), p.getBoolean("suggestions", true), p.getInt("threads", 4), p.getFloat("font", 1f))) }
+        _ui.update { it.copy(prefs = Prefs(p.getBoolean("detail", false), p.getBoolean("economy", false), p.getBoolean("suggestions", true), p.getInt("threads", 4), p.getFloat("font", 1f), p.getBoolean("big_only", false))) }
     }
 
     fun setPrefs(f: (Prefs) -> Prefs) {
         val n = f(_ui.value.prefs)
-        val threadsChanged = n.threads != _ui.value.prefs.threads
-        c.prefs.edit().putBoolean("detail", n.detail).putBoolean("economy", n.economy).putBoolean("suggestions", n.suggestions).putInt("threads", n.threads).putFloat("font", n.fontScale).apply()
+        val threadsChanged = n.threads != _ui.value.prefs.threads || n.bigOnly != _ui.value.prefs.bigOnly
+        c.prefs.edit().putBoolean("detail", n.detail).putBoolean("economy", n.economy).putBoolean("suggestions", n.suggestions).putInt("threads", n.threads).putFloat("font", n.fontScale).putBoolean("big_only", n.bigOnly).apply()
         _ui.update { it.copy(prefs = n) }
         if (threadsChanged) viewModelScope.launch(llmThread) { c.llm.unload() }
     }
@@ -148,18 +148,21 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         c.llm.busy = true
         try {
             val cores = Runtime.getRuntime().availableProcessors()
-            val options = if (auto) listOf(2, 4, 6).filter { it <= cores } else listOf(_ui.value.prefs.threads)
+            val big = runCatching { ru.livebook.core.llm.LlamaLlm.bigCoreCount() }.getOrDefault(0)
+            // Варианты: только быстрые ядра (если процессор их выделяет) и разное число потоков на всех ядрах.
+            val options = if (!auto) listOf(_ui.value.prefs.threads to _ui.value.prefs.bigOnly)
+                else (listOfNotNull(if (big in 2 until cores) big to true else null) + listOf(2, 4, 6).filter { it <= cores }.map { it to false }).distinct()
             var best: BenchResult? = null
-            for (th in options) {
-                _ui.update { it.copy(benchRunning = "Замер скорости: $th потока(ов)…") }
-                val r = c.bench.run(llm, th)
+            for ((th, bo) in options) {
+                _ui.update { it.copy(benchRunning = "Замер скорости: $th потока(ов)" + (if (bo) ", быстрые ядра" else "") + "…") }
+                val r = c.bench.run(llm, th, bo)
                 c.bench.save(r, "${Build.MANUFACTURER} ${Build.MODEL}", memoryMb(), if (auto) "авто" else "вручную")
-                if (best == null || r.tokPerSec > best.tokPerSec * 1.08) best = r
+                if (best == null || r.tokPerSec > best.tokPerSec * 1.05) best = r
             }
             best?.let { b ->
-                llm.setThreads(b.threads)
-                if (auto) setPrefs { it.copy(threads = b.threads, economy = b.estimateTurnSeconds() > 20.0) }
-                message("Скорость: ${"%.1f".format(b.tokPerSec)} токенов/с, ${b.threads} потока(ов). Короткий ход — примерно ${"%.0f".format(b.estimateTurnSeconds())} с." + if (auto && b.estimateTurnSeconds() > 20.0) " Это медленно, включён экономичный режим." else "")
+                llm.configureThreads(b.threads, b.bigOnly)
+                if (auto) { c.prefs.edit().putInt("threads", b.threads).putBoolean("big_only", b.bigOnly).putBoolean("economy", b.estimateTurnSeconds() > 20.0).apply(); loadPrefs() }
+                message("Скорость: ${"%.1f".format(b.tokPerSec)} токенов/с, ${b.threads} потока(ов)" + (if (b.bigOnly) " на быстрых ядрах" else "") + ". Короткий ход — примерно ${"%.0f".format(b.estimateTurnSeconds())} с." + if (auto && b.estimateTurnSeconds() > 20.0) " Это медленно, включён экономичный режим." else "")
             }
         } catch (t: Throwable) {
             message("Замер не удался: ${t.message}")
@@ -254,7 +257,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
         c.narrator.queue.clear()
         _ui.update { it.copy(screen = Screen.GAME, game = GameUi(id, info.title, state, feed, suggestions = state.suggestions, slots = c.saves.slots(id).filter { s -> s.slot > 0 }, canUndo = c.saves.slots(id).any { s -> s.slot == 0 })) }
-        if (opening) runTurn(id, null)
+        if (opening) runTurn(id, null) else between(id)
     }
 
     fun deleteGame(id: String) = viewModelScope.launch(Dispatchers.IO) { c.saves.deleteGame(id); refreshLibrary(); _ui.value.book?.let { openBook(it.id) } }
@@ -263,7 +266,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val g = _ui.value.game ?: return
         val action = text.trim()
         if (action.isEmpty() || g.busy) return
+        c.llm.cancel()   // прерываем фоновый прогрев, если он ещё идёт
         runTurn(g.id, action)
+    }
+
+    /** Пока игрок читает сцену: сводка сюжета (раз в шесть ходов) и прогрев начала следующего промпта. */
+    private fun between(gameId: String) {
+        if (!c.llm.installed()) return
+        viewModelScope.launch(llmThread) { runCatching { if (_ui.value.game?.id == gameId && !c.llm.busy) c.game.betweenTurns(gameId, settings()) } }
     }
 
     private fun runTurn(gameId: String, action: String?) {
@@ -293,9 +303,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             val stats = r.stats?.takeIf { r.kind == "llm" }?.let { "до первого слова ${"%.1f".format(it.ttftMs / 1000)} с · ${"%.1f".format(it.tokensPerSecond)} ток/с · весь ход ${"%.1f".format(it.totalMs / 1000)} с" }.orEmpty()
             val slots = c.saves.slots(gameId)
             _ui.update { s -> s.game?.takeIf { it.id == gameId }?.let { g ->
-                s.copy(game = g.copy(busy = false, streaming = "", status = "", state = r.state, feed = (g.feed + add).takeLast(160), suggestions = if (r.kind == "llm") r.suggestions else g.suggestions,
+                s.copy(game = g.copy(busy = false, streaming = "", status = "", state = r.state, feed = (g.feed + add).takeLast(160), suggestions = r.state.suggestions.ifEmpty { g.suggestions },
                     slots = slots.filter { it.slot > 0 }, canUndo = slots.any { it.slot == 0 }, lastStats = stats.ifEmpty { g.lastStats }))
             } ?: s }
+            if (r.kind == "llm") between(gameId)
         }
     }
 
@@ -318,6 +329,19 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         if (g.busy) return@launch
         if (c.saves.restoreSlot(g.id, slot) != null) { openGame(g.id); message("Загружен слот $slot.") }
     }
+
+    // ---------- встроенный голос ----------
+    fun installVoice(uri: Uri) = viewModelScope.launch(Dispatchers.IO) {
+        try {
+            message("Устанавливаю голос…")
+            val name = c.narrator.builtin.install(uri)
+            c.narrator.preferBuiltin = true
+            c.narrator.refresh(); c.narrator.publish()
+            message("Голос «$name» установлен. Он работает без интернета и без системного синтеза речи.")
+        } catch (t: Throwable) { c.narrator.publish(); message(t.message ?: "Не удалось установить голос.") }
+    }
+    fun removeVoice() = viewModelScope.launch(Dispatchers.IO) { c.narrator.builtin.remove(); c.narrator.publish(); c.narrator.refresh() }
+    fun useBuiltinVoice(on: Boolean) { c.narrator.preferBuiltin = on }
 
     // ---------- резервные копии ----------
     fun exportBackup(uri: Uri, includeBooks: Boolean) = viewModelScope.launch(Dispatchers.IO) {

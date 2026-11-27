@@ -17,6 +17,7 @@ int main(int argc, char **argv) {
     int n_ctx = argc > 6 ? atoi(argv[6]) : 2048;
     LbEngine *e = lb_load(argv[1], n_ctx, threads, err);
     if (!e) { fprintf(stderr, "load failed: %s\n", err.c_str()); return 1; }
+    if (getenv("LB_POOL")) printf("big cores: %d\n", lb_configure_threads(e, threads, getenv("LB_BIG") != nullptr));
     LbGenParams p;
     if (argc > 3 && std::string(argv[3]) != "-") p.grammar = slurp(argv[3]);
     if (argc > 4) p.max_tokens = atoi(argv[4]);

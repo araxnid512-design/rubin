@@ -14,8 +14,8 @@ android {
         // Android 8.0+: все такие устройства 64-битные в массе, есть нужные API хранения и TTS.
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 2
+        versionName = "1.1"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // Основная сборка — только arm64. Для проверки в эмуляторе: ./gradlew assembleDebug -PemulatorAbi
         ndk { abiFilters += if (project.hasProperty("emulatorAbi")) listOf("arm64-v8a", "x86_64") else listOf("arm64-v8a") }
@@ -40,7 +40,7 @@ android {
     buildFeatures { compose = true }
     // Если положить модель в app/src/main/assets/model.gguf, она попадёт в APK без сжатия и установится при первом запуске.
     androidResources { noCompress += "gguf" }
-    packaging { resources { excludes += setOf("META-INF/{AL2.0,LGPL2.1}", "META-INF/*.kotlin_module", "META-INF/DEPENDENCIES") } }
+    packaging { jniLibs { excludes += setOf("**/libsherpa-onnx-c-api.so", "**/libsherpa-onnx-cxx-api.so") }; resources { excludes += setOf("META-INF/{AL2.0,LGPL2.1}", "META-INF/*.kotlin_module", "META-INF/DEPENDENCIES") } }
     testOptions { unitTests.isReturnDefaultValues = true }
 }
 
@@ -54,6 +54,8 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.9.0")
     implementation("androidx.core:core-ktx:1.16.0")
     implementation("com.tom-roush:pdfbox-android:2.0.27.0")
+    // Встроенный синтез речи sherpa-onnx (Apache 2.0); файл взят с huggingface.co/csukuangfj/sherpa-onnx-libs.
+    implementation(files("libs/sherpa-onnx-1.12.21.aar"))
     testImplementation("junit:junit:4.13.2")
     // Проверка на устройстве или эмуляторе: ./gradlew :app:connectedDebugAndroidTest
     androidTestImplementation(platform("androidx.compose:compose-bom:2025.05.00"))

@@ -86,7 +86,7 @@ fun ModelCard(vm: MainViewModel, ui: UiState) {
     val pick = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? -> if (uri != null) vm.installModel(uri) }
     Card(warn = !ui.model.installed) {
         Text(if (ui.model.installed) "Модель установлена" else "Нужна локальная модель", fontWeight = FontWeight.SemiBold)
-        if (ui.model.installed) Dim(ui.model.label) else Dim("Игра работает только с моделью на самом телефоне. Скопируй на телефон файл Qwen3-0.6B в формате GGUF (Q4_K_M, около 400 МБ) и выбери его здесь. Интернет для этого не нужен.")
+        if (ui.model.installed) Dim(ui.model.label) else Dim("Игра работает только с моделью на самом телефоне. Скопируй на телефон файл модели Qwen3 в формате GGUF и выбери его здесь. Qwen3-1.7B (1,1 ГБ) пишет заметно связнее, Qwen3-0.6B (400 МБ) — быстрее. Интернет для этого не нужен.")
         if (ui.model.busy) { Dim(ui.model.label); if (ui.model.progress >= 0f) LinearProgressIndicator(progress = { ui.model.progress }, modifier = Modifier.fillMaxWidth()) else LinearProgressIndicator(Modifier.fillMaxWidth()) }
         if (ui.model.error.isNotEmpty()) Text(ui.model.error, color = MaterialTheme.colorScheme.error)
         if (!ui.model.busy) Button(onClick = { pick.launch(arrayOf("*/*")) }) { Text(if (ui.model.installed) "Заменить модель из файла" else "Установить модель из файла") }
@@ -99,7 +99,9 @@ fun VoiceWarning(vm: MainViewModel, voice: VoiceState) {
     val ctx = LocalContext.current
     Card(warn = true) {
         Text(if (voice.status == "no_engine") "На телефоне нет синтеза речи" else "Нет русского голоса, работающего без интернета", fontWeight = FontWeight.SemiBold)
-        Dim("Озвучка пока недоступна — играть можно и без неё. Чтобы включить: один раз с интернетом открой настройки синтеза речи, выбери движок (например, «Синтезатор речи Google»), язык «Русский» и скачай голосовые данные. После этого озвучка работает в авиарежиме.")
+        Dim("Озвучка пока недоступна — играть можно и без неё. Проще всего установить встроенный голос из файла-пакета (golos-dmitri.zip): он не требует ни интернета, ни настроек. Другой путь — системный синтез речи: открой его настройки, выбери язык «Русский» и скачай голосовые данные.")
+        val pickVoice = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? -> if (uri != null) vm.installVoice(uri) }
+        Button(onClick = { pickVoice.launch(arrayOf("application/zip", "application/octet-stream", "*/*")) }) { Text("Установить голос из файла") }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedButton(onClick = { openIntent(ctx, vm.narrator.settingsIntent(), vm) }) { Text("Настройки речи") }
             OutlinedButton(onClick = { openIntent(ctx, vm.narrator.installDataIntent(), vm) }) { Text("Скачать голос") }
@@ -205,6 +207,7 @@ fun BookScreen(vm: MainViewModel, ui: UiState) {
                 EntityList("Группы", ui.entities.filter { it.kind == "faction" }.map { it.name to it.descr })
                 EntityList("Предметы", ui.entities.filter { it.kind == "item" }.map { it.name to "" })
                 EntityList("Правила мира", ui.entities.filter { it.kind == "rule" }.map { it.descr to "" })
+                EntityList("Запертые места", ui.entities.filter { it.kind == "lock" }.map { it.name to it.descr })
                 val r = ui.refine
                 if (r != null) { Dim("Модель уточняет карточки: ${r.first} из ${r.second}"); LinearProgressIndicator(progress = { r.first.toFloat() / r.second.coerceAtLeast(1) }, modifier = Modifier.fillMaxWidth()); TextButton(onClick = { vm.cancelRefine() }) { Text("Остановить") } }
                 else OutlinedButton(onClick = { vm.refineBook(b.id) }, enabled = ui.model.installed) { Text("Уточнить карточки моделью") }
@@ -242,7 +245,7 @@ fun SettingsScreen(vm: MainViewModel, ui: UiState, voice: VoiceState) {
                 if (ui.benchRunning.isNotEmpty()) { Dim(ui.benchRunning); LinearProgressIndicator(Modifier.fillMaxWidth()) }
                 if (ui.bench.isEmpty()) Dim("Замеров пока нет.")
                 ui.bench.take(4).forEach { r ->
-                    Dim("${r.threads} поток.: до первого слова ${"%.1f".format(r.ttftMs / 1000)} с · ${"%.1f".format(r.tokPerSec)} токенов/с · 30 токенов за ${"%.1f".format(r.t30Ms / 1000)} с · 60 за ${"%.1f".format(r.t60Ms / 1000)} с · память ${r.ramMb.toInt()} МБ")
+                    Dim("${r.threads} поток.${if (r.bigOnly) " (быстрые ядра)" else ""}: до первого слова ${"%.1f".format(r.ttftMs / 1000)} с · ${"%.1f".format(r.tokPerSec)} токенов/с · 30 токенов за ${"%.1f".format(r.t30Ms / 1000)} с · 60 за ${"%.1f".format(r.t60Ms / 1000)} с · память ${r.ramMb.toInt()} МБ")
                 }
                 ui.bench.firstOrNull()?.let { Dim("Ожидание короткого хода: около ${"%.0f".format(it.estimateTurnSeconds())} с (расчёт по последнему замеру).") }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -252,6 +255,7 @@ fun SettingsScreen(vm: MainViewModel, ui: UiState, voice: VoiceState) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text("Потоки:"); listOf(2, 4, 6, 8).filter { it <= Runtime.getRuntime().availableProcessors() }.forEach { n -> FilterChip(selected = ui.prefs.threads == n, onClick = { vm.setPrefs { it.copy(threads = n) } }, label = { Text("$n") }) }
                 }
+                ToggleRow("Только быстрые ядра", "Считать на самых мощных ядрах процессора. Часто быстрее и меньше греет; проверь замером.", ui.prefs.bigOnly) { v -> vm.setPrefs { it.copy(bigOnly = v) } }
                 TextButton(onClick = { vm.removeModel() }) { Text("Удалить модель с телефона", color = MaterialTheme.colorScheme.error) }
             }
 
@@ -275,9 +279,9 @@ fun SettingsScreen(vm: MainViewModel, ui: UiState, voice: VoiceState) {
 
             Label("О приложении")
             Card {
-                Dim("Живая книга 1.0. Работает без интернета: у приложения нет разрешения на доступ к сети. Книги, сохранения и модель хранятся только на этом телефоне.")
-                Dim("Модель Qwen3-0.6B очень маленькая: она пишет коротко и иногда путается. За предметами, монетами, здоровьем и перемещениями следит не она, а правила игры.")
-                Dim("Используются: llama.cpp (MIT), Qwen3 (Apache 2.0), PdfBox-Android (Apache 2.0), jsoup (MIT), SQLite (общественное достояние), Jetpack Compose и kotlinx (Apache 2.0).")
+                Dim("Живая книга 1.1. Работает без интернета: у приложения нет разрешения на доступ к сети. Книги, сохранения и модель хранятся только на этом телефоне.")
+                Dim("Модель пишет только сцены. За предметами, монетами, здоровьем, перемещениями и ходом сюжета следят правила игры. Qwen3-0.6B пишет небрежно; Qwen3-1.7B — заметно связнее, но медленнее.")
+                Dim("Используются: llama.cpp (MIT), Qwen3 (Apache 2.0), sherpa-onnx и ONNX Runtime (Apache 2.0 и MIT; содержит espeak-ng, GPL 3.0), PdfBox-Android (Apache 2.0), jsoup (MIT), SQLite (общественное достояние), Jetpack Compose и kotlinx (Apache 2.0).")
             }
             Spacer(Modifier.height(16.dp))
         }
@@ -308,15 +312,22 @@ fun VoiceSettings(vm: MainViewModel, voice: VoiceState) {
     var rate by remember { mutableFloatStateOf(n.rate) }
     var pitch by remember { mutableFloatStateOf(n.pitch) }
     var volume by remember { mutableFloatStateOf(n.volume) }
-    Text(when (voice.status) { "ready" -> "Офлайн-голос готов"; "init" -> "Проверяю синтез речи…"; "no_engine" -> "Синтез речи не найден"; else -> "Русского офлайн-голоса нет" }, fontWeight = FontWeight.SemiBold)
-    if (voice.status == "ready") {
-        Dim("Используются только голоса, которым не нужен интернет." + if (voice.latencyMs >= 0) " Задержка до начала речи: ${voice.latencyMs} мс." else "")
+    val pickVoice = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? -> if (uri != null) vm.installVoice(uri) }
+    Text(when { voice.builtinActive -> "Встроенный голос «${voice.builtinName}» готов"; voice.status == "ready" -> "Системный офлайн-голос готов"; voice.status == "init" -> "Проверяю синтез речи…"; voice.status == "no_engine" -> "Синтез речи не найден"; else -> "Русского офлайн-голоса нет" }, fontWeight = FontWeight.SemiBold)
+    if (voice.latencyMs >= 0) Dim("Задержка до начала речи: ${voice.latencyMs} мс.")
+    if (voice.builtinInstalled) {
+        Row(Modifier.fillMaxWidth().selectable(selected = voice.builtinActive, onClick = { vm.useBuiltinVoice(true) }), verticalAlignment = Alignment.CenterVertically) { RadioButton(selected = voice.builtinActive, onClick = null); Text("  Встроенный: ${voice.builtinName} · без сети") }
+        if (voice.systemStatus == "ready") Row(Modifier.fillMaxWidth().selectable(selected = !voice.builtinActive, onClick = { vm.useBuiltinVoice(false) }), verticalAlignment = Alignment.CenterVertically) { RadioButton(selected = !voice.builtinActive, onClick = null); Text("  Системный синтез речи") }
+    } else Dim("Встроенный голос не установлен. Он ставится из файла-пакета golos-dmitri.zip и не требует системного синтеза.")
+    OutlinedButton(onClick = { pickVoice.launch(arrayOf("application/zip", "application/octet-stream", "*/*")) }) { Text(if (voice.builtinInstalled) "Заменить встроенный голос из файла" else "Установить голос из файла") }
+    if (!voice.builtinActive && voice.systemStatus == "ready") {
+        Dim("Системные голоса: используются только те, которым не нужен интернет.")
         voice.voices.take(6).forEach { v -> Row(Modifier.fillMaxWidth().selectable(selected = v.name == voice.selected, onClick = { n.select(v.name) }), verticalAlignment = Alignment.CenterVertically) { RadioButton(selected = v.name == voice.selected, onClick = null); Text("  " + v.label) } }
-        OutlinedButton(onClick = { n.queue.setText(listOf("Вечер опускается на долину.", "У очага тепло, и хозяйка трактира ждёт твоего слова."), true) }) { Text("Прослушать пример") }
     }
+    if (voice.status == "ready") OutlinedButton(onClick = { n.queue.setText(listOf("Вечер опускается на долину.", "У очага тепло, и хозяйка трактира ждёт твоего слова."), true) }) { Text("Прослушать пример") }
     ToggleRow("Читать ответы автоматически", "Рассказчик начинает читать, как только готово первое предложение.", auto) { auto = it; n.auto = it }
     Text("Скорость речи: ${"%.2f".format(rate)}"); Slider(value = rate, onValueChange = { rate = it }, onValueChangeFinished = { n.rate = rate }, valueRange = 0.85f..1.15f)
-    Text("Высота тона: ${"%.2f".format(pitch)}"); Slider(value = pitch, onValueChange = { pitch = it }, onValueChangeFinished = { n.pitch = pitch }, valueRange = 0.8f..1.2f)
+    if (!voice.builtinActive) { Text("Высота тона: ${"%.2f".format(pitch)}"); Slider(value = pitch, onValueChange = { pitch = it }, onValueChangeFinished = { n.pitch = pitch }, valueRange = 0.8f..1.2f) }
     Text("Громкость: ${(volume * 100).toInt()}%"); Slider(value = volume, onValueChange = { volume = it }, onValueChangeFinished = { n.volume = volume }, valueRange = 0.2f..1f)
 }
 

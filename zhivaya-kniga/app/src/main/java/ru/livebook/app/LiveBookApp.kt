@@ -52,7 +52,7 @@ class AppContainer(val context: Context) {
     val db = Db(File(context.filesDir, "livebook.db").path)
     val books = BookRepository(db)
     val saves = SaveRepository(db)
-    val llm = LlmHolder(context) { prefs.getInt("threads", 4) }
+    val llm = LlmHolder(context, { prefs.getInt("threads", 4) }, { prefs.getBoolean("big_only", false) })
     val game = GameOrchestrator(books, saves) { llm.get() }
     val refiner = LoreRefiner(books) { llm.get() }
     val bench = Benchmarks(db)
@@ -61,7 +61,7 @@ class AppContainer(val context: Context) {
 }
 
 /** Локальная модель: файл лежит в частной папке приложения, загружается лениво и выгружается, когда не нужна. */
-class LlmHolder(private val context: Context, private val threads: () -> Int) {
+class LlmHolder(private val context: Context, private val threads: () -> Int, private val bigOnly: () -> Boolean = { false }) {
     val file = File(File(context.filesDir, "models").apply { mkdirs() }, "model.gguf")
     private var llm: LlamaLlm? = null
     @Volatile var busy = false
@@ -74,7 +74,8 @@ class LlmHolder(private val context: Context, private val threads: () -> Int) {
         llm?.let { return it }
         if (!installed()) return null
         return try {
-            LlamaLlm(file.path, 2048, threads()).also { llm = it; lastError = "" }
+            // Пул потоков создаётся в потоке модели; при bigOnly вычисления идут только на быстрых ядрах.
+            LlamaLlm(file.path, 2048, threads()).also { it.configureThreads(threads(), bigOnly()); llm = it; lastError = "" }
         } catch (t: Throwable) {
             lastError = t.message ?: t.javaClass.simpleName
             null
@@ -146,15 +147,31 @@ data class VoiceState(
     val engine: String = "",
     val playback: NarrationQueue.State = NarrationQueue.State.IDLE,
     val latencyMs: Long = -1,
+    /** Установлен ли встроенный голос и используется ли он сейчас вместо системного синтеза. */
+    val builtinInstalled: Boolean = false,
+    val builtinActive: Boolean = false,
+    val builtinName: String = "",
+    /** Состояние системного синтеза само по себе (status учитывает и встроенный голос). */
+    val systemStatus: String = "init",
 )
 
-/** Озвучка: Android TextToSpeech, только русские голоса, которым не нужна сеть. */
+/** Озвучка: встроенный офлайн-голос (если установлен) или Android TextToSpeech с голосом, которому не нужна сеть. */
 class Narrator(private val context: Context, private val prefs: android.content.SharedPreferences) : SpeechEngine {
     val state = MutableStateFlow(VoiceState())
     val queue = NarrationQueue(this) { s -> state.value = state.value.copy(playback = s) }
     private var tts: TextToSpeech? = null
     private var ready = false
     private var speakAt = 0L
+    val builtin = BuiltinVoice(context)
+    var preferBuiltin: Boolean get() = prefs.getBoolean("tts_builtin", true); set(v) { prefs.edit().putBoolean("tts_builtin", v).apply(); stop(); publish() }
+
+    private fun useBuiltin(): Boolean = preferBuiltin && builtin.installed()
+    /** Собрать общий статус из состояния встроенного голоса и системного синтеза. */
+    fun publish() {
+        val st = state.value
+        val b = builtin.installed()
+        state.value = st.copy(builtinInstalled = b, builtinActive = b && preferBuiltin, builtinName = if (b) builtin.name() else "", status = if (b && preferBuiltin) "ready" else st.systemStatus)
+    }
 
     var rate: Float get() = prefs.getFloat("tts_rate", 0.95f); set(v) { prefs.edit().putFloat("tts_rate", v.coerceIn(0.85f, 1.15f)).apply() }
     var pitch: Float get() = prefs.getFloat("tts_pitch", 0.95f); set(v) { prefs.edit().putFloat("tts_pitch", v.coerceIn(0.8f, 1.2f)).apply() }
@@ -164,7 +181,7 @@ class Narrator(private val context: Context, private val prefs: android.content.
     fun start() {
         if (tts != null) return
         tts = TextToSpeech(context) { code ->
-            if (code != TextToSpeech.SUCCESS) { state.value = state.value.copy(status = "no_engine"); return@TextToSpeech }
+            if (code != TextToSpeech.SUCCESS) { state.value = state.value.copy(systemStatus = "no_engine"); publish(); return@TextToSpeech }
             ready = true
             tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
                 override fun onStart(id: String?) { if (speakAt > 0) { state.value = state.value.copy(latencyMs = SystemClock.elapsedRealtime() - speakAt); speakAt = 0 } }
@@ -178,6 +195,7 @@ class Narrator(private val context: Context, private val prefs: android.content.
 
     /** Перечитать голоса: вызывается после возврата из системных настроек синтеза речи. */
     fun refresh() {
+        publish()
         val t = tts ?: return
         if (!ready) return
         val all: Set<Voice> = runCatching { t.voices }.getOrNull() ?: emptySet()
@@ -185,12 +203,13 @@ class Narrator(private val context: Context, private val prefs: android.content.
             v.locale.language == "ru" && !v.isNetworkConnectionRequired && !v.features.contains(TextToSpeech.Engine.KEY_FEATURE_NOT_INSTALLED)
         }.sortedWith(compareByDescending<Voice> { it.quality }.thenBy { it.name })
         val engine = runCatching { t.defaultEngine }.getOrNull().orEmpty()
-        if (offline.isEmpty()) { state.value = state.value.copy(status = "no_voice", voices = emptyList(), engine = engine); return }
+        if (offline.isEmpty()) { state.value = state.value.copy(systemStatus = "no_voice", voices = emptyList(), engine = engine); publish(); return }
         val wanted = prefs.getString("tts_voice", "")
         val chosen = offline.firstOrNull { it.name == wanted } ?: offline.first()
         runCatching { t.language = Locale("ru", "RU"); t.voice = chosen }
-        state.value = state.value.copy(status = "ready", engine = engine, selected = chosen.name,
+        state.value = state.value.copy(systemStatus = "ready", engine = engine, selected = chosen.name,
             voices = offline.mapIndexed { i, v -> VoiceInfo(v.name, "Голос ${i + 1}" + (if (v.quality >= Voice.QUALITY_HIGH) " · высокое качество" else "") + " · без сети") })
+        publish()
     }
 
     fun select(name: String) {
@@ -201,6 +220,10 @@ class Narrator(private val context: Context, private val prefs: android.content.
     fun available(): Boolean = state.value.status == "ready"
 
     override fun speak(text: String, utteranceId: String) {
+        if (useBuiltin()) {
+            builtin.speak(text, rate, volume, onStart = { ms -> state.value = state.value.copy(latencyMs = ms) }, onDone = { queue.onUtteranceDone(utteranceId) })
+            return
+        }
         val t = tts ?: return
         if (!available()) return
         t.setSpeechRate(rate); t.setPitch(pitch)
@@ -209,12 +232,12 @@ class Narrator(private val context: Context, private val prefs: android.content.
         t.speak(text, TextToSpeech.QUEUE_FLUSH, params, utteranceId)
     }
 
-    override fun stop() { runCatching { tts?.stop() } }
+    override fun stop() { builtin.stop(); runCatching { tts?.stop() } }
 
     fun settingsIntent(): Intent = Intent("com.android.settings.TTS_SETTINGS").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
     fun installDataIntent(): Intent = Intent(TextToSpeech.Engine.ACTION_INSTALL_TTS_DATA).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
 
-    fun shutdown() { runCatching { tts?.shutdown() }; tts = null; ready = false }
+    fun shutdown() { builtin.release(); runCatching { tts?.shutdown() }; tts = null; ready = false }
 }
 
 /** Текст из PDF через pdfbox-android. Сканы без текстового слоя отсеивает BookImporter. */

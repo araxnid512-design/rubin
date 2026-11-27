@@ -149,4 +149,23 @@ class DeviceSmokeTest {
         assertTrue(msg, msg.contains("не файл модели"))
         assertTrue(c.llm.installed())
     }
+
+    @Test fun t6_builtinVoiceFromFile() {
+        val src = File("/data/local/tmp/voice.zip")
+        if (!src.exists()) { log("voice: пропущено — нет /data/local/tmp/voice.zip"); return }
+        val n = vm.narrator
+        val t0 = System.currentTimeMillis()
+        val name = n.builtin.install(Uri.fromFile(src))
+        log("voice install ms=${System.currentTimeMillis() - t0} name=$name installed=${n.builtin.installed()}")
+        assertTrue(n.builtin.installed())
+        val (samples, rate) = n.builtin.synthesize("Вечер опускается на долину.", 0.95f)
+        log("voice synth samples=$samples rate=$rate seconds=${"%.2f".format(samples.toDouble() / rate.coerceAtLeast(1))} synthMs=${n.builtin.lastSynthMs} err='${n.builtin.lastError}'")
+        assertTrue("синтез не дал звука: ${n.builtin.lastError}", samples > rate / 2)
+        n.preferBuiltin = true; n.publish()
+        assertEquals("ready", vm.voice.value.status); assertTrue(vm.voice.value.builtinActive)
+        // Негодный архив отклоняется, установленный голос остаётся.
+        val bad = File(rule.activity.cacheDir, "bad.zip").apply { writeBytes(ByteArray(2048) { 5 }) }
+        val msg = try { n.builtin.install(Uri.fromFile(bad)); "" } catch (e: Exception) { e.message.orEmpty() }
+        assertTrue(msg, msg.isNotEmpty()); assertTrue(n.builtin.installed())
+    }
 }

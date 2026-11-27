@@ -82,8 +82,8 @@ class RealLlmIT {
         // Замер скорости (то же, что показывает приложение при первом запуске).
         val bench = Benchmarks(db)
         report.append("## Замер скорости\n\n| Потоки | До первого токена | Токенов/с | 30 токенов | 60 токенов |\n|---|---|---|---|---|\n")
-        for (th in listOf(2, 4)) { val b = bench.run(llm, th); bench.save(b, "host", rssPeakMb()); report.append("| $th | ${b.ttftMs.toInt()} мс | ${"%.1f".format(b.tokPerSec)} | ${b.t30Ms.toInt()} мс | ${b.t60Ms.toInt()} мс |\n") }
-        llm.setThreads(4)
+        for (th in listOf(2, 4)) { val b = bench.run(llm, th, false); bench.save(b, "host", rssPeakMb()); report.append("| $th | ${b.ttftMs.toInt()} мс | ${"%.1f".format(b.tokPerSec)} | ${b.t30Ms.toInt()} мс | ${b.t60Ms.toInt()} мс |\n") }
+        llm.configureThreads(4, false)
         assertEquals(2, bench.history().size)
 
         val gid = game.newGame(bookId, "Арсений", "странник", "canon", bookHero = true)
@@ -91,7 +91,7 @@ class RealLlmIT {
         var llmTurns = 0; var fallbacks = 0; var system = 0
         val narratives = ArrayList<String>()
         val totals = ArrayList<Double>(); val ttfts = ArrayList<Double>(); val speeds = ArrayList<Double>(); var reusedSum = 0; var promptSum = 0
-        var streamedPieces = 0; var spokenSentences = 0
+        var streamedPieces = 0; var spokenSentences = 0; var summaries = 0; var betweenMs = 0.0
         val listener = object : TurnListener { override fun onText(visible: String) { streamedPieces++; assertTrue(!visible.contains("ИТОГ") && !visible.contains("<think"), "служебный текст в ленте: $visible") }; override fun onSentence(sentence: String) { spokenSentences++ } }
         val settings = GameSettings(seed = 1234)
         fun record(action: String, r: ru.livebook.core.game.TurnResult) {
@@ -104,9 +104,9 @@ class RealLlmIT {
             report.append(r.narrative.ifEmpty { "(${r.notice})" }).append("\n\n")
             val meta = ArrayList<String>()
             if (r.applied.isNotEmpty()) meta += "применено: " + r.applied.joinToString("; ") { it.describe() }
+            if (r.beat.isNotEmpty()) meta += "поворот от режиссёра: " + r.beat.take(110)
             if (r.rejected.isNotEmpty()) meta += "отклонено движком: " + r.rejected.joinToString("; ") { it.event.describe() + " — " + it.reason }
             if (r.notes.isNotEmpty()) meta += r.notes.joinToString(" ")
-            if (r.suggestions.isNotEmpty() && r.kind == "llm") meta += "подсказки: " + r.suggestions.joinToString(" | ")
             r.stats?.let { meta += "[${r.kind}; до 1-го токена ${it.ttftMs.toInt()} мс; ${"%.1f".format(it.tokensPerSecond)} ток/с; всего ${it.totalMs.toInt()} мс; промпт ${it.promptTokens}, из кеша ${it.reusedTokens}; ответ ${it.genTokens} ток.]" }
             if (r.notice.isNotEmpty() && r.narrative.isNotEmpty()) meta += r.notice
             if (meta.isNotEmpty()) report.append("_").append(meta.joinToString(" · ")).append("_\n\n")
@@ -116,7 +116,11 @@ class RealLlmIT {
         }
         try {
             record("(вступление)", game.opening(gid, settings, listener))
-            for (a in actions) record(a, game.turn(gid, a, settings, listener))
+            for (a in actions) {
+                record(a, game.turn(gid, a, settings, listener))
+                // Как в приложении: пока игрок читает, модель делает сводку (раз в шесть ходов) и прогревает начало следующего промпта.
+                val t0 = System.nanoTime(); if (game.betweenTurns(gid, settings)) summaries++; betweenMs += (System.nanoTime() - t0) / 1e6
+            }
         } finally { File("build/reports").mkdirs(); File("build/reports/real-llm.md").writeText(report.toString()) }
 
         val state = saves.state(gid)!!
@@ -129,6 +133,10 @@ class RealLlmIT {
         report.append("- KV-кеш: из ${promptSum} токенов промпта переиспользовано ${reusedSum} (${reusedSum * 100 / promptSum.coerceAtLeast(1)}%)\n")
         report.append("- Потоковый вывод: $streamedPieces обновлений текста, $spokenSentences предложений отдано в очередь озвучки\n")
         report.append("- Пиковая память процесса теста (JVM + модель): ${rssPeakMb().toInt()} МБ\n")
+        report.append("- Между ходами (сводка и прогрев, пока игрок читает): в среднем ${(betweenMs / actions.size).toInt()} мс; сводок сюжета: $summaries\n")
+        report.append("- Сводка сюжета: ${state.summary.joinToString(" / ")}\n")
+        report.append("- Подсказки (строят правила): ${state.suggestions.joinToString(" | ")}\n")
+        report.append("- Глава книги, до которой дошёл сюжет: ${state.stage + 1}; использовано зацепок: ${state.usedClues.size}\n")
         report.append("- Итоговое состояние: место «${state.location}», здоровье ${state.hero.hp}/${state.hero.maxHp}, монеты ${state.hero.gold}, вещи: ${state.inventory.joinToString { it.name }}; задания: ${state.quests.joinToString { it.title }}; отношения: ${state.characters.filter { it.relation != 0 }.joinToString { it.name + " " + it.relation }}\n")
         report.append("- Журнал: ${state.journal.joinToString(" | ")}\n\n")
 
@@ -143,14 +151,17 @@ class RealLlmIT {
         report.append("\n## Свободная генерация без грамматики\n\n${free.text.trim()}\n")
 
         File("build/reports").mkdirs(); File("build/reports/real-llm.md").writeText(report.toString())
-        println(report)
         llm.close(); db.close()
 
         assertTrue(llmTurns >= 28, "ответов модели: $llmTurns, запасных: $fallbacks")
         assertEquals(2, system)
         assertTrue(distinct >= llmTurns - 2, "ответы должны быть разными: $distinct из $llmTurns")
+        val openings = narratives.groupingBy { it.split(" ").drop(1).take(5).joinToString(" ") }.eachCount().values.max()
+        report.append("\nСамое частое одинаковое начало сцены встретилось раз: $openings\n"); File("build/reports/real-llm.md").writeText(report.toString())
+        assertTrue(openings <= 4, "сцены не должны начинаться одинаково: $openings")
         assertTrue(narratives.all { n -> n.count { it in 'а'..'я' } > 10 })
-        assertTrue(reusedSum > promptSum / 4, "KV-кеш должен переиспользоваться")
+        assertTrue(reusedSum > promptSum / 2, "KV-кеш и прогрев должны работать: $reusedSum из $promptSum")
+        assertTrue(summaries >= 4 && state.summary.isNotEmpty() && state.usedClues.size >= 4)
         assertTrue(spokenSentences >= llmTurns)
         assertTrue(free.text.count { it in 'а'..'я' } > 10)
         assertTrue(state.hasItem("ржавый ключ") || state.journal.none { it.contains("Получено: ржавый ключ") })

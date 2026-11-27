@@ -23,6 +23,7 @@ class LoreTest {
         assertTrue(items.any { it.contains("ключ") } && items.any { it.contains("плащ") }, "$items")
         assertTrue(w.books.entities(id, "rule").isNotEmpty())
         assertEquals(3, w.books.entities(id, "event").size)
+        assertEquals(listOf("Старая башня"), w.books.entities(id, "lock").map { it.name }, "запечатанное место из книги")
     }
 
     @Test fun searchFindsRelevantChunk() = World().use { w ->

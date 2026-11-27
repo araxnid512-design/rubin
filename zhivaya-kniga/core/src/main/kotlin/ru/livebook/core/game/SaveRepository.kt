@@ -46,6 +46,8 @@ class SaveRepository(private val db: Db) {
 
     fun game(id: String): GameInfo? = db.one("SELECT id,book_id,title,turn,updated_at FROM game WHERE id=?", id) { GameInfo(it.str(0), it.str(1), it.str(2), it.int(3), it.long(4)) }
     fun state(gameId: String): GameState? = db.one("SELECT state FROM game WHERE id=?", gameId) { it.str(0) }?.let { GameState.fromJson(it) }
+    /** Служебное обновление состояния между ходами (сводка сюжета): счётчик ходов не меняется. */
+    fun updateState(gameId: String, state: GameState) = db.exec("UPDATE game SET state=? WHERE id=?", state.toJson(), gameId)
     fun deleteGame(id: String) = db.exec("DELETE FROM game WHERE id=?", id)
 
     /** Автосохранение: прежнее состояние уходит в слот 0 («до последнего хода»), новое записывается вместе с ходом. */

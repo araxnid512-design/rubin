@@ -4,10 +4,10 @@ import ru.livebook.core.llm.GameSettings
 import ru.livebook.core.llm.GenParams
 import ru.livebook.core.llm.GenStats
 import ru.livebook.core.llm.GrammarBuilder
+import ru.livebook.core.model.Quest
 import ru.livebook.core.llm.LocalLlm
 import ru.livebook.core.llm.PromptBuilder
 import ru.livebook.core.llm.ResponseParser
-import ru.livebook.core.llm.TurnPolicy
 import ru.livebook.core.lore.BookRepository
 import ru.livebook.core.lore.EntityExtractor
 import ru.livebook.core.model.GameState
@@ -59,6 +59,8 @@ data class TurnResult(
     val stats: GenStats? = null,
     val turn: Int = 0,
     val notice: String = "",
+    /** Поворот сюжета, который «режиссёр» подбросил в эту сцену (для журнала проверок). */
+    val beat: String = "",
 )
 
 interface TurnListener {
@@ -92,12 +94,18 @@ class GameOrchestrator(private val books: BookRepository, private val saves: Sav
             val kit = startKit(bookId, name)
             gold = kit.first; items = kit.second
         }
-        val state = GameState(
+        // Запертые места книги и главная цель героя — основа сюжета.
+        val locks = books.entities(bookId, "lock")
+        val goal = (if (bookHero) StoryDirector.mainQuest(books, bookId, name) else null) ?: StoryDirector.mysteryQuest(books, bookId, start)
+        var state = GameState(
             bookId = bookId, storyMode = if (storyMode == "alternate") "alternate" else "canon",
             hero = Hero(name, heroRole.trim().take(60), gold = gold), location = start,
-            inventory = items, characters = npcs, knownLocations = (listOf(start) + places.map { it.name }).distinct().take(40),
-            canonFacts = books.entities(bookId, "rule").map { it.descr }.take(6),
+            inventory = items, characters = npcs, knownLocations = (listOf(start) + places.map { it.name } + locks.map { it.name }).distinct().take(40),
+            lockedLocations = locks.map { it.name }.filter { Text.stemKey(it) != Text.stemKey(start) },
+            canonFacts = (books.entities(bookId, "rule").map { it.descr } + locks.map { it.descr }).distinct().take(8),
+            quests = listOfNotNull(goal?.let { Quest("main", it.replaceFirstChar { c -> c.uppercase() }) }),
         )
+        state = state.copy(suggestions = Suggestions.build(state))
         return saves.createGame(bookId, "$name — ${book.title}", state)
     }
 
@@ -172,8 +180,9 @@ class GameOrchestrator(private val books: BookRepository, private val saves: Sav
         return if (r.applied.isEmpty()) state to r.rejected.map { "Путь в «$target» закрыт: ${it.reason}." } + r.notes else populate(r.state) to r.notes
     }
 
-    private fun creativeTurn(gameId: String, state0: GameState, action: String, settings: GameSettings, listener: TurnListener): TurnResult {
+    private fun creativeTurn(gameId: String, state0: GameState, action: String, settings0: GameSettings, listener: TurnListener): TurnResult {
         val model = llm() ?: return TurnResult("error", "", state0, notice = "Локальная модель не установлена. Открой «Настройки» → «Установить модель из файла».")
+        val settings = settings0.copy(small = model.isSmall)
         val (state, moveNotes) = resolveMove(state0, action)
         val moved = state.location != state0.location
         val book = books.book(state.bookId)
@@ -184,21 +193,22 @@ class GameOrchestrator(private val books: BookRepository, private val saves: Sav
         val actionLore = if (settings.economy) emptyList() else books.search(state.bookId, action, 2).map { it.text }
         val lexicon = EntityExtractor.ITEM_NOUNS
         val constraints = RulesEngine.constraints(state, action, lexicon) + moveNotes.filter { it.startsWith("Путь") } + (if (moved) listOf("Герой только что пришёл сюда: ${state.location}.") else emptyList())
-        val canonPersons = books.entities(state.bookId, "person").map { it.name }
-        val policy = TurnPolicy.of(state, action, canonPersons)
-        val grammar = GrammarBuilder.build(policy, settings)
+        val grammar = GrammarBuilder.build(near, settings)
+        // «Режиссёр сюжета»: зацепка из книги или осложнение для этой сцены.
+        val beat = StoryDirector.beat(state, books, action)
 
         // Промпт должен поместиться в контекст: при нехватке сначала урезаем лор, потом историю.
         var history = settings.historyTurns
         var loreChars = settings.loreChars
-        var prompt = PromptBuilder.build(state, book?.title.orEmpty(), sceneLore, actionLore, constraints, action, settings, history, loreChars)
+        var prompt = PromptBuilder.build(state, book?.title.orEmpty(), sceneLore, actionLore, constraints, beat.text, action, settings, history, loreChars)
         val budget = model.contextSize - settings.maxTokens - 16
         while (model.countTokens(prompt) > budget && (history > 0 || loreChars > 0)) {
             if (loreChars > 150) loreChars /= 2 else if (history > 0) history-- else loreChars = 0
-            prompt = PromptBuilder.build(state, book?.title.orEmpty(), sceneLore, actionLore, constraints, action, settings, history, loreChars)
+            prompt = PromptBuilder.build(state, book?.title.orEmpty(), sceneLore, actionLore, constraints, beat.text, action, settings, history, loreChars)
         }
 
-        val avoid = PromptBuilder.EXAMPLES + " " + state.history.takeLast(2).joinToString(" ") { it.reply }
+        val recentReplies = state.history.takeLast(3).map { it.reply }
+        val avoid = (recentReplies + (if (settings.small) listOf(PromptBuilder.EXAMPLES) else emptyList())).joinToString(" ").ifEmpty { null }
         var parsed = ResponseParser.parse("", action)
         var stats: GenStats? = null
         var raw = ""
@@ -209,7 +219,7 @@ class GameOrchestrator(private val books: BookRepository, private val saves: Sav
             var spoken = 0
             if (attempt == 1) { listener.onStatus("Ответ получился негодным — рассказчик пробует ещё раз…"); listener.onText("") }
             val res = try {
-                model.generate(prompt, GenParams(settings.maxTokens, if (attempt == 0) settings.temp else settings.temp + 0.2f, seed = if (settings.seed < 0) -1 else settings.seed + state.timeTick * 7 + attempt, grammar = grammar, avoid = avoid)) { piece ->
+                model.generate(prompt, GenParams(settings.maxTokens, if (attempt == 0) settings.temp else settings.temp + 0.2f, seed = if (settings.seed < 0) -1 else settings.seed + state.timeTick * 7 + attempt, grammar = grammar, avoid = avoid, repeatPenalty = if (settings.small) 1.18f else 1.1f)) { piece ->
                     sb.append(piece)
                     val vis = ResponseParser.visible(sb.toString())
                     if (attempt == 0 && vis != shown) {
@@ -227,6 +237,12 @@ class GameOrchestrator(private val books: BookRepository, private val saves: Sav
             raw = res.text
             if (res.stats.stopReason == 2) { cancelled = true; break }
             parsed = ResponseParser.parse(raw, action)
+            // Самоповтор: сцена почти дословно совпала с прошлой или с примером из промпта — первая попытка бракуется.
+            if (parsed.valid && attempt == 0) {
+                val first = Text.splitSentences(parsed.narrative).firstOrNull().orEmpty()
+                val same = (recentReplies + PromptBuilder.EXAMPLES).any { old -> ResponseParser.overlap(parsed.narrative, old) > 0.7 || Text.splitSentences(old).any { ResponseParser.overlap(first, it) > 0.6 } }
+                if (same) parsed = parsed.copy(valid = false, problem = "повтор прошлой сцены")
+            }
             if (parsed.valid) {
                 if (attempt == 1) { listener.onText(parsed.narrative); Text.splitSentences(parsed.narrative).forEach { listener.onSentence(it) } }
                 else { val all = Text.splitSentences(parsed.narrative); while (spoken < all.size) listener.onSentence(all[spoken++]) }
@@ -245,16 +261,52 @@ class GameOrchestrator(private val books: BookRepository, private val saves: Sav
                 notice = "Локальная модель дважды дала негодный ответ (${parsed.problem}). Показана запасная фраза, состояние мира не менялось. Попробуй переформулировать действие.")
         }
 
-        // Сначала то, что прямо сказал игрок (обещание, отношение), затем предложения модели; повторы отсекает движок.
-        val intents = RulesEngine.intentEvents(state, action)
-        val proposed = intents + parsed.events.filter { e -> intents.none { it.type == e.type } }
-        val result = RulesEngine.apply(state, proposed, action, parsed.narrative, (sceneLore + actionLore).joinToString(" "))
+        // Изменения мира выводятся из слов игрока и текста сцены, затем проверяются движком.
+        val loreText = (sceneLore + actionLore).joinToString(" ")
+        val proposed = RulesEngine.infer(state, action, parsed.narrative, loreText, lexicon, state.history.takeLast(2).joinToString(" ") { it.reply }, books.entities(state.bookId, "item").map { it.name })
+        val result = RulesEngine.apply(beat.state, proposed, action, parsed.narrative, loreText)
         var next = result.state
-        next = next.copy(history = (next.history + TurnBrief(action, parsed.narrative)).takeLast(6), suggestions = parsed.suggestions)
+        next = next.copy(history = (next.history + TurnBrief(action, parsed.narrative)).takeLast(6))
+        next = next.copy(suggestions = Suggestions.build(next))
         val statsText = stats?.let { "ttft=${it.ttftMs.toInt()}мс; ${"%.1f".format(it.tokensPerSecond)} ток/с; всего ${it.totalMs.toInt()}мс; промпт ${it.promptTokens} (из кеша ${it.reusedTokens}); ответ ${it.genTokens}" }.orEmpty()
         val applied = (if (moved) listOf(GameEvent(GameEvent.MOVE, state.location)) else emptyList()) + result.applied
         val n = saves.commitTurn(gameId, state0, next, TurnRecord(0, action, parsed.narrative, applied, "llm", statsText))
-        return TurnResult("llm", parsed.narrative, next, applied, result.rejected, moveNotes + result.notes, parsed.suggestions, stats, n)
+        return TurnResult("llm", parsed.narrative, next, applied, result.rejected, moveNotes + result.notes, next.suggestions, stats, n, beat = beat.text)
+    }
+
+    /**
+     * Работа между ходами, пока игрок читает сцену: раз в шесть ходов — сводка сюжета, затем прогрев KV-кеша
+     * началом следующего промпта. Вызывать в потоке модели после показа ответа.
+     */
+    fun betweenTurns(gameId: String, settings0: GameSettings = GameSettings()): Boolean {
+        val model = llm() ?: return false
+        val settings = settings0.copy(small = model.isSmall)
+        var state = saves.state(gameId) ?: return false
+        var summarized = false
+        if (state.timeTick >= 6 && state.timeTick - state.summaryTick >= 6 && state.history.size >= 3) {
+            state = state.copy(summary = (state.summary + summarize(model, state)).takeLast(3), summaryTick = state.timeTick)
+            saves.updateState(gameId, state)
+            summarized = true
+        }
+        val near = state.nearbyNpcs().map { it.name }
+        val sceneLore = books.search(state.bookId, "${state.location} ${near.joinToString(" ")}", if (settings.economy) 1 else 2).map { it.text }
+        model.warm(PromptBuilder.prefix(state, books.book(state.bookId)?.title.orEmpty(), sceneLore, settings))
+        return summarized
+    }
+
+    /** Сводка: факты из журнала (надёжно) плюс одно предложение модели, если оно опирается на события. */
+    private fun summarize(model: LocalLlm, state: GameState): String {
+        val facts = state.storyFacts.takeLast(4).joinToString("; ") { it.replaceFirstChar { c -> c.lowercase() } }
+        val events = state.history.takeLast(6).joinToString(" ") { "Герой: ${PromptBuilder.cleanAction(it.action).take(60)}. Итог: ${PromptBuilder.brief(it.reply)}" }
+        val prompt = "<|im_start|>system\nСожми события в одно короткое предложение о том, что сделал герой и к чему это привело. Пиши по-русски, в прошедшем времени, без выдумок. /no_think<|im_end|>\n" +
+            "<|im_start|>user\nГерой: спрашиваю кузнеца о дороге. Итог: Гордей кивает в сторону холмов. Герой: покупаю нож. Итог: Гордей протягивает нож.<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\nГерой узнал у кузнеца дорогу и купил нож.<|im_end|>\n" +
+            "<|im_start|>user\n$events<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n"
+        val grammar = "root ::= \"Герой \" ch+ \".\"\nch ::= [а-яё0-9 ,;«»—-] | [А-ЯЁ] [а-яё]\n"
+        val text = runCatching { model.generate(prompt, GenParams(maxTokens = 48, temp = 0.3f, seed = 5, grammar = grammar)).text.trim() }.getOrDefault("")
+        val known = Text.stems(events).toSet()
+        val words = Text.stems(text).filter { it.length >= 4 }
+        val grounded = text.endsWith(".") && words.size >= 3 && words.count { it in known } * 10 >= words.size * 6
+        return listOf(if (grounded) text else "", if (facts.isNotEmpty()) "Изменилось: $facts." else "").filter { it.isNotEmpty() }.joinToString(" ").ifEmpty { "Герой провёл время в месте «${state.location}»." }
     }
 
     private fun populate(s: GameState): GameState {

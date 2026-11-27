@@ -40,6 +40,14 @@ JNIEXPORT void JNICALL Java_ru_livebook_core_llm_LlamaNative_nativeSetThreads(JN
     lb_set_threads(reinterpret_cast<LbEngine *>(h), n);
 }
 
+JNIEXPORT jint JNICALL Java_ru_livebook_core_llm_LlamaNative_nativeConfigureThreads(JNIEnv *, jobject, jlong h, jint n, jboolean bigOnly) {
+    return lb_configure_threads(reinterpret_cast<LbEngine *>(h), n, bigOnly == JNI_TRUE);
+}
+
+JNIEXPORT jint JNICALL Java_ru_livebook_core_llm_LlamaNative_nativeBigCoreCount(JNIEnv *, jobject) {
+    return lb_big_core_count();
+}
+
 JNIEXPORT jint JNICALL Java_ru_livebook_core_llm_LlamaNative_nativeContextSize(JNIEnv *, jobject, jlong h) {
     return lb_n_ctx(reinterpret_cast<LbEngine *>(h));
 }

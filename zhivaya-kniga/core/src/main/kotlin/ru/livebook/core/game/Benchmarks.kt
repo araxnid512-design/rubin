@@ -9,15 +9,15 @@ import ru.livebook.core.lore.BookRepository
 import ru.livebook.core.lore.Entity
 import ru.livebook.core.model.Text
 
-data class BenchResult(val threads: Int, val ttftMs: Double, val tokPerSec: Double, val t30Ms: Double, val t60Ms: Double, val promptTokens: Int, val ramMb: Double = 0.0, val createdAt: Long = 0, val device: String = "", val note: String = "") {
+data class BenchResult(val threads: Int, val bigOnly: Boolean = false, val ttftMs: Double, val tokPerSec: Double, val t30Ms: Double, val t60Ms: Double, val promptTokens: Int, val ramMb: Double = 0.0, val createdAt: Long = 0, val device: String = "", val note: String = "") {
     /** Оценка времени короткого хода: обработка ~350 новых токенов промпта + ~80 токенов ответа. */
     fun estimateTurnSeconds(): Double = if (tokPerSec <= 0 || promptTokens <= 0) 0.0 else (ttftMs / promptTokens * 350 + 80 * 1000.0 / tokPerSec) / 1000.0
 }
 
 /** Реальный замер скорости на этом устройстве. Ничего не оценивает «на глаз» — только измеренные значения. */
 class Benchmarks(private val db: Db) {
-    fun run(llm: LocalLlm, threads: Int): BenchResult {
-        llm.setThreads(threads)
+    fun run(llm: LocalLlm, threads: Int, bigOnly: Boolean = false): BenchResult {
+        llm.configureThreads(threads, bigOnly)
         llm.clearCache()
         val prompt = PromptBuilder.system(GameSettings(), "canon") +
             "<|im_start|>user\nМесто: постоялый двор. Рядом: хозяин. Герой: Путник; здоровье 10 из 10, монеты 3, вещей нет.\nДействие героя: сажусь у очага и прошу рассказать о дороге на север<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n"
@@ -27,14 +27,14 @@ class Benchmarks(private val db: Db) {
         val r = llm.generate(prompt, GenParams(maxTokens = 60, seed = 7)) { n++; if (n == 30) t30 = (System.nanoTime() - t0) / 1e6; true }
         val total = (System.nanoTime() - t0) / 1e6
         llm.clearCache()
-        return BenchResult(threads, r.stats.ttftMs, r.stats.tokensPerSecond, if (t30 > 0) t30 else total, total, r.stats.promptTokens)
+        return BenchResult(threads, bigOnly, r.stats.ttftMs, r.stats.tokensPerSecond, if (t30 > 0) t30 else total, total, r.stats.promptTokens)
     }
 
     fun save(r: BenchResult, device: String, ramMb: Double, note: String = "", now: Long = System.currentTimeMillis()) =
-        db.exec("INSERT INTO bench(created_at,device,threads,ttft_ms,tok_s,t30_ms,t60_ms,ram_mb,note) VALUES(?,?,?,?,?,?,?,?,?)", now, device, r.threads, r.ttftMs, r.tokPerSec, r.t30Ms, r.t60Ms, ramMb, note + "|pt=" + r.promptTokens)
+        db.exec("INSERT INTO bench(created_at,device,threads,ttft_ms,tok_s,t30_ms,t60_ms,ram_mb,note) VALUES(?,?,?,?,?,?,?,?,?)", now, device, r.threads, r.ttftMs, r.tokPerSec, r.t30Ms, r.t60Ms, ramMb, note + (if (r.bigOnly) " (быстрые ядра)" else "") + "|pt=" + r.promptTokens)
 
     fun history(limit: Int = 20): List<BenchResult> = db.query("SELECT threads,ttft_ms,tok_s,t30_ms,t60_ms,ram_mb,created_at,device,note FROM bench ORDER BY id DESC LIMIT ?", limit) {
-        BenchResult(it.int(0), it.double(1), it.double(2), it.double(3), it.double(4), it.str(8).substringAfter("|pt=", "0").toIntOrNull() ?: 0, it.double(5), it.long(6), it.str(7), it.str(8).substringBefore("|pt="))
+        BenchResult(it.int(0), it.str(8).contains("быстрые ядра"), it.double(1), it.double(2), it.double(3), it.double(4), it.str(8).substringAfter("|pt=", "0").toIntOrNull() ?: 0, it.double(5), it.long(6), it.str(7), it.str(8).substringBefore("|pt="))
     }
 }
 

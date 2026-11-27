@@ -34,11 +34,17 @@ class LlmException(message: String) : Exception(message)
 /** Локальная языковая модель. Реализация — llama.cpp через JNI ([LlamaLlm]). */
 interface LocalLlm : AutoCloseable {
     val contextSize: Int
+    /** Маленькая модель (меньше ~1 млрд параметров): ей нужны примеры в промпте и защита от самоповторов. */
+    val isSmall: Boolean get() = false
     fun countTokens(text: String): Int
     /** [onPiece] получает кусочки текста по мере генерации; вернуть false — остановить. */
     fun generate(prompt: String, params: GenParams, onPiece: (String) -> Boolean = { true }): GenResult
     fun cancel()
     fun setThreads(n: Int)
+    /** Постоянный пул потоков; bigOnly — считать только на быстрых ядрах. Возвращает число быстрых ядер (0 — не определить). */
+    fun configureThreads(n: Int, bigOnly: Boolean): Int = 0.also { setThreads(n) }
+    /** Прогрев: заранее обработать начало будущего промпта, чтобы оно осталось в KV-кеше. */
+    fun warm(prefix: String) { runCatching { generate(prefix, GenParams(maxTokens = 0)) } }
     fun clearCache()
     fun meta(key: String): String
 }
@@ -54,6 +60,8 @@ object LlamaNative {
     external fun nativeFree(handle: Long)
     external fun nativeLastError(): ByteArray
     external fun nativeSetThreads(handle: Long, n: Int)
+    external fun nativeConfigureThreads(handle: Long, n: Int, bigOnly: Boolean): Int
+    external fun nativeBigCoreCount(): Int
     external fun nativeContextSize(handle: Long): Int
     external fun nativeCountTokens(handle: Long, text: ByteArray): Int
     external fun nativeMeta(handle: Long, key: ByteArray): ByteArray
@@ -73,9 +81,11 @@ class LlamaLlm(modelPath: String, nCtx: Int = 2048, threads: Int = 4) : LocalLlm
     }
 
     override val contextSize: Int get() = LlamaNative.nativeContextSize(handle)
+    override val isSmall: Boolean = java.io.File(modelPath).length() < 900L * 1024 * 1024
     override fun countTokens(text: String): Int = LlamaNative.nativeCountTokens(handle, text.toByteArray(Charsets.UTF_8))
     override fun cancel() { if (handle != 0L) LlamaNative.nativeCancel(handle) }
     override fun setThreads(n: Int) = LlamaNative.nativeSetThreads(handle, n)
+    override fun configureThreads(n: Int, bigOnly: Boolean): Int = LlamaNative.nativeConfigureThreads(handle, n, bigOnly)
     override fun clearCache() = LlamaNative.nativeClearCache(handle)
     override fun meta(key: String): String = String(LlamaNative.nativeMeta(handle, key.toByteArray(Charsets.UTF_8)), Charsets.UTF_8)
 
@@ -96,7 +106,8 @@ class LlamaLlm(modelPath: String, nCtx: Int = 2048, threads: Int = 4) : LocalLlm
     @Synchronized
     override fun close() { if (handle != 0L) { LlamaNative.nativeFree(handle); handle = 0 } }
 
-    companion object { fun systemInfo(): String { LlamaNative.ensureLoaded(); return String(LlamaNative.nativeSystemInfo(), Charsets.UTF_8) } }
+    companion object { fun bigCoreCount(): Int { LlamaNative.ensureLoaded(); return LlamaNative.nativeBigCoreCount() }
+        fun systemInfo(): String { LlamaNative.ensureLoaded(); return String(LlamaNative.nativeSystemInfo(), Charsets.UTF_8) } }
 }
 
 data class GgufInfo(
@@ -115,6 +126,7 @@ object GgufInspector {
     /** Сверенные сборки (SHA-256 → описание). */
     val KNOWN = mapOf(
         "ac2d97712095a558e31573f62f466a3f9d93990898b0ec79d7c974c1780d524a" to "Qwen3-0.6B Q4_K_M (unsloth/Qwen3-0.6B-GGUF, проверено при сборке)",
+        "b139949c5bd74937ad8ed8c8cf3d9ffb1e99c866c823204dc42c0d91fa181897" to "Qwen3-1.7B Q4_K_M (unsloth/Qwen3-1.7B-GGUF, проверено при сборке)",
     )
 
     fun inspect(file: File): GgufInfo = FileInputStream(file).use { inspect(it, file.length()) }

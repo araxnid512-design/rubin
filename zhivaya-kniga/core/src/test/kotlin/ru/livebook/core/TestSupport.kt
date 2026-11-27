@@ -56,12 +56,16 @@ class FakeLlm(private val replies: MutableList<String>) : LocalLlm {
     val prompts = ArrayList<String>()
     val grammars = ArrayList<String?>()
     var cancelNext = false
+    private var counter = 0
+    private val DEFAULTS = listOf("Ветер стихает, становится совсем тихо.", "Где-то скрипит половица, пахнет дымом.", "Огонь потрескивает, тени пляшут.", "Издалека доносится собачий лай.", "Дождь барабанит снаружи.", "Свеча мигает, воск капает.", "Половицы холодят ступни.", "Сквозняк шевелит занавеску.", "Вдалеке ухает сова.", "Пыль кружится в луче.", "Кошка спрыгивает с лавки.", "Туман липнет к ставням.")
+    val warmed = ArrayList<String>()
     override val contextSize: Int = 2048
     override fun countTokens(text: String): Int = text.length / 3
     override fun generate(prompt: String, params: GenParams, onPiece: (String) -> Boolean): GenResult {
         prompts += prompt; grammars += params.grammar
         if (cancelNext) { cancelNext = false; return GenResult("", GenStats(stopReason = 2)) }
-        val reply = if (replies.isEmpty()) "Ветер стихает, и вокруг становится тихо. Никто не отвечает.\nИТОГ: ничего\nДАЛЬШЕ: Осмотреться | Подождать | Уйти" else replies.removeAt(0)
+        if (params.maxTokens == 0) { warmed += prompt; prompts.removeAt(prompts.size - 1); grammars.removeAt(grammars.size - 1); return GenResult("", GenStats(stopReason = 1)) }
+        val reply = if (replies.isEmpty()) DEFAULTS[(counter++) % DEFAULTS.size] else replies.removeAt(0)
         for (w in reply.chunked(7)) onPiece(w)
         return GenResult(reply, GenStats(100, 0, reply.length / 3, 50.0, 60.0, 500.0, 0))
     }

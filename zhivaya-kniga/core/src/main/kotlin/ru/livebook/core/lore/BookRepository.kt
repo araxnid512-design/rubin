@@ -109,6 +109,10 @@ class BookRepository(private val db: Db) {
         ) { LoreHit(it.int(0), it.str(1), -it.double(2)) }
     }
 
+    /** Фрагменты одной главы с идентификаторами — для «режиссёра сюжета». */
+    fun chapterChunks(bookId: String, chapterIdx: Int): List<Pair<Long, String>> = db.query("SELECT id, body FROM chunk WHERE book_id=? AND chapter_idx=? ORDER BY pos", bookId, chapterIdx) { it.long(0) to it.str(1) }
+    fun indexedChapterCount(bookId: String): Int = db.one("SELECT COUNT(*) FROM chapter WHERE book_id=? AND indexed=1", bookId) { it.int(0) } ?: 0
+
     fun firstChunks(bookId: String, limit: Int = 2): List<String> = db.query("SELECT body FROM chunk WHERE book_id=? ORDER BY chapter_idx, pos LIMIT ?", bookId, limit) { it.str(0) }
 
     companion object {

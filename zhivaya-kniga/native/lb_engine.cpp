@@ -1,5 +1,11 @@
 #include "lb_engine.h"
 #include "llama.h"
+#include "ggml-cpu.h"
+#include <cstdio>
+#if defined(__linux__)
+#include <sched.h>
+#include <unistd.h>
+#endif
 #include <atomic>
 #include <chrono>
 #include <cmath>
@@ -20,6 +26,8 @@ struct LbEngine {
     std::mutex mu;
     int n_ctx = 0;
     int n_batch = 256;
+    ggml_threadpool *pool = nullptr;
+    bool big_only = false;
 };
 
 static double now_ms() {
@@ -62,10 +70,66 @@ LbEngine *lb_load(const char *path, int n_ctx, int n_threads, std::string &err) 
 void lb_free(LbEngine *e) {
     if (!e) return;
     std::lock_guard<std::mutex> lk(e->mu);
+    if (e->ctx) llama_detach_threadpool(e->ctx);
+    if (e->pool) ggml_threadpool_free(e->pool);
     if (e->ctx) llama_free(e->ctx);
     if (e->model) llama_model_free(e->model);
     e->ctx = nullptr; e->model = nullptr;
     delete e;
+}
+
+// Быстрые ядра определяем по максимальной частоте из sysfs: у Dimensity 6100+ это 2 ядра Cortex-A76.
+static std::vector<int> big_cores(int *total) {
+    std::vector<std::pair<long, int>> freq;
+    for (int i = 0; i < 64; i++) {
+        char path[128];
+        snprintf(path, sizeof(path), "/sys/devices/system/cpu/cpu%d/cpufreq/cpuinfo_max_freq", i);
+        FILE *f = fopen(path, "r");
+        if (!f) continue;
+        long v = 0;
+        if (fscanf(f, "%ld", &v) == 1 && v > 0) freq.push_back({v, i});
+        fclose(f);
+    }
+    if (total) *total = (int) freq.size();
+    std::vector<int> out;
+    if (freq.empty()) return out;
+    long mx = 0;
+    for (auto &p : freq) if (p.first > mx) mx = p.first;
+    for (auto &p : freq) if (p.first * 100 >= mx * 90) out.push_back(p.second);
+    if (out.size() == freq.size()) out.clear();   // все ядра одинаковые — привязывать нечего
+    return out;
+}
+
+int lb_big_core_count() { return (int) big_cores(nullptr).size(); }
+
+static void apply_affinity(bool big_only) {
+#if defined(__linux__)
+    int total = 0;
+    std::vector<int> big = big_cores(&total);
+    cpu_set_t set;
+    CPU_ZERO(&set);
+    if (big_only && !big.empty()) { for (int c : big) CPU_SET(c, &set); }
+    else { long n = sysconf(_SC_NPROCESSORS_CONF); for (long c = 0; c < n && c < CPU_SETSIZE; c++) CPU_SET((int) c, &set); }
+    sched_setaffinity(0, sizeof(set), &set);
+#else
+    (void) big_only;
+#endif
+}
+
+int lb_configure_threads(LbEngine *e, int n_threads, bool big_only) {
+    if (!e || !e->ctx) return 0;
+    std::lock_guard<std::mutex> lk(e->mu);
+    int big = lb_big_core_count();
+    e->big_only = big_only && big > 0;
+    // Потоки пула создаются из текущего потока и наследуют его привязку к ядрам.
+    apply_affinity(e->big_only);
+    llama_detach_threadpool(e->ctx);
+    if (e->pool) { ggml_threadpool_free(e->pool); e->pool = nullptr; }
+    ggml_threadpool_params tp = ggml_threadpool_params_default(n_threads);
+    e->pool = ggml_threadpool_new(&tp);
+    if (e->pool) llama_attach_threadpool(e->ctx, e->pool, e->pool);
+    llama_set_n_threads(e->ctx, n_threads, n_threads);
+    return big;
 }
 
 void lb_set_threads(LbEngine *e, int n) { if (e && e->ctx) llama_set_n_threads(e->ctx, n, n); }

@@ -46,6 +46,11 @@ class RulesTest {
         assertTrue(RulesEngine.apply(base, listOf(ev(GameEvent.ITEM_ADD, "ржавый ключ")), "осматриваю камин", "Ты замечаешь в щели ржавый ключ.", lore).state.hasItem("ржавый ключ"))
         assertTrue(RulesEngine.apply(base, listOf(ev(GameEvent.ITEM_ADD, "алмаз")), "осматриваю камин", "Ты находишь алмаз.", lore).applied.isEmpty())
         // Не больше одного нового предмета за ход.
+        // Нельзя взять то, чего в сцене нет: «беру меч» не создаёт меч.
+        assertTrue(RulesEngine.infer(base, "беру меч со стены", "Мира смотрит на тебя с удивлением.", "В трактире пахло хлебом.", EntityExtractor.ITEM_NOUNS).none { it.type == GameEvent.ITEM_ADD })
+        assertTrue(RulesEngine.infer(base, "показываю Мире обрывок карты и прошу объяснить", "Мира смотрит на карту.", "", EntityExtractor.ITEM_NOUNS).none { it.type == GameEvent.ITEM_ADD }, "своя вещь не «получается» заново")
+        assertTrue(RulesEngine.infer(base, "прошу Миру дать мне фонарь", "Мира молчит.", "", EntityExtractor.ITEM_NOUNS).none { it.type == GameEvent.ITEM_ADD }, "просьба без ответа — вещи нет")
+        assertEquals(GameEvent(GameEvent.ITEM_ADD, "фонарь"), RulesEngine.infer(base, "прошу Миру дать мне фонарь", "Мира протягивает тебе фонарь.", "", EntityExtractor.ITEM_NOUNS).single { it.type == GameEvent.ITEM_ADD })
         val r2 = RulesEngine.apply(base, listOf(ev(GameEvent.ITEM_ADD, "ключ"), ev(GameEvent.ITEM_ADD, "нож")), "беру ключ и нож", "Ты берёшь ключ и нож.")
         assertEquals(1, r2.applied.size)
     }
@@ -95,8 +100,7 @@ class RulesTest {
         assertEquals("Северные ворота", blocked.state.location)
         assertTrue(blocked.rejected.single().reason.contains("заперт"))
         val withKey = moved.state.copy(inventory = moved.state.inventory + Item("kluch", "ржавый ключ"))
-        assertEquals("Северные ворота", RulesEngine.apply(withKey, listOf(ev(GameEvent.MOVE, "Старая башня")), "иду в старую башню", "Ты подходишь к башне.").state.location, "ключ есть, но герой им не воспользовался")
-        val opened = RulesEngine.apply(withKey, listOf(ev(GameEvent.MOVE, "Старая башня")), "открываю ржавым ключом дверь и вхожу в старую башню", "Замок щёлкает, и ты входишь в башню.")
+        val opened = RulesEngine.apply(withKey, listOf(ev(GameEvent.MOVE, "Старая башня")), "вхожу в старую башню", "Замок щёлкает, и ты входишь в башню.")
         assertEquals("Старая башня", opened.state.location); assertTrue(opened.state.lockedLocations.isEmpty())
         assertTrue(RulesEngine.apply(base, listOf(ev(GameEvent.MOVE, "Луна")), "иду гулять", "Ты выходишь во двор.").applied.isEmpty(), "место не упомянуто")
     }
@@ -111,7 +115,7 @@ class RulesTest {
         // Гибель персонажа — необратимое решение: нужна и атака, и гибель в сцене.
         assertTrue(RulesEngine.apply(base, listOf(ev(GameEvent.DEAD, "Мира")), "спрашиваю Миру", "Мира отвечает.").applied.isEmpty())
         assertTrue(RulesEngine.apply(base, listOf(ev(GameEvent.DEAD, "Борин")), "убиваю Борина", "Борин падает замертво.").applied.isEmpty(), "Борина нет рядом")
-        val killed = RulesEngine.apply(base, listOf(ev(GameEvent.DEAD, "Мира")), "нападаю на Миру с ножом", "Мира падает замертво.")
+        val killed = RulesEngine.apply(base, RulesEngine.infer(base, "нападаю на Миру с ножом", "Мира падает замертво.", "", EntityExtractor.ITEM_NOUNS), "нападаю на Миру с ножом", "Мира падает замертво.")
         assertFalse(killed.state.findNpc("Мира")!!.alive)
         assertTrue(killed.state.nearbyNpcs().isEmpty())
         // В каноне новые персонажи не создаются, в свободной истории — можно.
@@ -164,6 +168,11 @@ class RulesTest {
         assertEquals(null, Morph.destination("подхожу к Мире и спрашиваю о брате"))
         assertEquals(null, Morph.destination("смотрю в окно"))
         assertEquals("Северная долина", Morph.placeNominative("Северной долины"))
+        assertEquals(listOf("Старая башня", "Разрушенные ворота"), Morph.findPlaces("Мира рассказала о старой башне, где у разрушенных ворот сохранялась печать."))
+        assertEquals("Миру", Morph.accusative("Мира", true)); assertEquals("Борина", Morph.accusative("Борин", true)); assertEquals("Арсения", Morph.accusative("Арсений", true))
+        assertEquals("ржавый ключ", Morph.accusative("ржавый ключ", false)); assertEquals("старую карту", Morph.accusative("старая карта", false))
+        assertEquals("ржавый ключ", RulesEngine.itemPhrase("беру ржавый ключ из щели", EntityExtractor.ITEM_NOUNS))
+        assertEquals("старая карта", RulesEngine.itemPhrase("хватаю старую карту со стола", EntityExtractor.ITEM_NOUNS))
         assertEquals("Тёмный лес", Morph.placeNominative("тёмного леса"))
     }
 

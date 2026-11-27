@@ -61,6 +61,34 @@ object Morph {
         return (words.dropLast(1).map { adjNominative(it, g) } + nom).joinToString(" ").replaceFirstChar { it.uppercase() }
     }
 
+    /** Все места, названные в предложении нарицательным словом: «о старой башне, где у ворот…» → [Старая башня, Ворота]. */
+    fun findPlaces(sentence: String): List<String> {
+        val words = sentence.split(Regex("[^А-Яа-яЁё-]+")).filter { it.isNotEmpty() }
+        val out = ArrayList<String>()
+        for (i in words.indices) {
+            if (placeNoun(words[i]) == null) continue
+            val adj = words.getOrNull(i - 1)?.takeIf { isAdjective(it) }
+            (if (adj != null) placeNominative("$adj ${words[i]}") else null ?: placeNominative(words[i]))?.let { if (it !in out) out += it }
+        }
+        return out
+    }
+
+    /** Винительный падеж для подсказок: «Мира» → «Миру», «Борин» → «Борина», «ржавый ключ» → «ржавый ключ», «старая карта» → «старую карту». */
+    fun accusative(name: String, animate: Boolean): String = name.split(' ').joinToString(" ") { w ->
+        val l = w.lowercase()
+        when {
+            l.endsWith("ая") -> w.dropLast(2) + "ую"
+            l.endsWith("яя") -> w.dropLast(2) + "юю"
+            l.endsWith("а") -> w.dropLast(1) + "у"
+            l.endsWith("я") -> w.dropLast(1) + "ю"
+            !animate -> w
+            l.endsWith("ский") || l.endsWith("цкий") || l.endsWith("ый") || l.endsWith("ой") -> w.dropLast(2) + "ого"
+            l.endsWith("й") || l.endsWith("ь") -> w.dropLast(1) + "я"
+            l.last() in "бвгджзклмнпрстфхцчшщ" -> w + "а"
+            else -> w
+        }
+    }
+
     private val DEST = Regex("(?<![а-яё])(?:к|ко|в|во|на|до|через|под|за|внутрь|вглубь|вдоль)\\s+((?:[а-яё-]+\\s+){0,2}[а-яё-]+)")
 
     /** Куда герой собирается идти, если это названо нарицательным словом-местом: «иду к старой башне» → «Старая башня». */

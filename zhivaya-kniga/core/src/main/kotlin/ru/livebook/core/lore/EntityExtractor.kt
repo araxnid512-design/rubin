@@ -33,6 +33,7 @@ object EntityExtractor {
 
     private class Cand(val stem: String) {
         val forms = HashMap<String, Int>()
+        val subj = HashMap<String, Int>()   // сколько раз форма стояла перед глаголом, т. е. была подлежащим
         var mid = 0; var start = 0
         var person = 0.0; var place = 0.0; var faction = 0.0
         var firstChapter = Int.MAX_VALUE
@@ -47,6 +48,7 @@ object EntityExtractor {
         val lowerCount = HashMap<String, Int>()
         val items = LinkedHashMap<String, Cand>()
         val rules = ArrayList<Entity>()
+        val locks = ArrayList<Entity>()
         val events = ArrayList<Entity>()
         val perChapter = HashMap<Int, HashMap<String, Int>>()
 
@@ -113,13 +115,17 @@ object EntityExtractor {
                         if (prevStem in ROLE_NOUNS) c.person += 3.0
                     }
                     if (next != null && next[0].isLetter() && next[0].isLowerCase()) {
-                        if (PAST_VERB.containsMatchIn(next) && nextStem !in PLACE_NOUNS) c.person += 1.5
+                        if (PAST_VERB.containsMatchIn(next) && nextStem !in PLACE_NOUNS) { c.person += 1.5; c.subj.merge(display, 1, Int::plus) }
                         if (nextStem in PLACE_NOUNS && !forcedPlace) c.place += 2.0
                     }
                     if (next == "—" || next == ",") c.person += 0.4
                     if (ci < c.firstChapter) { c.firstChapter = ci; c.descr = clip(sentence) }
                     perChapter.getOrPut(ci) { HashMap() }.merge(stem, 1, Int::plus)
                     i += span
+                }
+                // Запертые и запечатанные места: «у ворот башни сохранялась печать», «дверь в подвал заперта».
+                if (locks.size < 6 && LOCK.containsMatchIn(Text.norm(sentence))) {
+                    Morph.findPlaces(sentence).firstOrNull()?.let { place -> if (locks.none { it.name == place }) locks += Entity("lock", place, Text.stemKey(place), 1, clip(sentence, 220), ci) }
                 }
                 if (rules.size < 8 && sentence.length in 30..260) {
                     val l = Text.norm(sentence)
@@ -138,7 +144,10 @@ object EntityExtractor {
             if (c.mid == 0 && (c.start < 2 || lowTimes > 0)) continue          // только в начале предложений — скорее обычное слово
             if (lowTimes > c.mid * 2 && c.place < 3 && c.faction < 3) continue  // чаще пишется со строчной — не имя
             if (total < 1) continue
-            val name = c.forms.entries.sortedWith(compareByDescending<Map.Entry<String, Int>> { it.value }.thenBy { nominativeRank(it.key) }.thenBy { it.key.length }).first().key
+            // Начальная форма имени: для остальных — та, что чаще стоит подлежащим («Мира сказала»), затем самая частая.
+            // Мужские имена в начальной форме оканчиваются на согласную, «й» или «ь» («Арсений», а не «Арсения»).
+            val masc = c.forms.entries.filter { ' ' !in it.key && Text.norm(it.key).last() in "бвгджзйклмнпрстфхцчшщь" }
+            val name = (masc.maxByOrNull { it.value } ?: c.forms.entries.sortedWith(compareByDescending<Map.Entry<String, Int>> { (c.subj[it.key] ?: 0) * 3 + it.value }.thenBy { nominativeRank(it.key) }.thenBy { it.key.length }).first()).key
             val kind = when {
                 c.faction >= 3 && c.faction >= c.place && c.faction >= c.person -> "faction"
                 c.place >= 2.5 && c.place > c.person -> "place"
@@ -152,6 +161,7 @@ object EntityExtractor {
             out += Entity("item", name, c.stem, c.mid, c.descr, c.firstChapter)
         }
         out += rules
+        out += locks
         for ((ci, ch) in chapters) {
             val top = perChapter[ci]?.entries?.sortedByDescending { it.value }?.take(5)?.mapNotNull { e -> out.firstOrNull { it.stem == e.key }?.name } ?: emptyList()
             events += Entity("event", ch.title, "chapter$ci", 1, if (top.isEmpty()) "" else "Участвуют: " + top.joinToString(", "), ci)
@@ -160,7 +170,8 @@ object EntityExtractor {
         return out.sortedWith(compareBy<Entity> { KIND_ORDER.indexOf(it.kind) }.thenByDescending { it.freq })
     }
 
-    private val KIND_ORDER = listOf("person", "place", "faction", "item", "rule", "event")
+    private val KIND_ORDER = listOf("person", "place", "faction", "item", "rule", "lock", "event")
+    private val LOCK = Regex("заперт|запечат|печать|под замком|на замке|на засов|замурован|наглухо закрыт")
     private val ADJ = Regex("(ый|ий|ой|ая|яя|ое|ее|ые|ие|ую|юю|ого|его|ому|ему|ых|их|ым|им)$")
     private val PAST_VERB = Regex("(л|ла|ло|ли|лся|лась|лись|ет|ит|ёт)$")
 

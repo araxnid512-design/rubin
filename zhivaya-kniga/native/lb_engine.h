@@ -30,6 +30,10 @@ struct LbStats {
 LbEngine *lb_load(const char *path, int n_ctx, int n_threads, std::string &err);
 void lb_free(LbEngine *e);
 void lb_set_threads(LbEngine *e, int n_threads);
+// Пул потоков с привязкой к быстрым ядрам (big.LITTLE). Возвращает число найденных быстрых ядер (0 = определить не удалось).
+// Вызывать из того же потока, который потом вызывает lb_generate.
+int lb_configure_threads(LbEngine *e, int n_threads, bool big_only);
+int lb_big_core_count();
 int lb_n_ctx(LbEngine *e);
 int lb_count_tokens(LbEngine *e, const std::string &text);
 std::string lb_meta(LbEngine *e, const char *key);
