@@ -247,9 +247,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun cancelRefine() { cancelRefine.set(true); c.llm.cancel() }
 
     // ---------- игра ----------
-    fun newGame(bookId: String, hero: String, role: String, mode: String, bookHero: Boolean) = viewModelScope.launch(Dispatchers.IO) {
+    fun newGame(bookId: String, hero: String, role: String, mode: String, bookHero: Boolean, gamebook: Boolean = true) = viewModelScope.launch(Dispatchers.IO) {
         if (!c.llm.installed()) { message("Сначала установи модель: «Настройки» → «Установить модель из файла»."); return@launch }
-        val id = c.game.newGame(bookId, hero, role, mode, bookHero)
+        val id = c.game.newGame(bookId, hero, role, mode, bookHero, gamebook)
         openGame(id, opening = true)
     }
 
@@ -258,6 +258,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val state = c.saves.state(id) ?: return@launch
         val feed = ArrayList<FeedItem>()
         for (t in c.saves.turns(id, 60)) {
+            if (state.gamebook != null) {
+                // Книга-игра: заголовок параграфа с номером, текст и строка с бросками кубиков.
+                feed += FeedItem("para", t.action)
+                feed += FeedItem("narrator", t.narrative, t.events.filter { it.type == "note" }.joinToString(" ") { it.name })
+                continue
+            }
             if (t.n > 1 || !t.action.startsWith("осматриваюсь вокруг")) feed += FeedItem("hero", t.action)
             feed += FeedItem(if (t.kind == "fallback") "notice" else "narrator", t.narrative, t.events.joinToString(" · ") { it.describe() })
         }
@@ -282,8 +288,18 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch(llmThread) { runCatching { if (_ui.value.game?.id == gameId && !c.llm.busy) c.game.betweenTurns(gameId, settings()) } }
     }
 
-    private fun runTurn(gameId: String, action: String?) {
-        _ui.update { s -> s.game?.let { g -> s.copy(game = g.copy(busy = true, streaming = "", status = "", feed = if (action != null) g.feed + FeedItem("hero", action) else g.feed)) } ?: s }
+    /** Выбор варианта в книге-игре. */
+    fun choose(choiceId: String) {
+        val g = _ui.value.game ?: return
+        if (g.busy || g.state.gamebook == null) return
+        c.llm.cancel()
+        runTurn(g.id, null, choiceId)
+    }
+
+    private fun runTurn(gameId: String, action: String?, choiceId: String? = null) {
+        val book = _ui.value.game?.state?.gamebook
+        val label = if (book != null) "§${book.para + 1}. " + (book.choices.firstOrNull { it.id == choiceId }?.label ?: "Начало") else null
+        _ui.update { s -> s.game?.let { g -> s.copy(game = g.copy(busy = true, streaming = "", status = "", feed = if (label != null) g.feed + FeedItem("para", label) else if (action != null) g.feed + FeedItem("hero", action) else g.feed)) } ?: s }
         c.narrator.queue.clear()
         viewModelScope.launch(llmThread) {
             c.llm.busy = true
@@ -294,15 +310,16 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 override fun onSentence(sentence: String) { c.narrator.queue.append(sentence, c.narrator.auto && c.narrator.available()) }
             }
             val r: TurnResult = try {
-                if (action == null) c.game.opening(gameId, settings(), listener) else c.game.turn(gameId, action, settings(), listener)
+                if (book != null) c.game.gamebookTurn(gameId, choiceId ?: "start", settings(), listener)
+                else if (action == null) c.game.opening(gameId, settings(), listener) else c.game.turn(gameId, action, settings(), listener)
             } catch (t: Throwable) {
                 TurnResult("error", "", _ui.value.game!!.state, notice = "Ошибка хода: ${t.message}. Сохранение не затронуто.")
             } finally { c.llm.busy = false }
             val add = ArrayList<FeedItem>()
             when (r.kind) {
-                "llm" -> add += FeedItem("narrator", r.narrative, (r.applied.map { it.describe() } + r.notes).joinToString(" · "))
+                "llm" -> add += if (book != null) FeedItem("narrator", r.narrative, r.notes.joinToString(" ")) else FeedItem("narrator", r.narrative, (r.applied.map { it.describe() } + r.notes).joinToString(" · "))
                 "system" -> add += FeedItem("system", r.narrative)
-                "fallback" -> { add += FeedItem("notice", r.narrative); add += FeedItem("notice", r.notice) }
+                "fallback" -> { add += if (book != null) FeedItem("narrator", r.narrative, r.notes.joinToString(" ")) else FeedItem("notice", r.narrative); add += FeedItem("notice", r.notice) }
                 else -> add += FeedItem("notice", r.notice.ifEmpty { c.llm.lastError.ifEmpty { "Ход не выполнен." } })
             }
             if (r.kind == "system" && c.narrator.auto && c.narrator.available()) c.narrator.queue.setText(Text.splitSentences(r.narrative), true)
@@ -312,7 +329,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 s.copy(game = g.copy(busy = false, streaming = "", status = "", state = r.state, feed = (g.feed + add).takeLast(160), suggestions = r.state.suggestions.ifEmpty { g.suggestions },
                     slots = slots.filter { it.slot > 0 }, canUndo = slots.any { it.slot == 0 }, lastStats = stats.ifEmpty { g.lastStats }))
             } ?: s }
-            if (r.kind == "llm") between(gameId)
+            if (r.kind == "llm" || r.kind == "fallback") between(gameId)
         }
     }
 

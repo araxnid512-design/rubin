@@ -150,6 +150,23 @@ class DeviceSmokeTest {
         assertTrue(c.llm.installed())
     }
 
+    @Test fun t25_gamebookScreen() {
+        val c = app.container
+        val id = c.books.books().firstOrNull()?.id ?: c.books.addBook(BookImporter.import("vorota_mha.txt", sample())).also { c.books.indexBook(it) }
+        val gid = c.game.newGame(id, "Арсений", "странник", "canon", true, gamebook = true)
+        val s = c.saves.state(gid)!!
+        log("gamebook hero skill=${s.gamebook!!.skill} stamina=${s.hero.hp} luck=${s.gamebook!!.luck} goal=${s.quests.firstOrNull()?.title} locked=${s.lockedLocations} places=${s.knownLocations}")
+        assertTrue(s.gamebook!!.skill in 7..12 && s.hero.hp in 14..24 && s.gamebook!!.luck in 7..12)
+        vm.openGame(gid)
+        waitText("Ловкость")                       // шапка с листом персонажа
+        rule.onNodeWithText("Начать").assertExists() // без модели первый параграф не пишется, но экран готов
+        rule.onNodeWithText("Лист героя").performClick()
+        waitText("Проверка удачи")                 // правила на листе героя
+        rule.onNodeWithText("Закрыть").performClick()
+        waitText("Начать")
+        log("gamebook screen ok")
+    }
+
     @Test fun t6_builtinVoiceFromFile() {
         val src = File("/data/local/tmp/voice.zip")
         if (!src.exists()) { log("voice: пропущено — нет /data/local/tmp/voice.zip"); return }

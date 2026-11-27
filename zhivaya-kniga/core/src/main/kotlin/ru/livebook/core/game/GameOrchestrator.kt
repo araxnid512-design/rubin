@@ -75,7 +75,7 @@ interface TurnListener {
 class GameOrchestrator(private val books: BookRepository, private val saves: SaveRepository, private val llm: () -> LocalLlm?) {
 
     /** Создание приключения: стартовое место, персонажи и вещи берутся из уже проиндексированной части книги. */
-    fun newGame(bookId: String, heroName: String, heroRole: String, storyMode: String, bookHero: Boolean): String {
+    fun newGame(bookId: String, heroName: String, heroRole: String, storyMode: String, bookHero: Boolean, gamebook: Boolean = false, rng: kotlin.random.Random = kotlin.random.Random.Default): String {
         val book = books.book(bookId) ?: throw IllegalArgumentException("книга не найдена")
         val persons = books.entities(bookId, "person")
         val places = books.entities(bookId, "place")
@@ -106,6 +106,12 @@ class GameOrchestrator(private val books: BookRepository, private val saves: Sav
             quests = listOfNotNull(goal?.let { Quest("main", it.replaceFirstChar { c -> c.uppercase() }) }),
         )
         state = state.copy(suggestions = Suggestions.build(state))
+        // Книга-игра: бросаем кубики на Ловкость, Силу и Удачу.
+        if (gamebook) {
+            // Карта открывается по главам: в начале известны только места первой главы.
+            val first = books.entities(bookId).filter { it.kind in GamebookEngine.PLACE_KINDS && it.firstChapter <= (startEntity?.firstChapter ?: 0) }.map { it.name }
+            state = GamebookEngine.rollHero(state.copy(knownLocations = (listOf(start) + first).distinctBy { Text.stemKey(it) }.take(40)), rng)
+        }
         return saves.createGame(bookId, "$name — ${book.title}", state)
     }
 
@@ -275,13 +281,87 @@ class GameOrchestrator(private val books: BookRepository, private val saves: Sav
     }
 
     /**
+     * Ход книги-игры. Сначала правила и кубики решают, чем кончился выбор (это не зависит от модели),
+     * затем модель пишет параграф об уже случившемся. [choiceId] = "start" — первый параграф.
+     */
+    fun gamebookTurn(gameId: String, choiceId: String, settings0: GameSettings = GameSettings(), listener: TurnListener = object : TurnListener {}, rng: kotlin.random.Random = kotlin.random.Random.Default): TurnResult {
+        val state0 = saves.state(gameId) ?: throw IllegalArgumentException("игра не найдена")
+        val gb0 = state0.gamebook ?: return TurnResult("error", "", state0, notice = "Это приключение не в режиме книги-игры.")
+        val model = llm() ?: return TurnResult("error", "", state0, notice = "Локальная модель не установлена. Открой «Настройки» → «Установить модель из файла».")
+        val label = if (choiceId == "start") "Начало" else GamebookEngine.choices(state0).firstOrNull { it.id == choiceId }?.label ?: return TurnResult("error", "", state0, notice = "Такого выбора сейчас нет.")
+        val settings = settings0.copy(small = model.isSmall, gamebook = true)
+        listener.onStatus("Кубики брошены. Рассказчик пишет параграф…")
+        val out = GamebookEngine.apply(state0, choiceId, rng, books) { st, act -> StoryDirector.beat(st, books, act, force = true) }
+        val state = populate(out.state)
+        val gb = state.gamebook!!
+        val near = state.nearbyNpcs().map { it.name }
+        val enemy = gb.combat?.enemy ?: gb0.combat?.enemy.orEmpty()
+        val sceneLore = books.search(state.bookId, "${state.location} ${near.joinToString(" ")}", if (settings.economy) 1 else 2).map { it.text }
+        val grammar = GrammarBuilder.build(near, settings, enemy)
+        var history = settings.historyTurns; var loreChars = settings.loreChars
+        var prompt = PromptBuilder.build(state, books.book(state.bookId)?.title.orEmpty(), sceneLore, emptyList(), out.important, out.beat, out.action, settings, history, loreChars)
+        val budget = model.contextSize - settings.maxTokens - 16
+        while (model.countTokens(prompt) > budget && (history > 0 || loreChars > 0)) {
+            if (loreChars > 150) loreChars /= 2 else if (history > 0) history-- else loreChars = 0
+            prompt = PromptBuilder.build(state, books.book(state.bookId)?.title.orEmpty(), sceneLore, emptyList(), out.important, out.beat, out.action, settings, history, loreChars)
+        }
+        val recent = state0.history.takeLast(3).map { it.reply }
+        val avoid = (recent + (if (settings.small) listOf(PromptBuilder.GAMEBOOK_EXAMPLES) else emptyList())).joinToString(" ").ifEmpty { null }
+        var parsed = ResponseParser.parse("", out.action)
+        var stats: GenStats? = null
+        for (attempt in 0..1) {
+            val sb = StringBuilder(); var shown = ""; var spoken = 0
+            if (attempt == 1) listener.onText("")
+            val res = try {
+                model.generate(prompt, GenParams(settings.maxTokens, if (attempt == 0) settings.temp else settings.temp + 0.2f, seed = if (settings.seed < 0) -1 else settings.seed + state.timeTick * 7 + attempt, grammar = grammar, avoid = avoid, repeatPenalty = (if (settings.small) 1.18f else 1.1f) + attempt * 0.15f)) { piece ->
+                    sb.append(piece)
+                    val vis = ResponseParser.visible(sb.toString())
+                    if (attempt == 0 && vis != shown) {
+                        shown = vis; listener.onText(vis)
+                        val done = Text.splitSentences(vis).let { ss -> if (vis.isNotEmpty() && vis.last() in ".!?…»") ss else ss.dropLast(1) }
+                        while (spoken < done.size) listener.onSentence(done[spoken++])
+                    }
+                    true
+                }
+            } catch (e: Exception) { return TurnResult("error", "", state0, notice = "Сбой локальной модели: ${e.message}. Ход не засчитан.") }
+            stats = res.stats
+            if (res.stats.stopReason == 2) return TurnResult("error", "", state0, stats = stats, notice = "Генерация остановлена. Ход не засчитан, кубики будут брошены заново.")
+            parsed = ResponseParser.parse(res.text, "")
+            if (parsed.valid && attempt == 0) {
+                val first = Text.splitSentences(parsed.narrative).firstOrNull().orEmpty()
+                if (SERVICE.any { parsed.narrative.contains(it) }) parsed = parsed.copy(valid = false, problem = "служебное слово в тексте")
+                else if ((recent + PromptBuilder.GAMEBOOK_EXAMPLES).any { old -> ResponseParser.overlap(parsed.narrative, old) > 0.7 || Text.splitSentences(old).any { ResponseParser.overlap(first, it) > 0.6 } }) parsed = parsed.copy(valid = false, problem = "повтор прошлого параграфа")
+            }
+            // Вторая попытка: служебные слова вырезаются вместе с предложением.
+            if (attempt == 1 && parsed.valid && SERVICE.any { parsed.narrative.contains(it) }) {
+                val clean = Text.splitSentences(parsed.narrative).filter { st -> SERVICE.none { st.contains(it) } }.joinToString(" ")
+                parsed = if (clean.length >= 12) parsed.copy(narrative = clean) else parsed.copy(valid = false, problem = "служебное слово в тексте")
+            }
+            if (parsed.valid) {
+                if (attempt == 1) { listener.onText(parsed.narrative); Text.splitSentences(parsed.narrative).forEach { listener.onSentence(it) } }
+                else { val all = Text.splitSentences(parsed.narrative); while (spoken < all.size) listener.onSentence(all[spoken++]) }
+                break
+            }
+        }
+        // Механика уже сработала, поэтому при сбое модели параграф заменяется сухой записью исхода — и об этом сказано прямо.
+        val failed = !parsed.valid
+        val narrative = if (failed) (out.important.joinToString(" ").ifEmpty { "Вы действуете, как решили." }).also { listener.onText(it) } else parsed.narrative
+        val next = state.copy(history = (state.history + TurnBrief(out.action, narrative)).takeLast(6))
+        val statsText = stats?.let { "ttft=${it.ttftMs.toInt()}мс; ${"%.1f".format(it.tokensPerSecond)} ток/с; всего ${it.totalMs.toInt()}мс" }.orEmpty()
+        val note = GameEvent("note", out.note)
+        val n = saves.commitTurn(gameId, state0, next, TurnRecord(0, "§${gb.para}. $label", narrative, listOf(note), if (failed) "fallback" else "llm", statsText))
+        return TurnResult(if (failed) "fallback" else "llm", narrative, next, listOf(note), notes = listOf(out.note), stats = stats, turn = n, beat = out.beat,
+            notice = if (failed) "Модель дважды дала негодный текст (${parsed.problem}), поэтому параграф заменён краткой записью исхода. Сам ход засчитан." else "")
+    }
+
+    /**
      * Работа между ходами, пока игрок читает сцену: раз в шесть ходов — сводка сюжета, затем прогрев KV-кеша
      * началом следующего промпта. Вызывать в потоке модели после показа ответа.
      */
     fun betweenTurns(gameId: String, settings0: GameSettings = GameSettings()): Boolean {
         val model = llm() ?: return false
-        val settings = settings0.copy(small = model.isSmall)
         var state = saves.state(gameId) ?: return false
+        val settings = settings0.copy(small = model.isSmall, gamebook = state.gamebook != null)
         var summarized = false
         if (state.timeTick >= 6 && state.timeTick - state.summaryTick >= 6 && state.history.size >= 3) {
             state = state.copy(summary = (state.summary + summarize(model, state)).takeLast(3), summaryTick = state.timeTick)
@@ -315,6 +395,7 @@ class GameOrchestrator(private val books: BookRepository, private val saves: Sav
     }
 
     companion object {
+        private val SERVICE = listOf("Поворот", "Зацепк", "Важно", "Выбор читателя", "Ваш выбор", "ваш выбор", "выбор привёл", "параграф")
         fun relationWord(r: Int): String = when { r >= 6 -> "близкий друг"; r >= 3 -> "друг"; r >= 1 -> "расположен"; r <= -6 -> "враг"; r <= -3 -> "враждебен"; r <= -1 -> "насторожен"; else -> "нейтрален" }
     }
 }

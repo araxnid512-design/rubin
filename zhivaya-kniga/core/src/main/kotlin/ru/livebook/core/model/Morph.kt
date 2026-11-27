@@ -32,6 +32,8 @@ object Morph {
     }.toMap()
 
     private val ADJ_ENDINGS = listOf("ого", "его", "ому", "ему", "ыми", "ими", "ая", "яя", "ую", "юю", "ой", "ей", "ый", "ий", "ое", "ее", "ые", "ие", "ым", "им", "ом", "ем", "ых", "их")
+    /** Местоимения и слова-указатели, похожие на прилагательные: «своей деревни» — не название места. */
+    private val PRONOUNS = listOf("сво", "мое", "мои", "моя", "мою", "твое", "твои", "твоя", "наш", "ваш", "эт", "то", "те", "та", "всяк", "кажд", "люб", "одн", "как", "так", "друг", "сам", "весь", "вс", "котор", "чуж", "ино")
     private val SOFT = setOf("ий", "яя", "ее", "ие", "его", "ему", "им", "ей", "юю", "их", "ими", "ем")
 
     fun placeNoun(word: String): Pair<String, Char>? = PLACES[Text.stem(word)]
@@ -67,7 +69,7 @@ object Morph {
         val out = ArrayList<String>()
         for (i in words.indices) {
             if (placeNoun(words[i]) == null) continue
-            val adj = words.getOrNull(i - 1)?.takeIf { isAdjective(it) }
+            val adj = words.getOrNull(i - 1)?.takeIf { isAdjective(it) && !Text.norm(it).endsWith("ем") && PRONOUNS.none { p -> Text.norm(it).startsWith(p) } }
             (if (adj != null) placeNominative("$adj ${words[i]}") else null ?: placeNominative(words[i]))?.let { if (it !in out) out += it }
         }
         return out

@@ -71,7 +71,7 @@ fun GameScreen(vm: MainViewModel, ui: UiState, voice: VoiceState) {
             TextButton(onClick = { vm.go(if (ui.book != null) Screen.BOOK else Screen.LIBRARY) }) { Text("←") }
             Column(Modifier.weight(1f)) {
                 Text(g.state.location, style = MaterialTheme.typography.titleMedium, fontFamily = FontFamily.Serif, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text("${g.state.hero.name} · здоровье ${g.state.hero.hp}/${g.state.hero.maxHp} · монеты ${g.state.hero.gold} · ход ${g.state.timeTick}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(g.state.gamebook?.let { b -> "Ловкость ${b.skill} · Сила ${g.state.hero.hp}/${g.state.hero.maxHp} · Удача ${b.luck} · еда ${b.provisions} · монеты ${g.state.hero.gold}" } ?: "${g.state.hero.name} · здоровье ${g.state.hero.hp}/${g.state.hero.maxHp} · монеты ${g.state.hero.gold} · ход ${g.state.timeTick}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             OutlinedButton(onClick = { sheet = true }) { Text("Лист героя") }
         }
@@ -100,6 +100,29 @@ fun GameScreen(vm: MainViewModel, ui: UiState, voice: VoiceState) {
             if (g.lastStats.isNotEmpty() && !g.busy) Text(g.lastStats.substringAfterLast("· "), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
 
+        val book = g.state.gamebook
+        if (book != null) {
+            // Книга-игра: вместо поля ввода — варианты выбора. Исход решают правила и кубики, модель только рассказывает.
+            Column(Modifier.fillMaxWidth().heightIn(max = 300.dp).verticalScroll(rememberScrollState()).padding(horizontal = 10.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                when {
+                    g.busy -> OutlinedButton(onClick = { vm.cancelGeneration() }, modifier = Modifier.fillMaxWidth()) { Text("Остановить") }
+                    book.dead -> {
+                        Text("Сила упала до нуля. Приключение окончено.", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.SemiBold)
+                        Button(onClick = { vm.undo() }, enabled = g.canUndo, modifier = Modifier.fillMaxWidth()) { Text("Переиграть последний ход") }
+                        OutlinedButton(onClick = { vm.go(if (ui.book != null) Screen.BOOK else Screen.LIBRARY) }, modifier = Modifier.fillMaxWidth()) { Text("Начать новое приключение") }
+                    }
+                    book.won -> {
+                        Text("Финал. Цель достигнута: параграфов пройдено — ${book.para}, побед в боях — ${book.kills}.", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
+                        OutlinedButton(onClick = { vm.go(if (ui.book != null) Screen.BOOK else Screen.LIBRARY) }, modifier = Modifier.fillMaxWidth()) { Text("К книге") }
+                    }
+                    book.choices.isEmpty() -> Button(onClick = { vm.choose("start") }, modifier = Modifier.fillMaxWidth()) { Text("Начать") }
+                    else -> book.choices.forEach { ch ->
+                        if (ch.kind == "strike") Button(onClick = { vm.choose(ch.id) }, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) { Text(ch.label) }
+                        else OutlinedButton(onClick = { vm.choose(ch.id) }, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) { Text(ch.label) }
+                    }
+                }
+            }
+        } else {
         // Необязательные подсказки: по нажатию текст попадает в поле ввода, его можно изменить.
         if (g.suggestions.isNotEmpty() && !g.busy && ui.prefs.suggestions) {
             Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 10.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -114,6 +137,7 @@ fun GameScreen(vm: MainViewModel, ui: UiState, voice: VoiceState) {
             )
             if (g.busy) OutlinedButton(onClick = { vm.cancelGeneration() }, modifier = Modifier.height(54.dp)) { Text("Стоп") }
             else Button(onClick = { submit() }, enabled = input.isNotBlank(), modifier = Modifier.height(54.dp)) { Text("Отправить") }
+        }
         }
     }
 
@@ -136,6 +160,7 @@ fun GameScreen(vm: MainViewModel, ui: UiState, voice: VoiceState) {
 fun FeedRow(item: FeedItem, scale: Float) {
     when (item.kind) {
         "hero" -> Text("— " + item.text, color = MaterialTheme.colorScheme.primary, fontSize = (16 * scale).sp, lineHeight = (23 * scale).sp)
+        "para" -> Text(item.text, color = MaterialTheme.colorScheme.primary, fontFamily = FontFamily.Serif, fontWeight = FontWeight.SemiBold, fontSize = (16 * scale).sp, modifier = Modifier.padding(top = 6.dp))
         "narrator" -> Column {
             Text(item.text, fontFamily = FontFamily.Serif, fontSize = (18 * scale).sp, lineHeight = (27 * scale).sp)
             if (item.meta.isNotEmpty()) Text(item.meta, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.secondary, modifier = Modifier.padding(top = 3.dp))
@@ -156,10 +181,16 @@ fun HeroSheet(vm: MainViewModel, ui: UiState, g: GameUi, voice: VoiceState) {
             when (tab) {
                 0 -> {
                     Text(s.hero.name + if (s.hero.role.isBlank()) "" else ", " + s.hero.role, style = MaterialTheme.typography.titleLarge, fontFamily = FontFamily.Serif)
-                    Text("Здоровье ${s.hero.hp} из ${s.hero.maxHp} · монеты ${s.hero.gold}")
+                    val b = s.gamebook
+                    if (b != null) {
+                        Text("Ловкость ${b.skill} · Сила ${s.hero.hp} из ${s.hero.maxHp} · Удача ${b.luck} из ${b.luckMax}")
+                        Text("Припасы: ${b.provisions} · монеты: ${s.hero.gold} · параграф ${b.para} · побед в боях: ${b.kills}")
+                        Dim("Бой: оба бросают два кубика и прибавляют Ловкость; у кого меньше — теряет 2 Силы. Проверка удачи: два кубика не больше Удачи; каждая проверка уменьшает Удачу на 1. Припасы возвращают 4 Силы.")
+                        b.combat?.let { Text("Идёт бой: ${it.enemy} — Ловкость ${it.skill}, Сила ${it.stamina}", color = MaterialTheme.colorScheme.error) }
+                    } else Text("Здоровье ${s.hero.hp} из ${s.hero.maxHp} · монеты ${s.hero.gold}")
                     Dim("Место: ${s.location} · ход ${s.timeTick} · режим: ${if (s.storyMode == "canon") "ближе к канону" else "свободная история"}")
                     Label("Задания")
-                    if (s.quests.isEmpty()) Dim("Пока нет. Задание появится, когда герой что-то пообещает («обещаю найти…»).")
+                    if (s.quests.isEmpty()) Dim("Пока нет.")
                     s.quests.forEach { q -> Text((if (q.status == "done") "✓ " else "• ") + q.title) }
                     Label("Сохранения")
                     Dim("Игра сохраняется сама после каждого хода. Слоты — для ручных точек возврата.")

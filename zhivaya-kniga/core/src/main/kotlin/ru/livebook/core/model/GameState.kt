@@ -35,6 +35,32 @@ data class Quest(val id: String, val title: String, val status: String = "active
 @Serializable
 data class TurnBrief(val action: String, val reply: String)
 
+/** Вариант выбора в книге-игре. kind: go, talk, search, strike, luckstrike, flee, eat, wait, start. */
+@Serializable
+data class Choice(val id: String, val label: String, val kind: String, val target: String = "")
+
+/** Идущий бой: у противника, как у героя, есть Ловкость и Сила. */
+@Serializable
+data class Combat(val enemy: String, val skill: Int, val stamina: Int, val round: Int = 0, @SerialName("from") val cameFrom: String = "")
+
+/** Лист персонажа книги-игры. Сила героя хранится в hero.hp. */
+@Serializable
+data class Gamebook(
+    val skill: Int = 0, val luck: Int = 0, @SerialName("luck_max") val luckMax: Int = 0, val provisions: Int = 0,
+    /** Номер текущего параграфа. */
+    val para: Int = 0,
+    val combat: Combat? = null,
+    val choices: List<Choice> = emptyList(),
+    /** Последние броски кубиков — для показа игроку. */
+    val dice: String = "",
+    val searched: List<String> = emptyList(),
+    val visited: List<String> = emptyList(),
+    val talked: List<String> = emptyList(),
+    val dead: Boolean = false,
+    val won: Boolean = false,
+    val kills: Int = 0,
+)
+
 @Serializable
 data class GameState(
     @SerialName("save_version") val saveVersion: Int = 1,
@@ -63,6 +89,8 @@ data class GameState(
     /** До какой главы книги дошёл сюжет и какие зацепки из неё уже использованы. */
     val stage: Int = 0,
     @SerialName("used_clues") val usedClues: List<Long> = emptyList(),
+    /** Не null — приключение идёт в режиме книги-игры (параграфы, выбор, кубики). */
+    val gamebook: Gamebook? = null,
 ) {
     fun toJson(): String = JSON.encodeToString(serializer(), this)
     fun hasItem(name: String): Boolean = findItem(name) != null

@@ -55,11 +55,12 @@ object StoryDirector {
      * Поворот для ближайшей сцены (или пустая строка). Каждые три хода — зацепка из текущей главы книги,
      * иногда — осложнение. Использованные зацепки запоминаются; после двух зацепок сюжет переходит к следующей главе.
      */
-    fun beat(state: GameState, books: BookRepository, action: String): Beat {
+    /** [force] — выдать зацепку сейчас (в книге-игре её приносит разговор или находка), а не раз в три хода. */
+    fun beat(state: GameState, books: BookRepository, action: String, force: Boolean = false): Beat {
         val t = state.timeTick
-        if (t == 0) return Beat("", state)
+        if (t == 0 && !force) return Beat("", state)
         val near = state.nearbyNpcs().firstOrNull()?.name
-        if (t % 3 == 0) {
+        if (t % 3 == 0 || force) {
             val chapters = books.indexedChapterCount(state.bookId)
             var stage = state.stage.coerceIn(0, (chapters - 1).coerceAtLeast(0))
             repeat(2) {

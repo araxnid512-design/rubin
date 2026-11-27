@@ -15,6 +15,8 @@ data class GameSettings(
     val seed: Int = -1,
     /** Профиль маленькой модели: примеры в промпте, без карточек персонажей, сильнее штраф за повтор. */
     val small: Boolean = false,
+    /** Книга-игра: параграфы на «вы», результат выбора и кубиков уже решён правилами. */
+    val gamebook: Boolean = false,
 ) {
     val maxTokens: Int get() = when { economy -> 50; detail -> 170; else -> 84 }
     val loreChars: Int get() = when { economy -> 220; detail -> 520; else -> 420 }
@@ -25,7 +27,7 @@ object GrammarBuilder {
     private fun lit(s: String): String = "\"" + s.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", " ") + "\""
 
     /** GBNF-грамматика сцены: только русский текст из 1–N предложений. Изменения мира модель не пишет — их выводит движок правил. */
-    fun build(near: List<String>, settings: GameSettings): String {
+    fun build(near: List<String>, settings: GameSettings, enemy: String = ""): String {
         val (minS, maxS) = when { settings.economy -> 1 to 2; settings.detail -> 3 to 5; else -> 2 to 2 }
         val sb = StringBuilder("root ::= first")
         repeat(minS - 1) { sb.append(" \" \" sent") }
@@ -33,7 +35,9 @@ object GrammarBuilder {
         sb.append("\n")
         // После начала фразы идёт строчная буква: не «Ты — Мира…», а сразу действие.
         // Первая фраза начинается с того, кто рядом, или с героя и мира вокруг — так в сцену не попадают чужие имена.
-        val starts = near.map { "$it " } + listOf("Ты ", "Тебе ", "Тебя ", "Вокруг ", "В ", "На ", "У ", "За ", "Перед тобой ", "Впереди ", "Здесь ", "Тишин")
+        val starts = if (settings.gamebook && enemy.isNotEmpty()) listOf(enemy.replaceFirstChar { it.uppercase() } + " ", "Вы ", "Ваш ", "Противник ", "Удар ")
+            else if (settings.gamebook) near.map { "$it " } + listOf("Вы ", "Вам ", "Вас ", "Вокруг ", "В ", "На ", "У ", "За ", "Перед вами ", "Впереди ", "Здесь ", "Тишин")
+            else near.map { "$it " } + listOf("Ты ", "Тебе ", "Тебя ", "Вокруг ", "В ", "На ", "У ", "За ", "Перед тобой ", "Впереди ", "Здесь ", "Тишин")
         sb.append("first ::= (" + starts.joinToString(" | ") { lit(it) } + ") [а-яё] ch+ [.!?…] \"»\"?\n")
         sb.append("sent ::= [А-ЯЁ«—] ch+ [.!?…] \"»\"?\n")
         // Заглавная буква допустима только в начале слова (имена): служебные слова из одних заглавных в сцену не попадут.
@@ -44,7 +48,23 @@ object GrammarBuilder {
 
 object PromptBuilder {
     private const val THINK = "<think>\n\n</think>\n\n"
+    private fun gamebookSystem(settings: GameSettings, storyMode: String): String {
+        val len = when { settings.economy -> "1-2 коротких предложения"; settings.detail -> "4-5 предложений"; else -> "2 коротких предложения" }
+        val mode = if (storyMode == "canon") "Держись фактов книги и характеров её персонажей." else "История может пойти иначе, чем в книге, но мир и характеры остаются прежними."
+        return "<|im_start|>system\nТы пишешь параграфы книги-игры по мотивам книги. Игрок уже сделал выбор, а правила и кубики уже решили, чем он кончился: это сказано в строке «Важно». " +
+            "Опиши, как это произошло: $len, по-русски, читателю говори «вы», героя по имени не называй. Не меняй исход: если сказано, что герой ранен, победил или нашёл вещь — так и пиши, ничего не добавляя от себя. " +
+            "Персонажи говорят прямой речью в кавычках «». Не пиши от первого лица, не предлагай вариантов и не задавай вопросов читателю. Не повторяй прежние фразы. $mode /no_think<|im_end|>\n" +
+            if (!settings.small) "" else
+            "<|im_start|>user\nМесто: кузница. Рядом: Гордей. Герой: Лука, путник.\nВажно: Вы находите здесь: старый нож.\nВыбор читателя: тщательно обыскать это место<|im_end|>\n" +
+            "<|im_start|>assistant\n$THINK" + "Вы шарите рукой под верстаком и нащупываете холодную рукоять. Это старый нож, забытый кем-то из прежних хозяев.<|im_end|>\n" +
+            "<|im_start|>user\nМесто: лесная тропа. Рядом: никого. Герой: Лука, путник.\nВажно: В этом раунде волк ранит вас, бой продолжается.\nВыбор читателя: сражаться, противник — волк<|im_end|>\n" +
+            "<|im_start|>assistant\n$THINK" + "Волк бросается вперёд и рвёт вам рукав вместе с кожей. Вы отшатываетесь, но остаётесь на ногах.<|im_end|>\n"
+    }
+
+    const val GAMEBOOK_EXAMPLES = "Вы шарите рукой под верстаком и нащупываете холодную рукоять. Это старый нож, забытый кем-то из прежних хозяев. Волк бросается вперёд и рвёт вам рукав вместе с кожей. Вы отшатываетесь, но остаётесь на ногах."
+
     fun system(settings: GameSettings, storyMode: String): String {
+        if (settings.gamebook) return gamebookSystem(settings, storyMode)
         val len = when { settings.economy -> "1-2 коротких предложения"; settings.detail -> "4-5 предложений"; else -> "2 коротких предложения" }
         val mode = if (storyMode == "canon") "Держись фактов книги и характеров её персонажей." else "История может пойти иначе, чем в книге, но мир и характеры остаются прежними."
         return "<|im_start|>system\nТы — рассказчик текстовой игры по книге. Игрок пишет действие героя. Ты пишешь, что произошло дальше: ответ персонажа, реакцию мира. " +
@@ -110,14 +130,14 @@ object PromptBuilder {
         if (recent.isNotEmpty()) {
             sb.append("Раньше было так. ")
             // Маленькой модели прошлые сцены не показываем: она начинает переписывать их дословно. Ей хватает действий героя.
-            recent.forEach { t -> sb.append("Ты: ").append(cleanAction(t.action).take(70).trimEnd('.', '!', '?')).append(". "); if (!settings.small) sb.append("В ответ: ").append(brief(t.reply)).append(' ') }
+            recent.forEach { t -> sb.append(if (settings.gamebook) "Выбор: " else "Ты: ").append(cleanAction(t.action).take(70).trimEnd('.', '!', '?')).append(". "); if (!settings.small && !settings.gamebook) sb.append("В ответ: ").append(brief(t.reply)).append(' ') }
             sb.setLength(sb.length - 1); sb.append('\n')
         }
         val extra = clipLore(actionLore.filter { it !in sceneLore }, loreChars * 4 / 10)
         if (extra.isNotEmpty()) sb.append("Ещё из книги: ").append(extra).append('\n')
         if (constraints.isNotEmpty()) sb.append("Важно: ").append(constraints.joinToString(" ")).append('\n')
-        if (beat.isNotEmpty()) sb.append("Поворот: ").append(beat).append('\n')
-        sb.append("Действие героя: ").append(cleanAction(action)).append("<|im_end|>\n")
+        if (beat.isNotEmpty()) sb.append(if (settings.gamebook) "Упомяни своими словами: " else "Поворот: ").append(if (settings.gamebook) beat.removePrefix("в сцене всплывает зацепка — ") else beat).append('\n')
+        sb.append(if (settings.gamebook) "Выбор читателя: " else "Действие героя: ").append(cleanAction(action)).append("<|im_end|>\n")
         sb.append("<|im_start|>assistant\n").append(THINK)
         return sb.toString()
     }

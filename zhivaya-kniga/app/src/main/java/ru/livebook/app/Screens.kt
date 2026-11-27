@@ -170,6 +170,7 @@ fun BookScreen(vm: MainViewModel, ui: UiState) {
     var name by remember(b.id) { mutableStateOf(persons.firstOrNull()?.name ?: "") }
     var role by remember(b.id) { mutableStateOf("") }
     var mode by remember(b.id) { mutableStateOf("canon") }
+    var gamebook by remember(b.id) { mutableStateOf(true) }
     var confirmDelete by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxSize()) {
         Header(b.title, back = { vm.go(Screen.LIBRARY) })
@@ -187,6 +188,9 @@ fun BookScreen(vm: MainViewModel, ui: UiState) {
 
             Label("Новое приключение")
             Card {
+                Row(Modifier.selectable(selected = gamebook, onClick = { gamebook = true }), verticalAlignment = Alignment.CenterVertically) { RadioButton(selected = gamebook, onClick = null); Column(Modifier.padding(start = 8.dp)) { Text("Книга-игра"); Dim("Параграфы, выбор из вариантов, Ловкость, Сила и Удача, бои на кубиках.") } }
+                Row(Modifier.selectable(selected = !gamebook, onClick = { gamebook = false }), verticalAlignment = Alignment.CenterVertically) { RadioButton(selected = !gamebook, onClick = null); Column(Modifier.padding(start = 8.dp)) { Text("Свободная игра"); Dim("Действия пишешь сам, своими словами.") } }
+                HorizontalDivider()
                 Row(Modifier.selectable(selected = bookHero, onClick = { bookHero = true; name = persons.firstOrNull()?.name ?: "" }), verticalAlignment = Alignment.CenterVertically) { RadioButton(selected = bookHero, onClick = null, enabled = persons.isNotEmpty()); Text("  Герой книги") }
                 Row(Modifier.selectable(selected = !bookHero, onClick = { bookHero = false; name = "" }), verticalAlignment = Alignment.CenterVertically) { RadioButton(selected = !bookHero, onClick = null); Text("  Свой герой") }
                 if (bookHero) FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) { persons.take(8).forEach { p -> FilterChip(selected = name == p.name, onClick = { name = p.name }, label = { Text(p.name) }) } }
@@ -195,7 +199,7 @@ fun BookScreen(vm: MainViewModel, ui: UiState) {
                 HorizontalDivider()
                 Row(Modifier.selectable(selected = mode == "canon", onClick = { mode = "canon" }), verticalAlignment = Alignment.CenterVertically) { RadioButton(selected = mode == "canon", onClick = null); Column(Modifier.padding(start = 8.dp)) { Text("Ближе к канону"); Dim("Бережно к событиям и героям книги.") } }
                 Row(Modifier.selectable(selected = mode == "alternate", onClick = { mode = "alternate" }), verticalAlignment = Alignment.CenterVertically) { RadioButton(selected = mode == "alternate", onClick = null); Column(Modifier.padding(start = 8.dp)) { Text("Свободная история"); Dim("Сюжет может уйти в сторону, появляются новые персонажи.") } }
-                Button(onClick = { vm.newGame(b.id, name, role, mode, bookHero) }, enabled = name.isNotBlank() && b.indexedChapters > 0 && !ui.model.busy, modifier = Modifier.fillMaxWidth()) { Text("Начать приключение") }
+                Button(onClick = { vm.newGame(b.id, name, role, mode, bookHero, gamebook) }, enabled = name.isNotBlank() && b.indexedChapters > 0 && !ui.model.busy, modifier = Modifier.fillMaxWidth()) { Text("Начать приключение") }
                 if (!ui.model.installed) Text("Сначала установи модель в настройках.", color = MaterialTheme.colorScheme.error)
             }
 

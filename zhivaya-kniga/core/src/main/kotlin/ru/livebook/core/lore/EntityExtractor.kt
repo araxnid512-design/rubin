@@ -49,6 +49,7 @@ object EntityExtractor {
         val items = LinkedHashMap<String, Cand>()
         val rules = ArrayList<Entity>()
         val locks = ArrayList<Entity>()
+        val sites = LinkedHashMap<String, IntArray>()   // название → (сколько раз, первая глава)
         val events = ArrayList<Entity>()
         val perChapter = HashMap<Int, HashMap<String, Int>>()
 
@@ -123,6 +124,8 @@ object EntityExtractor {
                     perChapter.getOrPut(ci) { HashMap() }.merge(stem, 1, Int::plus)
                     i += span
                 }
+                // Места, названные обычными словами («северные ворота», «мастерская»): из них складывается карта книги-игры.
+                for (site in Morph.findPlaces(sentence)) { val c = sites.getOrPut(site) { intArrayOf(0, ci) }; c[0]++ }
                 // Запертые и запечатанные места: «у ворот башни сохранялась печать», «дверь в подвал заперта».
                 if (locks.size < 6 && LOCK.containsMatchIn(Text.norm(sentence))) {
                     Morph.findPlaces(sentence).firstOrNull()?.let { place -> if (locks.none { it.name == place }) locks += Entity("lock", place, Text.stemKey(place), 1, clip(sentence, 220), ci) }
@@ -162,6 +165,13 @@ object EntityExtractor {
         }
         out += rules
         out += locks
+        val named = out.filter { it.kind == "place" }.flatMap { Text.stems(it.name) }.toSet()
+        for ((name, c) in sites) {
+            val specific = ' ' in name || c[0] >= 2
+            if (!specific || Text.stem(name.substringAfterLast(' ')) in GENERIC_SITES && ' ' !in name) continue
+            if (Text.stems(name).all { it in named }) continue                      // уже есть как собственное название
+            if (out.size < 400 && sites.keys.none { it != name && it.endsWith(" " + name.lowercase()) && ' ' !in name }) out += Entity("site", name, Text.stemKey(name), c[0], "", c[1])
+        }
         for ((ci, ch) in chapters) {
             val top = perChapter[ci]?.entries?.sortedByDescending { it.value }?.take(5)?.mapNotNull { e -> out.firstOrNull { it.stem == e.key }?.name } ?: emptyList()
             events += Entity("event", ch.title, "chapter$ci", 1, if (top.isEmpty()) "" else "Участвуют: " + top.joinToString(", "), ci)
@@ -170,7 +180,8 @@ object EntityExtractor {
         return out.sortedWith(compareBy<Entity> { KIND_ORDER.indexOf(it.kind) }.thenByDescending { it.freq })
     }
 
-    private val KIND_ORDER = listOf("person", "place", "faction", "item", "rule", "lock", "event")
+    private val KIND_ORDER = listOf("person", "place", "faction", "item", "rule", "lock", "site", "event")
+    private val GENERIC_SITES = setOf("дорог", "земл", "дом", "двор", "край", "город", "стен", "выход", "вход", "улиц", "комнат", "зал")
     private val LOCK = Regex("заперт|запечат|печать|под замком|на замке|на засов|замурован|наглухо закрыт")
     private val ADJ = Regex("(ый|ий|ой|ая|яя|ое|ее|ые|ие|ую|юю|ого|его|ому|ему|ых|их|ым|им)$")
     private val PAST_VERB = Regex("(л|ла|ло|ли|лся|лась|лись|ет|ит|ёт)$")
