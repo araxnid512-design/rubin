@@ -142,7 +142,7 @@ func _ready() -> void:
 			sc.lottery = [sc.lottery[1], sc.lottery[1]]
 			sc.ruber_chances = [0, 0, 1]                 # и два Рубера — всего 57
 			ULSanatorium._cfg = sc
-	if test == "revisit" or test == "humanview" or test == "glowview" or test == "gqview" or test == "mapbake" or test == "pmap" or test == "fldiag" or test == "shbake" or test == "shcheck" or test == "gbake" or test == "gcheck" or test == "gperf" or test == "lumtest" or test == "wperf" or test == "evo" or test == "reload" or test == "look" or test == "traces" or test == "car" or test == "turfx" or test == "exitflow" or test == "enterview" or test == "colaudit" or test == "carin":
+	if test == "revisit" or test == "humanview" or test == "glowview" or test == "gqview" or test == "mapbake" or test == "pmap" or test == "fldiag" or test == "shbake" or test == "shcheck" or test == "gbake" or test == "gcheck" or test == "gperf" or test == "lumtest" or test == "wperf" or test == "evo" or test == "reload" or test == "look" or test == "traces" or test == "car" or test == "turfx" or test == "exitflow" or test == "enterview" or test == "colaudit" or test == "carin" or test == "trap":
 		# сравнение чёткости (gqview), запекание карты локации (mapbake), проверка карты (pmap): место — --as-place=
 		ULSettings.arena = false
 		for a in OS.get_cmdline_user_args():
@@ -8783,6 +8783,13 @@ func _pt_test() -> void:
 	var wb: ULBlock = by_id.wh1
 	var w_out: Vector3 = snapf.call(wb.entrances[0][0])
 	var w_in: Vector3 = snapf.call(Vector3(wb.rect.get_center().x, 0.1, wb.rect.get_center().y + 3.0))
+	# проверяется вход в здание, а не бой: заражённые у ворот и в зале убираются (иначе один, вставший в проёме,
+	# не давал пройти — расстановка случайная, и пункт то проходил, то нет)
+	for e in enemies:
+		if is_instance_valid(e) and e.alive() and (e.global_position.distance_to(w_out) < 16.0 or wb.rect.grow(2.0).has_point(Vector2(e.global_position.x, e.global_position.z))):
+			e.global_position += Vector3(0, -60, 0)
+			e.set_active(false)
+			e.state = "idle"
 	player.global_position = w_out + Vector3(0, 0.1, 3.0)
 	await get_tree().create_timer(0.5).timeout
 	var roof0: bool = wb._groups["b0/r"].visible and san.hero_b == -1
@@ -8792,7 +8799,17 @@ func _pt_test() -> void:
 	for m in wb.models:
 		if String(m[4]) == "b0/n0":
 			wh_goods += 1
-	_ok("склад № 1: герой вошёл через ворота, крыша скрыта; груза в зале — %d предметов" % wh_goods, roof0 and san.hero_b == san.blds.find(wb) and not wb._groups["b0/r"].visible and wh_goods >= 30)
+	var wh_hits := []
+	for ci in player.get_slide_collision_count():
+		var kc := player.get_slide_collision(ci)
+		var kco := kc.get_collider()
+		wh_hits.append("%s (%s) в %s" % [String((kco as Node).name) if kco is Node else "?", (kco as Object).get_class() if kco else "?", str((kco as Node3D).global_position.snapped(Vector3.ONE * 0.1)) if kco is Node3D else "?"])
+	var wh_near := 0
+	for e in enemies:
+		if is_instance_valid(e) and e.alive() and e.global_position.distance_to(player.global_position) < 4.0:
+			wh_near += 1
+	_ok("склад № 1: герой вошёл через ворота, крыша скрыта; груза в зале — %d предметов" % wh_goods, roof0 and san.hero_b == san.blds.find(wb) and not wb._groups["b0/r"].visible and wh_goods >= 30,
+		"до входа крыша видна и герой снаружи: %s; герой в здании № %d (склад — № %d), крыша видна: %s, герой в %s, цель %s" % [str(roof0), san.hero_b, san.blds.find(wb), str(wb._groups["b0/r"].visible), str(player.global_position.snapped(Vector3.ONE * 0.1)), str(w_in.snapped(Vector3.ONE * 0.1))] + "; упёрся в: %s; заражённых ближе 4 м: %d" % [", ".join(wh_hits), wh_near])
 	if out != "":
 		_cam_ready = false
 		await get_tree().create_timer(0.6).timeout
@@ -20172,6 +20189,9 @@ func _run_test() -> void:
 	if test == "carin":
 		await _carin_test()
 		return
+	if test == "trap":
+		await _trap_test()
+		return
 	if test == "setshot":
 		# снимок окна настроек (строка о разрешении экрана и подстройке)
 		await get_tree().create_timer(1.0).timeout
@@ -25162,6 +25182,262 @@ func _garage_test() -> void:
 ## «пролезет ли кузов» (клетка 1 м, квадрат 2,6 × 2,6 м над землёй пуст) считается, куда от входа можно доехать;
 ## затем машина сама едет по такому пути вглубь локации (к ближайшему к её середине доступному месту), там герой
 ## выходит и садится обратно. Тесные клетки (нет запаса на разворот, квадрат 4,4 м занят) путь обходит, если может.
+## Ловушки для героя (--as-test=trap --as-place=port|depot|… [--as-out=папка]): тело-щуп с той же капсулой, что у героя,
+## обходит ВСЮ локацию от входа шагами по полметра во все восемь сторон (настоящий move_and_slide, как у героя, двери
+## считаются открытыми). Получается карта «откуда куда можно пройти»; ловушка — место, куда от входа дойти можно, а
+## обратно ко входу нельзя (яма, щель, уступ, вода). Печатает группы таких мест с координатами.
+func _trap_test() -> void:
+	var t0 := Time.get_ticks_msec()
+	while not cs_ready and Time.get_ticks_msec() - t0 < 60000:
+		await get_tree().process_frame
+	await get_tree().create_timer(0.8).timeout
+	for e in enemies:
+		if is_instance_valid(e) and e.alive():
+			e.global_position += Vector3(0, -60, 0)
+			e.set_active(false)
+			e.state = "idle"
+	hp_lock = true
+	var probe := CharacterBody3D.new()
+	var pcs := CollisionShape3D.new()
+	var pcap := CapsuleShape3D.new()
+	pcap.radius = 0.3
+	pcap.height = 1.75
+	pcs.shape = pcap
+	pcs.position.y = 0.875
+	probe.add_child(pcs)
+	probe.floor_snap_length = 0.4
+	probe.collision_layer = 0
+	probe.collision_mask = 1 | PROP_LAYER
+	add_child(probe)
+	probe.add_collision_exception_with(player)
+	if car != null:
+		probe.add_collision_exception_with(car)
+	var start := zone_entry()
+	player.global_position = start + Vector3(0, -80, 0)
+	const G := 0.5
+	const SUB := 4                    # шаг героя за один расчёт — 12,5 см (в игре — не больше ~15 см)
+	var dirs := [Vector3(1, 0, 0), Vector3(-1, 0, 0), Vector3(0, 0, 1), Vector3(0, 0, -1), Vector3(1, 0, 1).normalized(), Vector3(1, 0, -1).normalized(), Vector3(-1, 0, 1).normalized(), Vector3(-1, 0, -1).normalized()]
+	# один расчёт движения: сдвиг d по горизонтали + падение (как при 1/30 с), возвращает «стоит на полу»
+	var vy := [0.0]
+	var mv := func(d: Vector3) -> void:
+		var dt := maxf(get_physics_process_delta_time() if Engine.is_in_physics_frame() else get_process_delta_time(), 0.0001)
+		vy[0] -= 9.8 / 30.0
+		probe.velocity = Vector3(d.x, vy[0] / 30.0, d.z) / dt
+		probe.move_and_slide()
+		if probe.is_on_floor():
+			vy[0] = 0.0
+	var settle := func(at: Vector3) -> Vector3:
+		probe.global_position = at
+		vy[0] = 0.0
+		for i in 90:
+			mv.call(Vector3.ZERO)
+			if probe.is_on_floor() and i >= 1:
+				break
+			if probe.global_position.y < -30.0:
+				break
+		return probe.global_position
+	var key := func(q: Vector3) -> Vector3i:
+		return Vector3i(roundi(q.x / G), roundi(q.y / 0.5), roundi(q.z / G))
+	# --as-walk=x0,z0,x1,z1[,y0] — пройти щупом по прямой и напечатать, во что он упёрся (разбор найденной ловушки)
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--as-walk="):
+			var v := a.substr(10).split_floats(",")
+			var wa := Vector3(v[0], v[4] if v.size() > 4 else 3.0, v[1])
+			var wb := Vector3(v[2], 0, v[3])
+			var cur: Vector3 = settle.call(wa)
+			print("[walk] старт %s → к (%.1f, %.1f)" % [str(cur.snapped(Vector3.ONE * 0.01)), wb.x, wb.z])
+			var still := 0
+			for i in 400:
+				var to2 := Vector3(wb.x - probe.global_position.x, 0, wb.z - probe.global_position.z)
+				if to2.length() < 0.15:
+					break
+				var before := probe.global_position
+				mv.call(to2.normalized() * 0.1)
+				var moved := Vector2(probe.global_position.x - before.x, probe.global_position.z - before.z).length()
+				still = still + 1 if moved < 0.02 else 0
+				if i % 5 == 0 or still == 3:
+					var hits := []
+					for ci in probe.get_slide_collision_count():
+						var kc := probe.get_slide_collision(ci)
+						var co := kc.get_collider()
+						var shp := kc.get_collider_shape()
+						var inf := ""
+						if shp is CollisionShape3D and (shp as CollisionShape3D).shape is BoxShape3D:
+							var cs3 := shp as CollisionShape3D
+							inf = " брус %s в %s" % [str(((cs3.shape as BoxShape3D).size).snapped(Vector3.ONE * 0.01)), str(cs3.global_position.snapped(Vector3.ONE * 0.01))]
+						elif shp is Node:
+							inf = " " + String((shp as Node).name)
+						hits.append("%s%s нормаль %s" % [String((co as Node).name) if co is Node else "?", inf, str(kc.get_normal().snapped(Vector3.ONE * 0.01))])
+					print("[walk] %s на полу %s: %s" % [str(probe.global_position.snapped(Vector3.ONE * 0.01)), str(probe.is_on_floor()), "; ".join(hits)])
+				if still >= 6:
+					print("[walk] упёрся")
+					break
+			probe.queue_free()
+			_test_done()
+			return
+	# --as-box=x0,z0,x1,z1 — обойти только этот прямоугольник (быстро; выход за него считается «вышел»);
+	# --as-from=x,z[,y] — начать не от входа, а отсюда
+	var box := Rect2()
+	var from_set := false
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--as-box="):
+			var v := a.substr(9).split_floats(",")
+			box = Rect2(minf(v[0], v[2]), minf(v[1], v[3]), absf(v[2] - v[0]), absf(v[3] - v[1]))
+		elif a.begins_with("--as-from="):
+			var v := a.substr(10).split_floats(",")
+			start = Vector3(v[0], (v[2] if v.size() > 2 else 3.0) - 0.2, v[1])
+			from_set = true
+	var s0: Vector3 = settle.call(start + Vector3.UP * 0.2)
+	var pos := {}                     # узел → точка, где щуп стоял
+	var outside := {}                 # узлы за пределами прямоугольника: считаются «вышел»
+	var nxt := {}                     # узел → [узлы, куда из него можно попасть]
+	var k0: Vector3i = key.call(s0)
+	pos[k0] = s0
+	var queue: Array[Vector3i] = [k0]
+	var qi := 0
+	var holes := []
+	var lim := Vector2(320, 320)
+	var tick := Time.get_ticks_msec()
+	while qi < queue.size():
+		var k: Vector3i = queue[qi]
+		qi += 1
+		var from: Vector3 = pos[k]
+		var outs := []
+		for d in dirs:
+			probe.global_position = from
+			vy[0] = 0.0
+			mv.call(Vector3.ZERO)
+			# шаг — пока щуп не пройдёт по горизонтали больше клетки (на уклоне ход короче: без этого щуп
+			# оставался в своей клетке и уклон выглядел тупиком); по диагонали — больше клетки по каждой оси
+			var need := G * (1.04 if absf(d.x) < 0.01 or absf(d.z) < 0.01 else 1.5)
+			for si in SUB * 4:
+				mv.call(d * (G / float(SUB)))
+				if Vector2(probe.global_position.x - from.x, probe.global_position.z - from.z).length() >= need:
+					break
+			var guard := 0
+			while not probe.is_on_floor() and probe.global_position.y > -30.0 and guard < 90:
+				mv.call(Vector3.ZERO)
+				guard += 1
+			var to := probe.global_position
+			if to.y <= -30.0:
+				if holes.size() < 12:
+					holes.append("(%.1f, %.1f) → %s" % [from.x, from.z, str(d)])
+				continue
+			if absf(to.x) > lim.x or absf(to.z) > lim.y:
+				continue
+			var k2: Vector3i = key.call(to)
+			if k2 == k:
+				continue
+			if not pos.has(k2):
+				pos[k2] = to
+				if box.size.x > 0.0 and not box.has_point(Vector2(to.x, to.z)):
+					outside[k2] = true
+				else:
+					queue.append(k2)
+			if not outs.has(k2):
+				outs.append(k2)
+		nxt[k] = outs
+		if Time.get_ticks_msec() - tick > 250:
+			await get_tree().process_frame
+			tick = Time.get_ticks_msec()
+			if qi % 2000 < 40:
+				print("[trap] … узлов %d, разобрано %d" % [pos.size(), qi])
+	# обратная достижимость: из каких узлов можно вернуться ко входу
+	var back := {}
+	for k in nxt:
+		for k2 in nxt[k]:
+			if not back.has(k2):
+				back[k2] = []
+			(back[k2] as Array).append(k)
+	var home := {k0: true}
+	var st: Array[Vector3i] = [k0]
+	if box.size.x > 0.0:
+		home = {}
+		st = []
+		for k in outside:
+			home[k] = true
+			st.append(k)
+	while not st.is_empty():
+		var k: Vector3i = st.pop_back()
+		for k2 in back.get(k, []):
+			if not home.has(k2):
+				home[k2] = true
+				st.append(k2)
+	var traps := {}
+	for k in pos:
+		if not home.has(k):
+			traps[k] = true
+	# группы соседних ловушек
+	var groups := []
+	var seen := {}
+	for k in traps:
+		if seen.has(k):
+			continue
+		var grp := []
+		var st2: Array[Vector3i] = [k]
+		seen[k] = true
+		while not st2.is_empty():
+			var c: Vector3i = st2.pop_back()
+			grp.append(c)
+			for dx in [-1, 0, 1]:
+				for dz in [-1, 0, 1]:
+					for dy in [-1, 0, 1]:
+						var c2 := Vector3i(c.x + dx, c.y + dy, c.z + dz)
+						if traps.has(c2) and not seen.has(c2):
+							seen[c2] = true
+							st2.append(c2)
+		groups.append(grp)
+	groups.sort_custom(func(a, b): return (a as Array).size() > (b as Array).size())
+	print("[trap] %s: обойдено мест %d (шаг %.1f м), за %.0f с; ловушек — %d мест в %d группах; провалов под карту — %d" % [place, pos.size(), G, (Time.get_ticks_msec() - t0) / 1000.0, traps.size(), groups.size(), holes.size()])
+	for h in holes:
+		print("[trap] провал под карту: %s" % h)
+	var lines := []
+	for gi in groups.size():
+		var grp: Array = groups[gi]
+		var lo := Vector3(1e9, 1e9, 1e9)
+		var hi := Vector3(-1e9, -1e9, -1e9)
+		for c in grp:
+			var q: Vector3 = pos[c]
+			lo = lo.min(q)
+			hi = hi.max(q)
+		# откуда туда попадают: узел «дома», из которого есть переход в группу
+		var entry_from := ""
+		for c in grp:
+			for kb in back.get(c, []):
+				if home.has(kb):
+					var qa: Vector3 = pos[kb]
+					var qb: Vector3 = pos[c]
+					entry_from = "вход из (%.1f, %.2f, %.1f) в (%.1f, %.2f, %.1f)" % [qa.x, qa.y, qa.z, qb.x, qb.y, qb.z]
+					break
+			if entry_from != "":
+				break
+		var ln := "группа %d: мест %d, x %.1f…%.1f, z %.1f…%.1f, высота %.2f…%.2f; %s" % [gi + 1, grp.size(), lo.x, hi.x, lo.z, hi.z, lo.y, hi.y, entry_from]
+		lines.append(ln)
+		if gi < 40:
+			print("[trap] " + ln)
+		if gi < 3:
+			# самые высокие места группы и куда из них уходит щуп — для разбора
+			var tops: Array = grp.duplicate()
+			tops.sort_custom(func(x, y): return (pos[x] as Vector3).y > (pos[y] as Vector3).y)
+			var far: Array = grp.duplicate()
+			far.sort_custom(func(x, y): return (pos[x] as Vector3).z < (pos[y] as Vector3).z)
+			tops = tops.slice(0, 3) + far.slice(0, 8)
+			for ti in tops.size():
+				var tk: Vector3i = tops[ti]
+				var outs2 := []
+				for k2 in nxt.get(tk, []):
+					outs2.append(str((pos[k2] as Vector3).snapped(Vector3.ONE * 0.01)) + ("" if traps.has(k2) else " ВЫХОД"))
+				print("[trap]    верх %s → %s" % [str((pos[tk] as Vector3).snapped(Vector3.ONE * 0.01)), ", ".join(outs2)])
+	if out != "" and not out.begins_with("user://"):
+		DirAccess.make_dir_recursive_absolute(out)
+		var f := FileAccess.open("%s/trap_%s.txt" % [out, place], FileAccess.WRITE)
+		f.store_string("\n".join(lines))
+		f.close()
+	_ok("%s: от входа обойдено %d мест, ловушек (зашёл — не выйти) нет, провалов под карту нет" % [place, pos.size()], traps.is_empty() and holes.is_empty(), "ловушек %d в %d группах, провалов %d" % [traps.size(), groups.size(), holes.size()])
+	probe.queue_free()
+	_test_done()
+
+
 func _carin_test() -> void:
 	var t0 := Time.get_ticks_msec()
 	while not cs_ready and Time.get_ticks_msec() - t0 < 60000:

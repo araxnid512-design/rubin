@@ -829,8 +829,21 @@ func _p_ship(g: Node3D, s: Dictionary) -> void:
 	var t2: Vector2 = to_w.call(float(st[1]), ss)
 	var lo_i := level_at.call(b2) as int
 	var hi_i := level_at.call(t2 + (t2 - b2).normalized() * 0.4) as int
+	# верх трапа — ровно на кромке настила той палубы, куда он ведёт (настил набран клетками по 0,5 м, и кромка
+	# не совпадает с описанной в долях корпуса): иначе у края остаётся порожек. У баржи он был 13 см — капсула героя
+	# через такой не переступает, и из трюма нельзя было выйти (герой застревал)
+	if lo_i >= 0 and hi_i >= 0 and lo_i != hi_i:
+		var sdir := (t2 - b2).normalized()
+		var kk2 := 0.0
+		while kk2 <= b2.distance_to(t2) + 1.0:
+			var qq: Vector2 = b2 + sdir * kk2
+			if int(cell.call(int(floor((qq.x - ox) / cs)), int(floor((qq.y - oz) / cs)))) == hi_i:
+				if kk2 > 0.5:
+					t2 = b2 + sdir * (kk2 + 0.03)
+				break
+			kk2 += 0.02
 	var st0 := Vector3(b2.x, float(y_lv[maxi(lo_i, 0)]), b2.y)
-	var st1 := Vector3(t2.x, float(y_lv[maxi(hi_i, 0)]), t2.y)
+	var st1 := Vector3(t2.x, float(y_lv[maxi(hi_i, 0)]) + 0.02, t2.y)
 	if lo_i < 0 or hi_i < 0 or lo_i == hi_i:
 		push_warning("порт: трап судна %s не соединяет две палубы (%d → %d)" % [id, lo_i, hi_i])
 	var sa := Vector2(st0.x, st0.z)
@@ -884,7 +897,11 @@ func _p_ship(g: Node3D, s: Dictionary) -> void:
 						for ddz in [-1, 0, 1]:
 							if int(cell.call(ix + ddx, iz + ddz)) >= 0:
 								near = true
-					if near and _seg_dist(q, ga, gb) > 1.15 and _seg_dist(q, sa, sb) > 1.05:
+					# у трапа преграда не ставится (иначе она перекрыла бы проход) — но только сбоку от него. За верхним
+					# концом трапа клетка без настила оставалась открытой ямой (у грузового судна трап выходит к самому
+					# краю верхней палубы: шаг в сторону — и герой зажат между бортом и настилом)
+					var past_top := (q - sb).dot((sb - sa).normalized()) > 0.2
+					if near and _seg_dist(q, ga, gb) > 1.15 and (_seg_dist(q, sa, sb) > 1.05 or past_top):
 						top = y_top
 			if run_a >= 0 and (ai == na or absf(top - run_top) > 0.001):
 				var a_mid := (run_a + ai) * 0.5
