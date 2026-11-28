@@ -385,21 +385,21 @@
 		},
 		"punch_light": {
 			"src": [
-				"{set}/q_punch_jab.res"
+				"{set}/box_01.res"
 			],
 			"loop": false,
 			"inplace": false,
-			"blend": 0.15,
+			"blend": 0.2,
 			"rate": 1.0,
 			"ik": true
 		},
 		"punch_heavy": {
 			"src": [
-				"{set}/q_punch_cross.res"
+				"{set}/box_02.res"
 			],
 			"loop": false,
 			"inplace": false,
-			"blend": 0.15,
+			"blend": 0.2,
 			"rate": 1.0,
 			"ik": true
 		},
@@ -518,11 +518,12 @@
 		},
 		"hit_front": {
 			"src": [
-				"{set}/q_hit_chest.res"
+				"{set}/hit_to_body_01.res",
+				"{set}/hit_to_stomach.res"
 			],
 			"loop": false,
 			"inplace": false,
-			"blend": 0.12,
+			"blend": 0.18,
 			"rate": 1.0,
 			"ik": true
 		},
